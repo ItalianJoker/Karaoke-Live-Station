@@ -203,7 +203,15 @@
     "stageMessageNextSong": "Etiqueta de próxima canción",
     "stageMessageNextSingerUnassigned": "Fallback cantante no asignado",
     "stageMessageUpNextOnStage": "Próxima actuación",
-    "stageMessageFollowingSinger": "Cantante siguiente"
+    "stageMessageFollowingSinger": "Cantante siguiente",
+    "stageMessageBackground": "Fondo del escenario mientras se muestra este mensaje",
+    "stageMessageBackgroundHint": "Opcional. Sustituye el fondo del tema/vídeo del escenario solo mientras el mensaje es visible; al ocultarse se restaura el aspecto normal.",
+    "stageMessageBackgroundNone": "Ninguno (mantener tema del escenario)",
+    "stageMessageBackgroundColor": "Color sólido",
+    "stageMessageBackgroundImage": "Imagen",
+    "stageMessageBackgroundImagePlaceholder": "Ninguna imagen seleccionada",
+    "stageMessageBackgroundBrowse": "Examinar…",
+    "stageMessageBackgroundClear": "Borrar"
   },
   "history": {
     "title": "Historial de Reproducción",

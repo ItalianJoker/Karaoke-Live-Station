@@ -60,6 +60,7 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 - **Video a Tutto Schermo (Edge-to-Edge al 100%)**: Lo Schermo Palco massimizza l'area visiva senza cornici o padding sprecato, adattando video 16:9, 4:3 e panoramici senza distorsioni.
 - **Titolo Brano Flottante a Scomparsa**: Titolo e artista appaiono fluttuanti in basso al centro per una durata configurabile nelle opzioni (da 2 a 30 secondi, default 8s) per poi dissolversi dolcemente, lasciando il video e il testo del karaoke privi di ostacoli visivi.
 - **Barra di Avanzamento a Basso Profilo**: Barra di avanzamento ultra-sottile integrata a filo sul bordo estremo inferiore.
+- **Messaggi Stage personalizzabili (testo, stile, sfondo)**: In Impostazioni → Schermo Stage puoi modificare testo, grassetto/corsivo, dimensione, attivazione e **sfondo dello Stage (colore o immagine) per ogni messaggio** (es. “Prossimo cantante”). Lo sfondo personalizzato vale solo mentre il messaggio è visibile; al termine torna lo sfondo normale del tema/video.
 - **Badge Tonalità Configurabile su Schermo Palco**: Possibilità di mostrare o nascondere nelle Opzioni il badge con i semitoni di variazione (+/-) rispetto alla tonalità originale (`showPitchOnStage`).
 
 ### 📁 Configurazione Libreria & Anteprima Video Versioni
@@ -339,6 +340,7 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 - **100% Edge-to-Edge Video Utilization**: Maximizes available display area on the Stage Screen with zero wasted padding or borders, supporting 16:9, 4:3, and ultrawide video ratios without aspect ratio distortion.
 - **Temporary Floating Song Title Banner**: Track title and artist float at the bottom center of the video for a user-configurable duration (2–30 seconds, 8s default) before smoothly fading out, ensuring singer lyrics remain completely unobstructed.
 - **Low-Profile Flush Progress Bar**: Ultra-thin progress indicator along the screen's bottom edge with subtle illumination that never hides subtitles.
+- **Customizable Stage messages (text, style, background)**: Under Settings → Stage Screen you can edit text, bold/italic, size, enable/disable, and a **per-message Stage background (solid color or image)** (e.g. “Up next”). The custom backdrop applies only while that message is visible; when it hides, the normal theme/video Stage look is restored.
 - **Configurable Stage Monitor Pitch Badge**: Option in Settings to show or hide the semitone transposition badge (+/-) on the singer stage monitor (`showPitchOnStage`).
 
 ### 📁 Configurable Library Path & Video Version Previews

@@ -5,7 +5,10 @@ import { ActivePlaybackState, AppSettings, QueueItem } from '../../shared/types'
 import {
   mergeStageMessages,
   resolveStageMessage,
-  stageMessageCss
+  stageMessageCss,
+  pickActiveStageMessageBackground,
+  stageMessageBackgroundCss,
+  type StageMessageKey
 } from '../../shared/stageMessages';
 import { CdgParser } from '../core/CdgParser';
 import { useKaraokeStore } from '../store/karaokeStore';
@@ -24,6 +27,9 @@ import appLogo from '../assets/logo.png';
  *    - Displays floating song title & artist banner at bottom center for a configurable duration
  *      (`settings.titleOverlayDurationSec`, e.g. 8s default) before smoothly disappearing.
  *    - Displays upcoming singer announcements and countdown intro/outro banners ("Now Singing" / "Get Ready").
+ *    - Optional per-message Stage backdrop (solid color or image) while those overlays are visible;
+ *      when no message with a backdrop is on screen, the normal theme/video Stage look is restored
+ *      without restarting (settings sync live over IPC).
  * 3. Muted Secondary Video:
  *    - Audio is completely muted and zeroed out on this display to prevent audio doubling/echoes
  *      with the main operator audio graph.
@@ -475,6 +481,45 @@ export const StageWindow: React.FC = () => {
   const followingSingerLabel =
     followingItem?.assignedSingerName || (unassignedMsg.enabled ? unassignedMsg.text : '');
 
+
+  // Track which overlay messages are painted this frame (enabled + timing gates).
+  // Backdrop overrides apply only for this set; when it empties the override layer
+  // unmounts and the normal Stage theme/video background is restored immediately
+  // (settings already sync live via sync:settings — no Stage restart required).
+  const visibleStageMessageKeys: StageMessageKey[] = [];
+  if (showIntroBanner) {
+    if (nowSingingMsg.enabled) visibleStageMessageKeys.push('nowSinging');
+    if ((settings?.showNextSingerAtIntro ?? true) && nextQueueItem) {
+      if (upNextIntroMsg.enabled) visibleStageMessageKeys.push('upNextIntro');
+      if (!nextQueueItem.assignedSingerName && unassignedMsg.enabled) {
+        visibleStageMessageKeys.push('nextSingerUnassigned');
+      }
+    }
+  }
+  if (showOutroBanner) {
+    if (getReadyMsg.enabled) visibleStageMessageKeys.push('getReady');
+    if (nextQueueItem && nextSongMsg.enabled) visibleStageMessageKeys.push('nextSong');
+  }
+  if (isPostSongOrWaiting && upcomingItem) {
+    if (upNextOnStageMsg.enabled) visibleStageMessageKeys.push('upNextOnStage');
+    if (!upcomingItem.assignedSingerName && unassignedMsg.enabled) {
+      visibleStageMessageKeys.push('nextSingerUnassigned');
+    }
+    if (followingItem) {
+      if (followingSingerMsg.enabled) visibleStageMessageKeys.push('followingSinger');
+      if (!followingItem.assignedSingerName && unassignedMsg.enabled) {
+        visibleStageMessageKeys.push('nextSingerUnassigned');
+      }
+    }
+  }
+  const activeMessageBackground = pickActiveStageMessageBackground(
+    stageMessages,
+    visibleStageMessageKeys
+  );
+  const messageBackgroundCss = activeMessageBackground
+    ? stageMessageBackgroundCss(activeMessageBackground)
+    : null;
+
   if (!isStageReady) {
     return <div className="w-screen h-screen bg-black" />;
   }
@@ -484,6 +529,17 @@ export const StageWindow: React.FC = () => {
       onDoubleClick={toggleFullscreen}
       className="stage-screen-container w-screen h-screen relative overflow-hidden select-none flex items-center justify-center cursor-pointer"
     >
+      {/* Message backdrop: full-bleed override while banners/waiting card are visible.
+          pointer-events-none so double-click fullscreen and video interaction still work.
+          Unmounts when messageBackgroundCss is null → normal Stage look returns. */}
+      {messageBackgroundCss && (
+        <div
+          className="absolute inset-0 z-[5] pointer-events-none transition-opacity duration-300"
+          style={messageBackgroundCss}
+          data-testid="stage-message-background"
+          aria-hidden
+        />
+      )}
       {/* Intro Banner: Ora Canta (+ Next Singer if enabled in settings) */}
       {showIntroBanner && (nowSingingMsg.enabled || ((settings?.showNextSingerAtIntro ?? true) && nextQueueItem && (upNextIntroMsg.enabled || unassignedMsg.enabled))) && (
         <div className="absolute top-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50 pointer-events-none">
@@ -679,7 +735,9 @@ export const StageWindow: React.FC = () => {
         {isPostSongOrWaiting && upcomingItem && (
           <div
             onDoubleClick={toggleFullscreen}
-            className="absolute inset-0 z-30 bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-center p-6 md:p-12 text-center select-none animate-fadeIn"
+            className={`absolute inset-0 z-30 flex flex-col items-center justify-center p-6 md:p-12 text-center select-none animate-fadeIn ${
+              messageBackgroundCss ? 'bg-transparent' : 'bg-slate-950/95 backdrop-blur-2xl'
+            }`}
           >
             {/* Ambient atmospheric lighting */}
             <div className="absolute w-[600px] h-[600px] bg-indigo-600/15 rounded-full blur-3xl pointer-events-none animate-pulse -top-20" />

@@ -203,7 +203,15 @@
     "stageMessageNextSong": "Etichetta prossima canzone",
     "stageMessageNextSingerUnassigned": "Fallback cantante non assegnato",
     "stageMessageUpNextOnStage": "Prossima esibizione",
-    "stageMessageFollowingSinger": "Cantante a seguire"
+    "stageMessageFollowingSinger": "Cantante a seguire",
+    "stageMessageBackground": "Sfondo Stage durante questo messaggio",
+    "stageMessageBackgroundHint": "Opzionale. Sostituisce lo sfondo tema/video dello Stage solo mentre il messaggio è visibile; al termine torna lo sfondo normale.",
+    "stageMessageBackgroundNone": "Nessuno (mantieni tema Stage)",
+    "stageMessageBackgroundColor": "Colore solido",
+    "stageMessageBackgroundImage": "Immagine",
+    "stageMessageBackgroundImagePlaceholder": "Nessuna immagine selezionata",
+    "stageMessageBackgroundBrowse": "Sfoglia…",
+    "stageMessageBackgroundClear": "Cancella"
   },
   "history": {
     "title": "Storico Esecuzioni",

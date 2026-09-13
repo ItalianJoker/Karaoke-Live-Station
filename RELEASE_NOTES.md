@@ -70,6 +70,7 @@ Benvenuti alla release ufficiale di **Karaoke Live Station**, la workstation des
 - L'algoritmo di rotazione anti-monopolio Fair Queue è ora attivo per impostazione predefinita (`enableFairQueue: true`), garantendo un'esperienza di scaletta bilanciata e meritocratica out-of-the-box.
 
 ### 🎛️ Affinamenti UI & Schermo Palco
+- **Sfondo Stage durante i messaggi**: Per ogni messaggio overlay (Ora Canta, Preparati, Prossimo cantante, …) è possibile impostare uno sfondo dedicato a colore solido o immagine. Lo Stage applica lo sfondo solo mentre il messaggio è visibile e ripristina tema/video al termine.
 - **Toggle Mostra Tonalità su Schermo Palco**: Aggiunta nelle opzioni la possibilità di mostrare o nascondere il badge dei semitoni di variazione (+/-) sullo schermo del palco (`showPitchOnStage`).
 - **Aggiornamento Messaggio Guida**: Sostituita la dicitura con *"💡 Doppio click o Play per avviare"* in tutti i componenti e nei file di localizzazione (IT, EN, ES, FR).
 
@@ -238,6 +239,7 @@ Welcome to the official release of **Karaoke Live Station**, the professional, c
 - The anti-monopoly Fair Queue rotation algorithm is now turned on by default (`enableFairQueue: true`), providing a balanced and fair singer rotation experience out-of-the-box.
 
 ### 🎛️ UI Refinements & Stage Monitor
+- **Stage background during messages**: Each overlay message (Now Singing, Get Ready, Up Next, …) can use a dedicated solid-color or image backdrop. Stage applies it only while the message is visible and restores the theme/video look when it hides.
 - **Toggle Stage Monitor Pitch Badge**: Added an option in settings to show or hide the semitone shift (+/-) badge on the stage monitor display (`showPitchOnStage`).
 - **Updated Guidance Prompt**: Replaced start instructions with *"💡 Double click or Play to start"* across all components and localization bundles (IT, EN, ES, FR).
 

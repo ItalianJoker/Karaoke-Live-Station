@@ -400,6 +400,10 @@ Impostazione **Mostra variazione tonalità sullo schermo del palco** (`showPitch
 - Il valore **0** è comunque visualizzato quando il toggle è attivo (il cantante vede che non c’è trasposizione)
 - Descrizione UI: «Visualizza il badge con i semitoni di variazione (+/-) sullo schermo del palco per il cantante.»
 
+### 7.2a Sfondi personalizzati dei messaggi Stage
+
+In **Impostazioni → Schermo Stage**, ogni messaggio overlay (Ora Canta, Preparati, Prossimo sul palco, …) può definire testo/stile/attivazione e uno **sfondo Stage (colore o immagine) valido solo mentre il messaggio è visibile**. Al termine (o se disattivato) torna lo sfondo normale tema/video, senza riavvio.
+
 ### 7.3 Fullscreen e layout
 
 - **`F11`** / **`Esc`** con focus sullo Stage

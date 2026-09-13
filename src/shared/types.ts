@@ -43,6 +43,9 @@ export interface LogEntry {
  */
 
 /** Visual formatting for a customizable Stage overlay message. */
+/** How the Stage backdrop is overridden while this message is visible. */
+export type StageMessageBackgroundMode = 'none' | 'color' | 'image';
+
 export interface StageMessageStyle {
   /** Show this message on Stage */
   enabled: boolean;
@@ -55,6 +58,19 @@ export interface StageMessageStyle {
   italic: boolean;
   /** Font size in CSS pixels */
   fontSizePx: number;
+  /**
+   * Optional Stage backdrop override while this message is on screen.
+   * `none` keeps the normal theme/video Stage background.
+   * Lifecycle: applied only while the message is visible+enabled; cleared when it hides.
+   */
+  backgroundMode: StageMessageBackgroundMode;
+  /** CSS color used when backgroundMode === 'color' (e.g. #0f172a). */
+  backgroundColor: string;
+  /**
+   * Absolute filesystem path to a still image used when backgroundMode === 'image'.
+   * Stage converts this to the privileged karaoke://local/ URL for safe rendering.
+   */
+  backgroundImagePath: string;
 }
 
 /** Operator-editable Stage overlay copy + formatting. */

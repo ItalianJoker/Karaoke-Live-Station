@@ -1285,6 +1285,95 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                               {t('settings.stageMessageReset')}
                             </button>
                           </div>
+
+                          {/* Per-message Stage backdrop: applies only while this message is visible. */}
+                          <div className="pt-2 border-t border-slate-800/60 space-y-2">
+                            <label className="block text-[11px] text-slate-400">
+                              {t('settings.stageMessageBackground')}
+                            </label>
+                            <p className="text-[10px] text-slate-500 leading-relaxed">
+                              {t('settings.stageMessageBackgroundHint')}
+                            </p>
+                            <select
+                              value={style.backgroundMode || 'none'}
+                              onChange={(e) =>
+                                updateStageMessage(key, {
+                                  backgroundMode: e.target.value as 'none' | 'color' | 'image'
+                                })
+                              }
+                              disabled={!style.enabled}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 disabled:opacity-40"
+                              data-testid={`settings-stage-message-bg-mode-${key}`}
+                            >
+                              <option value="none">{t('settings.stageMessageBackgroundNone')}</option>
+                              <option value="color">{t('settings.stageMessageBackgroundColor')}</option>
+                              <option value="image">{t('settings.stageMessageBackgroundImage')}</option>
+                            </select>
+
+                            {(style.backgroundMode || 'none') === 'color' && (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="color"
+                                  value={style.backgroundColor || '#0f172a'}
+                                  onChange={(e) =>
+                                    updateStageMessage(key, { backgroundColor: e.target.value })
+                                  }
+                                  disabled={!style.enabled}
+                                  className="w-10 h-8 rounded border border-slate-700 bg-slate-900 cursor-pointer"
+                                  aria-label={t('settings.stageMessageBackgroundColor')}
+                                />
+                                <input
+                                  type="text"
+                                  value={style.backgroundColor || '#0f172a'}
+                                  onChange={(e) =>
+                                    updateStageMessage(key, { backgroundColor: e.target.value })
+                                  }
+                                  disabled={!style.enabled}
+                                  className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
+                                />
+                              </div>
+                            )}
+
+                            {(style.backgroundMode || 'none') === 'image' && (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  value={style.backgroundImagePath || ''}
+                                  placeholder={t('settings.stageMessageBackgroundImagePlaceholder')}
+                                  className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-300 truncate"
+                                />
+                                <button
+                                  type="button"
+                                  disabled={!style.enabled}
+                                  className="shrink-0 px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 disabled:opacity-40"
+                                  onClick={async () => {
+                                    const path = await window.karaokeApi?.dialog?.openImageFile?.();
+                                    if (path) {
+                                      updateStageMessage(key, {
+                                        backgroundMode: 'image',
+                                        backgroundImagePath: path
+                                      });
+                                    }
+                                  }}
+                                >
+                                  {t('settings.stageMessageBackgroundBrowse')}
+                                </button>
+                                {style.backgroundImagePath ? (
+                                  <button
+                                    type="button"
+                                    disabled={!style.enabled}
+                                    className="shrink-0 px-2 py-1.5 text-xs rounded-lg text-slate-400 hover:text-slate-200 disabled:opacity-40"
+                                    onClick={() =>
+                                      updateStageMessage(key, { backgroundImagePath: '' })
+                                    }
+                                  >
+                                    {t('settings.stageMessageBackgroundClear')}
+                                  </button>
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     });

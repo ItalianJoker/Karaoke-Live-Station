@@ -203,7 +203,15 @@
     "stageMessageNextSong": "Next song label",
     "stageMessageNextSingerUnassigned": "Unassigned singer fallback",
     "stageMessageUpNextOnStage": "Upcoming on stage",
-    "stageMessageFollowingSinger": "Following singer"
+    "stageMessageFollowingSinger": "Following singer",
+    "stageMessageBackground": "Stage background while this message is shown",
+    "stageMessageBackgroundHint": "Optional. Overrides the Stage theme/video backdrop only while this message is visible; the normal Stage look returns when it hides.",
+    "stageMessageBackgroundNone": "None (keep Stage theme)",
+    "stageMessageBackgroundColor": "Solid color",
+    "stageMessageBackgroundImage": "Image",
+    "stageMessageBackgroundImagePlaceholder": "No image selected",
+    "stageMessageBackgroundBrowse": "Browse…",
+    "stageMessageBackgroundClear": "Clear"
   },
   "history": {
     "title": "Playback History",

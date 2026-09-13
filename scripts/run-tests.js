@@ -1157,6 +1157,50 @@ assert(
 
 
 // -------------------------------------------------------------
+
+// -------------------------------------------------------------
+// Suite: Stage message backgrounds
+// -------------------------------------------------------------
+const stageMessagesBgSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/stageMessages.ts'),
+  'utf8'
+);
+const stageWindowBgSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/StageWindow.tsx'),
+  'utf8'
+);
+const settingsBgSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+  'utf8'
+);
+const typesBgSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/types.ts'),
+  'utf8'
+);
+const preloadBgSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/preload/index.ts'),
+  'utf8'
+);
+assert(
+  typesBgSource.includes('StageMessageBackgroundMode') &&
+    typesBgSource.includes('backgroundMode') &&
+    typesBgSource.includes('backgroundColor') &&
+    typesBgSource.includes('backgroundImagePath') &&
+    stageMessagesBgSource.includes('pickActiveStageMessageBackground') &&
+    stageMessagesBgSource.includes('stageMessageBackgroundCss') &&
+    stageMessagesBgSource.includes('STAGE_MESSAGE_BACKGROUND_PRIORITY') &&
+    stageWindowBgSource.includes('stage-message-background') &&
+    stageWindowBgSource.includes('pickActiveStageMessageBackground') &&
+    settingsBgSource.includes('settings-stage-message-bg-mode-') &&
+    settingsBgSource.includes('stageMessageBackground') &&
+    preloadBgSource.includes('openImageFile') &&
+    localeEnStage.settings.stageMessageBackground &&
+    localeItStage.settings.stageMessageBackground &&
+    localeEsStage.settings.stageMessageBackground &&
+    localeFrStage.settings.stageMessageBackground,
+  'Per-message Stage backgrounds: types, helpers, Settings UI, Stage layer, locales, image picker'
+);
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');

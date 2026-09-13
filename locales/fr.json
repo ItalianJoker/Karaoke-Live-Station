@@ -203,7 +203,15 @@
     "stageMessageNextSong": "Libellé chanson suivante",
     "stageMessageNextSingerUnassigned": "Fallback chanteur non assigné",
     "stageMessageUpNextOnStage": "Prochaine prestation",
-    "stageMessageFollowingSinger": "Chanteur suivant"
+    "stageMessageFollowingSinger": "Chanteur suivant",
+    "stageMessageBackground": "Fond scène pendant ce message",
+    "stageMessageBackgroundHint": "Optionnel. Remplace le fond thème/vidéo de la scène uniquement pendant l’affichage du message ; l’apparence normale revient à la disparition.",
+    "stageMessageBackgroundNone": "Aucun (conserver le thème scène)",
+    "stageMessageBackgroundColor": "Couleur unie",
+    "stageMessageBackgroundImage": "Image",
+    "stageMessageBackgroundImagePlaceholder": "Aucune image sélectionnée",
+    "stageMessageBackgroundBrowse": "Parcourir…",
+    "stageMessageBackgroundClear": "Effacer"
   },
   "history": {
     "title": "Historique de Lecture",

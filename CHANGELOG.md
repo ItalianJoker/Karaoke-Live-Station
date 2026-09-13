@@ -11,6 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 Shipped from PR #1 (`cursor/phase-1-portability-ytdlp-855c`).
 
 ### Added
+- Per-message Stage background (color/image) while overlay messages are visible.
 
 #### Architecture & portability (Phase 1)
 - Portable resolution of managed binaries under Electron `userData` (`<app_userData>/bin/`) for yt-dlp and helpers

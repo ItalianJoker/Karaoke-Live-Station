@@ -153,6 +153,8 @@ export interface KaraokeAPI {
     openMediaFile: () => Promise<string | null>;
     /** Opens a native directory picker for folder scanning */
     openDirectory: () => Promise<string | null>;
+    /** Opens a native file picker for Stage backdrop images (png/jpg/webp/gif) */
+    openImageFile: () => Promise<string | null>;
   };
 
   // 9. System Defaults & First-Run Paths
@@ -330,7 +332,11 @@ const karaokeApi: KaraokeAPI = {
       ipcRenderer.invoke('dialog:open-file', [
         { name: 'Karaoke Files (*.mp4, *.mp3, *.mid, *.kar, *.cdg)', extensions: ['mp4', 'mp3', 'mid', 'kar', 'cdg', 'webm'] }
       ]),
-    openDirectory: () => ipcRenderer.invoke('dialog:open-directory')
+    openDirectory: () => ipcRenderer.invoke('dialog:open-directory'),
+    openImageFile: () =>
+      ipcRenderer.invoke('dialog:open-file', [
+        { name: 'Images (*.png, *.jpg, *.jpeg, *.webp, *.gif)', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }
+      ])
   },
 
   // System Defaults
