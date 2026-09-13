@@ -176,3 +176,4 @@ Welcome to the official release of **Karaoke Live Station**, the professional, c
 
 ### ☕ Support the Project
 - Integrated PayPal donation banner for voluntary contributions to support continuous development and maintenance.
+
