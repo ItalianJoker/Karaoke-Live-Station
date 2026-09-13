@@ -1,0 +1,1665 @@
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  Play,
+  Pause,
+  Square,
+  SkipForward,
+  RotateCcw,
+  Volume2,
+  VolumeX,
+  Mic,
+  Music,
+  Sliders,
+  Sparkles,
+  QrCode,
+  AlertTriangle,
+  Trash2,
+  Settings,
+  Users,
+  Smartphone,
+  Layers,
+  Edit2,
+  Check,
+  X,
+  Search,
+  ChevronDown,
+  User,
+  Star,
+  History,
+  GripVertical
+} from 'lucide-react';
+import { useKaraokeStore } from '../store/karaokeStore';
+import { AudioGraphManager } from '../core/AudioGraphManager';
+import { MidiChannelMixer } from './MidiChannelMixer';
+import { LibraryPanel } from './LibraryPanel';
+import { HistoryPanel } from './HistoryPanel';
+import { SettingsModal } from './SettingsModal';
+import { SingersModal } from './SingersModal';
+import { GuestRequestsModal } from './GuestRequestsModal';
+import { AppSettings } from '../../shared/types';
+import appLogo from '../assets/logo.png';
+
+/**
+ * ControlWindow (Regia Operator Console)
+ *
+ * This is the primary mission-control window used by the karaoke operator/DJ.
+ * Key responsibilities:
+ * 1. Audio & Video Playback:
+ *    - Hosts the hidden/docked `<video>` element for MP4/WEBM tracks.
+ *    - Integrates with AudioGraphManager for real-time Web Audio DSP (pitch shifting in semitones,
+ *      vocal cancellation via center-channel attenuation, mic ducking, and SpessaSynth MIDI synthesis).
+ * 2. Stage Sync Dispatch:
+ *    - Continuously transmits authoritative playback state (currentTime, isPlaying, duration, pitch)
+ *      and queue updates to the separate audience-facing StageWindow via Electron IPC.
+ * 3. Fair Queue & Singer Management:
+ *    - Renders the fair-queue rotation with live singer combobox auto-complete and search.
+ *    - Allows manual track jumps, per-track pitch pre-adjustment, and instant queue manipulation.
+ * 4. Timeline Scrubbing & Seeking:
+ *    - Interactive progress bar with real-time frame seeking and synchronized timecode broadcasts.
+ * 5. Headphone CUE & Library Management:
+ *    - Independent CUE preview routing to secondary soundcards for pre-listening tracks.
+ *    - Integrated local SQLite database search and yt-dlp web downloader with live progress updates.
+ * 6. Historical Execution Log & SIAE Reporting:
+ *    - Dedicated History tab tracking completed song executions with performer names, timestamps, and durations.
+ *    - 1-click SIAE / copyright CSV borderò export and persistent execution clearing.
+ */
+export const ControlWindow: React.FC = () => {
+  const { t } = useTranslation();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioGraphRef = useRef<AudioGraphManager | null>(null);
+
+  // Modals visibility
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showSingersModal, setShowSingersModal] = useState(false);
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [showPortalQrModal, setShowPortalQrModal] = useState(false);
+
+  // View tabs on right panel: 'queue' | 'library' | 'history'
+  const [activeRightTab, setActiveRightTab] = useState<'queue' | 'library' | 'history'>('queue');
+
+  const [portalInfo, setPortalInfo] = useState<{ enabled: boolean; url: string; qrCode: string; port?: number; ip?: string }>({
+    enabled: false,
+    url: '',
+    qrCode: ''
+  });
+
+  useEffect(() => {
+    if (showPortalQrModal && window.karaokeApi?.guestPortal) {
+      window.karaokeApi.guestPortal.getInfo().then(setPortalInfo);
+    }
+  }, [showPortalQrModal]);
+
+  const [editingSingerItem, setEditingSingerItem] = useState<import('../../shared/types').QueueItem | null>(null);
+  const [editingSingerText, setEditingSingerText] = useState<string>('');
+  const [isSingerDropdownOpen, setIsSingerDropdownOpen] = useState<boolean>(false);
+  const [singerHighlightIndex, setSingerHighlightIndex] = useState<number>(-1);
+  const [isScrubbing, setIsScrubbing] = useState<boolean>(false);
+  const [scrubTime, setScrubTime] = useState<number | null>(null);
+  const [stageOpen, setStageOpen] = useState(true);
+  const [activeCueUri, setActiveCueUri] = useState<string | undefined>(undefined);
+  const [downloadProgress, setDownloadProgress] = useState<{ percent: number; speed: string } | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const loadedTrackQueueIdRef = useRef<string | null>(null);
+
+  // Store hooks
+  const settings = useKaraokeStore((state) => state.settings);
+  const playback = useKaraokeStore((state) => state.playback);
+  const setPlaybackState = useKaraokeStore((state) => state.setPlaybackState);
+  const togglePlayPause = useKaraokeStore((state) => state.togglePlayPause);
+  const setLivePitch = useKaraokeStore((state) => state.setLivePitch);
+  const setPlaybackSpeed = useKaraokeStore((state) => state.setPlaybackSpeed);
+  const toggleMidiChannelMute = useKaraokeStore((state) => state.toggleMidiChannelMute);
+  const setVocalRemover = useKaraokeStore((state) => state.setVocalRemover);
+  const setDucking = useKaraokeStore((state) => state.setDucking);
+  const queue = useKaraokeStore((state) => state.queue);
+  const reorderQueue = useKaraokeStore((state) => state.reorderQueue);
+  const restoreFairQueueOrder = useKaraokeStore((state) => state.restoreFairQueueOrder);
+  const setQueueItemPitch = useKaraokeStore((state) => state.setQueueItemPitch);
+  const updateTrackInQueue = useKaraokeStore((state) => state.updateTrackInQueue);
+  const updateQueueItemSinger = useKaraokeStore((state) => state.updateQueueItemSinger);
+  const jumpToQueueItem = useKaraokeStore((state) => state.jumpToQueueItem);
+  const removeFromQueue = useKaraokeStore((state) => state.removeFromQueue);
+  const advanceToNextTrack = useKaraokeStore((state) => state.advanceToNextTrack);
+  const clearQueue = useKaraokeStore((state) => state.clearQueue);
+  const missingFileModal = useKaraokeStore((state) => state.missingFileModal);
+  const closeMissingFileModal = useKaraokeStore((state) => state.closeMissingFileModal);
+  const pendingRequests = useKaraokeStore((state) => state.pendingGuestRequests);
+  const storeSingers = useKaraokeStore((state) => state.singers);
+
+  const currentQueueItem = queue[0];
+  const currentTrack = currentQueueItem?.track;
+  const isMidiTrack = Boolean(
+    currentTrack &&
+      (currentTrack.uri.endsWith('.mid') ||
+        currentTrack.uri.endsWith('.kar') ||
+        currentTrack.localFilePath?.endsWith('.mid') ||
+        currentTrack.localFilePath?.endsWith('.kar') ||
+        currentTrack.source === 'midi')
+  );
+
+  const knownSingersList = React.useMemo(() => {
+    const map = new Map<string, { name: string; isFavorite: boolean; songCount: number }>();
+    if (storeSingers) {
+      Object.values(storeSingers).forEach((s) => {
+        if (s?.name?.trim()) {
+          const key = s.name.trim().toLowerCase();
+          map.set(key, {
+            name: s.name.trim(),
+            isFavorite: Boolean(s.isPermanentFavorite),
+            songCount: s.songsSungCount || 0
+          });
+        }
+      });
+    }
+    queue.forEach((item) => {
+      const trimmed = item.assignedSingerName?.trim();
+      if (trimmed) {
+        const key = trimmed.toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, {
+            name: trimmed,
+            isFavorite: false,
+            songCount: 1
+          });
+        }
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.isFavorite && !b.isFavorite) return -1;
+      if (!a.isFavorite && b.isFavorite) return 1;
+      if (b.songCount !== a.songCount) return b.songCount - a.songCount;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+  }, [storeSingers, queue]);
+
+  const filteredSingers = React.useMemo(() => {
+    const query = editingSingerText.trim().toLowerCase();
+    if (!query) return knownSingersList;
+    return knownSingersList.filter((s) => s.name.toLowerCase().includes(query));
+  }, [knownSingersList, editingSingerText]);
+
+  // Keep playback.currentTrackId in sync with currentTrack
+  useEffect(() => {
+    if (currentTrack?.id) {
+      if (playback.currentTrackId !== currentTrack.id) {
+        setPlaybackState({ currentTrackId: currentTrack.id });
+      }
+    } else if (playback.currentTrackId) {
+      setPlaybackState({ currentTrackId: undefined });
+    }
+  }, [currentTrack?.id, playback.currentTrackId, setPlaybackState]);
+
+  const handleJumpToTrack = async (index: number) => {
+    audioGraphRef.current?.stopMidiPlayback();
+    await audioGraphRef.current?.initContext();
+    if (index === 0) {
+      handleRestart();
+      if (!playback.isPlaying) {
+        handlePlayPause();
+      }
+    } else {
+      jumpToQueueItem(index);
+    }
+  };
+
+  const handlePlayCue = (uri: string) => {
+    setActiveCueUri(uri);
+    audioGraphRef.current?.playCuePreview(uri, settings.cueAudioDeviceId);
+  };
+
+  const handleStopCue = () => {
+    setActiveCueUri(undefined);
+    audioGraphRef.current?.stopCuePreview();
+  };
+
+  const handlePlayPause = async () => {
+    if (!currentTrack) return;
+    await audioGraphRef.current?.initContext();
+    togglePlayPause();
+  };
+
+  const handleStop = () => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
+    audioGraphRef.current?.stopMidiPlayback();
+    setPlaybackState({ isPlaying: false, currentTime: 0, activeLyricsText: undefined });
+  };
+
+  const handleSeek = (timeSec: number) => {
+    const maxDur = playback.duration > 0 ? playback.duration : 3600;
+    const safeTime = Math.max(0, Math.min(maxDur, timeSec));
+    setPlaybackState({ currentTime: safeTime });
+    if (isMidiTrack) {
+      audioGraphRef.current?.seekMidi(safeTime * 1000);
+    } else if (videoRef.current) {
+      videoRef.current.currentTime = safeTime;
+    }
+    if (typeof window !== 'undefined' && window.karaokeApi) {
+      const curPlayback = {
+        ...useKaraokeStore.getState().playback,
+        currentTime: safeTime
+      };
+      window.karaokeApi.sendStateSync(curPlayback);
+    }
+  };
+
+  const handleRestart = () => {
+    handleSeek(0);
+  };
+
+  // Initialize AudioGraphManager
+  useEffect(() => {
+    const manager = new AudioGraphManager();
+    audioGraphRef.current = manager;
+    manager.setAudioNormalization(useKaraokeStore.getState().settings.enableAudioNormalization ?? true);
+
+    if (videoRef.current) {
+      manager.bindMediaElement(videoRef.current);
+    }
+
+    if (window.karaokeApi?.system?.initPaths) {
+      const curSettings = useKaraokeStore.getState().settings;
+      window.karaokeApi.system
+        .initPaths({
+          libraryPath: curSettings.libraryPath,
+          midiSoundFontPath: curSettings.midiSoundFontPath
+        })
+        .then((res) => {
+          if (res) {
+            const updates: Partial<AppSettings> = {};
+            if (res.midiSoundFontPath && res.midiSoundFontPath !== curSettings.midiSoundFontPath) {
+              updates.midiSoundFontPath = res.midiSoundFontPath;
+            }
+            if (res.libraryPath && res.libraryPath !== curSettings.libraryPath) {
+              updates.libraryPath = res.libraryPath;
+            }
+            if (Object.keys(updates).length > 0) {
+              useKaraokeStore.getState().updateSettings(updates);
+            }
+
+            // Always perform an automatic refresh of the current library on startup if configured
+            const effectiveLibrary = res.libraryPath || curSettings.libraryPath;
+            if (effectiveLibrary) {
+              window.karaokeApi.library
+                .scanFolder(effectiveLibrary)
+                .then((tracks) => {
+                  window.dispatchEvent(
+                    new CustomEvent('karaoke:library-refreshed', {
+                      detail: { count: tracks?.length || 0 }
+                    })
+                  );
+                })
+                .catch((err) => console.warn('Startup library refresh warning:', err));
+            }
+          }
+        })
+        .catch((err) => console.warn('Path initialization notice:', err));
+    } else if (window.karaokeApi?.system?.getDefaultSoundFont) {
+      window.karaokeApi.system.getDefaultSoundFont().then((defaultSf) => {
+        if (defaultSf) {
+          const curSf = useKaraokeStore.getState().settings.midiSoundFontPath;
+          if (!curSf || curSf.includes('default-GM.sf2') || curSf.includes('FluidR3_GM.sf2')) {
+            useKaraokeStore.getState().updateSettings({ midiSoundFontPath: defaultSf });
+          }
+        }
+      });
+    }
+
+    manager.registerLyricCallback((lyric) => {
+      setPlaybackState({ activeLyricsText: lyric?.text });
+    });
+
+    manager.registerPlaybackEndCallback(() => {
+      advanceToNextTrack();
+    });
+
+    if (window.karaokeApi) {
+      window.karaokeApi.guestPortal.getInfo().then(setPortalInfo);
+      useKaraokeStore.getState().loadSingersFromDb();
+
+      // Sync initial store state to main process immediately on mount
+      const initQueue = useKaraokeStore.getState().queue;
+      const initSettings = useKaraokeStore.getState().settings;
+      let initPlayback = useKaraokeStore.getState().playback;
+
+      if (initQueue.length > 0 && !initPlayback.currentTrackId) {
+        initPlayback = {
+          ...initPlayback,
+          currentTrackId: initQueue[0].track.id,
+          livePitchOffset: initQueue[0].pitchOffset,
+          isPlaying: false,
+          currentTime: 0
+        };
+        useKaraokeStore.getState().setPlaybackState(initPlayback);
+      }
+
+      window.karaokeApi.syncQueueCache(initQueue);
+      window.karaokeApi.sendCommand('sync:queue', initQueue);
+      window.karaokeApi.sendCommand('sync:settings', initSettings);
+      window.karaokeApi.sendStateSync(initPlayback);
+
+      const unSubGuest = window.karaokeApi.guestPortal.onRequestReceived((req) => {
+        useKaraokeStore.getState().addGuestRequest(req);
+      });
+
+      const unSubStageStatus = window.karaokeApi.onStageStatusChange(({ isOpen }) => {
+        setStageOpen(isOpen);
+        if (isOpen) {
+          const curQueue = useKaraokeStore.getState().queue;
+          const curSettings = useKaraokeStore.getState().settings;
+          const curPlayback = {
+            ...useKaraokeStore.getState().playback,
+            currentTime: videoRef.current ? videoRef.current.currentTime : useKaraokeStore.getState().playback.currentTime
+          };
+          window.karaokeApi?.sendCommand('sync:queue', curQueue);
+          window.karaokeApi?.sendCommand('sync:settings', curSettings);
+          window.karaokeApi?.sendStateSync(curPlayback);
+        }
+      });
+
+      const unSubDownloads = window.karaokeApi.downloads.onProgress((payload) => {
+        if (payload.status === 'downloading' || payload.status === 'converting') {
+          setDownloadProgress({ percent: payload.percent, speed: payload.speed });
+        } else if (payload.status === 'completed' && payload.outputFilePath) {
+          setDownloadProgress(null);
+          const cur = useKaraokeStore.getState().queue[0]?.track;
+          if (cur && cur.source === 'youtube' && !cur.localFilePath) {
+            const localUri = `karaoke://local/${encodeURIComponent(payload.outputFilePath)}`;
+            updateTrackInQueue(cur.id, {
+              localFilePath: payload.outputFilePath,
+              uri: localUri
+            });
+          }
+        } else if (payload.status === 'error' || payload.status === 'cancelled') {
+          setDownloadProgress(null);
+        }
+      });
+
+      return () => {
+        unSubGuest();
+        unSubStageStatus();
+        unSubDownloads();
+        manager.dispose();
+      };
+    }
+
+    return () => {
+      manager.dispose();
+    };
+  }, []);
+
+  // Update Audio Graph on DSP state change (decoupled from currentTime tracking to eliminate stutter)
+  const mutedMidiChannelsKey = playback.mutedMidiChannels.slice().sort().join(',');
+
+  useEffect(() => {
+    if (!audioGraphRef.current) return;
+    audioGraphRef.current.setPitchOffset(playback.livePitchOffset);
+    audioGraphRef.current.setPlaybackSpeed(playback.playbackSpeed);
+    audioGraphRef.current.setMutedMidiChannels(playback.mutedMidiChannels);
+    audioGraphRef.current.setVocalRemover(playback.isVocalRemoverActive);
+    audioGraphRef.current.setDucking(playback.isDuckingActive);
+    audioGraphRef.current.setMasterVolume(playback.masterVolume, playback.isMuted);
+    audioGraphRef.current.setAudioVideoSyncOffsetMs(settings.audioVideoSyncOffsetMs);
+    audioGraphRef.current.setAudioNormalization(settings.enableAudioNormalization ?? true);
+
+    if (videoRef.current) {
+      videoRef.current.preservesPitch = true;
+      (videoRef.current as any).mozPreservesPitch = true;
+      (videoRef.current as any).webkitPreservesPitch = true;
+      videoRef.current.playbackRate = playback.playbackSpeed;
+    }
+  }, [
+    playback.livePitchOffset,
+    playback.playbackSpeed,
+    mutedMidiChannelsKey,
+    playback.isVocalRemoverActive,
+    playback.isDuckingActive,
+    playback.masterVolume,
+    playback.isMuted,
+    settings.audioVideoSyncOffsetMs,
+    settings.enableAudioNormalization
+  ]);
+
+  // Keep SoundFont in sync if changed from settings
+  useEffect(() => {
+    if (settings.midiSoundFontPath && audioGraphRef.current) {
+      audioGraphRef.current.loadSoundFont(settings.midiSoundFontPath);
+    }
+  }, [settings.midiSoundFontPath]);
+
+  // Continuous Time Tracking for MIDI / KAR playback
+  useEffect(() => {
+    if (!isMidiTrack || !playback.isPlaying) return;
+
+    const timer = window.setInterval(() => {
+      if (!audioGraphRef.current) return;
+      const ms = audioGraphRef.current.getMidiCurrentTimeMs();
+      const sec = ms / 1000;
+      setPlaybackState({ currentTime: sec });
+    }, 100);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [isMidiTrack, playback.isPlaying, setPlaybackState]);
+
+  // Main Playback Coordinator Effect
+  useEffect(() => {
+    if (!currentTrack || !currentQueueItem) {
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.removeAttribute('src');
+        videoRef.current.load();
+      }
+      audioGraphRef.current?.stopMidiPlayback();
+      setPlaybackState({ activeLyricsText: undefined });
+      loadedTrackQueueIdRef.current = null;
+      return;
+    }
+
+    // If it's a YouTube track and has no local file, initiate download
+    if (currentTrack.source === 'youtube' && !currentTrack.localFilePath) {
+      if (!downloadProgress && window.karaokeApi) {
+        setDownloadProgress({ percent: 0, speed: '0 KiB/s' });
+        window.karaokeApi.downloads.start({ url: currentTrack.uri }).catch((err) => {
+          console.error('Failed to auto-download YouTube track:', err);
+          setDownloadProgress(null);
+        });
+      }
+      return;
+    }
+
+    const isNewTrackLoaded = loadedTrackQueueIdRef.current !== currentQueueItem.queueId;
+
+    // If track is MIDI/KAR
+    if (isMidiTrack) {
+      if (isNewTrackLoaded) {
+        loadedTrackQueueIdRef.current = currentQueueItem.queueId;
+        // Instantly stop previous MIDI playback BEFORE starting fetch
+        audioGraphRef.current?.stopMidiPlayback();
+        // Unload any existing video playback
+        if (videoRef.current) {
+          videoRef.current.pause();
+          videoRef.current.removeAttribute('src');
+          videoRef.current.load();
+        }
+        setPlaybackState({ activeLyricsText: undefined, currentTime: 0 });
+
+        const queueIdToLoad = currentQueueItem.queueId;
+        fetch(currentTrack.uri)
+          .then((res) => res.arrayBuffer())
+          .then(async (buffer) => {
+            // Guard against race conditions when skipping tracks rapidly
+            if (loadedTrackQueueIdRef.current !== queueIdToLoad) return;
+            await audioGraphRef.current?.initContext();
+            const song = await audioGraphRef.current?.loadMidiSong(buffer);
+            if (song && loadedTrackQueueIdRef.current === queueIdToLoad) {
+              setPlaybackState({ duration: song.durationMs / 1000, currentTime: 0 });
+              if (useKaraokeStore.getState().playback.isPlaying) {
+                audioGraphRef.current?.playMidi();
+              }
+            }
+          })
+          .catch((err) => console.error('Failed to load MIDI file:', err));
+      } else {
+        if (playback.isPlaying) {
+          audioGraphRef.current?.playMidi();
+        } else {
+          audioGraphRef.current?.pauseMidi();
+        }
+      }
+    } else {
+      // Audio or Video file
+      if (videoRef.current) {
+        if (isNewTrackLoaded) {
+          loadedTrackQueueIdRef.current = currentQueueItem.queueId;
+          // Stop MIDI voices and clear lyric text
+          audioGraphRef.current?.stopMidiPlayback();
+          setPlaybackState({ activeLyricsText: undefined, currentTime: 0 });
+
+          videoRef.current.src = currentTrack.uri;
+          videoRef.current.load();
+          videoRef.current.preservesPitch = true;
+          (videoRef.current as any).mozPreservesPitch = true;
+          (videoRef.current as any).webkitPreservesPitch = true;
+          videoRef.current.playbackRate = playback.playbackSpeed;
+        }
+
+        if (playback.isPlaying) {
+          audioGraphRef.current?.initContext().then(() => {
+            if (videoRef.current) {
+              audioGraphRef.current?.bindMediaElement(videoRef.current);
+            }
+            videoRef.current?.play().catch((err) => {
+              console.warn('Playback play() was rejected:', err);
+            });
+          });
+        } else {
+          videoRef.current.pause();
+        }
+      }
+    }
+  }, [
+    currentQueueItem?.queueId,
+    currentTrack?.id,
+    currentTrack?.uri,
+    currentTrack?.localFilePath,
+    playback.isPlaying,
+    isMidiTrack,
+    downloadProgress
+  ]);
+
+  // Global Keyboard Shortcuts
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)) {
+        if (e.key === 'Escape') {
+          (e.target as HTMLElement).blur();
+          closeMissingFileModal();
+          setShowSettingsModal(false);
+          setShowSingersModal(false);
+          setShowGuestModal(false);
+          setShowPortalQrModal(false);
+        }
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        closeMissingFileModal();
+        setShowSettingsModal(false);
+        setShowSingersModal(false);
+        setShowGuestModal(false);
+        setShowPortalQrModal(false);
+      } else if (e.code === 'Space') {
+        e.preventDefault();
+        handlePlayPause();
+      } else if (e.code === 'KeyN') {
+        e.preventDefault();
+        audioGraphRef.current?.stopMidiPlayback();
+        advanceToNextTrack();
+      } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowUp') {
+        e.preventDefault();
+        setLivePitch(Math.min(8, playback.livePitchOffset + 1));
+      } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowDown') {
+        e.preventDefault();
+        setLivePitch(Math.max(-8, playback.livePitchOffset - 1));
+      } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowLeft') {
+        e.preventDefault();
+        setPlaybackSpeed(Math.max(0.50, Math.round((playback.playbackSpeed - 0.05) * 100) / 100));
+      } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowRight') {
+        e.preventDefault();
+        setPlaybackSpeed(Math.min(1.50, Math.round((playback.playbackSpeed + 0.05) * 100) / 100));
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        const newTime = Math.max(0, playback.currentTime - 5);
+        handleSeek(newTime);
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        const newTime = Math.min(playback.duration, playback.currentTime + 5);
+        handleSeek(newTime);
+      } else if (e.code === 'ArrowUp') {
+        e.preventDefault();
+        setPlaybackState({ masterVolume: Math.min(1, playback.masterVolume + 0.05) });
+      } else if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        setPlaybackState({ masterVolume: Math.max(0, playback.masterVolume - 0.05) });
+      } else if (e.key === '+' || e.code === 'NumpadAdd' || e.key === '=') {
+        e.preventDefault();
+        setLivePitch(Math.min(8, playback.livePitchOffset + 1));
+      } else if (e.key === '-' || e.code === 'NumpadSubtract') {
+        e.preventDefault();
+        setLivePitch(Math.max(-8, playback.livePitchOffset - 1));
+      } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyF') {
+        e.preventDefault();
+        setActiveRightTab('library');
+        searchInputRef.current?.focus();
+      }
+    },
+    [playback, handlePlayPause, advanceToNextTrack, setLivePitch, setPlaybackSpeed, setPlaybackState, closeMissingFileModal, handleSeek]
+  );
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  return (
+    <div className="h-screen max-h-screen app-control-container flex flex-col font-sans select-none overflow-hidden">
+      {/* Top Navigation Bar - Material Design 3 Elevated Surface */}
+      <header className="h-14 shrink-0 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-6 flex items-center justify-between shadow-sm z-20">
+        <div className="flex items-center gap-3">
+          <img
+            src={appLogo}
+            alt="Karaoke Live Station"
+            className="w-10 h-10 object-contain drop-shadow-[0_2px_8px_rgba(99,102,241,0.35)] shrink-0"
+          />
+          <div>
+            <h1 className="font-extrabold text-sm tracking-wide text-white">{t('app.title')}</h1>
+            <p className="text-[10px] text-slate-400 font-medium">{t('app.subtitle')}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Stage Window Status / Auto-Recovery pill */}
+          <button
+            type="button"
+            onClick={() => window.karaokeApi?.reopenStageWindow()}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 border shadow-sm transition-all duration-200 active:scale-95 ${
+              stageOpen
+                ? 'bg-emerald-950/40 border-emerald-800/70 text-emerald-400 hover:bg-emerald-900/50'
+                : 'bg-red-950/40 border-red-800/70 text-red-400 animate-pulse hover:bg-red-900/50'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${stageOpen ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 'bg-red-400'}`} />
+            {stageOpen ? t('app.stageWindow') : 'Riapri Palco'}
+          </button>
+
+          {/* Guest Requests Badge & Modal trigger */}
+          <button
+            type="button"
+            onClick={() => setShowGuestModal(true)}
+            className="relative px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm flex items-center gap-1.5 transition-all duration-200 active:scale-95"
+          >
+            <Smartphone className="w-4 h-4 text-indigo-400" />
+            Richieste Guest
+            {pendingRequests.length > 0 && (
+              <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full animate-bounce shadow-sm">
+                {pendingRequests.length}
+              </span>
+            )}
+          </button>
+
+          {/* Guest Portal QR Code */}
+          <button
+            type="button"
+            onClick={() => setShowPortalQrModal(true)}
+            className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95"
+            title="Mostra QR Code Guest Portal"
+          >
+            <QrCode className="w-4 h-4 text-indigo-400" />
+          </button>
+
+          {/* Gestione Cantanti */}
+          <button
+            type="button"
+            onClick={() => setShowSingersModal(true)}
+            className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm flex items-center gap-1.5 transition-all duration-200 active:scale-95"
+          >
+            <Users className="w-4 h-4 text-amber-400" />
+            Cantanti
+          </button>
+
+          {/* Impostazioni Sistema */}
+          <button
+            type="button"
+            onClick={() => setShowSettingsModal(true)}
+            className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95"
+            title={t('settings.title')}
+          >
+            <Settings className="w-4 h-4 text-slate-400 hover:text-white" />
+          </button>
+        </div>
+      </header>
+
+      {/* Main Studio Grid */}
+      <main className="flex-1 min-h-0 p-3.5 md:p-4 grid grid-cols-12 gap-3.5 md:gap-4 overflow-hidden">
+        {/* Left Column: Player & DSP Controls (7 Cols) */}
+        <section className="col-span-12 lg:col-span-7 flex flex-col h-full min-h-0 overflow-y-auto pr-1 gap-3">
+          {/* Active Screen Card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl relative">
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4" /> {t('player.nowPlaying')}
+              </span>
+              <span className="text-xs text-slate-400 font-mono">
+                {currentTrack ? `${currentTrack.artist} - ${currentTrack.title}` : t('player.noTrackLoaded')}
+              </span>
+            </div>
+
+            {/* Video preview element */}
+            <div className="w-full aspect-video max-h-[32vh] bg-black rounded-xl overflow-hidden relative flex items-center justify-center border border-slate-800 mx-auto">
+              <video
+                ref={videoRef}
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  const mediaErr = e.currentTarget.error;
+                  window.karaokeApi?.logger?.log('error', 'ControlWindow:Video', 'Media playback error', {
+                    code: mediaErr?.code,
+                    message: mediaErr?.message,
+                    src: e.currentTarget.currentSrc
+                  });
+                }}
+                onLoadedMetadata={(e) => {
+                  const video = e.currentTarget;
+                  video.preservesPitch = true;
+                  (video as any).mozPreservesPitch = true;
+                  (video as any).webkitPreservesPitch = true;
+                  video.playbackRate = playback.playbackSpeed;
+                  audioGraphRef.current?.bindMediaElement(video);
+                  audioGraphRef.current?.setPitchOffset(playback.livePitchOffset);
+                  audioGraphRef.current?.setPlaybackSpeed(playback.playbackSpeed);
+                }}
+                onPlay={(e) => {
+                  const video = e.currentTarget;
+                  video.preservesPitch = true;
+                  (video as any).mozPreservesPitch = true;
+                  (video as any).webkitPreservesPitch = true;
+                  video.playbackRate = playback.playbackSpeed;
+                  audioGraphRef.current?.initContext();
+                }}
+                onTimeUpdate={() => {
+                  if (videoRef.current) {
+                    setPlaybackState({
+                      currentTime: videoRef.current.currentTime,
+                      duration: videoRef.current.duration || playback.duration || 0
+                    });
+                  }
+                }}
+                onEnded={() => {
+                  advanceToNextTrack();
+                }}
+              />
+              {/* Centered lyrics in control preview */}
+              {playback.activeLyricsText && (
+                <div className="absolute inset-0 flex items-center justify-center p-4 text-center pointer-events-none bg-black/40 backdrop-blur-[1px] z-10">
+                  <span className="text-base md:text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-400 to-indigo-300 drop-shadow-md">
+                    {playback.activeLyricsText}
+                  </span>
+                </div>
+              )}
+              {!playback.isPlaying && currentTrack && !playback.activeLyricsText && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-slate-950/85 backdrop-blur-[2px] z-10 pointer-events-none select-none animate-fadeIn">
+                  <span className="text-[10px] uppercase tracking-widest text-indigo-400 font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 mb-1.5 inline-flex items-center gap-1">
+                    <Mic className="w-3 h-3" /> {t('banner.upNextOnStage')}
+                  </span>
+                  <span className="text-base md:text-lg font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-pink-400 to-indigo-300 line-clamp-1">
+                    {currentQueueItem?.assignedSingerName || t('banner.nextSingerUnassigned')}
+                  </span>
+                  <span className="text-xs text-white font-semibold line-clamp-1 mt-0.5">
+                    {currentTrack.title}
+                  </span>
+                  {currentTrack.artist && (
+                    <span className="text-[11px] text-slate-400 font-medium line-clamp-1">
+                      {currentTrack.artist}
+                    </span>
+                  )}
+                  {currentQueueItem?.pitchOffset !== 0 && (
+                    <span className="text-[10px] font-mono text-amber-400 mt-1 font-semibold">
+                      {t('guestRequests.pitch')}: {currentQueueItem.pitchOffset > 0 ? `+${currentQueueItem.pitchOffset}` : currentQueueItem.pitchOffset}
+                    </span>
+                  )}
+                </div>
+              )}
+              {!currentTrack && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-slate-500 text-xs gap-2.5 pointer-events-none">
+                  <Music className="w-10 h-10 opacity-30" />
+                  <span className="max-w-xs leading-relaxed">{t('queue.empty')}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Scrubbing Bar */}
+            <div className="mt-3">
+              <div className="flex justify-between text-[10px] text-slate-400 font-mono mb-1">
+                <span>{formatTime(isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime)}</span>
+                <span>{formatTime(playback.duration)}</span>
+              </div>
+              <div className="relative flex items-center py-1.5 cursor-pointer group">
+                <input
+                  type="range"
+                  min="0"
+                  max={playback.duration || 100}
+                  step="0.25"
+                  value={isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime}
+                  onPointerDown={(e) => {
+                    setIsScrubbing(true);
+                    setScrubTime(parseFloat(e.currentTarget.value));
+                  }}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setScrubTime(val);
+                    if (!isScrubbing) {
+                      handleSeek(val);
+                    }
+                  }}
+                  onPointerUp={(e) => {
+                    const val = parseFloat(e.currentTarget.value);
+                    handleSeek(val);
+                    setIsScrubbing(false);
+                    setScrubTime(null);
+                  }}
+                  className="w-full h-2 rounded-lg cursor-pointer transition-all appearance-none focus:outline-none"
+                  style={{
+                    background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${
+                      playback.duration > 0
+                        ? (((isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime) / playback.duration) * 100).toFixed(2)
+                        : 0
+                    }%, #1e293b ${
+                      playback.duration > 0
+                        ? (((isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime) / playback.duration) * 100).toFixed(2)
+                        : 0
+                    }%, #1e293b 100%)`
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Transport & DSP Controls Bar - Material Design 3 Floating Dock */}
+            <div className="mt-4 p-3 bg-slate-950/60 border border-slate-800/80 rounded-2xl flex flex-wrap items-center justify-between gap-2.5 shadow-inner">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handlePlayPause}
+                  className="w-11 h-11 bg-gradient-to-tr from-indigo-600 to-violet-500 hover:from-indigo-500 hover:to-violet-400 rounded-full text-white shadow-lg shadow-indigo-600/30 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center shrink-0"
+                  title={playback.isPlaying ? t('player.pause') : t('player.play')}
+                >
+                  {playback.isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStop}
+                  className="w-9 h-9 bg-slate-800/90 hover:bg-slate-700/90 rounded-full text-slate-300 border border-slate-700/60 shadow-sm flex items-center justify-center transition-all active:scale-95 shrink-0"
+                  title={t('player.stop')}
+                >
+                  <Square className="w-4 h-4 fill-current" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRestart}
+                  className="w-9 h-9 bg-slate-800/90 hover:bg-slate-700/90 rounded-full text-slate-300 border border-slate-700/60 shadow-sm flex items-center justify-center transition-all active:scale-95 shrink-0"
+                  title={t('player.restart')}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={advanceToNextTrack}
+                  className="w-9 h-9 bg-slate-800/90 hover:bg-slate-700/90 rounded-full text-slate-300 border border-slate-700/60 shadow-sm flex items-center justify-center transition-all active:scale-95 shrink-0"
+                  title={t('player.next')}
+                >
+                  <SkipForward className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Pitch Controls (-8 to +8 Semitoni) */}
+              <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm">
+                <span className="text-[11px] font-semibold text-slate-300" title="Tonalità in semitoni">{t('player.pitch')}:</span>
+                <button
+                  type="button"
+                  onClick={() => setLivePitch(playback.livePitchOffset - 1)}
+                  disabled={playback.livePitchOffset <= -8}
+                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-slate-700 hover:text-white text-xs font-bold flex items-center justify-center transition-colors text-slate-200"
+                  title="Abbassa tonalità (-1 semitono, CTRL + Freccia Giù)"
+                >
+                  -
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLivePitch(0)}
+                  className="font-mono font-bold text-xs min-w-[42px] px-1.5 py-0.5 rounded-full text-center text-indigo-400 hover:bg-indigo-950/70 hover:text-indigo-200 transition-colors cursor-pointer"
+                  title="Clicca per azzerare la tonalità (0 ST)"
+                >
+                  {playback.livePitchOffset > 0 ? `+${playback.livePitchOffset}` : playback.livePitchOffset} ST
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLivePitch(playback.livePitchOffset + 1)}
+                  disabled={playback.livePitchOffset >= 8}
+                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-slate-700 hover:text-white text-xs font-bold flex items-center justify-center transition-colors text-slate-200"
+                  title="Alza tonalità (+1 semitono, CTRL + Freccia Su)"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Speed Controls (0.50x to 1.50x) */}
+              <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm">
+                <span className="text-[11px] font-semibold text-slate-300">{t('player.speed')}:</span>
+                <button
+                  type="button"
+                  onClick={() => setPlaybackSpeed(playback.playbackSpeed - 0.05)}
+                  disabled={playback.playbackSpeed <= 0.501}
+                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-slate-700 text-xs font-bold flex items-center justify-center text-slate-200 transition-all"
+                  title="Rallenta tempo (-0.05x, CTRL + Freccia Sinistra)"
+                >
+                  -
+                </button>
+                <span
+                  onClick={() => setPlaybackSpeed(1.0)}
+                  className="font-mono font-bold text-xs w-9 text-center text-emerald-400 hover:underline cursor-pointer"
+                  title="Clicca per ripristinare tempo 1.00x"
+                >
+                  {playback.playbackSpeed.toFixed(2)}x
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPlaybackSpeed(playback.playbackSpeed + 0.05)}
+                  disabled={playback.playbackSpeed >= 1.499}
+                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-slate-700 text-xs font-bold flex items-center justify-center text-slate-200 transition-all"
+                  title="Aumenta tempo (+0.05x, CTRL + Freccia Destra)"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Volume & Mute */}
+              <div className="flex items-center gap-2 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setPlaybackState({ isMuted: !playback.isMuted })}
+                  className="text-slate-300 hover:text-white transition-colors"
+                >
+                  {playback.isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
+                </button>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={playback.isMuted ? 0 : playback.masterVolume}
+                  onChange={(e) => setPlaybackState({ masterVolume: parseFloat(e.target.value), isMuted: false })}
+                  className="w-16 h-1 accent-indigo-500 cursor-pointer"
+                />
+              </div>
+
+              {/* DSP Toggles: Vocal Remover & Ducking */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setVocalRemover(!playback.isVocalRemoverActive)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border shadow-sm transition-all duration-150 active:scale-95 ${
+                    playback.isVocalRemoverActive
+                      ? 'bg-rose-950/60 border-rose-700/80 text-rose-300 shadow-rose-950/30'
+                      : 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {t('player.vocalRemover')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDucking(!playback.isDuckingActive)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border shadow-sm transition-all duration-150 active:scale-95 ${
+                    playback.isDuckingActive
+                      ? 'bg-amber-950/60 border-amber-700/80 text-amber-300 shadow-amber-950/30'
+                      : 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {t('player.bgmDucking')}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* MIDI 16-Channel Mixer - Rendered ONLY if file is MIDI/KAR compatible */}
+          {isMidiTrack && (
+            <MidiChannelMixer onToggleMuteChannel={toggleMidiChannelMute} />
+          )}
+        </section>
+
+        {/* Right Column: Tab Switcher (Queue, Library, History) (5 Cols) */}
+        <section className="col-span-12 lg:col-span-5 flex flex-col h-full min-h-0 overflow-hidden">
+          {/* Tab Navigation - M3 Pill Segmented Switcher */}
+          <div className="flex items-center gap-1.5 mb-3 bg-slate-900/90 p-1.5 rounded-full border border-slate-800/80 text-xs font-semibold shrink-0 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setActiveRightTab('queue')}
+              className={`flex-1 py-1.5 rounded-full flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 ${
+                activeRightTab === 'queue'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              {t('queue.title')} ({queue.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveRightTab('library')}
+              className={`flex-1 py-1.5 rounded-full flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 ${
+                activeRightTab === 'library'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              {t('library.title')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveRightTab('history')}
+              className={`flex-1 py-1.5 rounded-full flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 ${
+                activeRightTab === 'history'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              {t('history.tabTitle')}
+            </button>
+          </div>
+
+          {/* Tab 1: Queue (Fair Queue) */}
+          {activeRightTab === 'queue' && (
+            <div className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 shadow-xl backdrop-blur-sm flex-1 min-h-0 flex flex-col overflow-hidden">
+              {/* Queue Header info */}
+              <div className="mb-3 shrink-0 flex items-center justify-between px-3.5 py-2 bg-slate-950/70 rounded-full border border-slate-800/80">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                  <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Scaletta Coda ({queue.length})</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {settings.enableFairQueue && queue.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => restoreFairQueueOrder()}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 hover:text-white text-[10px] font-semibold transition-all shadow-sm"
+                      title={t('queue.restoreFairQueueDesc')}
+                    >
+                      <Sparkles className="w-3 h-3 text-indigo-400" />
+                      <span>{t('queue.restoreFairQueue')}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(t('queue.confirmClear', "Sei sicuro di voler svuotare l'intera coda dei brani?"))) {
+                        handleStop();
+                        clearQueue();
+                      }
+                    }}
+                    disabled={queue.length === 0}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-800/90 hover:bg-rose-600/30 text-slate-300 hover:text-rose-300 border border-slate-700/60 hover:border-rose-500/50 text-[10px] font-semibold transition-all disabled:opacity-40 disabled:pointer-events-none active:scale-95 shadow-sm"
+                    title={t('queue.clear', 'Svuota coda')}
+                  >
+                    <Trash2 className="w-3 h-3 text-rose-400" />
+                    <span>{t('queue.clear', 'Svuota coda')}</span>
+                  </button>
+                  <div className="text-[10px] text-slate-400 font-medium hidden sm:block">
+                    💡 Doppio click per avviare
+                  </div>
+                </div>
+              </div>
+
+              {/* Fair Queue Sorted List */}
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1 flex flex-col">
+                {queue.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-500 text-xs italic leading-relaxed">
+                    <Music className="w-8 h-8 opacity-20 mb-2" />
+                    <span className="max-w-xs">{t('queue.empty')}</span>
+                  </div>
+                ) : (
+                  queue.map((item, index) => {
+                    const isDragging = draggedIndex === index;
+                    const isDragOver = dragOverIndex === index;
+
+                    return (
+                      <div
+                        key={item.queueId}
+                        draggable={index > 0}
+                        onDragStart={(e) => {
+                          if (index === 0) return;
+                          setDraggedIndex(index);
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', String(index));
+                        }}
+                        onDragOver={(e) => {
+                          if (draggedIndex === null || draggedIndex === 0 || index === 0) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          if (dragOverIndex !== index) {
+                            setDragOverIndex(index);
+                          }
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverIndex === index) {
+                            setDragOverIndex(null);
+                          }
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (draggedIndex !== null && draggedIndex > 0 && index > 0 && draggedIndex !== index) {
+                            reorderQueue(draggedIndex, index);
+                          }
+                          setDraggedIndex(null);
+                          setDragOverIndex(null);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedIndex(null);
+                          setDragOverIndex(null);
+                        }}
+                        onDoubleClick={() => handleJumpToTrack(index)}
+                        className={`p-3 rounded-2xl border flex items-center justify-between transition-all duration-150 cursor-pointer select-none group/item ${
+                          index === 0
+                            ? 'bg-gradient-to-r from-indigo-950/40 via-slate-900/90 to-slate-900/90 border-indigo-500/50 text-indigo-200 shadow-md'
+                            : 'bg-slate-950/60 border-slate-800/80 text-slate-300 hover:border-slate-700/80 hover:bg-slate-950/90'
+                        } ${isDragging ? 'opacity-40 scale-[0.99]' : ''} ${
+                          isDragOver ? 'border-indigo-400 ring-2 ring-indigo-500/50 bg-indigo-950/40' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden pr-2 flex-1">
+                          {/* Drag handle for waiting songs (index > 0) */}
+                          {index > 0 ? (
+                            <div
+                              className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-300 p-1 -ml-1 transition-colors shrink-0"
+                              title="Trascina per riordinare la coda"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <GripVertical className="w-3.5 h-3.5" />
+                            </div>
+                          ) : (
+                            <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse shrink-0 -ml-0.5 mr-0.5" title="In esecuzione" />
+                          )}
+                        {/* Play/Pause toggle for currently active song (index 0) or jump-to-play for upcoming songs */}
+                        {index === 0 ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePlayPause();
+                            }}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm transition-all border ${
+                              playback.isPlaying
+                                ? 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-400/50 shadow-indigo-600/30'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400/50 shadow-emerald-600/30'
+                            }`}
+                            title={playback.isPlaying ? t('player.pause') : t('player.play')}
+                          >
+                            {playback.isPlaying ? (
+                              <Pause className="w-3.5 h-3.5 fill-current" />
+                            ) : (
+                              <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                            )}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleJumpToTrack(index);
+                            }}
+                            className="w-8 h-8 rounded-full bg-slate-800/90 hover:bg-indigo-600 text-slate-400 hover:text-white flex items-center justify-center shrink-0 transition-colors border border-slate-700/50"
+                            title="Avvia ora questo brano (o fai doppio click)"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                          </button>
+                        )}
+
+                        <div className="overflow-hidden flex-1">
+                          <div className="font-semibold text-xs flex items-center gap-2 truncate">
+                            <span className="truncate">{item.track.title}</span>
+                            {item.isVIPOverride && (
+                              <span className="bg-amber-500/20 text-amber-300 text-[9px] px-2 py-0.5 rounded-full font-bold shrink-0 border border-amber-500/30">
+                                VIP
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
+                            <span className="truncate">{item.track.artist}</span>
+                            <span>•</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                useKaraokeStore.getState().loadSingersFromDb();
+                                setEditingSingerItem(item);
+                                setEditingSingerText(item.assignedSingerName || '');
+                              }}
+                              onDoubleClick={(e) => e.stopPropagation()}
+                              className="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800/90 hover:bg-indigo-900/60 border border-slate-700/60 hover:border-indigo-500/60 text-indigo-300 hover:text-indigo-100 font-medium transition-colors text-[11px] group/singer max-w-[170px]"
+                              title="Clicca per assegnare o modificare il cantante"
+                            >
+                              <Mic className="w-3 h-3 text-indigo-400 group-hover/singer:text-indigo-200 shrink-0" />
+                              <span className="truncate">
+                                {item.assignedSingerName || (
+                                  <span className="text-amber-400/90 italic font-normal">+ Assegna cantante</span>
+                                )}
+                              </span>
+                              <Edit2 className="w-2.5 h-2.5 opacity-60 group-hover/singer:opacity-100 text-slate-400 group-hover/singer:text-white shrink-0 ml-0.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newPitch = item.pitchOffset - 1;
+                            if (index === 0) setLivePitch(newPitch);
+                            else setQueueItemPitch(item.queueId, newPitch);
+                          }}
+                          className="w-6 h-6 rounded-full bg-slate-800/90 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center border border-slate-700/60 transition-colors"
+                          title="Abbassa tonalità (-1 semitono)"
+                        >
+                          -
+                        </button>
+                        <span className="text-[10px] font-mono bg-slate-800/90 px-2 py-0.5 rounded-full text-indigo-300 font-bold min-w-[40px] text-center border border-slate-700/60">
+                          {item.pitchOffset > 0 ? `+${item.pitchOffset}` : item.pitchOffset} ST
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newPitch = item.pitchOffset + 1;
+                            if (index === 0) setLivePitch(newPitch);
+                            else setQueueItemPitch(item.queueId, newPitch);
+                          }}
+                          className="w-6 h-6 rounded-full bg-slate-800/90 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center border border-slate-700/60 transition-colors"
+                          title="Alza tonalità (+1 semitono)"
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeFromQueue(item.queueId)}
+                          className="p-1 hover:bg-slate-800 rounded text-slate-500 hover:text-red-400 transition-colors ml-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              </div>
+            </div>
+          )}
+
+          {/* Tab 2: Library Panel */}
+          {activeRightTab === 'library' && (
+            <LibraryPanel
+              onPlayCue={handlePlayCue}
+              onStopCue={handleStopCue}
+              activeCueUri={activeCueUri}
+            />
+          )}
+
+          {/* Tab 3: Execution History & Royalty/SIAE Logging */}
+          {activeRightTab === 'history' && <HistoryPanel />}
+        </section>
+      </main>
+
+      {/* Modals */}
+      <SettingsModal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
+      <SingersModal
+        isOpen={showSingersModal}
+        onClose={() => {
+          setShowSingersModal(false);
+          useKaraokeStore.getState().loadSingersFromDb();
+        }}
+      />
+      <GuestRequestsModal isOpen={showGuestModal} onClose={() => setShowGuestModal(false)} />
+
+      {/* Modal: Assegna / Modifica Cantante della canzone in coda con Menu a Tendina e Ricerca Rapida */}
+      {editingSingerItem && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-md shadow-2xl p-6 text-white animate-in fade-in zoom-in duration-150 relative">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                  <Mic className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">
+                    {editingSingerItem.assignedSingerName ? 'Modifica Cantante' : 'Assegna Cantante'}
+                  </h3>
+                  <p className="text-xs text-slate-400 truncate max-w-[280px]">
+                    {editingSingerItem.track.artist} - {editingSingerItem.track.title}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingSingerItem(null);
+                  setIsSingerDropdownOpen(false);
+                }}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                updateQueueItemSinger(editingSingerItem.queueId, editingSingerText.trim());
+                setEditingSingerItem(null);
+                setIsSingerDropdownOpen(false);
+              }}
+            >
+              <div className="space-y-4">
+                <div className="relative">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center justify-between">
+                    <span>Cantante</span>
+                    <span className="text-[10px] text-indigo-400 font-normal">Menu con ricerca rapida</span>
+                  </label>
+
+                  {/* Searchable Input Combobox */}
+                  <div className="relative flex items-center">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
+                    <input
+                      type="text"
+                      autoFocus
+                      value={editingSingerText}
+                      onFocus={() => setIsSingerDropdownOpen(true)}
+                      onChange={(e) => {
+                        setEditingSingerText(e.target.value);
+                        setIsSingerDropdownOpen(true);
+                        setSingerHighlightIndex(-1);
+                      }}
+                      onKeyDown={(e) => {
+                        const hasCustomAdd =
+                          editingSingerText.trim().length > 0 &&
+                          !knownSingersList.some((s) => s.name.toLowerCase() === editingSingerText.trim().toLowerCase());
+                        const totalOptions = filteredSingers.length + (hasCustomAdd ? 1 : 0);
+
+                        if (!isSingerDropdownOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                          setIsSingerDropdownOpen(true);
+                          return;
+                        }
+
+                        if (isSingerDropdownOpen) {
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            setSingerHighlightIndex((prev) => (prev + 1 < totalOptions ? prev + 1 : 0));
+                          } else if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            setSingerHighlightIndex((prev) => (prev - 1 >= 0 ? prev - 1 : totalOptions - 1));
+                          } else if (e.key === 'Enter' && singerHighlightIndex >= 0) {
+                            e.preventDefault();
+                            if (hasCustomAdd && singerHighlightIndex === 0) {
+                              setIsSingerDropdownOpen(false);
+                            } else {
+                              const targetIdx = hasCustomAdd ? singerHighlightIndex - 1 : singerHighlightIndex;
+                              if (filteredSingers[targetIdx]) {
+                                setEditingSingerText(filteredSingers[targetIdx].name);
+                                setIsSingerDropdownOpen(false);
+                              }
+                            }
+                          } else if (e.key === 'Escape') {
+                            setIsSingerDropdownOpen(false);
+                          }
+                        }
+                      }}
+                      placeholder="Cerca o inserisci cantante..."
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-16 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent select-text"
+                    />
+                    <div className="absolute right-2 flex items-center gap-1">
+                      {editingSingerText && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingSingerText('');
+                            setIsSingerDropdownOpen(true);
+                          }}
+                          className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                          title="Cancella testo"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsSingerDropdownOpen((prev) => !prev)}
+                        className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                        title="Mostra menu a tendina cantanti"
+                      >
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform duration-200 ${
+                            isSingerDropdownOpen ? 'rotate-180 text-indigo-400' : ''
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Dropdown Menu with Quick Search */}
+                  {isSingerDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-slate-950 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 flex flex-col animate-in fade-in slide-in-from-top-1 duration-100">
+                      <div className="p-1.5 overflow-y-auto flex-1 divide-y divide-slate-800/60">
+                        {/* Option: Add new name if typed name is not exact match */}
+                        {editingSingerText.trim().length > 0 &&
+                          !knownSingersList.some((s) => s.name.toLowerCase() === editingSingerText.trim().toLowerCase()) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsSingerDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-2 transition-colors ${
+                                singerHighlightIndex === 0
+                                  ? 'bg-indigo-600 text-white font-semibold'
+                                  : 'text-indigo-300 hover:bg-indigo-950/60 hover:text-indigo-100'
+                              }`}
+                            >
+                              <User className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                              <span className="truncate">
+                                Usa <strong className="text-white">"{editingSingerText.trim()}"</strong> come nuovo cantante
+                              </span>
+                            </button>
+                          )}
+
+                        {filteredSingers.length > 0 ? (
+                          filteredSingers.map((singer, idx) => {
+                            const hasCustomAdd =
+                              editingSingerText.trim().length > 0 &&
+                              !knownSingersList.some((s) => s.name.toLowerCase() === editingSingerText.trim().toLowerCase());
+                            const adjustedHighlightIdx = hasCustomAdd ? idx + 1 : idx;
+                            const isSelected = editingSingerText.trim().toLowerCase() === singer.name.toLowerCase();
+                            const isHighlighted = singerHighlightIndex === adjustedHighlightIdx;
+
+                            return (
+                              <button
+                                key={singer.name}
+                                type="button"
+                                onClick={() => {
+                                  setEditingSingerText(singer.name);
+                                  setIsSingerDropdownOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between gap-2 transition-colors ${
+                                  isSelected
+                                    ? 'bg-indigo-600 text-white font-bold'
+                                    : isHighlighted
+                                    ? 'bg-slate-800 text-slate-100'
+                                    : 'text-slate-200 hover:bg-slate-850 hover:bg-slate-800/70'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0 truncate">
+                                  {singer.isFavorite ? (
+                                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
+                                  ) : (
+                                    <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  )}
+                                  <span className="truncate font-medium">{singer.name}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0 text-[10px] text-slate-400">
+                                  {singer.songCount > 0 && (
+                                    <span className="opacity-75">
+                                      {singer.songCount} {singer.songCount === 1 ? 'brano' : 'brani'}
+                                    </span>
+                                  )}
+                                  {isSelected && <Check className="w-3.5 h-3.5 text-white ml-1 shrink-0" />}
+                                </div>
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="px-3 py-3 text-center text-xs text-slate-500">
+                            Nessun cantante trovato per "{editingSingerText}"
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick select chips for frequent singers */}
+                {knownSingersList.length > 0 && (
+                  <div>
+                    <span className="text-[11px] font-medium text-slate-400 block mb-1.5">
+                      Cantanti frequenti:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                      {knownSingersList.slice(0, 10).map((singer) => (
+                        <button
+                          key={singer.name}
+                          type="button"
+                          onClick={() => {
+                            setEditingSingerText(singer.name);
+                            setIsSingerDropdownOpen(false);
+                          }}
+                          className={`text-xs px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 ${
+                            editingSingerText === singer.name
+                              ? 'bg-indigo-600 border-indigo-400 text-white font-semibold shadow-sm shadow-indigo-600/50'
+                              : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                          }`}
+                        >
+                          {singer.isFavorite && <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400 shrink-0" />}
+                          <span>{singer.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+                  {editingSingerItem.assignedSingerName ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateQueueItemSinger(editingSingerItem.queueId, '');
+                        setEditingSingerItem(null);
+                        setIsSingerDropdownOpen(false);
+                      }}
+                      className="text-xs text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Rimuovi cantante
+                    </button>
+                  ) : <div />}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingSingerItem(null);
+                        setIsSingerDropdownOpen(false);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+                    >
+                      Annulla
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 transition-colors"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Salva Cantante
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Missing File Error Modal */}
+      {missingFileModal.isOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-red-800/80 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-scale-in">
+            <div className="flex items-center gap-3 text-red-400 mb-3">
+              <AlertTriangle className="w-6 h-6" />
+              <h3 className="font-bold text-base">{t('errors.missingFileTitle')}</h3>
+            </div>
+            <p className="text-xs text-slate-300 mb-4 leading-relaxed">
+              {t('errors.missingFileDesc', { path: missingFileModal.filePath })}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeMissingFileModal}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300"
+              >
+                {t('errors.dismiss')}
+              </button>
+              {missingFileModal.queueItemId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (missingFileModal.queueItemId) {
+                      removeFromQueue(missingFileModal.queueItemId);
+                    }
+                    closeMissingFileModal();
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-500 text-white"
+                >
+                  {t('errors.removeFromQueue')}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guest Portal QR Modal */}
+      {showPortalQrModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center">
+            <div className="flex items-center justify-center gap-2.5 mb-2">
+              <img src={appLogo} alt="Logo" className="w-8 h-8 object-contain drop-shadow" />
+              <h3 className="font-bold text-base text-white">Guest Portal LAN</h3>
+            </div>
+            <p className="text-xs text-slate-400 mb-3">
+              Gli ospiti possono inquadrare il codice per richiedere canzoni dallo smartphone:
+            </p>
+            {portalInfo.qrCode ? (
+              <img
+                src={portalInfo.qrCode}
+                alt="QR Code Guest Portal"
+                className="w-52 h-52 mx-auto rounded-xl shadow-lg border border-white/10 mb-3"
+              />
+            ) : (
+              <div className="w-52 h-52 mx-auto rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center text-xs text-slate-500 mb-3">
+                Generazione QR Code...
+              </div>
+            )}
+            <p className="font-mono text-xs text-indigo-400 select-all mb-3 font-semibold">{portalInfo.url}</p>
+
+            {/* Firewall Help Notice Box */}
+            <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 text-left mb-4">
+              <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-[11px] mb-1">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Risoluzione Accesso Dispositivi LAN</span>
+              </div>
+              <p className="text-[10px] text-slate-300 leading-relaxed mb-1.5">
+                Se gli smartphone nella stessa rete non caricano la pagina, sblocca la porta nel firewall di sistema (es. Linux UFW):
+              </p>
+              <code className="block bg-black/70 border border-slate-800 px-2 py-1 rounded text-[10px] font-mono text-emerald-400 select-all">
+                sudo ufw allow 3000:3010/tcp
+              </code>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowPortalQrModal(false)}
+              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow-md transition-colors"
+            >
+              Chiudi
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

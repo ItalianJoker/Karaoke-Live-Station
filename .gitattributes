@@ -1,0 +1,39 @@
+# Auto-detect text files and normalize line endings to LF on commit
+* text=auto eol=lf
+
+# Explicitly ensure source code and configuration files use LF
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binary files (prevent git from corrupting line endings)
+*.sf2 binary
+*.sf3 binary
+*.dls binary
+*.mid binary
+*.kar binary
+*.mp3 binary
+*.mp4 binary
+*.webm binary
+*.cdg binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.sqlite binary
+*.sqlite3 binary
+*.db binary
+

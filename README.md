@@ -1,0 +1,528 @@
+# 🎤 Karaoke Live Station
+
+<p align="center">
+  <img src="public/logo.png" alt="Karaoke Live Station Logo" width="160" />
+</p>
+
+<p align="center">
+  <strong>The Ultimate Professional Dual-Screen Live Karaoke Suite</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-34.2.0-47848F?style=for-the-badge&logo=electron&logoColor=white" alt="Electron" /></a>
+  <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18.3.1-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.7.3-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" /></a>
+  <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind" /></a>
+  <a href="https://sqlite.org/"><img src="https://img.shields.io/badge/SQLite-WAL_Mode-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" /></a>
+  <a href="https://deepmind.google/"><img src="https://img.shields.io/badge/Developed%20with-Google%20Antigravity-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google Antigravity" /></a>
+</p>
+
+---
+
+### 🌐 Lingua / Language
+- [🇮🇹 **Italiano**](#-italiano) • [⚖️ *Disclaimer Legale & Copyright*](#️-disclaimer-legale-copyright--marchi-registrati) • [📚 *Fonti & Licenze Terze*](#-attribuzioni-fonti--licenze-librerie-terze)
+- [🇬🇧 **English**](#-english) • [⚖️ *Legal Disclaimer & Trademarks*](#️-legal-disclaimer-copyright--trademarks) • [📚 *Third-Party Sources & Licenses*](#-third-party-libraries-citations--licenses)
+
+---
+
+<a name="italiano"></a>
+# 🇮🇹 Italiano
+
+**Karaoke Live Station** è un'applicazione desktop professionale e multipiattaforma progettata per DJ di karaoke, presentatori di eventi, locali di intrattenimento dal vivo e feste private.
+
+Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore + Schermo Palco)**, integra un motore audio DSP in tempo reale per la trasposizione della tonalità (in semitoni) e la velocità (senza alterazione del pitch), sintesi General MIDI / KAR con banco SoundFont professionale GeneralUser GS da 31 MB, rendering grafico CD+G a 30 fps, coda equa anti-monopolio con memoria delle tonalità dei cantanti, e un **Guest Portal LAN** integrato con codice QR per permettere al pubblico di richiedere brani direttamente dallo smartphone.
+
+> 💡 **Nota di Sviluppo**: Questo software è stato interamente ideato, architettato e sviluppato con **Google Antigravity**, l'ambiente avanzato di sviluppo ad agenti autonomi di Google DeepMind.
+
+---
+
+## 🌟 Caratteristiche Principali
+
+### 🎛️ Architettura a Doppia Finestra
+- **Finestra Regia (Control Desk)**: Console operatore completa con scrubber audio, visualizzatore di forma d'onda, mixer a 16 canali MIDI, gestione coda, ricerca catalogo e pre-ascolto in cuffia (CUE).
+- **Finestra Palco (Stage Screen)**: Schermo pulito per cantante e pubblico da inviare su TV o videoproiettore (supporto F11 / doppio clic per fullscreen senza bordi). Visualizza video MP4/WebM, grafica CD+G o testo karaoke sincronizzato con banner animati "Ora Canta" e "Preparati".
+- **Streaming HTTP 206 Partial Content**: Protocollo proprietario `karaoke://local/` con streaming a chunk byte-range. Lo schermo del palco può essere aperto, chiuso o riaperto a brano in corso senza pause né desincronizzazioni.
+
+### 🎨 9 Temi Grafici & Schermo Palco Ottimizzato Edge-to-Edge
+- **9 Combinazioni Cromatiche Complete**: Personalizzazione indipendente per Regia e Palco (*Dark Stage, Midnight Neon, Club Gold, Ocean Breeze, Sunset Crimson, Emerald Matrix, Royal Amethyst, High Contrast, Light Studio*).
+- **Video a Tutto Schermo (Edge-to-Edge al 100%)**: Lo Schermo Palco massimizza l'area visiva senza cornici o padding sprecato, adattando video 16:9, 4:3 e panoramici senza distorsioni.
+- **Titolo Brano Flottante a Scomparsa**: Titolo e artista appaiono fluttuanti in basso al centro per una durata configurabile nelle opzioni (da 2 a 30 secondi, default 8s) per poi dissolversi dolcemente, lasciando il video e il testo del karaoke privi di ostacoli visivi.
+- **Barra di Avanzamento a Basso Profilo**: Barra di avanzamento ultra-sottile integrata a filo sul bordo estremo inferiore.
+
+### 📁 Configurazione Libreria & Anteprima Video Versioni
+- **Scelta Guidata al Primo Avvio**: Alla prima apertura, una finestra di dialogo interattiva consente all'utente di scegliere se utilizzare la cartella predefinita "Karaoke" nella propria home utente (`~/Karaoke` o `C:\Users\<Utente>\Karaoke`) oppure selezionare una cartella personalizzata già esistente sul computer.
+- **Refresh Automatico all'Avvio**: Ad ogni avvio del programma, se la libreria è impostata, viene eseguita automaticamente una scansione in background della cartella per indicizzare istantaneamente nuovi brani aggiunti o aggiornare il catalogo locale.
+- **Aggiornamento Manuale con 1 Clic**: Il pulsante **"Aggiorna Libreria"** esegue la scansione immediata della cartella configurata con un solo clic, senza dover riaprire la finestra di dialogo del file system.
+- **Anteprima Video 16:9 & Riconoscimento Versioni**: Ciascun brano in libreria e nei risultati di ricerca mostra una miniatura video reale (estratta automaticamente con `ffmpeg` a 4 secondi per i file locali, e da YouTube per le ricerche online) e i chip di riconoscimento versione (es. *KaraFun*, *Karaoke Academy Italia*, *Sing King*, *Con Cori*, *Strumentale*).
+- **Modale di Ispezione Video Interattiva**: Cliccando sulla miniatura o sull'icona Anteprima (`Eye`), si apre un player dedicato con scrubber e volume controllato per verificare la versione, visualizzare il percorso del file e aggiungere il brano direttamente in coda con assegnazione del cantante.
+
+### 🎹 Sintesi MIDI & KAR con SpessaSynth
+- **SoundFont GeneralUser GS (31 MB) Integrato**: Suono ricco e fedele all'hardware, configurato come predefinito out-of-the-box per Linux, Windows e macOS.
+- **Riproduzione Fluida a Latenza Zero**: Scheduler diretto a 5ms su Web Worker con ranking di priorità MIDI degli eventi simultanei (`ProgramChange` ➔ `ControlChange` ➔ `PitchBend` ➔ `NoteOff` ➔ `NoteOn`).
+- **Nessuna Interruzione Audio**: Architettura protetta da change guards e buffer `latencyHint: 'playback'` che eliminano qualsiasi scatto o micro-buffer underrun.
+- **Mixer Live 16 Canali**: Muting istantaneo di singoli canali (es. traccia guida vocale sul canale 4).
+- **Transposizione Live**: Variazione della tonalità da -8 a +8 semitoni applicata direttamente ai numeri di nota MIDI in tempo reale.
+
+### 🎵 Motore DSP Audio & Pre-Ascolto Cuffie (CUE)
+- **Pitch-Shifting Professionale SoundTouch WSOLA**: Variazione tonalità da -8 a +8 semitoni ad altissima fedeltà su tracce audio e video tramite correlazione di forma d'onda WSOLA (Waveform Similarity Overlap-Add), eliminando qualsiasi distorsione armonica, flanging metallico o caduta di volume. Bypass diretto a 0 semitoni con latenza zero e 0% CPU.
+- **Time-Stretching e Variazione Velocità Estesa (0.50x–1.50x)**: Regolazione fine del tempo di riproduzione senza alcuna alterazione del pitch. Cliccando sull'indicatore numerico si ripristina istantaneamente la velocità standard 1.00x.
+- **Vocal Remover DSP a Crossover Multi-Banda**: Architettura a 3 bande avanzata con filtri Butterworth per la rimozione della voce solista più pulita e naturale possibile:
+  - *Banda Bassi (< 160 Hz)*: Isolata con filtro passa-basso Butterworth del 2° ordine e preservata al 100% in mono (mantiene intatto il punch della cassa e della linea di basso).
+  - *Banda Vocale Media (160 Hz – 5.5 kHz)*: Isolata con filtro passa-banda e cancellata tramite inversione di fase differenziale stereo (`L - R` a sinistra, `R - L` a destra), preservando l'ampiezza stereo senza collassare l'audio in mono.
+  - *Banda Alti (> 5.5 kHz)*: Isolata con filtro passa-alto, preservando i piatti della batteria, l'apertura acustica ("aria") e il riverbero stereo originale della traccia.
+- **Normalizzazione Dinamica del Volume Audio (Auto-Leveling)**: Stadio DSP basato su processore `DynamicsCompressorNode` (soglia a -22 dB, ratio 6:1, knee 24 dB, attacco ultra-rapido a 3 ms e rilascio a 250 ms) combinato con trucco di makeup gain a 1.35x. Livella in tempo reale la dinamica del volume tra brani diversi, attenuando le tracce con picchi eccessivi e amplificando quelle a basso volume, garantendo un'emissione acustica omogenea e professionale nella sala senza continui interventi manuali sul fader del volume.
+- **Pre-ascolto CUE**: Routing audio su scheda audio secondaria (`setSinkId`) per testare i brani in cuffia mentre il pubblico ascolta la musica principale.
+- **Auto-Ducking Intelligente**: Abbassamento automatico e graduale della musica durante gli annunci al microfono.
+
+### ⌨️ Scorciatoie da Tastiera Rapide (Control Console)
+- **CTRL + Freccia Su**: Alza la tonalità di +1 semitono (fino a +8 ST).
+- **CTRL + Freccia Giù**: Abbassa la tonalità di -1 semitono (fino a -8 ST).
+- **CTRL + Freccia Sinistra**: Rallenta il tempo di -0.05x (fino a 0.50x).
+- **CTRL + Freccia Destra**: Aumenta il tempo di +0.05x (fino a 1.50x).
+- **Spazio**: Play / Pausa immediato.
+- **Key N**: Salta al prossimo brano in scaletta.
+- **Freccia Sinistra / Destra**: Salto temporale avanti / indietro di 5 secondi.
+- **Freccia Su / Giù**: Regolazione del volume master (±5%).
+- **CTRL + F**: Apri la scheda Libreria e focalizza la barra di ricerca.
+- **Esc**: Chiudi finestre modali o disattiva il focus corrente.
+
+### ⚖️ Algoritmo Fair Queue, Drag & Drop, Ripristino & Memoria Tonalità
+- **Rotazione Equa Anti-Monopolio**: Prioritizza le richieste calcolando il turno equo in base al numero di canzoni già cantate da ciascun partecipante e all'orario di richiesta, con override manuale VIP.
+- **Drag & Drop della Coda**: Possibilità di riordinare visivamente con il mouse i brani in attesa nella scaletta tramite la maniglia di trascinamento laterale. Il primo brano attivo in riproduzione rimane bloccato in testa per evitare disconnessioni dello stage.
+- **Pulsante "Ripristina coda automatica"**: Con un solo clic nella testata della coda, reimposta immediatamente l'ordine ideale dell'algoritmo Fair Queue, riequilibrando i turni dei cantanti dopo eventuali modifiche manuali.
+- **Scelta Posizione di Inserimento (Fair Queue vs In fondo)**: Quando si aggiunge un brano dalla Libreria o dall'Anteprima Video con l'algoritmo attivo, è possibile scegliere se lasciar calcolare la posizione equa all'algoritmo (*Fair Queue*) oppure inserire il brano direttamente in coda (*In fondo alla coda*).
+- **Prevenzione Cantanti Duplicati**: Controllo rigoroso case-insensitive nel database SQLite e nell'interfaccia per evitare la creazione accidentale di profili omonimi e garantire il perfetto funzionamento dell'algoritmo di rotazione.
+- **Avvio Diretto del 1° Brano in Coda**: Il pulsante Play sul primo elemento della scaletta consente di avviare o mettere in pausa immediatamente la riproduzione del brano corrente, con stato visivo sincronizzato.
+- **Memoria Tonalità Cantante**: Memorizza la tonalità preferita per ciascun cantante e la applica automaticamente quando il brano entra in esecuzione.
+- **Persistenza Scaletta & Protezione Anti-Crash**: L'intera scaletta della coda (brani, cantanti assegnati, tonalità e posizioni) viene memorizzata costantemente nello storage locale. Se il software viene chiuso o subisce un riavvio imprevisto, alla riapertura la coda viene ripristinata fedelmente, con il primo brano pronto e in pausa a 0:00 sul banco regia.
+- **Pulsante "Svuota Coda" con Conferma di Sicurezza**: Pulsante rapido con icona cestino per azzerare l'intera coda e fermare la riproduzione in un solo passaggio, protetto da finestra di conferma per evitare cancellazioni accidentali durante gli eventi.
+- **Banner Schermo Palco "Prossima Esibizione"**: Notifica pulita e uniforme per il cantante e il pubblico che segnala il prossimo brano e performer sul palco.
+
+### 📱 Portale Ospiti Mobile via Wi-Fi (Guest Portal)
+- **Server LAN Integrato**: Server Express e Socket.IO integrato a zero configurazione.
+- **QR Code Dinamico**: Il pubblico inquadra il QR code con lo smartphone, visualizza la scaletta in tempo reale e invia richieste direttamente dal telefono.
+- **Selezione Obbligatoria da Libreria**: Ricerca istantanea con filtro in tempo reale sul catalogo locale. Sostituisce l'inserimento manuale a testo libero: solo i brani realmente presenti nella libreria possono essere prenotati, con selezione del cantante e della tonalità vocale (da -4 a +4 semitoni).
+- **Approvazione DJ Immediata**: Il gestore approva le richieste con un clic, inserendo nella scaletta il brano effettivo con la sua tonalità richiesta.
+
+### 📜 Tab Storico Esecuzioni & Borderò SIAE
+- **Nuovo Tab Dedicato "Storico"**: Organizzazione a 3 schede nella console di Regia (*Coda*, *Libreria*, *Storico*).
+- **Memoria Storica Persistente**: Traccia automaticamente tutte le esecuzioni completate su database SQLite (`siae_logs`), registrando titolo, artista, cantante assegnato, data/ora esatta e durata in secondi. La memoria rimane salvata tra un avvio e l'altro fino allo svuotamento manuale.
+- **Filtro di Ricerca Istantaneo**: Permette di cercare rapidamente tra i brani già cantati per titolo, autore o nome del cantante.
+- **Esportazione Borderò SIAE (CSV)**: Generazione con un clic del file CSV conforme per la rendicontazione dei diritti d'autore SIAE.
+- **Svuotamento Sicuro con Conferma**: Pulsante "Svuota Storico" con dialogo di sicurezza per azzerare il registro al termine della serata o dell'evento.
+- **Log Diagnostico Persistente**: Sistema di log diagnostico continuo su file con rotazione e livelli configurabili (Debug, Info, Warn, Error).
+
+### ⚡ Motore yt-dlp & Gestione Eseguibili Standalone Multipiattaforma
+- **Zero Installazioni Esterne nei Pacchetti di Release**: Negli eseguibili distribuiti per Windows (`.exe`), Linux (`.AppImage`, `.deb`) e macOS (`.dmg`), l'applicazione è al 100% autosufficiente. Non richiede l'installazione manuale preliminare di `yt-dlp`, `ffmpeg`, né la manipolazione di variabili di ambiente PATH.
+- **Rilevamento e Download Automatico all'Avvio**: All'avvio, il servizio `YtDlpUpdater` controlla la presenza dell'eseguibile sul sistema e interroga in background l'API GitHub di `yt-dlp`. Se l'eseguibile non è presente, viene scaricato automaticamente il binario ufficiale compatibile con il sistema operativo e l'architettura in uso (x86_64 o ARM64).
+- **Aggiornamento Trasparente in Background**: Qualora sia disponibile una nuova release di `yt-dlp`, il sistema scarica e valida il nuovo file in una cartella dati utente scrivibile (`userData/bin/`), impostando i permessi di esecuzione (`chmod 0755` su Linux e macOS) e sostituendolo in modo atomico, garantendo che i download web continuino a funzionare anche a fronte di cambi API da parte di YouTube.
+- **Risoluzione Relativa delle Risorse (`BinaryResolver`)**: Tutti i path dei binari e delle risorse sono risolti dinamicamente con percorsi relativi conformi ad Electron, prevenendo errori di permessi di sola lettura tipici delle directory di installazione (`C:\Program Files`, `/opt`).
+- **Pannello di Controllo Dedicato nelle Impostazioni**: Mostra lo stato di operatività, la versione corrente e il percorso del binario, con pulsante manuale per forzare la verifica e l'aggiornamento.
+
+---
+
+## 📋 Prerequisiti
+
+- **Node.js**: versione `20.x` o `22.x` (LTS consigliata)
+- **npm**: versione `10.x` o superiore
+- **Sistema Operativo**:
+  - **Linux**: Ubuntu 20.04+, Debian 11+, Fedora 36+, Arch Linux o derivate.
+  - **Windows**: Windows 10 o Windows 11 (64-bit).
+  - **macOS**: macOS 11 Big Sur, 12 Monterey, 13 Ventura, 14 Sonoma o successivi.
+
+---
+
+## 🚀 Installazione ed Esecuzione Rapida
+
+```bash
+# 1. Clona il repository o entra nella cartella del progetto
+cd KaraokeStation
+
+# 2. Installa le dipendenze
+npm install
+
+# 3. Verifica i tipi TypeScript
+npm run typecheck
+
+# 4. Compila i bundle frontend e main
+npm run build
+
+# 5. Avvia l'applicazione in modalità desktop
+npm start
+```
+
+Per sviluppare con hot-reload attivo:
+```bash
+npm run electron:dev
+```
+
+---
+
+## 📦 Creazione Pacchetti ed Eseguibili di Release
+
+L'applicazione include un sistema di packaging avanzato basato su `electron-builder` che genera pacchetti autosufficienti, puliti e privi di dipendenze esterne.
+
+### 🧹 Pulizia Automatica di Database e Dati di Test
+Prima della generazione di ogni pacchetto di release (`npm run electron:build:*`), il processo di build esegue automaticamente lo script `scripts/clean-test-data.js`:
+- **Database di Test**: Rimuove completamente il file SQLite locale `karaoke_station.db` e i relativi file di log WAL/SHM, azzerando brani inseriti durante i test, profili cantante, code temporanee e storico esecuzioni.
+- **Dati Utente e Cache di Sessione**: Elimina le directory e i file di stato (`Preferences`, `Local Storage`, `Session Storage`).
+- **File Temporanei e Miniature**: Svuota le miniature video generate in cache (`thumbnails/*.jpg`), i download temporanei (`temp/`) e i log di diagnostica (`logs/*.log`).
+In questo modo, ogni nuova release compilata è garantita al 100% pulita e pronta per l'utente finale, che partirà da una configurazione iniziale vergine.
+
+### 🐧 Per Linux (AppImage & deb)
+```bash
+npm run electron:build:linux
+```
+I file `.AppImage` (238 MB) e `.deb` (209 MB) verranno generati nella cartella `release/`, contenenti esclusivamente i binari Linux (`yt-dlp`, `ffmpeg`, `better-sqlite3` ELF 64-bit).
+
+### 🪟 Per Windows (Portable .exe & Standalone ZIP)
+```bash
+npm run electron:build:win
+```
+Verranno generati in `release/` l'eseguibile portatile autonomo `Karaoke Live Station 1.0.0.exe` (160 MB, avviabile immediatamente senza installazione né privilegi di amministratore) e l'archivio `Karaoke Live Station-1.0.0-win.zip` (245 MB), con binari esclusivi Win32 PE (`yt-dlp.exe`, `ffmpeg.exe`, `better_sqlite3.node`).
+
+### 🍎 Per macOS (.zip)
+```bash
+npm run electron:build:mac
+```
+L'archivio `Karaoke Live Station-1.0.0-mac.zip` (248 MB) contenente l'applicazione `.app` pronta all'uso verrà generato in `release/`, con binari esclusivi Darwin Mach-O (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`).
+
+### 🌐 Creazione Release per tutte le piattaforme
+```bash
+npm run electron:build:all
+```
+
+> 📌 **Primo Avvio & Percorsi di Default**:
+> - **Selezione Cartella Libreria**: Alla prima apertura, una finestra di dialogo interattiva invita l'utente a scegliere se utilizzare la cartella predefinita "Karaoke" nella propria home (`~/Karaoke` o `C:\Users\<Utente>\Karaoke`) oppure sfogliare e selezionare una cartella già esistente. Se l'utente annulla, viene utilizzata la cartella predefinita creandola automaticamente.
+> - **Refresh Automatico all'Avvio**: Ad ogni apertura del programma, se la cartella della libreria è impostata, viene eseguita automaticamente una scansione in background del percorso per rilevare e indicizzare istantaneamente nel catalogo eventuali nuovi brani aggiunti o rimossi.
+> - **SoundFont Predefinito**: Il banco ad alta fedeltà `GeneralUser-GS.sf2` (31 MB) è pre-incluso in tutte le release ed è configurato come predefinito out-of-the-box.
+> - **Zero Inquinamento Multipiattaforma**: Ogni pacchetto di release contiene esclusivamente gli eseguibili e le librerie native compilate per quel sistema operativo (nessun eseguibile `.exe` su Linux/Mac, nessun binario ELF su Windows).
+
+---
+
+## ⚖️ Disclaimer Legale, Copyright & Marchi Registrati
+
+### 1. Assenza di Contenuti Musicali Inclusi & Licenze di Pubblica Esecuzione (SIAE, SCF, etc.)
+- **Karaoke Live Station** è esclusivamente un software gestionale, un player multimediale e un processore audio DSP.
+- **Il software NON include, NON distribuisce e NON ospita alcun file musicale o multimediale protetto da diritto d'autore**, né basi commerciali karaoke (MP3+G, MIDI, KAR, MP4, WebM o tracce audio).
+- L'utente finale (DJ, animatore, gestore del locale o organizzatore di eventi) è **l'unico ed esclusivo responsabile** dell'acquisizione legittima di tutti i file riprodotti e dell'ottenimento delle necessarie licenze per la pubblica esecuzione e la riproduzione meccanica rilasciate dagli enti competenti di gestione dei diritti d'autore e connessi (in Italia, in via esemplificativa, **SIAE** e **SCF**, ovvero gli organismi di gestione collettiva competenti per territorio all'estero come BMI, ASCAP, PRS for Music, GEMA, SACEM).
+- La funzionalità di esportazione *"Borderò SIAE (CSV)"* è fornita unicamente come supporto tecnico e promemoria gestionale per facilitare la compilazione del programma musicale (borderò). L'uso di tale funzione non costituisce, non sostituisce e non esonera in alcun modo l'utente dal possesso di una regolare licenza SIAE/SCF e dal rispetto degli obblighi di legge previsti per le esecuzioni pubbliche.
+
+### 2. Integrazione con Piattaforme Web, YouTube & Download Runtime (yt-dlp)
+- La funzione di ricerca e riproduzione da fonti web si appoggia all'utility open source `yt-dlp`. Tale funzionalità è destinata esclusivamente alla ricerca di video a pubblico dominio, licenze Creative Commons, copie di backup personali consentite o contenuti legittimamente fruibili per uso privato e didattico, nel rispetto dei Termini di Servizio delle rispettive piattaforme.
+- **Download ed Esecuzione Automatica di yt-dlp**: Il software include un gestore di installazione e aggiornamento automatico (`YtDlpUpdater`) che preleva gli eseguibili compilati ufficiali unicamente dal repository GitHub certificato (`https://github.com/yt-dlp/yt-dlp/releases`). Tali file vengono archiviati esclusivamente nello spazio isolato dei dati applicativi dell'utente (`userData/bin/`) senza modificare file di configurazione globali o cartelle di sistema. L'utente ha sempre la facoltà di indicare o utilizzare un binario personalizzato impostando la variabile d'ambiente `YTDLP_PATH`.
+- **YouTube™** è un marchio registrato di titolarità esclusiva di **Google LLC / Alphabet Inc.**
+- **Karaoke Live Station** è un progetto open source indipendente e **non è affiliato, approvato, sponsorizzato o associato in alcun modo a Google LLC, YouTube o a produttori/distributori di basi karaoke di terze parti**.
+- Gli sviluppatori del software declinano qualsiasi responsabilità civile o penale per eventuali usi illeciti, violazioni del copyright o violazioni dei Termini di Servizio di YouTube o di altre piattaforme web commesse dagli utenti finali.
+
+### 3. Proprietà dei Marchi di Terze Parti (Nominative Fair Use)
+- Tutti i marchi registrati, marchi di fabbrica, denominazioni commerciali, loghi o nomi di aziende citati nel presente repository, nell'interfaccia software o nella documentazione (inclusi, a titolo puramente esemplificativo: *YouTube*, *KaraFun*, *M-Live*, *SongService*, *Sing King*, *Sunfly*, *GeneralUser GS*, *SoundTouch*, *SpessaSynth*, *Apple*, *Microsoft Windows*, *Linux*) sono di proprietà esclusiva dei rispettivi titolari legittimi.
+- La loro menzione all'interno del progetto (ad esempio nei filtri di riconoscimento versione, nei parser di metadati, nei SoundFont o nelle opzioni di compatibilità audio/sistema) risponde unicamente a finalità di identificazione descrittiva, interoperabilità tecnica e informazione all'utente (*nominative fair use*), senza che ciò costituisca pretesa di appartenenza, sponsorizzazione o affiliazione commerciale.
+
+### 4. Esclusione di Garanzia e Limitazione di Responsabilità ("AS IS")
+- Il presente software è distribuito "COSI COM'È" (*AS IS*), senza garanzie di alcun tipo, esplicite o implicite, incluse, a mero titolo di esempio, garanzie di commerciabilità, idoneità a scopi specifici o non violazione. In nessun caso gli autori o collaboratori del progetto potranno essere ritenuti responsabili per qualsivoglia reclamo, sanzione amministrativa, danno diretto o indiretto derivante dall'utilizzo o dalla riproduzione di contenuti tramite questo software.
+
+---
+
+## 📚 Attribuzioni, Fonti & Licenze Librerie Terze
+
+Karaoke Live Station è realizzato grazie a eccezionali librerie open source, standard aperti e progetti della comunità. Di seguito sono riportate le fonti ufficiali, gli autori, le licenze e il ruolo di ciascuna dipendenza utilizzata:
+
+| Libreria / Risorsa | Autore / Organizzazione | Licenza | Fonte Ufficiale | Utilizzo nel Progetto |
+| :--- | :--- | :--- | :--- | :--- |
+| **yt-dlp** | yt-dlp team | The Unlicense | [github.com/yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp) | Ricerca metadati YouTube, download flussi audio/video e aggiornamento automatico |
+| **FFmpeg** | FFmpeg Developers & Eugene Ware (`ffmpeg-static`) | LGPL 2.1+ / GPL 3.0 | [ffmpeg.org](https://ffmpeg.org/) • [github.com/eugeneware/ffmpeg-static](https://github.com/eugeneware/ffmpeg-static) | Decodifica multimediale ed estrazione automatica miniature video a 16:9 |
+| **SpessaSynth** | Spessa (`spessasus`) | MIT | [github.com/spessasus/SpessaSynth](https://github.com/spessasus/SpessaSynth) | Sintetizzatore SoundFont 2 (SF2) per riproduzione MIDI e KAR a bassissima latenza |
+| **SoundTouch / SoundTouchJS** | Olli Parviainen & Jakub Fiala | LGPL 2.1 / MIT | [gitlab.com/soundtouch/soundtouch](https://gitlab.com/soundtouch/soundtouch) • [github.com/jakubfiala/soundtouchjs](https://github.com/jakubfiala/soundtouchjs) | Algoritmo WSOLA professionale per variazione tonalità (pitch-shifting) e tempo-stretching |
+| **GeneralUser GS SoundFont** | S. Christian Collins | Permissive GeneralUser License | [schristiancollins.com](http://www.schristiancollins.com/generaluser.php) | Banco sonoro General MIDI da 31 MB integrato per resa acustica realistica |
+| **better-sqlite3** | Joshua Wise | MIT | [github.com/WiseLibs/better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | Database locale sincrono ad altissime prestazioni in modalità WAL (catalogo e SIAE) |
+| **Electron** | OpenJS Foundation & Electron Contributors | MIT | [electronjs.org](https://www.electronjs.org/) | Framework desktop nativo multi-finestra (Regia e Schermo Palco) |
+| **React** | Meta Platforms, Inc. | MIT | [react.dev](https://react.dev/) | Libreria UI dichiarativa e reattiva per i display operatore e palco |
+| **Tailwind CSS** | Tailwind Labs, Inc. | MIT | [tailwindcss.com](https://tailwindcss.com/) | Framework di styling CSS ad alte prestazioni per le 9 palette grafiche |
+| **Express** | OpenJS Foundation | MIT | [expressjs.com](https://expressjs.com/) | Server HTTP leggero integrato per il Guest Portal LAN |
+| **Socket.IO** | Automattic & Socket.IO Contributors | MIT | [socket.io](https://socket.io/) | Comunicazione bidirezionale in tempo reale tra smartphone del pubblico e console |
+| **Lucide Icons** | Lucide Contributors | ISC | [lucide.dev](https://lucide.dev/) | Iconografia vettoriale moderna ed uniforme dell'interfaccia |
+| **Zustand** | Paul Henschel & Zustand contributors | MIT | [github.com/pmndrs/zustand](https://github.com/pmndrs/zustand) | Gestione centralizzata e reattiva dello stato globale dell'applicazione |
+| **i18next & react-i18next** | i18next Community | MIT | [i18next.com](https://www.i18next.com/) | Internazionalizzazione completa (Italiano, Inglese, Spagnolo, Francese) |
+
+---
+
+<br/>
+<hr/>
+<br/>
+
+<a name="english"></a>
+# 🇬🇧 English
+
+**Karaoke Live Station** is a professional, mission-critical, cross-platform desktop application designed for karaoke DJs, event entertainers, live music venues, and private party hosts.
+
+Built upon an **independent dual-window architecture (Control Desk + Stage Screen)**, it delivers real-time Web Audio DSP pitch transposition (in semitones) and tempo scaling, native General MIDI / KAR synthesis with the bundled 31 MB GeneralUser GS SoundFont bank, 30 fps CD+G subcode graphics decoding, an intelligent Fair Queue algorithm with singer pitch memory, and an embedded **LAN Guest Portal** with dynamic QR code requests for smartphones.
+
+> 💡 **Development Note**: This software was conceived, architected, and developed with **Google Antigravity**, the advanced autonomous agentic coding assistant by Google DeepMind.
+
+---
+
+## 🌟 Key Features
+
+### 🎛️ Dual-Window Live Architecture
+- **Control Desk (Regia)**: Complete operator console with timeline scrubbing, audio visualizer, 16-channel MIDI mixer, queue management, catalog search, and headphone pre-listening (CUE).
+- **Stage Screen (Palco)**: Clean external display for singers and audience (TV/Projector output with `F11` / double-click borderless fullscreen). Renders MP4/WebM videos, CD+G graphics, or synchronized lyrics with animated "Now Singing" and "Get Ready" notification banners.
+- **HTTP 206 Partial Content Streaming**: Custom `karaoke://local/` protocol with byte-range streaming. The stage screen can be closed and reopened mid-song without pausing or desynchronizing audio.
+
+### 🎨 9 Color Themes & Edge-to-Edge Stage Screen
+- **9 Distinct Visual Themes**: Independent theme customization for both Control Console and Stage Screen (*Dark Stage, Midnight Neon, Club Gold, Ocean Breeze, Sunset Crimson, Emerald Matrix, Royal Amethyst, High Contrast, Light Studio*).
+- **100% Edge-to-Edge Video Utilization**: Maximizes available display area on the Stage Screen with zero wasted padding or borders, supporting 16:9, 4:3, and ultrawide video ratios without aspect ratio distortion.
+- **Temporary Floating Song Title Banner**: Track title and artist float at the bottom center of the video for a user-configurable duration (2–30 seconds, 8s default) before smoothly fading out, ensuring singer lyrics remain completely unobstructed.
+- **Low-Profile Flush Progress Bar**: Ultra-thin progress indicator along the screen's bottom edge with subtle illumination that never hides subtitles.
+
+### 📁 Configurable Library Path & Video Version Previews
+- **Guided First-Launch Setup**: On first launch, an interactive dialog invites the user to choose between using the default "Karaoke" folder in their home directory (`~/Karaoke` or `C:\Users\<Username>\Karaoke`) or selecting an existing custom folder.
+- **Automatic Refresh on Startup**: Every time the application starts up, if a library folder is configured, it automatically performs a background scan and refresh to index newly added or modified tracks immediately.
+- **1-Click Manual Refresh**: The **"Refresh Library"** button scans and indexes the configured directory directly with a single click, without opening file picker dialogs.
+- **16:9 Video Previews & Version Detection**: Every song in the library and search results features an actual 16:9 video thumbnail (auto-extracted via `ffmpeg` at 4 seconds for local files, and fetched from YouTube for online results) along with version badges (e.g. *KaraFun*, *Karaoke Academy Italia*, *Sing King*, *With Backing Vocals*, *Instrumental*).
+- **Interactive Video Preview Modal**: Clicking any thumbnail or the Preview (`Eye`) button opens a dedicated video player with timeline scrubbing and safe preview volume to verify song arrangements, inspect local file paths, and directly queue with singer selection.
+
+### 🎹 MIDI & KAR Synthesis with SpessaSynth
+- **Bundled GeneralUser GS SoundFont (31 MB)**: Rich, hardware-grade acoustic samples configured as the default out-of-the-box across Linux, Windows, and macOS.
+- **Zero-Latency Smooth Playback**: 5ms Web Worker clock with strict MIDI priority ranking for simultaneous events (`ProgramChange` ➔ `ControlChange` ➔ `PitchBend` ➔ `NoteOff` ➔ `NoteOn`).
+- **Stutter-Free Audio**: Protected by change guards and `latencyHint: 'playback'` buffer sizing, preventing audio stuttering and PipeWire/ALSA buffer underruns.
+- **Live 16-Channel Mixer**: Real-time muting/unmuting of individual tracks (e.g. vocal guide melody on Channel 4).
+- **Live Pitch Shifting**: Transpose songs from -8 to +8 semitones by shifting MIDI note numbers in real time without audio distortion.
+
+### 🎵 Audio DSP Engine & Headphone Monitoring (CUE)
+- **SoundTouch WSOLA Studio Pitch Shifting**: High-fidelity pitch transposition (-8 to +8 semitones) on audio and video tracks using Waveform Similarity Overlap-Add (WSOLA), completely eliminating harmonic distortion, metallic comb-filtering, and volume wobbles. Direct bit-perfect bypass at 0 semitones with zero latency and 0% CPU overhead.
+- **Extended Independent Tempo Scaling (0.50x–1.50x)**: Continuous playback speed adjustment without modifying audio pitch. Clicking the speed indicator immediately resets playback rate to 1.00x.
+- **Multi-Band Crossover Vocal Remover DSP**: Advanced 3-band crossover architecture using Butterworth filters to deliver the cleanest and most natural vocal attenuation possible:
+  - *Sub-Bass Band (< 160 Hz)*: 2nd-order Butterworth low-pass filter preserves 100% of kick drum punch and bassline power in mono.
+  - *Mid Vocal Band (160 Hz – 5.5 kHz)*: Isolated with a bandpass filter and cancelled via differential stereo phase cancellation (`L - R` on Left, `R - L` on Right), maintaining full stereo imaging without collapsing audio into mono.
+  - *High "Air" Band (> 5.5 kHz)*: Isolated with a high-pass filter, retaining acoustic sparkle, hi-hats, and original stereo room reverb.
+- **CUE Pre-listening**: Route preview audio to a secondary sound card (`setSinkId`) to check tracks in headphones while front-of-house room playback continues uninterrupted.
+- **Dynamic Audio Volume Normalization (Auto-Leveling)**: DSP dynamics processor powered by `DynamicsCompressorNode` (-22 dB threshold, 6:1 ratio, 24 dB knee, 3 ms attack, 250 ms release) combined with 1.35x makeup leveling gain. Equalizes acoustic dynamics across diverse songs in real time, taming aggressive volume spikes and lifting quiet backing tracks for a seamless, professional listening experience without riding the master fader. Configurable and toggleable in Audio Settings.
+- **Intelligent Auto-Ducking**: Automatically and smoothly attenuates background music when speaking into the microphone.
+
+### ⌨️ Quick Keyboard Shortcuts (Control Console)
+- **CTRL + Arrow Up**: Raise pitch +1 semitone (up to +8 ST).
+- **CTRL + Arrow Down**: Lower pitch -1 semitone (down to -8 ST).
+- **CTRL + Arrow Left**: Slow down tempo -0.05x (down to 0.50x).
+- **CTRL + Arrow Right**: Speed up tempo +0.05x (up to 1.50x).
+- **Space**: Instant Play / Pause toggle.
+- **Key N**: Skip to next track in queue.
+- **Arrow Left / Right**: Jump playback 5 seconds backward / forward.
+- **Arrow Up / Down**: Master volume fine adjustment (±5%).
+- **CTRL + F**: Switch to Library tab and focus the search input.
+- **Esc**: Close modals or release active focus.
+
+### ⚖️ Fair Queue Algorithm, Drag & Drop, Restore & Singer Pitch Memory
+- **Anti-Monopoly Fair Rotation**: Dynamically balances song requests based on rotation fairness (number of songs already performed) and request timestamp, with VIP manual override.
+- **Queue Drag & Drop**: Intuitively reorder waiting queue items with mouse drag-and-drop using visual grip handles. The currently active track at index 0 remains locked to prevent playback interruptions.
+- **"Restore Fair Queue" Button**: One-click button in the queue header to instantly re-sort waiting tracks back into optimal Fair Queue order whenever manual reordering or additions took place.
+- **Flexible Queue Placement (Fair Queue vs End of Queue)**: When adding a song from the Library or Video Preview with Fair Queue active, choose between automatic fair scheduling (*Fair Queue*) or direct append (*End of Queue*).
+- **Duplicate Singer Prevention**: Robust case-insensitive check in SQLite database and UI to prevent duplicate singer records and keep rotation statistics perfectly accurate.
+- **Direct Play/Pause on Top Queue Track**: The play button on the first track in the queue directly starts or pauses playback with live state synchronization.
+- **Singer Pitch Memory**: Remembers individual pitch preferences and automatically sets them when a singer's song starts.
+- **Queue Persistence & Crash Protection**: The entire queue lineup (tracks, singer names, custom keys, and positions) is persistently stored in local storage. In the event of an accidental shutdown or crash, the queue is faithfully restored upon restarting, with the top track cued and paused at 0:00.
+- **Safe "Clear Queue" Action**: Dedicated trash button with an interactive confirmation dialog in the queue header, allowing the host to cleanly wipe the entire waiting lineup and reset playback in one safe action.
+- **Stage Screen "Upcoming Performance" Banner**: Clean, synchronized notification displayed on the Stage Screen announcing the next song and performer.
+
+### 📱 Embedded LAN Smartphone Guest Portal
+- **Zero-Config LAN Web Server**: Built-in Express and Socket.IO server running on the local Wi-Fi network.
+- **Dynamic QR Code**: Guests scan the on-screen QR code with their mobile phone to view the live queue and send requests.
+- **Library-Only Song Selection**: Dynamic live search with instant filtering over the indexed local catalog. Replaces manual free-text inputs: only songs actually existing in the library can be selected and requested, including singer name and key transposition (-4 to +4 semitones).
+- **1-Click DJ Approval**: Host reviews requests in the queue and approves them with a single click, immediately queueing the real media track with the requested pitch offset.
+
+### 📜 Playback History Tab & Royalty Reporting (SIAE)
+- **Dedicated 3-Tab Console Layout**: Smooth segmented switching between *Queue*, *Library*, and *History*.
+- **Persistent Execution Memory**: Automatically logs every finished song into a persistent SQLite database table (`siae_logs`), recording track title, artist, assigned performer, exact execution timestamp, and duration in seconds. Persists indefinitely across app restarts until explicitly wiped.
+- **Real-Time History Filter**: Instant fuzzy search across executed tracks by title, artist, or performer name.
+- **1-Click Royalty CSV Export**: Native dialog to export standardized CSV reports compatible with copyright organizations (such as SIAE Borderò).
+- **Safe Clear History Workflow**: "Clear History" button with a confirmation modal to safely reset logs at the end of a gig or event.
+- **Persistent Diagnostic Logger**: Disk-backed diagnostic logs with configurable levels (Debug, Info, Warn, Error, Off).
+
+### ⚡ yt-dlp Engine & Zero-Dependency Standalone Executables
+- **Zero-Configuration Standalone Packaging**: In packaged executable releases (Windows `.exe`, Linux `.AppImage`/`.deb`, macOS `.dmg`), Karaoke Live Station is completely self-contained. It requires no manual pre-installation of `yt-dlp`, `ffmpeg`, or system PATH adjustments.
+- **Automatic Verification & Background Updates on Startup**: Upon launching, `YtDlpUpdater` checks for local executable availability and queries GitHub Releases API for the latest official build. If missing or outdated, it streams the compatible binary, verifies its checksum and integrity, and applies it in the background without freezing the UI or playback.
+- **Strict Relative Path Resolution & Safe Permissions**: Employs `BinaryResolver` to resolve runtime dependencies across relative locations. Updated binaries are saved to the user data directory (`userData/bin/`) and granted executable permissions (`chmod 0755` on POSIX), bypassing read-only application folders such as `Program Files` or `/opt`.
+- **Manual Control in Settings**: Live diagnostic card in Settings displaying the binary path, current version, operational status, and a manual "Check / Update" button.
+
+---
+
+## 📋 Prerequisites
+
+- **Node.js**: `v20.x` or `v22.x` (LTS recommended)
+- **npm**: `v10.x` or higher
+- **Supported Operating Systems**:
+  - **Linux**: Ubuntu 20.04+, Debian 11+, Fedora 36+, Arch Linux, or compatible.
+  - **Windows**: Windows 10 or Windows 11 (64-bit).
+  - **macOS**: macOS 11 Big Sur, 12 Monterey, 13 Ventura, 14 Sonoma, or newer.
+
+---
+
+## 🚀 Installation & Quick Start
+
+```bash
+# 1. Clone the repository or navigate to the project directory
+cd KaraokeStation
+
+# 2. Install dependencies
+npm install
+
+# 3. Run TypeScript typecheck
+npm run typecheck
+
+# 4. Build Vite frontend and Electron main bundles
+npm run build
+
+# 5. Launch the desktop application
+npm start
+```
+
+For development with hot-reload enabled:
+```bash
+npm run electron:dev
+```
+
+---
+
+## 📦 Building Executable Releases
+
+The application includes an automated packaging pipeline based on `electron-builder` producing clean, self-contained standalone distributions without external dependencies.
+
+### 🧹 Automated Test Data & Database Cleanup
+Prior to generating any release package (`npm run electron:build:*`), the build script automatically invokes `scripts/clean-test-data.js`:
+- **Test Database**: Completely purges the local SQLite file `karaoke_station.db` and associated WAL/SHM files, clearing songs added during tests, singer profiles, queues, and performance logs.
+- **User Data & Session Storage**: Erases configuration state (`Preferences`, `Local Storage`, `Session Storage`).
+- **Temporary Files & Thumbnails**: Deletes cached video thumbnails (`thumbnails/*.jpg`), temporary downloads (`temp/`), and rotating diagnostic logs (`logs/*.log`).
+This ensures every release is 100% pristine and clean for the end-user.
+
+### 🐧 Build for Linux (AppImage & deb)
+```bash
+npm run electron:build:linux
+```
+Output packages `.AppImage` (238 MB) and `.deb` (209 MB) will be placed in `release/`, containing exclusively Linux binaries (`yt-dlp`, `ffmpeg`, `better-sqlite3` ELF 64-bit).
+
+### 🪟 Build for Windows (Portable .exe & Standalone ZIP)
+```bash
+npm run electron:build:win
+```
+The standalone portable executable `Karaoke Live Station 1.0.0.exe` (160 MB, runs immediately without installation or admin privileges) and `Karaoke Live Station-1.0.0-win.zip` (245 MB) will be generated in `release/`, with exclusive Win32 PE binaries (`yt-dlp.exe`, `ffmpeg.exe`, `better_sqlite3.node`).
+
+### 🍎 Build for macOS (.zip)
+```bash
+npm run electron:build:mac
+```
+The standalone `.zip` archive (248 MB) containing `Karaoke Live Station.app` will be generated in `release/`, with exclusive Darwin Mach-O binaries (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`).
+
+### 🌐 Build for all target platforms
+```bash
+npm run electron:build:all
+```
+
+> 📌 **First Launch & Default Paths**:
+> - **Library Folder Selection**: On first launch, an interactive modal dialog prompts the user to either use the default "Karaoke" folder in their home directory (`~/Karaoke` on Linux/macOS, `C:\Users\<Username>\Karaoke` on Windows) or browse and select an existing folder. If dismissed or cancelled, the application creates and defaults to the default `Karaoke` directory.
+> - **Automatic Refresh on Startup**: Every time the program starts, if a library path is set, it automatically performs a background scan and refresh to detect and index new songs immediately.
+> - **Default SoundFont**: The high-definition `GeneralUser-GS.sf2` (31 MB) soundbank is pre-bundled across all releases and active out-of-the-box.
+> - **Zero Cross-Platform Pollution**: Each release package contains strictly the binaries and native compiled modules required for that operating system (no `.exe` files in Linux/Mac releases, no ELF binaries in Windows releases).
+
+---
+
+## 📂 Project Structure
+
+```
+KaraokeStation/
+├── .github/
+│   └── workflows/
+│       └── build.yml               # Multi-platform CI/CD workflow
+├── .gitattributes                  # LF line-ending normalization
+├── .gitignore                      # Git ignore patterns
+├── locales/                        # Internationalization strings (en, it, es, fr)
+├── public/
+│   └── soundfonts/
+│       └── GeneralUser-GS.sf2      # High-definition 31 MB SoundFont bank
+├── src/
+│   ├── main/                       # Electron Main Process
+│   │   ├── db/database.ts          # SQLite 3 WAL persistent storage
+│   │   ├── server/guestServer.ts   # Express + Socket.IO LAN mobile server
+│   │   ├── services/
+│   │   │   ├── DownloadManager.ts  # yt-dlp child process wrapper
+│   │   │   └── Logger.ts           # Rotating diagnostic logger
+│   │   └── index.ts                # App lifecycle & HTTP 206 protocol handler
+│   ├── preload/
+│   │   └── index.ts                # Secure IPC ContextBridge
+│   ├── renderer/                   # React Frontend (Control Desk & Stage)
+│   │   ├── components/
+│   │   │   ├── ControlWindow.tsx   # Regia Operator Console (Material Design 3)
+│   │   │   ├── StageWindow.tsx     # Stage Screen for Singer & Audience
+│   │   │   ├── LibraryPanel.tsx    # Media Catalog & 1-Click Refresh
+│   │   │   ├── HistoryPanel.tsx    # Persistent Execution History & SIAE Export
+│   │   │   ├── SettingsModal.tsx   # Hardware, Library & System Preferences
+│   │   │   ├── MidiChannelMixer.tsx# 16-Channel Live MIDI Mixer
+│   │   │   └── SingersModal.tsx    # Singer Management & History
+│   │   ├── core/
+│   │   │   ├── AudioGraphManager.ts# Web Audio Graph, DSP & SpessaSynth
+│   │   │   ├── MidiParser.ts       # Sub-millisecond MIDI & KAR parser
+│   │   │   ├── PitchShifterNode.ts # Phase-vocoder stereo pitch shifter
+│   │   │   └── CdgParser.ts        # MP3+G CD+G subcode graphics decoder
+│   │   ├── store/
+│   │   │   └── karaokeStore.ts     # Zustand reactive global state
+│   │   └── styles/
+│   │       └── index.css           # Tailwind CSS v4 styling
+│   └── shared/
+│       └── types.ts                # Shared TypeScript models & contracts
+├── package.json                    # Dependencies, scripts, and build settings
+├── tsconfig.json                   # TypeScript configuration
+└── vite.config.ts                  # Vite & electron plugins configuration
+```
+
+---
+
+## ⚖️ Legal Disclaimer, Copyright & Trademarks
+
+### 1. No Musical Content Bundled & Public Performance Licensing (SIAE, ASCAP, BMI, etc.)
+- **Karaoke Live Station** is strictly a media playback management system, user interface, and Web Audio DSP engine.
+- **The software DOES NOT contain, distribute, host, or stream any copyrighted musical recordings, backing tracks, or synchronized karaoke media** (MP3+G, MIDI, KAR, MP4, WebM, or audio stems).
+- End users (karaoke DJs, performers, venue operators, and event hosts) are **solely and exclusively responsible** for obtaining all media files through lawful channels and procuring the necessary public performance, communication to the public, and mechanical reproduction licenses from competent collecting societies (e.g. **SIAE** and **SCF** in Italy, **ASCAP**, **BMI**, and **SESAC** in the US, **PRS for Music** and **PPL** in the UK, **GEMA** in Germany, **SACEM** in France, etc.).
+- The *"SIAE Borderò Export (CSV)"* feature is provided merely as an administrative aid and log-keeping utility to assist users in completing music performance reports. Its use does not substitute, waive, or fulfill the requirement to hold valid performance licenses or pay statutory royalties.
+
+### 2. Third-Party Web Services, YouTube & Runtime Auto-Download (yt-dlp)
+- Web search and media playback features rely on the third-party open-source utility `yt-dlp`. This capability is provided exclusively for lawful personal backups, public domain materials, Creative Commons media, or private study in full compliance with third-party Terms of Service.
+- **Automated Runtime yt-dlp Download & Secure Updates**: The application includes an automated download and update service (`YtDlpUpdater`) that retrieves official, precompiled binaries strictly from the verified GitHub repository (`https://github.com/yt-dlp/yt-dlp/releases`). Downloaded binaries are isolated in the local user data directory (`userData/bin/`), without altering global operating system configurations or system folders. Users retain full control to override or provide a custom binary via the `YTDLP_PATH` environment variable.
+- **YouTube™** is a registered trademark of **Google LLC / Alphabet Inc.**
+- **Karaoke Live Station** is an independent, non-affiliated open-source software project and is **NOT endorsed by, sponsored by, affiliated with, or associated with Google LLC, YouTube, or any third-party commercial karaoke content providers**.
+- The developers explicitly disclaim any liability for copyright infringement, unauthorized scraping, or violation of third-party platforms' Terms of Service committed by end users.
+
+### 3. Third-Party Trademarks & Nominative Fair Use
+- All trademarks, service marks, brand names, product names, and company logos mentioned in this repository, software UI, or documentation (including, but not limited to: *YouTube*, *KaraFun*, *M-Live*, *SongService*, *Sing King*, *Sunfly*, *GeneralUser GS*, *SoundTouch*, *SpessaSynth*, *Apple*, *Microsoft Windows*, *Linux*) are the property of their respective trademark holders.
+- Any reference to these marks (e.g., track version detection chips, audio driver interfaces, or SoundFont compatibility) is made strictly for descriptive, identification, and technical interoperability purposes (*nominative fair use*). Such mention does not constitute or imply sponsorship, endorsement, or commercial affiliation.
+
+### 4. Disclaimer of Warranties & Limitation of Liability ("AS IS")
+- This software is distributed on an "AS IS" basis, without warranties or conditions of any kind, either express or implied, including without limitation warranties of merchantability, fitness for a particular purpose, or non-infringement. In no event shall the authors or copyright holders be liable for any claims, penalties, direct or consequential damages arising from the use of this software or media played through it.
+
+---
+
+## 📚 Third-Party Libraries, Citations & Licenses
+
+Karaoke Live Station is powered by open-source libraries, open standards, and community contributions. Below are the official citations, maintainers, licenses, and architectural roles for each third-party component utilized:
+
+| Library / Resource | Author / Organization | License | Official Source | Role in Karaoke Live Station |
+| :--- | :--- | :--- | :--- | :--- |
+| **yt-dlp** | yt-dlp team | The Unlicense | [github.com/yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp) | YouTube metadata querying, stream downloading, and background auto-updating |
+| **FFmpeg** | FFmpeg Developers & Eugene Ware (`ffmpeg-static`) | LGPL 2.1+ / GPL 3.0 | [ffmpeg.org](https://ffmpeg.org/) • [github.com/eugeneware/ffmpeg-static](https://github.com/eugeneware/ffmpeg-static) | Media stream demuxing and automated 16:9 video thumbnail generation |
+| **SpessaSynth** | Spessa (`spessasus`) | MIT | [github.com/spessasus/SpessaSynth](https://github.com/spessasus/SpessaSynth) | SoundFont 2 (SF2) software synthesizer for ultra-low latency MIDI and KAR playback |
+| **SoundTouch / SoundTouchJS** | Olli Parviainen & Jakub Fiala | LGPL 2.1 / MIT | [gitlab.com/soundtouch/soundtouch](https://gitlab.com/soundtouch/soundtouch) • [github.com/jakubfiala/soundtouchjs](https://github.com/jakubfiala/soundtouchjs) | Studio-grade WSOLA algorithm for pitch shifting and tempo stretching |
+| **GeneralUser GS SoundFont** | S. Christian Collins | Permissive GeneralUser License | [schristiancollins.com](http://www.schristiancollins.com/generaluser.php) | High-definition 31 MB General MIDI SoundFont bank bundled for realistic instruments |
+| **better-sqlite3** | Joshua Wise | MIT | [github.com/WiseLibs/better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | High-performance synchronous SQLite driver in WAL mode (media library & SIAE history) |
+| **Electron** | OpenJS Foundation & Electron Contributors | MIT | [electronjs.org](https://www.electronjs.org/) | Multi-window native desktop runtime (Control Desk & Stage Display) |
+| **React** | Meta Platforms, Inc. | MIT | [react.dev](https://react.dev/) | Reactive, component-based UI layer for operator console and stage displays |
+| **Tailwind CSS** | Tailwind Labs, Inc. | MIT | [tailwindcss.com](https://tailwindcss.com/) | High-performance CSS framework powering the 9 visual themes |
+| **Express** | OpenJS Foundation | MIT | [expressjs.com](https://expressjs.com/) | Embedded lightweight HTTP server powering the local LAN Guest Portal |
+| **Socket.IO** | Automattic & Socket.IO Contributors | MIT | [socket.io](https://socket.io/) | Real-time full-duplex WebSocket communication between guest mobiles and DJ desk |
+| **Lucide Icons** | Lucide Contributors | ISC | [lucide.dev](https://lucide.dev/) | Clean, consistent vector iconography throughout the application |
+| **Zustand** | Paul Henschel & Zustand contributors | MIT | [github.com/pmndrs/zustand](https://github.com/pmndrs/zustand) | Centralized, reactive global application state management |
+| **i18next & react-i18next** | i18next Community | MIT | [i18next.com](https://www.i18next.com/) | Comprehensive internationalization framework (English, Italian, Spanish, French) |
+
+---
+
+## 📄 License
+
+This software is released for live entertainment, professional hosting, and private karaoke use.
+All third-party libraries and dependencies remain the intellectual property of their respective authors under their original open-source licenses as cited above.

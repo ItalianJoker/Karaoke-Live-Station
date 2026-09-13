@@ -1,0 +1,141 @@
+{
+  "name": "karaoke-live-station",
+  "version": "1.0.0",
+  "description": "Cross-platform mission-critical desktop software for live karaoke entertainment",
+  "author": {
+    "name": "Karaoke Live Station Team",
+    "email": "dev@karaokelivestation.local"
+  },
+  "homepage": "https://github.com/karaoke-live-station",
+  "main": "dist-electron/main/index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "start": "env -u ELECTRON_RUN_AS_NODE electron .",
+    "typecheck": "tsc --noEmit",
+    "clean": "node scripts/clean-test-data.js",
+    "electron:dev": "concurrently -k \"vite\" \"env -u ELECTRON_RUN_AS_NODE electron .\"",
+    "electron:build": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js current && vite build && electron-builder && node scripts/restore-host-node.js",
+    "electron:build:linux": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js linux && vite build && electron-builder --linux && node scripts/restore-host-node.js",
+    "electron:build:win": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js win && vite build && electron-builder --win && node scripts/restore-host-node.js",
+    "electron:build:mac": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js mac && vite build && electron-builder --mac && node scripts/restore-host-node.js",
+    "electron:build:all": "npm run electron:build:linux && npm run electron:build:win && npm run electron:build:mac"
+  },
+  "build": {
+    "appId": "com.karaoke.livestation",
+    "productName": "Karaoke Live Station",
+    "directories": {
+      "output": "release"
+    },
+    "icon": "build/icon.png",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "public/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "public/soundfonts",
+        "to": "soundfonts",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asarUnpack": [
+      "**/better-sqlite3/**",
+      "**/ffmpeg-static/**"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "build/icons",
+      "category": "AudioVideo",
+      "maintainer": "Karaoke Live Station Team <dev@karaokelivestation.local>",
+      "extraResources": [
+        {
+          "from": "bin/linux",
+          "to": "bin",
+          "filter": [
+            "*"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        "portable",
+        "zip"
+      ],
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false,
+      "extraResources": [
+        {
+          "from": "bin/win",
+          "to": "bin",
+          "filter": [
+            "*.exe"
+          ]
+        }
+      ]
+    },
+    "mac": {
+      "target": [
+        "zip"
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.music",
+      "extraResources": [
+        {
+          "from": "bin/mac",
+          "to": "bin",
+          "filter": [
+            "*"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "clsx": "^2.1.1",
+    "express": "^4.21.2",
+    "ffmpeg-static": "^5.2.0",
+    "i18next": "^24.2.2",
+    "lucide-react": "^0.475.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "^15.4.0",
+    "socket.io": "^4.8.1",
+    "soundtouchjs": "^0.3.0",
+    "spessasynth_lib": "^4.3.14",
+    "tailwind-merge": "^3.0.1",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.4",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8",
+    "postcss": "^8.5.2",
+    "tailwindcss": "^4.0.6",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6"
+  }
+}
