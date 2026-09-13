@@ -1,421 +1,690 @@
-# 📖 Manuale Utente / User Manual — Karaoke Live Station
+# Manuale Utente — Karaoke Live Station
 
-> **Karaoke Live Station** — Professional Cross-Platform Live Entertainment & Karaoke Management Station.  
-> Architecture: Electron, React 18, Web Audio DSP, SoundFont/MIDI Synth, Express LAN Portal, SQLite Catalog.
+**Karaoke Live Station** — stazione professionale multipiattaforma per DJ, KJ e locali di karaoke live.  
+Architettura: Electron, React 18, Web Audio DSP, sintesi SoundFont/MIDI, Guest Portal LAN (Express), catalogo SQLite.
 
----
-
-## 📑 Indice dei Contenuti / Table of Contents
-
-- [🇮🇹 Manuale Utente (Italiano)](#-manuale-utente-italiano)
-  - [1. Panoramica e Architettura del Sistema](#1-panoramica-e-architettura-del-sistema)
-  - [2. Installazione e Prima Configurazione](#2-installazione-e-prima-configurazione)
-  - [3. Guida Operativa alla Console di Regia (DJ / KJ)](#3-guida-operativa-alla-console-di-regia-dj--kj)
-  - [4. Guida allo Schermo del Palco (Singer Display)](#4-guida-allo-schermo-del-palco-singer-display)
-  - [5. Guest Portal per Smartphone (Richieste via LAN)](#5-guest-portal-per-smartphone-richieste-via-lan)
-  - [6. Ricerca, Download e Gestione della Libreria](#6-ricerca-download-e-gestione-della-libreria)
-  - [7. Scorciatoie da Tastiera (Keyboard Shortcuts)](#7-scorciatoie-da-tastiera-keyboard-shortcuts)
-  - [8. Risoluzione dei Problemi (Troubleshooting) e Registro SIAE](#8-risoluzione-dei-problemi-troubleshooting-e-registro-siae)
-- [🇬🇧 User Manual (English)](#-user-manual-english)
-  - [1. Overview and Architecture](#1-overview-and-architecture)
-  - [2. Installation and Initial Configuration](#2-installation-and-initial-configuration)
-  - [3. Control Console Operating Guide (DJ / KJ)](#3-control-console-operating-guide-dj--kj)
-  - [4. Stage Screen Guide (Singer Display)](#4-stage-screen-guide-singer-display)
-  - [5. Mobile Guest Portal (LAN Song Requests)](#5-mobile-guest-portal-lan-song-requests)
-  - [6. Search, Downloads, and Library Management](#6-search-downloads-and-library-management)
-  - [7. Complete Keyboard Shortcuts Table](#7-complete-keyboard-shortcuts-table)
-  - [8. Troubleshooting and Copyright / SIAE Logging](#8-troubleshooting-and-copyright--siae-logging)
+Questo documento è il manuale operativo completo (Fasi 1–5) in **italiano**. Destinato all’operatore in regia.
 
 ---
 
-# 🇮🇹 Manuale Utente (Italiano)
+## Indice
 
-## 1. Panoramica e Architettura del Sistema
-
-**Karaoke Live Station** è una stazione software professionale concepita per DJ, KJ e operatori dell'intrattenimento dal vivo. Il sistema è strutturato secondo un'architettura **Master / Slave** su doppio display:
-
-1. **Finestra di Regia (Control Window - Master):**  
-   Console di controllo operatore completa di transport, gestione Fair Queue con punteggi anti-monopolio, controllo della tonalità e del tempo in tempo reale, rimozione voce guida DSP, ducking microfonico, mixer canali MIDI/KAR a 16 tracce, pre-ascolto in cuffia (CUE) su scheda audio secondaria, motore di ricerca ibrido (locale + YouTube) e registro esecuzioni SIAE.
-
-2. **Finestra del Palco (Stage Window - Slave):**  
-   Schermo a tutto schermo proiettato su TV o videoproiettore per il cantante e il pubblico. Completamente mutato (per evitare duplicazioni di segnale rispetto all'impianto audio principale), sincronizzato al fotogramma con la Regia via IPC, con grafica CD+G/MP3+G renderizzata via Canvas 2D, supporto video MP4/WebM/MKV e banner dinamici configurabili ("Ora Canta" e "Preparati").
-
-3. **Guest Portal LAN:**  
-   Server web leggero integrato su rete locale (Wi-Fi). Permette agli spettatori in sala di inquadrare un QR Code con il proprio smartphone, consultare il catalogo canzoni e inviare richieste indicando il proprio nome e la tonalità desiderata.
-
-4. **Protezione Istanza Singola (Single Instance Lock):**  
-   L'applicazione impedisce l'esecuzione di istanze duplicate del programma. Qualsiasi tentativo di avvio di una seconda istanza viene bloccato immediatamente, ripristinando e mettendo a fuoco la finestra di regia già aperta.
-
----
-
-## 2. Installazione e Prima Configurazione
-
-### Requisiti di Sistema
-- **Sistemi Operativi supportati:** Linux (Ubuntu/Debian, Fedora, Arch), Windows 10/11 (64-bit), macOS 11+ (Apple Silicon & Intel).
-- **Audio:** Scheda audio integrata o interfaccia USB multi-canale (consigliata interfaccia 4-out per separare Master e Cuffie CUE).
-- **Video:** Configurazione desktop esteso a doppio monitor (Display 1 = Monitor Regia, Display 2 = TV/Proiettore Palco).
-
-### Configurazione Iniziale nelle Opzioni (Icona Ingranaggio)
-1. **Cartella Libreria Personale:**  
-   In *Opzioni ➔ Cartella Libreria*, seleziona la cartella del tuo computer contenente i file karaoke (`.mp4`, `.mp3+.cdg`, `.mid`, `.kar`). Tutti i file salvati o scaricati verranno archiviati in questo percorso.
-2. **Banco Suoni SoundFont (.sf2):**  
-   Per la riproduzione ad alta fedeltà dei file MIDI e KAR, seleziona un SoundFont General MIDI standard (incluso per impostazione predefinita in `public/soundfonts/default.sf2` o custom a tua scelta).
-3. **Dispositivi Audio (Master e CUE):**  
-   - Seleziona l'uscita audio per l'impianto PA principale (*Dispositivo Master*).  
-   - Seleziona l'uscita secondaria per le cuffie dell'operatore (*Dispositivo CUE*).
-4. **Firewall di Sistema per il Guest Portal:**  
-   Alla prima esecuzione, autorizza Karaoke Live Station nel firewall. Se usi Linux o Windows, fai riferimento alla guida interattiva e ai comandi pronti all'uso nella sezione Firewall delle Opzioni.
+1. [Panoramica e architettura](#1-panoramica-e-architettura)
+2. [Installazione e percorsi portabili](#2-installazione-e-percorsi-portabili)
+3. [Prima configurazione](#3-prima-configurazione)
+4. [Console di Regia](#4-console-di-regia)
+5. [Coda Fair Queue, VIP e cache](#5-coda-fair-queue-vip-e-cache)
+6. [Libreria: ricerca, download e anteprime](#6-libreria-ricerca-download-e-anteprime)
+7. [Schermo Stage (Palco)](#7-schermo-stage-palco)
+8. [Avanzamento automatico e pausa di transizione](#8-avanzamento-automatico-e-pausa-di-transizione)
+9. [Impostazioni a tab e ricerca](#9-impostazioni-a-tab-e-ricerca)
+10. [Scorciatoie da tastiera](#10-scorciatoie-da-tastiera)
+11. [Guest Portal LAN](#11-guest-portal-lan)
+12. [Registro SIAE](#12-registro-siae)
+13. [Temi e lingue (i18n)](#13-temi-e-lingue-i18n)
+14. [Risoluzione dei problemi](#14-risoluzione-dei-problemi)
 
 ---
 
-## 3. Guida Operativa alla Console di Regia (DJ / KJ)
+## 1. Panoramica e architettura
 
-### Controlli di Riproduzione & Transport
-- **Play / Pausa (Tasto `Spazio`):** Avvia o mette in pausa la traccia correntemente caricata.
-- **Avvio Veloce ("Doppio click o Play per avviare"):** Puoi avviare la riproduzione premendo il tasto Play sul primo brano in scaletta oppure facendo doppio click su qualsiasi brano presente in coda.
-- **Stop (Tasto `S`):** Interrompe immediatamente la riproduzione, riavvolge il minutaggio a 0:00 e arresta il motore DSP/MIDI.
-- **Ricomincia (Tasto `R`):** Riporta all'inizio (0:00) la canzone in esecuzione senza scaricarla dalla coda.
-- **Prossimo Brano (Tasto `N`):** Conclude la traccia corrente, ne registra l'esecuzione nello storico SIAE e avanza al cantante successivo in scaletta.
-- **Scrubbing & Salto Temporale (`←` / `→`):** Clicca sulla barra di avanzamento o premi i tasti freccia per saltare indietro o avanti di 5 secondi con riallineamento istantaneo del video sullo schermo del palco.
-- **Salvataggio Rapido in Libreria (Icona 💾):** Se un brano in scaletta o in esecuzione proviene dal Web o dalla cache temporanea di coda, compare un pulsante dedicato con un clic ("Salva in libreria") sia sulla riga della coda che nella barra superiore del player per archiviarlo permanentemente nella propria cartella locale.
+Karaoke Live Station gestisce una serata karaoke su **due finestre indipendenti** più un portale ospiti in rete locale.
 
-### Tonalità (Pitch Shift) & Velocità (Tempo)
-- **Regolazione Tonalità (`+` / `-` oppure `Ctrl+↑` / `Ctrl+↓`):** Modifica l'intonazione in semitoni (da -8 a +8).  
-  *Regola fondamentale:* La tonalità è legata alla singola istanza del brano accodato. Modificando il pitch, la variazione si applica istantaneamente all'audio in riproduzione e rimane memorizzata nella voce in scaletta.
-- **Regolazione Velocità (`Ctrl+←` / `Ctrl+→`):** Varia la velocità di esecuzione dal 50% al 150% preservando l'intonazione originale grazie all'algoritmo Time-Stretch WSOLA.
+### 1.1 Finestra di Regia (Control — Master)
 
-### Curva di Volume Performativa (Curva Quadratica Psicoacustica)
-- Lo slider del Volume Master applica una risposta quadratica naturale ($Gain = volume^2$):
-  - **100%:** Guadagno pieno (0 dB).
-  - **75%:** Attenuazione moderata (-5 dB).
-  - **50%:** Dimezzamento psicoacustico percepito dell'intensità sonora (-12 dB).
-  - **25%:** Volume di sottofondo morbido (-24 dB).
-  - **0%:** Silenzio assoluto.
-- **Anti-Click Smooth Ramping:** Tutte le variazioni di volume e di muto utilizzano una rampa lineare di 50 millisecondi per azzerare qualsiasi artefatto di clipping o "thump" su altoparlanti professionali.
-- **Muto Master (Tasto `M`):** Azzera istantaneamente il volume del canale master mantenendo la posizione del fader.
+Console operatore completa:
 
-### Processore Vocale DSP & Microfono
-- **Rimozione Voce Guida In-Phase (Tasto `V`):** Attiva una matrice DSP ad alta fedeltà di cancellazione del canale centrale (Enhanced In-Phase Center-Channel Canceller). Sottrae la componente mono (`0.5 * (L - R)`) per abbattere a $-\infty$ dB la voce solista incisa al centro dello stereo, mentre preserva il punch di basso e cassa (< 160 Hz in mono), la brillantezza e l'aria delle alte frequenze (> 5500 Hz in stereo) e applica la medesima polarità positiva su entrambi gli altoparlanti del locale, prevenendo qualsiasi interferenza distruttiva nell'aria.
-- **Auto-Ducking BGM (Tasto `D`):** Abbassa automaticamente il livello della musica di sottofondo a -14 dB quando l'operatore parla o effettua un annuncio microfonico, ripristinando il volume standard al termine della voce.
+- Transport (Play / Pausa / Stop / Ricomincia / Prossimo)
+- Volume master con curva percettiva
+- Pitch in semitoni e velocità (time-stretch)
+- Rimozione voce guida tramite **Demucs** (HTDemucs)
+- Auto-ducking BGM al microfono
+- Mixer MIDI/KAR a 16 canali
+- Pre-ascolto CUE su dispositivo secondario
+- Coda cantanti (Fair Queue), Libreria & ricerca, Storico SIAE
+- Gestione richieste Guest Portal
 
-### Fair Queue (Scaletta Intelligente Anti-Monopolio)
-- **Attiva di Default:** L'algoritmo di rotazione equa è abilitato per impostazione predefinita (`enableFairQueue: true`), garantendo un'esperienza meritocratica fin dal primo avvio.
-- **Punteggio di Equità (Fair Score):** Assegna a ciascun cantante una priorità dinamica basata sul numero di brani già eseguiti nella serata. Chi ha cantato di meno riceve priorità automatica.
-- **Priorità VIP:** Permette al DJ di forzare una posizione privilegiata per ospiti speciali, festeggiati o celebrazioni.
-- **Riordino Manuale:** È sempre possibile trascinare e rilasciare (Drag & Drop) i brani in scaletta per modificare l'ordine al volo.
-- **Ripristina Coda Equa:** Riorganizza con un solo clic la scaletta secondo l'algoritmo matematico Fair Queue.
+### 1.2 Finestra Stage / Schermo Palco (Slave)
 
-### Mixer MIDI / KAR a 16 Canali
-Quando viene caricata una base MIDI o KAR (`.mid` / `.kar`), la console apre automaticamente il mixer a 16 canali:
-- Visualizzazione attività note in tempo reale su ogni canale.
-- Pulsanti di Silenziamento (Mute) e Attivazione dedicati per ciascuna traccia (es. Canale 4 Voce Guida, Canale 2 Basso, Canale 10 Batteria).
-- Modifiche applicate al volo al motore di sintesi Wavetable senza interruzione del flusso sonoro.
+Schermo per cantante e pubblico (TV o proiettore):
 
----
+- Video MP4/WebM/MKV, grafica CD+G, testi MIDI/KAR
+- Audio della Stage **mutato** (l’audio esce solo dalla Regia / Master)
+- Sincronizzazione via IPC con la Regia
+- Banner «Ora Canta», «Preparati», «Prossima Esibizione»
+- Badge semitoni configurabile (`showPitchOnStage`)
+- Fullscreen (F11 / Esc / doppio clic)
 
-## 4. Guida allo Schermo del Palco (Singer Display)
+### 1.3 Guest Portal LAN
 
-La finestra del Palco è concepita per rimanere aperta sul monitor rivolto al pubblico per l'intera durata dell'evento.
+Server web integrato (Express + Socket.IO) sulla rete Wi‑Fi del locale. Gli ospiti inquadrano un QR Code e inviano richieste dal telefono senza installare app.
 
-### Pipeline di Rendering Isolata
-- Avvio con finestra nascosta (`show: false`) e sfondo nero profondo (`#000000`).
-- La finestra viene resa visibile solo dopo che il layout DOM, i font di sistema e lo stato IPC sono stati completati, eliminando qualsiasi sfarfallio visivo o comparsa di markup grezzo.
-- **Auto-Recovery:** In caso di disconnessione accidentale del cavo HDMI, spegnimento del videoproiettore o crash del renderer secondario, il Main process ripristina la finestra in background con la coda e il timestamp corretti.
-- **Pulsante "Riapri Palco" (Tasto `P`):** Se la finestra del Palco viene chiusa per errore, premendo `P` o il pulsante verde in regia la finestra viene immediatamente riaperta e risincronizzata al secondo esatto.
+### 1.4 Istanza singola (Single Instance Lock)
 
-### Modalità Schermo Intero
-- Premi **`F11`** o **`Esc`** mentre hai il fuoco sulla finestra del Palco.
-- Fai doppio clic (oppure due clic rapidi) in qualsiasi punto dello schermo per attivare/disattivare il borderless fullscreen.
+L’applicazione consente **una sola istanza** in esecuzione. Un secondo avvio viene bloccato: il processo nuovo termina e la finestra di Regia già aperta viene ripristinata e messa a fuoco. Evita doppie Regie, conflitti audio e porte Guest Portal duplicate.
 
-### Banner Dinamici Configurabili
-1. **Banner Iniziale ("Ora Canta"):**  
-   All'inizio del brano, un banner animato presenta il nome del cantante corrente. Se abilitato nelle opzioni, mostra anche il nome e il brano del cantante successivo ("A seguire").
-2. **Banner Finale ("Preparati"):**  
-   Negli ultimi 20 secondi (tempo configurabile), un banner discreto avvisa il cantante successivo di avvicinarsi al microfono.
-3. **Titolo Brano in Sovrimpressione:**  
-   Mostra titolo e autore in sovrimpressione non invasiva nei primi 8 secondi della canzone.
+### 1.5 Flusso audio / video in sintesi
 
-### Visualizzazione Tonalità Cantante (Pitch Badge)
-- Nelle Opzioni puoi scegliere se mostrare o nascondere sullo schermo del palco il badge che indica i semitoni di variazione (`+` / `-`) rispetto alla tonalità originale del brano (`showPitchOnStage`). In questo modo puoi decidere se rendere visibile al pubblico l'offset di pitch o mantenerlo discreto solo sulla console di regia.
+1. La Regia possiede il transport e il grafo Web Audio.
+2. I media locali passano dal protocollo `karaoke://local/` con streaming a byte-range (HTTP 206), così lo Stage può aprirsi/chiudersi a brano in corso senza desincronizzare.
+3. Pitch, velocità, Demucs, ducking, normalizzazione e routing CUE vivono nel grafo audio della Regia.
+4. MIDI/KAR: parsing → SpessaSynth + SoundFont → mixer a 16 canali.
+5. Avanzamento coda e registro SIAE sono gestiti nello store; lo Stage riceve lo stato via IPC.
 
 ---
 
-## 5. Guest Portal per Smartphone (Richieste via LAN)
+## 2. Installazione e percorsi portabili
 
-Il **Guest Portal** permette agli ospiti del locale di sfogliare il catalogo delle basi disponibili e prenotare una canzone senza assembramenti presso la console di regia.
+### 2.1 Sistemi supportati
 
-### Come Attivare il Portale
-1. Assicurati che il computer di regia sia connesso alla rete Wi-Fi del locale.
-2. Fai clic sul pulsante **QR Code** nella barra superiore della Regia (oppure usa il pulsante *Richieste Guest*).
-3. Mostra il codice QR sul monitor o stampalo sul bancone del bar: gli ospiti lo inquadrano con la fotocamera dello smartphone (compatibile con iOS e Android senza installare alcuna app).
-4. L'indirizzo URL locale ha tipicamente la forma: `http://192.168.1.XX:3000` (con fallback automatico sulle porte 3001, 3002 se la 3000 è occupata).
+- **Linux** (Ubuntu/Debian, Fedora, Arch e simili)
+- **Windows** 10/11 a 64 bit
+- **macOS** 11+ (Apple Silicon e Intel)
 
-### Flusso di Prenotazione
-1. L'ospite cerca il brano per titolo o artista sullo smartphone.
-2. Inserisce il proprio nome e seleziona l'eventuale variazione di tonalità (es. -2 semitoni).
-3. Invia la richiesta.
-4. Nella console di Regia compare un badge sonoro/visivo ("Richieste Guest: 1").
-5. L'operatore può:
-   - **Accettare (Verde):** La canzone entra istantaneamente nella Fair Queue nella posizione più equa, preservando la tonalità richiesta dal cantante.
-   - **Rifiutare (Rosso):** La richiesta viene scartata senza interferire con la scaletta.
+Consigliati: desktop esteso a **due monitor** (Regia + Palco) e, se possibile, interfaccia audio USB multi-uscita per separare Master e cuffie CUE.
+
+### 2.2 Cartella dati applicazione (`userData`)
+
+Tutti i dati gestiti dall’app vivono sotto la cartella Electron `userData` (non in `/tmp`):
+
+| Piattaforma | Percorso tipico |
+| :--- | :--- |
+| Linux | `~/.config/karaoke-live-station/` (o nome app equivalente XDG) |
+| macOS | `~/Library/Application Support/<App>/` |
+| Windows | `%APPDATA%\<App>\` |
+
+Contenuti rilevanti:
+
+| Percorso relativo | Contenuto |
+| :--- | :--- |
+| `karaoke_station.db` | Database SQLite (catalogo, cantanti, log SIAE) in modalità WAL |
+| `bin/` | Binari gestiti, in particolare **yt-dlp** |
+| `temp/` | Download in corso |
+| `queue_cache/` | File web non archiviati in libreria, persistenti finché in coda |
+| `thumbnails/` | Miniature generate |
+| `logs/` | Log diagnostici |
+| `models/` | Modello ONNX HTDemucs (~172 MB) per la rimozione voce |
+
+### 2.3 Binari gestiti in `<userData>/bin/`
+
+**yt-dlp** (e altri binari gestiti) vengono installati e aggiornati in:
+
+```text
+<userData>/bin/yt-dlp      (Linux / macOS)
+<userData>/bin/yt-dlp.exe  (Windows)
+```
+
+Comportamento operativo:
+
+1. All’avvio l’app preferisce sempre la copia in `userData/bin/`.
+2. Se manca o è corrotta, può **seminare** (seed) dal pacchetto installato verso `userData/bin/`.
+3. Verifica di integrità (dimensione minima, eseguibilità, probe `--version`).
+4. Aggiornamenti da GitHub Releases solo se manca o esiste una versione più recente (non riscarica a ogni avvio).
+5. Installazione atomica in `userData/bin/` (file temporaneo sibling, poi sostituzione); su Windows gestione sicura dei file bloccati.
+
+**ffmpeg** viene risolto da pacchetto/bundle/PATH per miniature e conversioni; yt-dlp resta il motore di ricerca/download web.
+
+Nelle **Impostazioni → Libreria & Download** puoi vedere stato/versione di yt-dlp e usare **Verifica / Aggiorna**.
+
+### 2.4 Libreria media dell’utente
+
+La cartella media **non** è `userData/library` di fallback silenzioso: è il percorso **obbligatorio** `libraryPath` scelto dall’operatore (spesso `~/Karaoke` o `C:\Users\<Utente>\Karaoke`). Tutti i salvataggi e l’archiviazione automatica usano esclusivamente quel percorso.
 
 ---
 
-## 6. Ricerca, Download e Gestione della Libreria
+## 3. Prima configurazione
 
-### Ricerca Ibrida
-- **Scheda Libreria (Tasto `2` o `Ctrl+F`):**  
-  - **Modalità Locale:** Cerca istantaneamente nel database SQLite tra i file residenti sul disco rigido (testi, video e basi MIDI).
-  - **Modalità Web / YouTube:** Cerca in tempo reale su YouTube basi musicali karaoke.
+All’avvio, se `libraryPath` manca o non esiste sul disco, compare la procedura guidata (dialoghi **non modali** rispetto al parent Chromium, per non sospendere l’audio).
 
-### Download, Archiviazione & Cache di Coda Persistente
-- **Archiviazione Automatica di Default:** L'impostazione *Archiviazione Automatica Brani Web* (`autoArchiveWebTracks`) è attiva per impostazione predefinita (`true`). Ogni brano scaricato da YouTube viene salvato direttamente nella cartella della tua libreria permanente, rendendolo immediatamente riutilizzabile per le serate future.
-- **Modale Obbligatorio di Conferma alla Disattivazione:** Tentando di disattivare l'archiviazione automatica nelle Opzioni, l'applicazione mostra un modale di sicurezza obbligatorio con un avviso chiaro: disattivando l'archiviazione, i brani scaricati rimarranno disponibili solo nella cache temporanea e verranno eliminati una volta rimossi dalla coda.
-- **Cache di Coda Persistente (`<userData>/queue_cache/`):** Quando l'archiviazione automatica è disattivata, i download vengono salvati nella cartella protetta `queue_cache`. I file rimangono perfettamente integri e riproducibili anche se chiudi e riapri il programma, purché il brano sia ancora presente nella scaletta salvata.
-- **Garbage Collection (GC) Intelligente al Solo Scodamento:** I file della cache di coda vengono rimossi fisicamente dal disco **esclusivamente** quando il brano viene rimosso dalla coda (a seguito di esecuzione completata, cancellazione manuale o svuotamento dell'intera coda). Se un brano identico è ancora presente in altri punti della scaletta, il file viene mantenuto protetto.
-- **Salvataggio Contestuale in Libreria in 1 Clic:** Sia dalla riga del brano in coda che dalla barra superiore del player in esecuzione, puoi cliccare in qualunque momento su *Salva in Libreria* per promuovere istantaneamente un brano dalla cache alla tua libreria locale definitiva.
-- **Aggiornamento Immediato della Vista Libreria:** Sia i download automatici che i salvataggi manuali emettono un evento di re-indicizzazione immediato che ricarica al volo la visualizzazione della Libreria, senza bisogno di premere pulsanti di refresh o riavviare.
-- **Preservazione Nomi File & Accenti:** I file salvati preservano fedelmente spazi e lettere accentate (`à, è, é, ì, ò, ù, ñ, ç...`), ripulendo i caratteri speciali per garantire massima compatibilità su Windows, macOS e Linux.
+### 3.1 Cartella Libreria Karaoke (obbligatoria)
 
-### Gestione Protetta Dipendenze Esterne (`yt-dlp`)
-- **Collocazione Esclusiva in `<app_data_dir>/bin/`**: L'eseguibile `yt-dlp` viene memorizzato ed eseguito unicamente all'interno della cartella dati protetta dell'applicazione (`userData/bin/`), salvaguardandolo da utility di pulizia del sistema (`/tmp`) o sovrascritture di pacchetto.
-- **Riuso Senza Riscaricamenti Ridondanti**: Se il binario è già presente ed eseguibile, il software riutilizza l'istanza locale e verifica in background gli aggiornamenti su GitHub Releases in modo non bloccante, scaricando un nuovo file solo in presenza di un effettivo incremento di versione.
-- **Risoluzione Dinamica al Download**: I percorsi degli eseguibili vengono ricalcolati dinamicamente prima di ogni download o ricerca, consentendo l'applicazione a caldo di nuove versioni senza riavviare il programma.
+1. Apri **Impostazioni** (icona ingranaggio).
+2. Scheda **Libreria & Download**.
+3. Voce **Cartella Libreria Karaoke** → **Sfoglia...**.
+4. Scegli la cartella con i file karaoke (`.mp4`, `.mp3`+`.cdg`, `.mid`, `.kar`, ecc.).
+
+Senza cartella impostata:
+
+- i download con archiviazione automatica attiva vengono bloccati con il messaggio:  
+  **«Imposta la cartella libreria nelle impostazioni prima di scaricare.»**
+- «Salva in Libreria» richiede comunque un percorso valido.
+
+Dopo la scelta, l’app può scansionare e indicizzare i file nel database. Usa **Aggiorna Libreria** per una riscansione manuale.
+
+### 3.2 Banco SoundFont (.sf2)
+
+Per MIDI/KAR:
+
+1. Scheda **Audio & Riproduzione** (o Generale, a seconda della ricerca impostazioni).
+2. **Percorso Banco SoundFont (.sf2)**.
+3. Di default è incluso un SoundFont GeneralUser GS; puoi selezionarne uno personalizzato.
+
+Se non configurato, l’interfaccia può mostrare **«Nessun SoundFont (.sf2) configurato»**.
+
+### 3.3 Dispositivi audio Master e CUE
+
+| Impostazione | Uso |
+| :--- | :--- |
+| **Dispositivo Uscita Principale (Master Palco)** | Impianto PA / casse sala |
+| **Dispositivo Uscita Pre-ascolto (Cuffie CUE)** | Cuffie operatore per anteprime senza disturbare la sala |
+
+Configurali prima dell’evento. Il CUE usa il routing `setSinkId` sulla scheda secondaria.
+
+### 3.4 Firewall (Guest Portal)
+
+Alla prima esecuzione autorizza Karaoke Live Station sul firewall (reti **private**). Nelle Impostazioni è presente l’**Assistente Firewall & Connessione LAN** con diagnosi e comandi pronti (Windows / macOS / Linux UFW / Firewalld). Vedi anche la [sezione Troubleshooting](#14-risoluzione-dei-problemi).
+
+### 3.5 Checklist rapida pre-serata
+
+1. `libraryPath` impostato e libreria aggiornata  
+2. SoundFont OK (se usi MIDI)  
+3. Master + CUE corretti  
+4. Stage aperto sul secondo monitor (`P` / **Riapri Palco**)  
+5. Guest Portal attivo e firewall OK (se usi richieste da smartphone)  
+6. Fair Queue e opzioni auto-advance come preferisci  
 
 ---
 
-## 7. Scorciatoie da Tastiera (Keyboard Shortcuts)
+## 4. Console di Regia
 
-La tabella seguente riassume tutte le scorciatoie utilizzabili dall'operatore durante le serate dal vivo. Puoi visualizzare questa guida in qualsiasi momento premendo **`F1`** o **`?`** sulla tastiera.
+La Regia è organizzata in tre schede principali a destra: **Coda Cantanti** (`1`), **Libreria & Ricerca** (`2`), **Storico** (`3`). Il player e i controlli audio restano sempre disponibili in alto/centrale.
 
-| Tasto | Categoria | Azione Eseguita |
+### 4.1 Transport
+
+| Controllo | Scorciatoia | Comportamento |
 | :--- | :--- | :--- |
-| **`Spazio`** | Riproduzione | Avvia / Mette in Pausa la canzone corrente |
-| **`S`** | Riproduzione | Stop: arresta l'audio e riavvolge a 0:00 |
-| **`R`** | Riproduzione | Ricomincia la canzone corrente dall'inizio |
-| **`N`** | Riproduzione | Passa al brano successivo in scaletta |
-| **`←` / `→`** | Riproduzione | Salto indietro / avanti di 5 secondi |
-| **`M`** | Audio & DSP | Attiva / Disattiva il Muto Master |
-| **`↑` / `↓`** | Audio & DSP | Regola il Volume Master (±5%) con curva percettiva |
-| **`+` / `-`** | Audio & DSP | Alza / Abbassa la Tonalità di 1 semitono |
-| **`Ctrl + ↑ / ↓`** | Audio & DSP | Alza / Abbassa la Tonalità di 1 semitono |
-| **`Ctrl + ← / →`** | Audio & DSP | Regola la velocità di riproduzione (±5%) |
-| **`V`** | Audio & DSP | Attiva / Disattiva la Rimozione Voce Guida |
-| **`D`** | Audio & DSP | Attiva / Disattiva l'Auto-Ducking per microfono |
-| **`1`** | Navigazione | Passa alla scheda **Coda Cantanti** |
-| **`2`** | Navigazione | Passa alla scheda **Ricerca & Libreria** |
-| **`3`** | Navigazione | Passa alla scheda **Storico SIAE** |
-| **`Ctrl + F`** | Navigazione | Cerca brano (apre la libreria e mette a fuoco il campo) |
-| **`P`** | Display | Riapri / Metti a fuoco lo Schermo del Palco |
-| **`F11` / `Esc`** | Display | Schermo intero (sul monitor del Palco) |
-| **`F1` / `?`** | Aiuto | Mostra la guida interattiva alle scorciatoie |
-| **`Esc`** | Finestre | Chiudi qualsiasi finestra modale o popup attiva |
+| Riproduci / Pausa | `Spazio` | Avvia o mette in pausa il brano caricato |
+| Stop | `S` | Ferma, riavvolge a 0:00, arresta DSP/MIDI |
+| Ricomincia | `R` | Torna a 0:00 senza togliere il brano dalla coda |
+| Prossimo Brano | `N` | Valuta log SIAE e passa al successivo |
+| Seek | `←` / `→` o scrubber | ±5 secondi; Stage si riallinea |
+
+**Avvio dalla coda:** sul primo brano (o con doppio clic) compare l’hint:
+
+> **Doppio click o Play per avviare**
+
+Puoi avviare/mettere in pausa con il pulsante Play sulla riga del primo elemento, oppure fare doppio click su un brano in coda.
+
+**Salva in Libreria:** se il brano proviene dal web o da `queue_cache`, compare **Salva in Libreria** sulla riga coda e nella testata player, per promuoverlo nella cartella libreria permanente.
+
+### 4.2 Volume percettivo
+
+Lo slider Volume Master usa una curva **quadratica psicoacustica**:
+
+\[
+Gain = volume^2 \quad (volume\ da\ 0\ a\ 1)
+\]
+
+Esempi: 100% → guadagno pieno; 50% → guadagno 0,25 (−12 dB circa, dimezzamento percepito); 0% → silenzio.
+
+- Variazioni con **rampa anti-click ~50 ms** (niente “thump” sugli altoparlanti).
+- **Muto** (`M`): silenzia il master mantenendo la posizione del fader.
+- Frecce `↑` / `↓`: volume ±5%.
+- Opzionale: **Normalizzazione Volume Audio** (livellamento automatico tra brani diversi).
+
+### 4.3 Pitch (semitoni) e velocità
+
+- **Tonalità:** da **−8 a +8** semitoni (`+` / `-` oppure `Ctrl+↑` / `Ctrl+↓`).
+- Il pitch è legato **all’istanza in coda** (e alla memoria tonalità del cantante): resta memorizzato per quella esecuzione.
+- A 0 semitoni il motore può bypassare lo shifter (latenza/CPU minime).
+- **Velocità:** da **0,50× a 1,50×** senza alterare il pitch (WSOLA / SoundTouch). `Ctrl+←` / `Ctrl+→` regolano di ±5%. Clic sull’indicatore numerico ripristina spesso 1,00×.
+- MIDI: la trasposizione agisce sui numeri di nota in tempo reale.
+
+### 4.4 Rimozione voce guida (Demucs)
+
+Il tasto **`V`** / controllo **Rimuovi Voce Guida** attiva la separazione steli con **Meta HTDemucs** (`demucs-web` + `onnxruntime-web`), non un semplice cancellatore L−R.
+
+Flusso operativo:
+
+1. Alla prima attivazione può scaricare/caricare il modello ONNX in `<userData>/models/` (~172 MB).
+2. La riproduzione “dry” continua mentre Demucs elabora in background.
+3. Completata la separazione, crossfade verso il mix strumentale (drums + bass + other, senza vocals).
+4. Play / pausa / seek restano sincronizzati; cambio brano invalida lo stem precedente.
+5. Cache LRU degli stem strumentali (massimo circa 4 buffer) per non saturare la RAM nelle serate lunghe.
+
+Se la separazione fallisce, resta il mix originale.
+
+### 4.5 Auto-ducking BGM
+
+**Auto-Ducking BGM** (`D`): abbassa automaticamente la musica di sottofondo quando rileva/attivi il microfono per annunci, poi ripristina il livello. Ideale per presentazioni tra un brano e l’altro.
+
+### 4.6 Mixer MIDI a 16 canali
+
+Con file `.mid` / `.kar` compare il **Mixer Canali MIDI**:
+
+- Attività note in tempo reale
+- Mute per canale (es. **Guida Vocale (Ch 4)**, **Basso (Ch 2)**, **Batteria (Ch 10)**)
+- Modifiche a caldo senza interrompere la sintesi SpessaSynth
+
+### 4.7 Pre-ascolto CUE
+
+Usa **Pre-ascolto Cuffie (CUE)** per ascoltare in cuffia mentre la sala sente il Master. Configura il dispositivo CUE nelle Impostazioni. Le anteprime video in Libreria usano volume controllato per non disturbare la sala (**«Audio anteprima a volume controllato per non disturbare la sala»**).
+
+### 4.8 Persistenza coda e anti-crash
+
+La scaletta (brani, cantanti, tonalità, posizioni) viene salvata in persistenza locale. Dopo chiusura o crash, alla riapertura la coda torna con il primo brano pronto in pausa a 0:00.
 
 ---
 
-## 8. Risoluzione dei Problemi (Troubleshooting) e Registro SIAE
+## 5. Coda Fair Queue, VIP e cache
 
-### Gli smartphone non caricano la pagina del Guest Portal
-1. **Firewall del Sistema Operativo:**  
-   Apri le Opzioni di Karaoke Live Station e consulta la sezione **Firewall**. Su Windows, premi *Consenti accesso* per reti private; su Linux esegui il comando `sudo ufw allow 3000:3010/tcp` (oppure `firewall-cmd`).
-2. **Isolamento AP (AP Client Isolation) del Router:**  
-   Nei modem dei locali pubblici o negli hotspot per ospiti, verifica che l'opzione "Isolamento AP" o "Client Isolation" sia disattivata. Questa opzione impedisce la comunicazione diretta tra dispositivi connessi al medesimo Wi-Fi.
+### 5.1 Fair Queue (default ON)
 
-### Lo Schermo del Palco rimane nero o non si apre
-- Fai clic su **"Riapri Palco"** o premi il tasto **`P`** sulla tastiera.
-- Se utilizzi cavi HDMI lunghi o adattatori video USB, la finestra si auto-ripristina automaticamente appena il sistema operativo rileva nuovamente il display secondario.
+**Algoritmo Fair Queue Attivo** è **abilitato di default** (`enableFairQueue: true`).
 
-### Registro Esecuzioni e Borderò SIAE
-- **Regole di Registrazione nello Storico**: Una canzone in esecuzione viene registrata nel registro delle esecuzioni SIAE nei seguenti casi:
-  1. Se giunge al suo **termine naturale** (`naturalEnd`), anche in caso di canzoni o intermezzi brevi;
-  2. Se viene fermata (`Stop` o tasto `S`) oppure saltata al brano successivo (`Next` o tasto `N`) dopo essere stata riprodotta per **almeno 2 minuti (120 secondi)**.
-  - Brani avviati per errore e fermati/saltati sotto i 120 secondi non vengono registrati nello storico.
-- **Protezione Anti-Duplicati (`alreadyLogged`)**: Se un brano supera i 120 secondi e viene fermato/messo in pausa e successivamente ripreso e terminato o saltato, il sistema impedisce duplicazioni, registrando una sola riga nel registro per quella specifica esecuzione.
-- **Timestamp Certificato ed Esportazione CSV**: Ciascuna esecuzione registra il timestamp ISO 8601 UTC, l'epoch millisecondi e la data locale. Per esportare il registro ai fini della dichiarazione di diritti musicali (SIAE / SCF / BMI / ASCAP), vai nella scheda **Storico** (Tasto `3`) e clicca su **Esporta SIAE (CSV)** per generare un foglio di calcolo compatibile con Microsoft Excel, Apple Numbers o LibreOffice Calc.
+Calcola la posizione in base a:
 
----
----
+- numero di brani già cantati dal partecipante
+- orario di richiesta
 
-# 🇬🇧 User Manual (English)
+Obiettivo: evitare che pochi cantanti monopolizzino la serata. Chi ha cantato di meno sale in priorità.
 
-## 1. Overview and Architecture
+Con Fair Queue attivo, in inserimento puoi scegliere:
 
-**Karaoke Live Station** is a mission-critical desktop application designed for professional DJs, KJs, and live event hosts. Built on a resilient **Master / Slave** multi-screen architecture:
+- **Posizione automatica (Fair Queue)** — l’algoritmo colloca il brano
+- **In fondo alla coda** — ultimo posto fisso
 
-1. **Control Console (Operator / Master Window):**  
-   Comprehensive DJ dashboard featuring audio transport, algorithmic anti-monopoly Fair Queueing, real-time key (pitch) and tempo scaling, DSP center-channel vocal suppression, microphone auto-ducking, a 16-channel MIDI/KAR synthesizer mixer, dedicated headphone CUE routing, hybrid catalog search, and performance copyright reporting.
+**Ripristina coda automatica** ricalcola l’ordine ideale dopo drag & drop o override manuali (utile se `queue.length > 2`).
 
-2. **Stage Display (Singer / Audience Slave Window):**  
-   Fullscreen presentation viewport targeting external TVs or video projectors. Secondary audio is intentionally muted to eliminate acoustic phase distortion against the main PA. Fully frame-synchronized via high-frequency IPC, supporting HTML5 Canvas CD+G graphics, high-definition MP4/WebM video, and customizable performer banners ("Now Singing" & "Get Ready").
+### 5.2 VIP e gestione manuale
 
-3. **Mobile LAN Guest Portal:**  
-   Built-in zero-configuration local HTTP server. Audience members scan a dynamic QR code with any smartphone to search the song catalog and submit performance requests with custom key preferences.
+- **Priorità VIP:** forza priorità per ospiti speciali / festeggiati.
+- **Drag & Drop:** riordina le voci in attesa; il brano in riproduzione resta bloccato in testa.
+- **Assegna Cantante** / gestione cantanti: nomi univoci (controllo case-insensitive) per far funzionare correttamente Fair Queue.
+- **Memoria tonalità cantante:** ripropone la tonalità preferita quando il brano entra in esecuzione.
+- **Svuota coda:** richiede conferma (**«Sei sicuro di voler svuotare l'intera scaletta della coda?»**); ferma la riproduzione.
 
-4. **Single Instance Lock Protection:**  
-   The application strictly enforces a single running instance. Any attempt to launch a second instance is automatically intercepted and terminated, instantly refocusing and restoring the already running Control Console.
+### 5.3 Archiviazione automatica e `queue_cache`
 
----
-
-## 2. Installation and Initial Configuration
-
-### System Requirements
-- **Operating Systems:** Linux (Ubuntu, Debian, Fedora, Arch), Windows 10/11 (64-bit), macOS 11+ (Apple Silicon & Intel).
-- **Audio Output:** Standard integrated soundcard or multi-channel USB audio interface (4-output interface recommended for independent Master + CUE headphone routing).
-- **Displays:** Dual-monitor extended desktop (Screen 1: Control Console, Screen 2: Stage Display).
-
-### Initial Configuration (Gear Icon)
-1. **Karaoke Library Directory:**  
-   Open *Settings ➔ Karaoke Library Folder* and choose your local folder containing video and audio tracks (`.mp4`, `.mp3+.cdg`, `.mid`, `.kar`).
-2. **SoundFont Bank (.sf2):**  
-   For authentic MIDI/KAR synthesis, ensure a General MIDI SoundFont bank is selected (default included at `public/soundfonts/default.sf2`).
-3. **Audio Routing (Master & CUE):**  
-   - Select your main venue PA audio output device (*Master Device*).  
-   - Select your secondary soundcard or headphone output (*CUE Device*).
-4. **Firewall Authorization for Guest Portal:**  
-   Allow the application through your system firewall on Private networks to ensure mobile phones can connect over Wi-Fi.
-
----
-
-## 3. Control Console Operating Guide (DJ / KJ)
-
-### Transport & Playback
-- **Play / Pause (`Space`):** Toggles playback for the active track.
-- **Fast Track Start ("Double click or Play to start"):** You can start playback by pressing the Play button on the top queued track or by double-clicking any track in the queue lineup.
-- **Stop (`S`):** Immediately stops playback, silences the audio engine, and resets timecode to 0:00.
-- **Restart (`R`):** Rewinds the current song back to 0:00 without removing it from the queue.
-- **Next Track (`N`):** Logs the completed performance to copyright history and transitions to the next queued singer.
-- **Seek & Jump (`←` / `→`):** Click the progress scrubber or press arrow keys to skip backward or forward by 5 seconds with instant Stage screen video re-sync.
-- **1-Click Save to Library (💾 Icon):** Whenever a queued or actively playing song originates from the web or temporary queue cache, a contextual "Save to Library" button appears in both the queue row and player header to permanently archive it to your local library.
-
-### Key (Pitch Shift) & Tempo (Speed)
-- **Key Adjustment (`+` / `-` or `Ctrl + ↑ / ↓`):** Shifts pitch by semitones (-8 to +8).  
-  *Core Design:* Pitch is linked to the queued song instance. Changing pitch updates the live DSP graph instantly and preserves the setting for that performance.
-- **Tempo Adjustment (`Ctrl + ← / →`):** Adjusts playback speed from 50% to 150% without altering pitch using the WSOLA time-stretching engine.
-
-### Perceptual Master Volume Curve
-- The Master Volume fader uses an acoustic quadratic power curve ($Gain = volume^2$):
-  - **100%:** Unity gain (0 dB).
-  - **75%:** Moderate reduction (-5 dB).
-  - **50%:** Perceived half-loudness (-12 dB).
-  - **25%:** Gentle background ambience (-24 dB).
-  - **0%:** Silence.
-- **Anti-Click Smooth Ramping:** All gain adjustments transition over a 50ms linear ramp, preventing clicks, pops, and speaker DC transients.
-- **Master Mute (`M`):** Instantly mutes master audio output while maintaining slider position.
-
-### DSP Vocal Processor
-- **In-Phase Vocal Remover (`V`):** Activates a high-fidelity Enhanced In-Phase Center-Channel Canceller. Subtracts mono energy (`0.5 * (L - R)`) to eliminate center-panned lead vocals ($-\infty$ dB), while preserving mono kick/bass energy (< 160 Hz) and stereo treble air (> 5500 Hz), delivering identical positive polarity to both room speakers to eliminate destructive acoustic interference.
-- **Microphone Auto-Ducking (`D`):** Attenuates background music by -14 dB when speech is detected, restoring full volume when speaking finishes.
-
-### Fair Queue Scheduling
-- **Enabled by Default:** The fair rotation algorithm is enabled by default (`enableFairQueue: true`), providing an anti-monopoly, balanced queue experience from first launch.
-- **Fair Score Algorithm:** Prioritizes singers who have performed the fewest songs, preventing queue monopolization during busy live shows.
-- **VIP Priority:** Instantly elevates designated VIP performances when necessary.
-- **Manual Drag & Drop:** Freely rearrange upcoming songs by dragging queue items.
-- **Restore Fair Queue:** Instantly re-sorts waiting tracks back into optimal mathematical Fair Queue order with a single click.
-
-### 16-Channel MIDI / KAR Synth Mixer
-When a MIDI or KAR file is loaded, the mixer panel automatically exposes all 16 MIDI channels with live note activity indicators and channel-specific mute controls (e.g., Channel 4 vocal melody, Channel 2 bass, Channel 10 drums).
-
----
-
-## 4. Stage Screen Guide (Singer Display)
-
-### Isolated Rendering Pipeline & Handshake
-- Initializes completely hidden (`show: false`) with a solid black backdrop (`#000000`).
-- The window reveals itself only after CSS stylesheets, web fonts, and state synchronization handshakes are verified, preventing unstyled layout shifts or flashes of unrendered code.
-- **Auto-Recovery:** If an HDMI cable or projector disconnects, the window silently re-establishes synchronization upon reconnection.
-- **Reopen Stage (`P`):** If the stage window is closed, pressing `P` or clicking the green status badge immediately relaunches and syncs the display.
-
-### Fullscreen Controls
-- Press **`F11`** or **`Esc`** while focused on the Stage window.
-- Double-click (or click twice in rapid succession) anywhere on the display to toggle borderless fullscreen.
-
-### Performer Pitch Badge Display
-- In Settings, you can configure whether to display or conceal the semitone transposition badge (`+` / `-`) on the stage monitor (`showPitchOnStage`). This allows you to choose whether pitch shifts are visible to the audience or kept discrete to the operator console.
-
----
-
-## 5. Mobile Guest Portal (LAN Song Requests)
-
-### Connecting Audience Smartphones
-1. Ensure the host laptop is connected to the venue Wi-Fi network.
-2. Click the **QR Code** icon in the console navigation bar.
-3. Show the QR code to guests; scanning with any standard smartphone camera opens the portal instantly without app store downloads.
-4. Portal addresses resolve locally (e.g., `http://192.168.1.50:3000`).
-
-### Request Handling
-1. Guests search for songs, enter their name, and choose their preferred key offset.
-2. An incoming request badge flashes on the operator screen.
-3. The KJ can **Approve** (inserting the song directly into the Fair Queue with the requested key) or **Reject** with one click.
-
----
-
-## 6. Search, Downloads, and Library Management
-
-### Hybrid Search
-- **Local Mode:** Queries the internal SQLite database for files stored on your local disk.
-- **Web / YouTube Mode:** Searches YouTube for karaoke backing tracks.
-
-### Downloads, Auto-Archiving & Persistent Queue Cache
-- **Auto-Archive Enabled by Default:** The *Auto-Archive Web Tracks* setting (`autoArchiveWebTracks`) is enabled by default (`true`). Every track downloaded from YouTube is saved directly into your permanent library directory, indexed immediately, and available for future gigs.
-- **Mandatory Disabling Confirmation Modal:** Attempting to turn off automatic archiving in Settings presents a mandatory security modal with an explicit warning: unarchived tracks will only reside in the temporary cache and will be purged once removed from the queue.
-- **Persistent Queue Cache (`<userData>/queue_cache/`):** When auto-archiving is turned off, media downloads are directed to a dedicated `queue_cache` directory. These files remain intact and playable across app restarts as long as the song remains in the persisted queue lineup.
-- **Intelligent Dequeue-Only Garbage Collection (GC):** Queue cache media files are physically deleted from disk **exclusively** when the song is removed from the queue (via normal completion, manual removal, or clearing the entire queue). If duplicate instances of the same track remain in the queue, the disk file is safely preserved.
-- **Contextual 1-Click "Save to Library":** Prominently accessible via both queue track rows and the player control bar, allowing hosts to promote any cached track to their permanent collection with a single click.
-- **Instant Automatic Library View Refresh:** Both automatic downloads and manual saves dispatch an instant re-indexing event that reloads the Library tab without requiring a manual refresh click or application restart.
-- **Accented Letter & Space Preservation:** Saved filenames preserve European accented characters (`à, è, é, ì, ò, ù, ñ, ç...`) and spaces while stripping illegal filesystem tokens for cross-platform reliability on Windows, macOS, and Linux.
-
-### Protected yt-dlp Binary Management
-- **Exclusive Placement in `<app_data_dir>/bin/`**: The `yt-dlp` executable is stored and executed exclusively within the application's protected user data directory (`userData/bin/`), safeguarding it from OS temp cleaning routines (`/tmp`) or package updates.
-- **Reuse Without Redundant Downloads**: If an executable binary is already present locally, the application reuses it and queries GitHub Releases in a non-blocking background check, downloading only when a genuine new version is released.
-- **Dynamic Binary Resolution**: Binary paths are dynamically re-resolved prior to each download and search operation, ensuring hot updates take effect immediately without requiring an application restart.
-
----
-
-## 7. Complete Keyboard Shortcuts Table
-
-Press **`F1`** or **`?`** inside the application to open this quick reference at any time.
-
-| Key | Category | Action |
+| Impostazione | Default | Effetto |
 | :--- | :--- | :--- |
-| **`Space`** | Playback | Play / Pause current track |
-| **`S`** | Playback | Stop playback and rewind to 0:00 |
-| **`R`** | Playback | Restart current song from beginning |
-| **`N`** | Playback | Advance to next track in queue |
-| **`←` / `→`** | Playback | Seek backward / forward 5 seconds |
-| **`M`** | Audio & DSP | Toggle Master Mute |
-| **`↑` / `↓`** | Audio & DSP | Master Volume adjustment (±5%) with perceptual taper |
-| **`+` / `-`** | Audio & DSP | Pitch Shift / Key offset (±1 semitone) |
-| **`Ctrl + ↑ / ↓`** | Audio & DSP | Pitch Shift / Key offset (±1 semitone) |
-| **`Ctrl + ← / →`** | Audio & DSP | Playback speed / tempo (±5%) |
-| **`V`** | Audio & DSP | Toggle Lead Vocal Remover |
-| **`D`** | Audio & DSP | Toggle Microphone Auto-Ducking |
-| **`1`** | Navigation | Switch to **Queue** tab |
-| **`2`** | Navigation | Switch to **Library & Search** tab |
-| **`3`** | Navigation | Switch to **History (SIAE)** tab |
-| **`Ctrl + F`** | Navigation | Focus search box in Library tab |
-| **`P`** | Display | Reopen / Focus Stage Window |
-| **`F11` / `Esc`** | Display | Toggle Stage Window Fullscreen |
-| **`F1` / `?`** | Help | Show interactive Keyboard Shortcuts guide |
-| **`Esc`** | Dialogs | Dismiss active modal or close dialog |
+| **Archiviazione Automatica Download Web in Libreria** | **ON** | I download vanno nella libreria permanente (`libraryPath`) |
+| OFF (dopo conferma) | — | I download restano in `<userData>/queue_cache/` |
+
+Disattivando l’archiviazione compare il modale obbligatorio:
+
+**Titolo:** «Attenzione disattivazione archiviazione automatica»
+
+**Testo:**  
+«Attenzione: disattivando l'archiviazione automatica, i brani scaricati non verranno salvati nella libreria permanente. Rimarranno disponibili nella cache temporanea solo finché sono presenti in coda (anche riavviando l'app) e verranno eliminati dal disco solo quando saranno scodati o la coda verrà svuotata.»
+
+Conferma con **Conferma disattivazione**.
+
+### 5.4 Persistenza cache e Garbage Collection
+
+- File in `queue_cache` **sopravvivono ai riavvii** se il brano è ancora in coda.
+- **GC allo scodamento:** il file viene cancellato dal disco solo quando nessuna voce in coda lo referenzia più (fine esecuzione, rimozione singola, svuota coda).
+- **Salva in Libreria** promuove il file dalla cache alla cartella libreria e aggiorna percorsi/`uri` per uso offline.
+- Deduplicazione download: prima di scaricare di nuovo, l’app cerca corrispondenze in libreria / `queue_cache` / catalogo (id YouTube, fingerprint, `Artista - Titolo`). In caso di hit: **«Brano già presente in locale...»** senza nuovo download di rete.
 
 ---
 
-## 8. Troubleshooting and Copyright / SIAE Logging
+## 6. Libreria: ricerca, download e anteprime
 
-### Smartphones cannot load the Guest Portal
-1. **Firewall Settings:** Ensure port 3000 TCP is unblocked. Refer to the built-in *Firewall Assistant* inside Settings for copy-paste system terminal commands.
-2. **Wi-Fi Router AP Isolation:** In public routers, disable "AP Client Isolation" or "Guest Network Isolation" so phones can communicate with the host machine.
+Scheda **Libreria & Ricerca** (`2` o `Ctrl+F`).
 
-### Stage Window displays black screen or disconnects
-- Click the **"Reopen Stage"** badge or press **`P`**.
-- The auto-recovery system monitors HDMI re-attachments and restores video playback and lyrics overlays without requiring an app restart.
+### 6.1 Ricerca locale live
 
-### Performance Logging and CSV Export
-- **History Logging Rules**: A song is logged to the performance history and SIAE copyright registry if:
-  1. It reaches its **natural end** (`naturalEnd`), including short songs or interludes;
-  2. It is stopped (`Stop` or `S` key) or skipped (`Next` or `N` key) after being played for **at least 2 minutes (120 seconds)**.
-  - Songs stopped or skipped prematurely under 120 seconds are discarded to prevent false records from accidental starts.
-- **Duplicate Prevention (`alreadyLogged`)**: Each queued song instance tracks its logged state. If a track passes 120 seconds and is stopped, and later resumed, finished, or skipped, it is logged strictly once.
-- **Certified Timestamps & CSV Export**: All performances record high-precision epoch milliseconds and ISO 8601 UTC strings. Click **Export SIAE (CSV)** in the History tab to generate an official spreadsheet report (compatible with Excel, Numbers, LibreOffice) ready for copyright filing.
+- Modalità **Locale**
+- Filtro **continuo** mentre digiti (`onChange`) su titolo, artista, codice
+- Stati vuoti distinti:
+  - **«Libreria vuota. Scansiona una cartella o cerca sul web.»**
+  - **«Nessun brano corrisponde alla ricerca locale.»**
+- **Aggiorna Libreria** riscansisce `libraryPath` e aggiorna il catalogo SQLite
+- Query e modalità di ricerca restano in `sessionStorage` durante la sessione; le schede destra restano montate (nascoste) così filtri e download non si perdono cambiando tab
 
+### 6.2 Ricerca web (YouTube)
+
+- Modalità **Web / YouTube**
+- Digita e premi **Invio** (non ricerca a ogni tasto)
+- Motore: **yt-dlp** da `<userData>/bin/`
+- Placeholder: **«Cerca brano su YouTube Karaoke...»**
+- Vuoto: **«Nessun risultato web. Digita e premi Invio per cercare su YouTube.»**
+
+### 6.3 Anteprima YouTube (anti errore 153)
+
+Il modale anteprima incorpora il video da `youtube-nocookie.com` con parametri anti-blocco:
+
+- `playsinline=1`
+- `enablejsapi=1`
+- `origin` e `widget_referrer` (origine della finestra)
+- `rel=0`
+- `modestbranding=1`
+- `referrerPolicy="strict-origin-when-cross-origin"`
+- autoplay mutato in anteprima
+
+Questo riduce l’errore embed **153** tipico degli iframe YouTube restrittivi.
+
+### 6.4 Download e badge «Download completato»
+
+1. Avvia il download dal risultato web.
+2. Progresso in **Download in Corso**.
+3. A completamento (dopo un breve ritardo ~450 ms dalla lista progressi) compare il badge dismissibile:
+
+> **Download completato**
+
+Chiudilo con la **X** manuale.
+
+4. Se auto-archive è ON e `libraryPath` è valido → file in libreria + reindicizzazione immediata.  
+5. Se auto-archive è OFF → file in `queue_cache` (promuovibile con **Salva in Libreria**).  
+6. Errori: toast persistente **«Download fallito: …»**.
+
+Copertine/miniature e anteprime locali si aggiornano senza riavviare (ffmpeg estrae frame ~al secondo 4 per i file locali; YouTube fornisce thumb web).
+
+### 6.5 Anteprime / copertine e versioni
+
+- Miniature 16:9 in lista
+- Chip versione (es. KaraFun, Sing King, Con Cori, Strumentale…)
+- Clic su miniatura / icona anteprima → **Anteprima e Controllo Versione** con scrubber, percorso file, aggiunta in coda e assegnazione cantante
+- Con Fair Queue attivo, scelta posizione Fair vs in fondo anche dall’anteprima
+
+---
+
+## 7. Schermo Stage (Palco)
+
+### 7.1 Handshake ready
+
+Lo Stage si apre nascosto (`show: false`) con sfondo nero. Prima di mostrarsi:
+
+1. Attende font e stylesheet
+2. Doppio `requestAnimationFrame`
+3. Segnala `signalStageReady()` al main process
+
+Così non compare flash di layout grezzo. Se chiudi lo Stage, **Riapri Palco** o tasto **`P`** lo ricrea e risincronizza. Chiusura della Regia chiude anche lo Stage.
+
+### 7.2 Badge semitoni e `showPitchOnStage`
+
+Impostazione **Mostra variazione tonalità sullo schermo del palco** (`showPitchOnStage`, default tipicamente ON):
+
+- Mostra il badge con offset in semitoni: **`+N`**, **`-N`** oppure **`0`**
+- Il valore **0** è comunque visualizzato quando il toggle è attivo (il cantante vede che non c’è trasposizione)
+- Descrizione UI: «Visualizza il badge con i semitoni di variazione (+/-) sullo schermo del palco per il cantante.»
+
+### 7.3 Fullscreen e layout
+
+- **`F11`** / **`Esc`** con focus sullo Stage
+- Doppio clic (o due clic rapidi) per fullscreen senza bordi
+- Video edge-to-edge; titolo/artista flottante a scomparsa (durata configurabile, tipicamente 8 s)
+- Barra avanzamento sottile sul bordo inferiore
+- Banner: **Ora Canta**, **Preparati**, **Prossima Esibizione** / **A seguire** (tempi in Impostazioni → Schermo Stage)
+
+### 7.4 Contenuti supportati sul Palco
+
+- Video karaoke (MP4/WebM/MKV)
+- CD+G / MP3+G (Canvas)
+- MIDI/KAR con testi sincronizzati (audio dalla Regia)
+
+---
+
+## 8. Avanzamento automatico e pausa di transizione
+
+| Impostazione | Default | Note |
+| :--- | :--- | :--- |
+| **Avanzamento Automatico al Prossimo Brano** (`autoAdvanceNext`) | **OFF** | L’operatore decide quando far partire il successivo |
+| **Pausa Transizione Brani (Sec)** (`transitionPauseSec`) | **3** | Attiva/utile quando l’auto-advance è ON |
+
+### Comportamento con auto-advance OFF (default)
+
+Alla fine naturale del brano la coda passa al successivo **in pausa a 0:00**. L’operatore preme Play (o usa «Doppio click o Play per avviare») per continuare. Ideale in serata live per annunci e microfono.
+
+### Comportamento con auto-advance ON
+
+Dopo la fine (e dopo l’eventuale countdown **«Prossimo brano tra Xs...»** basato su `transitionPauseSec`) parte automaticamente il brano successivo.
+
+---
+
+## 9. Impostazioni a tab e ricerca
+
+Apri **Impostazioni di Sistema** (ingranaggio). In alto: campo **«Cerca impostazioni...»**.
+
+### 9.1 Schede
+
+| Tab | Contenuti tipici |
+| :--- | :--- |
+| **Generale** | Temi Regia/Palco, lingua, Fair Queue, Guest Portal, SIAE, supporto progetto |
+| **Libreria & Download** | `libraryPath`, archiviazione automatica (+ warning), yt-dlp stato/aggiornamento |
+| **Audio & Riproduzione** | SoundFont, Master/CUE, sync A/V, normalizzazione, vocal remover/ducking di default, auto-advance, `transitionPauseSec` |
+| **Schermo Stage** | Banner intro/outro, titolo overlay, prossimo cantante in intro, **`showPitchOnStage`** |
+| **Scorciatoie** | Riferimento scorciatoie (anche apribile con F1 / ?) |
+
+La ricerca filtra etichette/descrizioni **tra tutte le categorie**; svuotando il campo torni alla navigazione a tab. Nessuna impostazione viene rimossa dalla riorganizzazione a tab.
+
+### 9.2 Altre opzioni utili
+
+- Offset sincronizzazione audio/video (ms)
+- Durata banner intro / trigger outro «Preparati»
+- Durata titolo a schermo
+- Mostra prossimo cantante all’inizio del brano
+- Livello log diagnostico e apertura cartella/file log
+- Esporta Registro SIAE (CSV) anche dalle impostazioni, oltre che dallo Storico
+
+Salva con **Salva e Chiudi**.
+
+---
+
+## 10. Scorciatoie da tastiera
+
+Apri la guida in qualsiasi momento con **`F1`** o **`?`**. Le scorciatoie live sono registrate con **cleanup** allo smontaggio del componente (nessun listener orfano dopo chiusura modali / cambio vista).
+
+### 10.1 Riproduzione e scaletta
+
+| Tasto | Azione |
+| :--- | :--- |
+| `Spazio` | Play / Pausa |
+| `S` | Stop (riavvolgi e ferma) |
+| `R` | Ricomincia da 0:00 |
+| `N` | Prossimo brano |
+| `←` / `→` | Seek ±5 s |
+
+### 10.2 Audio e DSP
+
+| Tasto | Azione |
+| :--- | :--- |
+| `M` | Muto master |
+| `↑` / `↓` | Volume ±5% |
+| `+` / `-` | Pitch ±1 semitono |
+| `Ctrl+↑` / `Ctrl+↓` | Pitch ±1 semitono |
+| `Ctrl+←` / `Ctrl+→` | Velocità ±5% |
+| `V` | Rimozione voce guida (Demucs) |
+| `D` | Auto-ducking BGM |
+
+### 10.3 Navigazione e schermi
+
+| Tasto | Azione |
+| :--- | :--- |
+| `1` | Scheda Coda Cantanti |
+| `2` | Scheda Libreria & Ricerca |
+| `3` | Scheda Storico SIAE |
+| `Ctrl+F` | Apri Libreria e focus sul campo ricerca |
+| `P` | Riapri / focus Schermo Palco |
+| `F11` / `Esc` | Fullscreen Stage (con focus sul Palco) |
+| `Esc` | Chiude anche modali/dialoghi in Regia |
+| `F1` / `?` | Guida scorciatoie |
+
+I tooltip dei controlli in Regia riportano le stesse combinazioni per uso a colpo d’occhio.
+
+---
+
+## 11. Guest Portal LAN
+
+### 11.1 Attivazione
+
+1. PC Regia sulla stessa Wi‑Fi degli ospiti.
+2. Abilita **Guest Portal LAN per Richieste da Smartphone** nelle Impostazioni (porta tipica **3000**, fallback 3001–3010 se occupata).
+3. Apri il QR Code dalla barra Regia / richieste guest.
+4. URL tipico: `http://192.168.x.x:3000`.
+
+### 11.2 Flusso ospite
+
+1. Inquadra il QR (iOS/Android, nessuna app).
+2. Cerca nel **catalogo locale** (solo brani realmente in libreria; niente testo libero arbitrario).
+3. Inserisce nome e tonalità (tipicamente da −4 a +4 semitoni lato guest).
+4. Invia la richiesta.
+
+### 11.3 Flusso operatore
+
+- Badge **Richieste Guest** in Regia.
+- **Approva** → inserimento in coda (Fair Queue se attivo) con tonalità richiesta.
+- **Rifiuta** → scarta senza toccare la scaletta.
+
+### 11.4 Firewall e Wi‑Fi
+
+Usa l’assistente integrato. Verifica anche che sul router **Isolamento AP / Client Isolation** sia **disattivato**, altrimenti gli smartphone non raggiungono il PC Regia pur essendo sulla stessa rete.
+
+---
+
+## 12. Registro SIAE
+
+Scheda **Storico** (`3`) — **Storico Esecuzioni** / borderò.
+
+### 12.1 Quando viene registrata un’esecuzione
+
+Un brano entra nel registro se:
+
+1. raggiunge il **termine naturale**, oppure  
+2. viene fermato/saltato (`S` / `N` / stop) dopo almeno **120 secondi** di riproduzione.
+
+Sotto i 120 secondi (avvio per errore, prova, skip immediato) **non** viene registrato.
+
+### 12.2 Anti-duplicati
+
+Flag **`alreadyLogged`** sull’istanza in coda: una sola riga per esecuzione anche se dopo i 120 s ci sono ulteriori stop/next.
+
+### 12.3 Dati e export
+
+- Persistenza SQLite (`siae_logs`)
+- **Timestamp ISO 8601** + epoch millisecondi
+- Titolo, artista, cantante, durata effettiva
+- Filtro ricerca: titolo / artista / cantante
+- **Esporta SIAE (CSV)** con colonne data/ora ISO e timestamp
+- **Svuota Storico** con conferma di sicurezza
+
+Attiva/disattiva la raccolta con **Registro SIAE Automatico** nelle Impostazioni.
+
+---
+
+## 13. Temi e lingue (i18n)
+
+### 13.1 Temi grafici (9)
+
+Temi indipendenti per Regia (`themeHost`) e Palco (`themeStage`):
+
+1. Dark Stage (Predefinito)  
+2. Midnight Neon (Cyberpunk)  
+3. Club Gold (VIP Lounge)  
+4. Ocean Breeze (Deep Cyan)  
+5. Sunset Crimson (Warm Red)  
+6. Emerald Matrix (Live Green)  
+7. Royal Amethyst (Deep Purple)  
+8. High Contrast (Accessibile)  
+9. Light Studio (Clean)  
+
+### 13.2 Lingue
+
+Interfaccia completa in:
+
+- **Italiano** (`it`)
+- **English** (`en`)
+- **Español** (`es`)
+- **Français** (`fr`)
+
+All’avvio: rilevamento lingua di sistema (autodetect) con fallback. Cambio lingua in **Impostazioni → Lingua Interfaccia** senza riavvio, preferenza persistente.
+
+I file di traduzione sono in `locales/it.json`, `en.json`, `es.json`, `fr.json`.
+
+---
+
+## 14. Risoluzione dei problemi
+
+### 14.1 Firewall / Guest Portal non raggiungibile
+
+1. Apri Impostazioni → Assistente Firewall; aggiorna la diagnosi.
+2. **Windows:** Consenti app su reti private; se serve, regola TCP porte 3000–3010 (`netsh` / PowerShell come da card).
+3. **macOS:** Consenti connessioni in entrata per Karaoke Live Station (Firewall → Opzioni).
+4. **Linux:** `ufw allow 3000:3010/tcp` oppure regola Firewalld equivalente (comandi copiabili dalla card).
+5. Verifica **Isolamento AP** del router = OFF.
+6. Stessa subnet Wi‑Fi tra PC e telefoni; prova l’URL mostrato nel QR da un browser sul telefono.
+
+### 14.2 yt-dlp / download web non funzionano
+
+1. Controlla che esista `<userData>/bin/yt-dlp` (o `.exe`).
+2. In Impostazioni → Libreria & Download: stato motore e **Verifica / Aggiorna**.
+3. Non spostare yt-dlp in `/tmp` o fuori da `userData/bin/`: l’app gestisce solo il percorso managed.
+4. Controlla i log in `<userData>/logs/`.
+5. Se vedi «Non installato (verrà scaricato automaticamente)», attendi il bootstrap o forza l’aggiornamento con rete disponibile.
+
+### 14.3 Libreria non configurata
+
+Sintomi: impossibile scaricare/archiviare; messaggio **«Imposta la cartella libreria nelle impostazioni prima di scaricare.»**; salvataggi che falliscono.
+
+Soluzione: Impostazioni → **Cartella Libreria Karaoke** → Sfoglia → cartella esistente → Aggiorna Libreria. Non fare affidamento su una cartella nascosta in `userData/library`.
+
+### 14.4 Stage non si apre / resta nero
+
+1. Premi **`P`** o **Riapri Palco**.
+2. Attendi l’handshake ready (font/CSS); evita di forzare contenuti prima del segnale ready.
+3. Verifica che il secondo monitor sia attivo nel desktop esteso del SO.
+4. Riprova fullscreen (F11 / doppio clic sullo Stage).
+5. Se HDMI/proiettore si scollega, ripristina il cavo: l’app può riagganciarsi; in dubbio riapri lo Stage.
+6. Controlla di non aver avviato una seconda istanza (single-instance: usa la Regia già aperta).
+
+### 14.5 Audio assente o sul dispositivo sbagliato
+
+- Verifica **Master** e **CUE** nelle Impostazioni.
+- Controlla muto (`M`) e volume (curva quadratica: sotto il 50% è già molto basso).
+- MIDI: conferma SoundFont caricato.
+- Demucs in elaborazione: l’audio dry continua; se qualcosa va storto resta il mix originale.
+
+### 14.6 Pitch / badge sul Palco
+
+- Se il cantante non vede i semitoni: abilita **Mostra variazione tonalità sullo schermo del palco**.
+- Atteso: `+2`, `-1`, `0`, ecc. in base alla coda.
+
+### 14.7 Anteprima YouTube errore 153
+
+L’embed usa già `youtube-nocookie` e i parametri anti-153. Se persiste: aggiorna l’app, verifica rete/DNS, riprova l’anteprima; per la serata scarica il brano in locale.
+
+### 14.8 Coda / cache che “sparisce” dal disco
+
+Con archiviazione automatica **OFF**, i file in `queue_cache` vengono eliminati allo **scodamento**. Per conservarli: **Salva in Libreria** oppure riattiva l’archiviazione automatica (default consigliato).
+
+### 14.9 Log diagnostici
+
+Impostazioni → Diagnostica & File di Log: livello, apri cartella/file, cancella log. Utile per ticket di supporto (errori streaming, yt-dlp, Stage).
+
+---
+
+## Appendice A — Stringhe UI italiane di riferimento
+
+| Contesto | Stringa |
+| :--- | :--- |
+| Hint coda | Doppio click o Play per avviare |
+| Download | Download completato |
+| Warning auto-archive (titolo) | Attenzione disattivazione archiviazione automatica |
+| Warning auto-archive (corpo) | Attenzione: disattivando l'archiviazione automatica, i brani scaricati non verranno salvati nella libreria permanente. Rimarranno disponibili nella cache temporanea solo finché sono presenti in coda (anche riavviando l'app) e verranno eliminati dal disco solo quando saranno scodati o la coda verrà svuotata. |
+| Errore libreria | Imposta la cartella libreria nelle impostazioni prima di scaricare. |
+| Salvataggio | Salva in Libreria |
+| Fair Queue | Fair Queue ATTIVO / Ripristina coda automatica |
+| Stage | Ora Canta / Preparati / Prossima Esibizione |
+| Tabs impostazioni | Generale · Libreria & Download · Audio & Riproduzione · Schermo Stage · Scorciatoie |
+
+---
+
+## Appendice B — Valori predefiniti operativi
+
+| Impostazione | Default |
+| :--- | :--- |
+| Fair Queue | ON |
+| Archiviazione automatica web | ON |
+| Auto-advance prossimo brano | OFF |
+| Pausa transizione | 3 s |
+| showPitchOnStage | ON |
+| Porta Guest Portal | 3000 |
+| Soglia log SIAE | ≥ 120 s oppure fine naturale |
+| Range pitch Regia | −8 … +8 ST |
+| Range velocità | 0,50× … 1,50× |
+| Tema | dark-stage |
+
+---
+
+*Fine del Manuale Utente — Karaoke Live Station (Phase 6, documentazione IT).*
