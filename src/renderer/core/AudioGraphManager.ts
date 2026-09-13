@@ -76,6 +76,10 @@ export class AudioGraphManager {
   private fallbackIntervalId: number | null = null;
   private activeMidiNotes: Map<number, number> = new Map();
   private activeVoices: ActiveMidiVoice[] = [];
+  /** Pending note-release timers — cleared on dispose so they cannot mutate a torn-down graph. */
+  private voiceReleaseTimeouts: ReturnType<typeof setTimeout>[] = [];
+  /** Last media URL used for Demucs so we can drop stems when the track changes. */
+  private lastDemucsMediaUrl: string | null = null;
   private soundFontBuffer: ArrayBuffer | null = null;
   private soundFontLoadedPath: string = '';
   private soundFontLoadingPromise: Promise<boolean> | null = null;
@@ -357,6 +361,14 @@ export class AudioGraphManager {
       this.log('warn', 'Vocal remover requested but media element has no src');
       return;
     }
+
+    // Drop stems for the previous track so we never keep two large AudioBuffers
+    // alive across a live queue advance (LRU still caps total cache size).
+    if (this.lastDemucsMediaUrl && this.lastDemucsMediaUrl !== mediaUrl) {
+      this.instrumentalBuffer = null;
+      this.stopInstrumentalSource();
+    }
+    this.lastDemucsMediaUrl = mediaUrl;
 
     const token = ++this.vocalSeparationToken;
     const separator = getDemucsVocalSeparator();
@@ -1095,11 +1107,13 @@ export class AudioGraphManager {
         voice.gainNode.gain.linearRampToValueAtTime(0.0001, time + 0.15);
         voice.sourceNode.stop(time + 0.16);
 
-        // Remove from tracking array after release
-        setTimeout(() => {
+        // Remove from tracking array after release — keep handle so dispose() can cancel.
+        const handle = setTimeout(() => {
+          this.voiceReleaseTimeouts = this.voiceReleaseTimeouts.filter((h) => h !== handle);
           const idx = this.activeVoices.indexOf(voice);
           if (idx !== -1) this.activeVoices.splice(idx, 1);
         }, (time - this.audioCtx.currentTime + 0.2) * 1000);
+        this.voiceReleaseTimeouts.push(handle);
         break;
       }
     }
@@ -1168,10 +1182,20 @@ export class AudioGraphManager {
   }
 
   public dispose(): void {
+    // Invalidate in-flight Demucs work and cancel MIDI release timers before
+    // tearing down AudioNodes — otherwise timers / async stems can touch a
+    // closed AudioContext and leak references until GC.
     this.vocalSeparationToken++;
+    for (const handle of this.voiceReleaseTimeouts) {
+      clearTimeout(handle);
+    }
+    this.voiceReleaseTimeouts = [];
+    this.activeVoices = [];
     this.unbindMediaSyncHandlers();
     this.stopInstrumentalSource();
     this.instrumentalBuffer = null;
+    this.lastDemucsMediaUrl = null;
+    getDemucsVocalSeparator().clearCache();
     this.stopMidiPlayback();
     if (this.workletSynth) {
       try {
@@ -1183,6 +1207,7 @@ export class AudioGraphManager {
     }
     this.pitchShifterNode?.dispose();
     this.pitchShifterNode = null;
+    this.soundFontBuffer = null;
     if (this.audioCtx) {
       this.audioCtx.close();
       this.audioCtx = null;

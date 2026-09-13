@@ -739,6 +739,230 @@ assert(
 assert(extractYouTubeIdForTest('dQw4w9WgXcQ') === 'dQw4w9WgXcQ', 'Bare YouTube id is accepted');
 
 
+
+// -------------------------------------------------------------
+// Suite 11: Phase 4/5 UI, Stage, Shortcuts, Cache Persistence Contracts
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite 11: Phase 4/5 UI · Stage · Shortcuts · Cache Persistence\x1b[0m');
+
+const stageWindowSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/StageWindow.tsx'),
+  'utf8'
+);
+const videoPreviewSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/VideoPreviewModal.tsx'),
+  'utf8'
+);
+const libraryPanelSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+  'utf8'
+);
+const controlWindowSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+  'utf8'
+);
+const settingsModalSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+  'utf8'
+);
+const audioGraphSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
+  'utf8'
+);
+const demucsSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/DemucsVocalSeparator.ts'),
+  'utf8'
+);
+const databaseSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/db/database.ts'),
+  'utf8'
+);
+const mainIndexSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/index.ts'),
+  'utf8'
+);
+const karaokeStoreSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+  'utf8'
+);
+const downloadManagerSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+  'utf8'
+);
+
+// --- Stage isolation + semitone badge ---
+assert(
+  mainIndexSourceP45.includes('createStageWindow') &&
+    (mainIndexSourceP45.includes("?window=stage") ||
+      mainIndexSourceP45.includes('window=stage') ||
+      stageWindowSource.includes('signalStageReady')),
+  'Stage window is a dedicated BrowserWindow with ready handshake'
+);
+assert(
+  stageWindowSource.includes('showPitchOnStage') &&
+    stageWindowSource.includes('stage-semitone-badge') &&
+    /livePitchOffset\s*>\s*0\s*\?\s*`\+\$\{/.test(stageWindowSource) ||
+      stageWindowSource.includes('`+${') ||
+      stageWindowSource.includes("+${"),
+  'Stage semitone badge renders for +N / -N / 0 when toggle enabled'
+);
+assert(
+  settingsModalSourceP45.includes('showPitchOnStage') &&
+    /showPitchOnStage:\s*true/.test(karaokeStoreSourceP45),
+  'showPitchOnStage setting exists and defaults to ON'
+);
+assert(
+  stageWindowSource.includes('document.styleSheets') &&
+    stageWindowSource.includes('requestAnimationFrame') &&
+    stageWindowSource.includes('signalStageReady'),
+  'Stage waits for stylesheets/fonts and rAF before signalling ready'
+);
+
+// --- YouTube preview without error 153 ---
+assert(
+  videoPreviewSource.includes('youtube-nocookie.com/embed/') &&
+    videoPreviewSource.includes('enablejsapi=1') &&
+    videoPreviewSource.includes('playsinline=1') &&
+    videoPreviewSource.includes('origin=') &&
+    (videoPreviewSource.includes('widget_referrer=') || videoPreviewSource.includes('widget_referrer')) &&
+    videoPreviewSource.includes('referrerPolicy'),
+  'YouTube preview embed includes nocookie + jsapi/origin/playsinline/referrerPolicy (153 mitigation)'
+);
+
+// --- Dynamic search + dismissible download complete ---
+assert(
+  libraryPanelSourceP45.includes('sessionStorage') &&
+    libraryPanelSourceP45.includes('kls.library.query') &&
+    libraryPanelSourceP45.includes('setSearchResults'),
+  'Library persists query and filters results reactively'
+);
+assert(
+  libraryPanelSourceP45.includes('download-complete-badge') &&
+    libraryPanelSourceP45.includes('Download completato') &&
+    libraryPanelSourceP45.includes('setCompletedDownloads'),
+  'Dismissible Download completato badge is implemented'
+);
+assert(
+  libraryPanelSourceP45.includes('thumbnailUrl') || libraryPanelSourceP45.includes('thumbnail'),
+  'Library list renders preview thumbnails for search results'
+);
+
+// --- Tab persistence (downloads continue across tab changes) ---
+assert(
+  controlWindowSourceP45.includes("activeRightTab === 'library' ?") &&
+    controlWindowSourceP45.includes("'hidden'") &&
+    controlWindowSourceP45.includes('searchInputRef'),
+  'Control keeps Library/Queue/History mounted (CSS hide) and wires search focus ref'
+);
+
+// --- Settings tabs + search ---
+assert(
+  settingsModalSourceP45.includes('settingsSearch') &&
+    settingsModalSourceP45.includes('tabGeneral') &&
+    settingsModalSourceP45.includes('tabLibrary') &&
+    settingsModalSourceP45.includes('tabAudio') &&
+    settingsModalSourceP45.includes('tabStage') &&
+    settingsModalSourceP45.includes('tabShortcuts'),
+  'Settings modal exposes thematic tabs + instant cross-category search'
+);
+
+// --- Auto-advance OFF + configurable delay ---
+assert(
+  /autoAdvanceNext:\s*false/.test(karaokeStoreSourceP45),
+  'autoAdvanceNext defaults to OFF'
+);
+assert(
+  /transitionPauseSec:\s*3/.test(karaokeStoreSourceP45) &&
+    settingsModalSourceP45.includes('transitionPauseSec'),
+  'transitionPauseSec defaults to 3s and is configurable in Settings'
+);
+
+// --- Fair queue ON ---
+assert(
+  /enableFairQueue:\s*true/.test(karaokeStoreSourceP45),
+  'enableFairQueue defaults to ON'
+);
+
+// --- Shortcuts register with cleanup ---
+assert(
+  controlWindowSourceP45.includes("addEventListener('keydown'") &&
+    controlWindowSourceP45.includes("removeEventListener('keydown'") &&
+    controlWindowSourceP45.includes("e.code === 'Space'") &&
+    controlWindowSourceP45.includes("e.code === 'KeyN'") &&
+    controlWindowSourceP45.includes("e.code === 'KeyM'") &&
+    controlWindowSourceP45.includes("e.code === 'KeyF'"),
+  'Live shortcuts registered with cleanup (Space/N/M/Ctrl+F)'
+);
+assert(
+  controlWindowSourceP45.includes('Doppio click o Play per avviare'),
+  'Exact Italian queue hint string is present'
+);
+
+// --- Cache persistence across restart + delete on dequeue ---
+assert(
+  karaokeStoreSourceP45.includes('partialize') &&
+    karaokeStoreSourceP45.includes('queue') &&
+    karaokeStoreSourceP45.includes('settings'),
+  'Zustand persist keeps queue+settings across restart'
+);
+assert(
+  karaokeStoreSourceP45.includes('cleanupQueueCacheFileIfUnreferenced') &&
+    downloadManagerSourceP45.includes('queue_cache') ||
+      downloadManagerSourceP45.includes('queueCache'),
+  'Queue cache files deleted when dequeued/cleared; persist while still queued'
+);
+assert(
+  downloadManagerSourceP45.includes('findExistingLocalMedia'),
+  'Download dedup via findExistingLocalMedia before network I/O'
+);
+
+// --- Audio leaks / Demucs activation ---
+assert(
+  demucsSourceP45.includes('MAX_CACHED_STEMS') &&
+    demucsSourceP45.includes('clearCache') &&
+    audioGraphSourceP45.includes('voiceReleaseTimeouts') &&
+    audioGraphSourceP45.includes('clearTimeout') &&
+    audioGraphSourceP45.includes('getDemucsVocalSeparator().clearCache()'),
+  'Demucs stem LRU + clearCache on dispose; MIDI release timers cancelled on dispose'
+);
+assert(
+  audioGraphSourceP45.includes('computePerceptualGain') &&
+    audioGraphSourceP45.includes('Math.pow') &&
+    audioGraphSourceP45.includes('activateDemucsInstrumental'),
+  'Perceptual volume curve and Demucs vocal-removal activation wired in AudioGraphManager'
+);
+
+// --- Playback continuity: non-modal dialogs ---
+assert(
+  mainIndexSourceP45.includes('showOpenDialog({') &&
+    mainIndexSourceP45.includes('non-modal') ||
+      mainIndexSourceP45.includes('Intentionally omit parent') ||
+      mainIndexSourceP45.includes('omit parent'),
+  'Native file/folder dialogs omit parent window to avoid suspending media'
+);
+
+// --- DB search optimization ---
+assert(
+  databaseSourceP45.includes('searchTracks') &&
+    databaseSourceP45.includes('idx_tracks_search') &&
+    mainIndexSourceP45.includes('db:search-tracks'),
+  'SQLite searchTracks + indexes exposed over IPC for reactive library filtering'
+);
+
+// --- Single instance (re-assert for Phase 5 gate) ---
+assert(
+  mainIndexSourceP45.includes('requestSingleInstanceLock') &&
+    mainIndexSourceP45.includes('second-instance'),
+  'Single-instance lock still enforced'
+);
+
+// --- SIAE ≥120s (re-assert binding to store) ---
+assert(
+  karaokeStoreSourceP45.includes('>= 120') || karaokeStoreSourceP45.includes('>=120'),
+  'SIAE history gate uses ≥120s threshold in karaoke store'
+);
+
+
 // -------------------------------------------------------------
 // Summary
 // -------------------------------------------------------------

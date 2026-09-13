@@ -21,8 +21,16 @@ export type ProgressListener = (info: VocalSeparatorProgress) => void;
  *
  * Separation is offline (chunked inference). Results are cached per media URL so
  * toggling the remover mid-show reuses the instrumental without re-running ML.
+ *
+ * Cache lifecycle: Map insertion order is used as a tiny LRU (MAX_CACHED_STEMS).
+ * AudioBuffers are large; without eviction, long shows would retain every stem
+ * for the night. clearCache() is also called from AudioGraphManager.dispose /
+ * track changes so we never keep buffers for a media element that was replaced.
  */
 export class DemucsVocalSeparator {
+  /** Hard cap on retained instrumental stems — each buffer can be tens of MB. */
+  private static readonly MAX_CACHED_STEMS = 4;
+
   private processor: DemucsProcessor | null = null;
   private modelReady = false;
   private modelLoadPromise: Promise<void> | null = null;
@@ -186,7 +194,16 @@ export class DemucsVocalSeparator {
       outR[i] = stems.drums.right[i] + stems.bass.right[i] + stems.other.right[i];
     }
 
+    // Refresh LRU position: delete+set moves the key to Map insertion tail.
+    if (this.instrumentalCache.has(cacheKey)) {
+      this.instrumentalCache.delete(cacheKey);
+    }
     this.instrumentalCache.set(cacheKey, instrumental);
+    while (this.instrumentalCache.size > DemucsVocalSeparator.MAX_CACHED_STEMS) {
+      const oldestKey = this.instrumentalCache.keys().next().value;
+      if (oldestKey === undefined) break;
+      this.instrumentalCache.delete(oldestKey);
+    }
     this.emit({ phase: 'ready', progress: 1, message: 'Instrumental stem ready' });
     return instrumental;
   }

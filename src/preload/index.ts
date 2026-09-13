@@ -50,6 +50,7 @@ export interface KaraokeAPI {
   db: {
     /** Retrieves all catalog tracks */
     getTracks: () => Promise<KaraokeMediaTrack[]>;
+    searchTracks: (query: string, limit?: number) => Promise<KaraokeMediaTrack[]>;
     /** Inserts or updates a catalog track */
     upsertTrack: (track: KaraokeMediaTrack) => Promise<{ success: boolean }>;
     /** Retrieves all registered singers ordered by priority */
@@ -256,6 +257,7 @@ const karaokeApi: KaraokeAPI = {
   // Database Bridge
   db: {
     getTracks: () => ipcRenderer.invoke('db:get-tracks'),
+    searchTracks: (query: string, limit?: number) => ipcRenderer.invoke('db:search-tracks', query, limit),
     upsertTrack: (track: KaraokeMediaTrack) => ipcRenderer.invoke('db:upsert-track', track),
     getAllSingers: () => ipcRenderer.invoke('db:get-singers'),
     getOrCreateSinger: (name: string) => ipcRenderer.invoke('db:get-or-create-singer', name),

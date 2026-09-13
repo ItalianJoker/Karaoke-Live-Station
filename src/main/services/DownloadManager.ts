@@ -154,6 +154,12 @@ export class DownloadManager {
   /**
    * Locates an already-downloaded copy in the library, queue cache, or catalog DB.
    * Matching order: id → fingerprint/hash token in filename → Artist - Title filename.
+   *
+   * Why this runs before any network I/O: live karaoke nights re-request the same
+   * YouTube karaoke frequently. Dedup against library + queue_cache prevents duplicate
+   * multi-hundred-MB files and keeps preview/cover URIs stable when re-queueing.
+   * Directory scans are last-resort after the in-memory catalogTracks list misses,
+   * so the common path is O(n catalog) with cheap string compares, not disk thrash.
    */
   public findExistingLocalMedia(options: {
     url?: string;

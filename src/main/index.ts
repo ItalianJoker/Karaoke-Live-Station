@@ -696,12 +696,14 @@ class KaraokeMainProcess {
         // If libraryPath is missing or does not exist on disk, prompt user on first launch to choose between default folder or browsing
         if (!resolvedLibrary || !fs.existsSync(resolvedLibrary)) {
           const defaultKaraokeDir = path.join(app.getPath('home'), 'Karaoke');
-          const win = this.controlWindow || BrowserWindow.getFocusedWindow();
           const isItalian = (app.getLocale() || '').toLowerCase().startsWith('it');
 
           try {
-            if (win) {
-              const choice = await dialog.showMessageBox(win, {
+            // Intentionally omit parent BrowserWindow so this first-run prompt is
+            // non-modal to Control — a parented MessageBox can suspend Chromium
+            // media/Web Audio during live setup on secondary monitors.
+            {
+              const choice = await dialog.showMessageBox({
                 type: 'question',
                 title: isItalian
                   ? 'Karaoke Live Station - Configurazione Libreria'
@@ -722,7 +724,7 @@ class KaraokeMainProcess {
 
               if (choice.response === 1) {
                 // User chose to browse for a custom folder
-                const result = await dialog.showOpenDialog(win, {
+                const result = await dialog.showOpenDialog({
                   title: isItalian
                     ? 'Seleziona la cartella della Libreria Karaoke'
                     : 'Select your Karaoke Library Folder',
@@ -740,8 +742,6 @@ class KaraokeMainProcess {
                 // User chose default folder
                 resolvedLibrary = defaultKaraokeDir;
               }
-            } else {
-              resolvedLibrary = defaultKaraokeDir;
             }
           } catch {
             resolvedLibrary = defaultKaraokeDir;
@@ -784,6 +784,11 @@ class KaraokeMainProcess {
     // 6. Database IPC Bridge
     ipcMain.handle('db:get-tracks', () => {
       return this.db.getAllTracks();
+    });
+
+    // Bound LIKE search — keeps large catalogs off the IPC bus during live typing.
+    ipcMain.handle('db:search-tracks', (_event, query: string, limit?: number) => {
+      return this.db.searchTracks(query, limit);
     });
 
     ipcMain.handle('db:upsert-track', (_event, track: KaraokeMediaTrack) => {

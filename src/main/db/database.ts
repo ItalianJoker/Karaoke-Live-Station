@@ -68,6 +68,8 @@ export class DatabaseManager {
 
       CREATE INDEX IF NOT EXISTS idx_tracks_search ON tracks(title, artist);
       CREATE INDEX IF NOT EXISTS idx_singers_name ON singers(name);
+      CREATE INDEX IF NOT EXISTS idx_tracks_local_path ON tracks(localFilePath);
+      CREATE INDEX IF NOT EXISTS idx_siae_executed_at ON siae_logs(executedAt);
     `);
 
     // Clean up any historical case-insensitive duplicate singers and enforce unique index
@@ -109,6 +111,51 @@ export class DatabaseManager {
       isEmbeddable: number;
     }>;
 
+    return rows.map((r) => ({
+      id: r.id,
+      source: r.source as KaraokeMediaTrack['source'],
+      title: r.title,
+      artist: r.artist,
+      durationSec: r.durationSec,
+      uri: r.uri,
+      localFilePath: r.localFilePath ?? undefined,
+      thumbnailUrl: r.thumbnailUrl ?? undefined,
+      hasEmbeddedLyrics: Boolean(r.hasEmbeddedLyrics),
+      isMultiplex: Boolean(r.isMultiplex),
+      isEmbeddable: Boolean(r.isEmbeddable)
+    }));
+  }
+
+  /**
+   * Parameterized title/artist search with LIMIT — avoids shipping the full catalog
+   * across IPC when the operator types into the library filter on large libraries.
+   * Uses bound LIKE params (no string concat) and the composite title/artist index.
+   */
+  public searchTracks(query: string, limit = 200): KaraokeMediaTrack[] {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) {
+      return this.getAllTracks().slice(0, Math.max(1, limit));
+    }
+    const like = `%${q.replace(/[%_]/g, '')}%`;
+    const stmt = this.db.prepare(
+      `SELECT * FROM tracks
+       WHERE lower(title) LIKE ? OR lower(artist) LIKE ?
+       ORDER BY artist ASC, title ASC
+       LIMIT ?`
+    );
+    const rows = stmt.all(like, like, Math.max(1, Math.min(2000, limit))) as Array<{
+      id: string;
+      source: string;
+      title: string;
+      artist: string;
+      durationSec: number;
+      uri: string;
+      localFilePath: string | null;
+      thumbnailUrl: string | null;
+      hasEmbeddedLyrics: number;
+      isMultiplex: number;
+      isEmbeddable: number;
+    }>;
     return rows.map((r) => ({
       id: r.id,
       source: r.source as KaraokeMediaTrack['source'],
