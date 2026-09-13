@@ -475,7 +475,7 @@ export const StageWindow: React.FC = () => {
       )}
 
       {/* Floating Live Pitch Semitone Offset Badge */}
-      {playback.livePitchOffset !== 0 && (
+      {playback.livePitchOffset !== 0 && (settings?.showPitchOnStage ?? true) && (
         <div className="absolute top-6 right-6 z-40 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 px-4 py-1.5 rounded-full text-xs font-mono text-indigo-400 font-bold shadow-2xl pointer-events-none">
           {playback.livePitchOffset > 0 ? `+${playback.livePitchOffset}` : playback.livePitchOffset} Semitoni
         </div>

@@ -56,7 +56,8 @@
     "placementEndDesc": "Ajouter le morceau tout à la fin de la liste",
     "clear": "Vider la file",
     "confirmClear": "Êtes-vous sûr de vouloir vider l'ensemble de la file d'attente ?",
-    "cleared": "File d'attente vidée avec succès"
+    "cleared": "File d'attente vidée avec succès",
+    "hintPlayOrDoubleClick": "Double-clic ou Play pour démarrer"
   },
   "singers": {
     "title": "Gestion des Chanteurs",
@@ -162,7 +163,12 @@
     "supportTitle": "Soutenir le Projet",
     "supportDescription": "Si Karaoke Live Station vous est utile pour vos soirées et que vous souhaitez soutenir le développement de nouvelles fonctionnalités, vous pouvez m'offrir un café avec un don !",
     "donateButton": "Faire un don avec PayPal",
-    "saveAndClose": "Enregistrer et Fermer"
+    "saveAndClose": "Enregistrer et Fermer",
+    "showPitchOnStage": "Afficher le décalage de tonalité sur l'écran de scène",
+    "showPitchOnStageDesc": "Affiche le badge avec les demi-tons de variation (+/-) sur le moniteur de scène pour le chanteur.",
+    "autoArchiveWarningTitle": "Attention : désactivation de l'archivage automatique",
+    "autoArchiveWarningDesc": "Attention : en désactivant l'archivage automatique, les morceaux téléchargés ne seront pas enregistrés dans la bibliothèque permanente. Ils resteront disponibles dans le cache temporaire uniquement tant qu'ils sont présents dans la file d'attente (même en redémarrant l'application) et ne seront supprimés du disque que lorsqu'ils seront retirés de la file ou que celle-ci sera vidée.",
+    "confirmDisableAutoArchive": "Confirmer la désactivation"
   },
   "history": {
     "title": "Historique de Lecture",
@@ -234,5 +240,8 @@
     "help": "Afficher ce guide des raccourcis clavier",
     "closeModal": "Fermer la boîte de dialogue / modale",
     "close": "Fermer"
+  },
+  "common": {
+    "cancel": "Annuler"
   }
 }

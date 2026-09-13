@@ -85,6 +85,8 @@ export interface AppSettings {
   transitionPauseSec: number;
   /** Automatically trigger playback of the next queued track */
   autoAdvanceNext: boolean;
+  /** Show live semitone pitch shift badge on the stage monitor */
+  showPitchOnStage?: boolean;
 
   /** Network port for the embedded Guest Portal HTTP & Socket.IO server */
   guestPortalPort: number;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Folder, FolderOpen, Download, Settings, Volume2, Globe, Clock, ShieldCheck, Headphones, FileText, Terminal, Trash2, RefreshCw, CheckCircle2, AlertCircle, Heart, Coffee, ExternalLink } from 'lucide-react';
+import { X, Folder, FolderOpen, Download, Settings, Volume2, Globe, Clock, ShieldCheck, Headphones, FileText, Terminal, Trash2, RefreshCw, CheckCircle2, AlertCircle, AlertTriangle, Heart, Coffee, ExternalLink } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AppTheme, YtDlpStatus } from '../../shared/types';
 import { FirewallGuideCard } from './FirewallGuideCard';
@@ -60,6 +60,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [ytdlpStatus, setYtdlpStatus] = useState<YtDlpStatus | null>(null);
   const [isCheckingYtdlp, setIsCheckingYtdlp] = useState(false);
   const [ytdlpMessage, setYtdlpMessage] = useState<string | null>(null);
+  const [showAutoArchiveConfirm, setShowAutoArchiveConfirm] = useState(false);
 
   useEffect(() => {
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
@@ -478,7 +479,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-800/80">
+            <div className="pt-2 border-t border-slate-800/80 space-y-3">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -489,6 +490,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 <div>
                   <span className="text-sm font-medium text-slate-200 block">{t('settings.showNextSingerAtIntro')}</span>
                   <span className="text-xs text-slate-400 block mt-0.5">{t('settings.showNextSingerAtIntroDesc')}</span>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.showPitchOnStage ?? true}
+                  onChange={(e) => updateSettings({ showPitchOnStage: e.target.checked })}
+                  className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
+                />
+                <div>
+                  <span className="text-sm font-medium text-slate-200 block">{t('settings.showPitchOnStage')}</span>
+                  <span className="text-xs text-slate-400 block mt-0.5">{t('settings.showPitchOnStageDesc')}</span>
                 </div>
               </label>
             </div>
@@ -553,7 +567,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 <input
                   type="checkbox"
                   checked={settings.autoArchiveWebTracks}
-                  onChange={(e) => updateSettings({ autoArchiveWebTracks: e.target.checked })}
+                  onChange={(e) => {
+                    if (!e.target.checked) {
+                      setShowAutoArchiveConfirm(true);
+                    } else {
+                      updateSettings({ autoArchiveWebTracks: true });
+                    }
+                  }}
                   className="w-4 h-4 accent-indigo-600 rounded"
                 />
                 <span>{t('settings.autoArchive')}</span>
@@ -729,6 +749,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           </button>
         </div>
       </div>
+
+      {/* Auto-Archive Deactivation Mandatory Warning Confirmation Modal */}
+      {showAutoArchiveConfirm && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[60] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-amber-500/60 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-scaleUp">
+            <div className="flex items-center gap-3 text-amber-400">
+              <AlertTriangle className="w-6 h-6 shrink-0 text-amber-400" />
+              <h3 className="font-bold text-base text-white">
+                {t('settings.autoArchiveWarningTitle', 'Attenzione disattivazione archiviazione automatica')}
+              </h3>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/70 p-4 rounded-xl border border-slate-800">
+              {t(
+                'settings.autoArchiveWarningDesc',
+                "Attenzione: disattivando l'archiviazione automatica, i brani scaricati non verranno salvati nella libreria permanente. Rimarranno disponibili nella cache temporanea solo finché sono presenti in coda (anche riavviando l'app) e verranno eliminati dal disco solo quando saranno scodati o la coda verrà svuotata."
+              )}
+            </p>
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAutoArchiveConfirm(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors"
+              >
+                {t('common.cancel', 'Annulla')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  updateSettings({ autoArchiveWebTracks: false });
+                  setShowAutoArchiveConfirm(false);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 shadow-md shadow-amber-900/30 transition-colors"
+              >
+                {t('settings.confirmDisableAutoArchive', 'Conferma disattivazione')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

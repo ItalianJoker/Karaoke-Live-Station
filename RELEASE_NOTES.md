@@ -25,6 +25,29 @@ Benvenuti alla release ufficiale di **Karaoke Live Station**, la workstation des
 
 *Tutti i pacchetti includono già i binari necessari compilati per la piattaforma (`yt-dlp`, `ffmpeg`, `better-sqlite3` e il banco sonoro GeneralUser GS SoundFont da 31 MB), garantendo funzionamento offline immediato e zero configurazioni di sistema.*
 
+## 🚀 Note di Rilascio — Versione 1.3.0 (Dipendenze Esterne, Cache Coda Persistente, Lock Istanza Singola & Affinamenti UI)
+
+### ⚙️ Gestione Dipendenze Esterne (`yt-dlp`) & Esecuzione Protetta
+- **Collocazione Esclusiva in `<app_data_dir>/bin/`**: L'eseguibile `yt-dlp` viene memorizzato ed eseguito unicamente all'interno della cartella dati protetta dell'applicazione (`userData/bin/`), salvaguardando il binario da pulitori automatici di cartelle temporanee (`/tmp`) o sovrascritture di pacchetto.
+- **Riuso Senza Riscaricamenti a Vuoto**: Se il binario è già presente ed eseguibile, l'applicazione ne riutilizza l'istanza locale e verifica gli aggiornamenti su GitHub Releases in background in modo non bloccante, scaricando il nuovo file solo in presenza di un effettivo incremento di versione.
+- **Risoluzione Dinamica al Download**: I percorsi degli eseguibili vengono ricalcolati dinamicamente all'avvio di ogni download e ricerca, consentendo l'applicazione a caldo di eventuali aggiornamenti senza richiedere il riavvio del software.
+
+### 💾 Ciclo di Vita della Coda Persistente & Cache Dedicata (`<app_data_dir>/queue_cache/`)
+- **Single Instance Lock**: Attivato il blocco di istanza singola nativo di Electron (`app.requestSingleInstanceLock()`). Tentativi di apertura di ulteriori istanze dell'applicazione vengono bloccati immediatamente (`app.quit()`), ripristinando e mettendo a fuoco la finestra di regia già aperta.
+- **Auto-Refresh Immediato della Libreria**: Il completamento dei download (sia automatici che manuali) emette un evento di re-indicizzazione e ricarica immediata della vista Libreria nel renderer, rendendo i nuovi brani visibili all'istante senza riavvio.
+- **Archiviazione Automatica Attiva di Default**: La preferenza `autoArchiveWebTracks` è ora abilitata per impostazione predefinita (`true`).
+- **Modale Obbligatorio di Conferma alla Disattivazione**: Se l'utente tenta di disattivare l'archiviazione automatica, viene mostrato un modale di sicurezza vincolante con il messaggio ufficiale multilingua (IT, EN, ES, FR) che avvisa che i brani non archiviati rimarranno disponibili solo nella cache temporanea finché presenti in scaletta.
+- **Cache di Coda Persistente**: Quando l'archiviazione automatica è disattivata, i download vengono custoditi nella cartella dedicata `<userData>/queue_cache/`. I file rimangono integri e riproducibili anche riavviando l'app, purché il brano sia ancora presente nella coda salvata.
+- **Garbage Collection (GC) Intelligente al Solo Scodamento**: I file della cache di coda vengono rimossi fisicamente dal disco **esclusivamente** quando il brano viene effettivamente rimosso dalla coda (a seguito di avanzamento/esecuzione completata, cancellazione manuale o svuotamento dell'intera coda). Brani identici ancora in attesa in scaletta mantengono protetto il file su disco.
+- **Salvataggio Contestuale in Libreria in 1 Clic**: Presente un pulsante dedicato sia nella riga del brano in coda che nella testata del player in esecuzione, consentendo all'operatore di promuovere con un solo clic qualsiasi brano web/cache nella propria libreria locale permanente.
+
+### 🎯 Fair Queue Attiva di Default
+- L'algoritmo di rotazione anti-monopolio Fair Queue è ora attivo per impostazione predefinita (`enableFairQueue: true`), garantendo un'esperienza di scaletta bilanciata e meritocratica out-of-the-box.
+
+### 🎛️ Affinamenti UI & Schermo Palco
+- **Toggle Mostra Tonalità su Schermo Palco**: Aggiunta nelle opzioni la possibilità di mostrare o nascondere il badge dei semitoni di variazione (+/-) sullo schermo del palco (`showPitchOnStage`).
+- **Aggiornamento Messaggio Guida**: Sostituita la dicitura con *"💡 Doppio click o Play per avviare"* in tutti i componenti e nei file di localizzazione (IT, EN, ES, FR).
+
 ## 🚀 Note di Rilascio — Versione 1.2.0 (Aggiornamento Stabilità & Nuove Funzionalità)
 
 ### 🖥️ Isolamento Pipeline di Rendering Schermo Palco (Stage Display)
@@ -145,7 +168,28 @@ Welcome to the official release of **Karaoke Live Station**, the professional, c
 | **Linux** | `karaoke-live-station_1.0.0_amd64.deb` | Native deb package for Debian, Ubuntu, and Linux Mint |
 | **macOS** | `Karaoke Live Station-1.0.0-mac.zip` | Standalone `.app` bundle for macOS (Intel & Apple Silicon via Rosetta) |
 
-*All packages bundle precompiled platform-specific binaries (`yt-dlp`, `ffmpeg`, `better-sqlite3`, and the 31 MB GeneralUser GS SoundFont soundbank), delivering out-of-the-box offline operation with zero external dependencies.*
+## 🚀 Release Notes — Version 1.3.0 (External Dependencies, Persistent Queue Cache, Single Instance Lock & UI Refinements)
+
+### ⚙️ External Dependency Management (`yt-dlp`) & Protected Execution
+- **Exclusive Placement in `<app_data_dir>/bin/`**: The `yt-dlp` executable is stored and executed exclusively within the application's protected user data directory (`userData/bin/`), safeguarding the binary from temporary file cleanup utilities (`/tmp`) or application bundle overwrites.
+- **Reuse Without Redundant Downloads**: If the binary already exists and is executable, the application reuses the local instance and checks GitHub Releases for updates in a non-blocking background check, downloading only when a genuine version increment is available.
+- **Dynamic Resolution on Download/Search**: Binary paths are dynamically re-resolved prior to each download and search operation, enabling hot updates to take effect immediately without requiring an application restart.
+
+### 💾 Persistent Queue Lifecycle & Dedicated Cache (`<app_data_dir>/queue_cache/`)
+- **Single Instance Lock**: Activated native Electron single-instance enforcement (`app.requestSingleInstanceLock()`). Attempts to open additional instances are terminated immediately (`app.quit()`), automatically restoring and focusing the existing control window.
+- **Instant Automatic Library Refresh**: Completion of track downloads (both automated and manual saves) dispatches a re-indexing event that immediately refreshes the Library view in the renderer, making newly saved songs visible without delay.
+- **Auto-Archive Enabled by Default**: The `autoArchiveWebTracks` setting is now enabled by default (`true`).
+- **Mandatory Confirmation Modal on Disabling**: Attempting to disable automatic archiving triggers a mandatory confirmation modal with the official warning message across all supported languages (IT, EN, ES, FR), advising that unarchived songs will only remain available in the temporary cache while present in the queue.
+- **Persistent Queue Cache**: When automatic archiving is disabled, downloaded files are placed into the dedicated `<userData>/queue_cache/` directory. These files remain intact and playable across app restarts as long as the song remains in the persisted queue.
+- **Intelligent Garbage Collection (GC) Exclusively on Dequeue**: Queue cache files are physically purged from disk **only** when the song is actually removed from the queue (via track completion, manual item deletion, or clearing the entire queue). If identical songs remain queued elsewhere in the playlist, the cached file is safely preserved.
+- **Contextual 1-Click "Save to Library"**: Dedicated 1-click action buttons in both the queue row and active player header allow operators to instantly promote any web or cached track into their permanent local library.
+
+### 🎯 Fair Queue Enabled by Default
+- The anti-monopoly Fair Queue rotation algorithm is now turned on by default (`enableFairQueue: true`), providing a balanced and fair singer rotation experience out-of-the-box.
+
+### 🎛️ UI Refinements & Stage Monitor
+- **Toggle Stage Monitor Pitch Badge**: Added an option in settings to show or hide the semitone shift (+/-) badge on the stage monitor display (`showPitchOnStage`).
+- **Updated Guidance Prompt**: Replaced start instructions with *"💡 Double click or Play to start"* across all components and localization bundles (IT, EN, ES, FR).
 
 ## 🚀 Release Notes — Version 1.2.0 (Stability Update & New Features)
 

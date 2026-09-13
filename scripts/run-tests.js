@@ -248,6 +248,85 @@ assert(Boolean(frLocale.shortcuts?.playPause), 'French shortcuts section populat
 
 
 // -------------------------------------------------------------
+// Suite 5: Queue Cache Garbage Collection Logic
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite 5: Queue Cache Garbage Collection & Protection\x1b[0m');
+
+function shouldDeleteCachedFile(filePath, remainingQueue) {
+  if (!filePath || typeof filePath !== 'string') return false;
+  // Guard: only files in queue_cache or with qc_ prefix are eligible
+  if (!filePath.includes('queue_cache') && !filePath.includes('qc_')) return false;
+
+  const isStillReferenced = remainingQueue.some(
+    (item) => item.track?.localFilePath === filePath
+  );
+  return !isStillReferenced;
+}
+
+const cacheFile1 = '/userData/queue_cache/qc_123_artist - title.mp4';
+const cacheFile2 = '/userData/queue_cache/qc_456_artist - title2.mp4';
+const libraryFile = '/home/user/Karaoke/artist - permanent.mp4';
+
+const mockRemainingQueue = [
+  { queueId: 'q2', track: { id: 't2', localFilePath: cacheFile2 } }
+];
+
+assert(
+  shouldDeleteCachedFile(cacheFile1, mockRemainingQueue) === true,
+  'Unreferenced queue_cache file is correctly flagged for deletion'
+);
+
+assert(
+  shouldDeleteCachedFile(cacheFile2, mockRemainingQueue) === false,
+  'Referenced queue_cache file is protected from deletion while still in queue'
+);
+
+assert(
+  shouldDeleteCachedFile(libraryFile, []) === false,
+  'Permanent library files are never deleted by queue cache GC'
+);
+
+assert(
+  shouldDeleteCachedFile('', mockRemainingQueue) === false,
+  'Empty or invalid file paths are safely ignored'
+);
+
+
+// -------------------------------------------------------------
+// Suite 6: Default Settings & Feature Defaults
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite 6: Default Settings & Feature Flags\x1b[0m');
+
+const storeSource = fs.readFileSync(path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'), 'utf8');
+
+assert(
+  /enableFairQueue:\s*true/.test(storeSource),
+  'Fair Queue algorithm is enabled (true) by default in initial store settings'
+);
+
+assert(
+  /autoArchiveWebTracks:\s*true/.test(storeSource),
+  'Auto-archive web tracks is enabled (true) by default in initial store settings'
+);
+
+assert(
+  /showPitchOnStage:\s*true/.test(storeSource),
+  'Show pitch on stage monitor is enabled (true) by default'
+);
+
+assert(
+  itLocale.queue?.hintPlayOrDoubleClick === 'Doppio click o Play per avviare',
+  'Italian hint correctly updated to "Doppio click o Play per avviare"'
+);
+
+assert(
+  itLocale.settings?.autoArchiveWarningDesc &&
+    itLocale.settings.autoArchiveWarningDesc.includes("disattivando l'archiviazione automatica"),
+  'Mandatory Italian auto-archive deactivation warning text matches specification'
+);
+
+
+// -------------------------------------------------------------
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');
@@ -259,3 +338,4 @@ if (testsFailed > 0) {
 } else {
   process.exit(0);
 }
+

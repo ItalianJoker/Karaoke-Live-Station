@@ -56,7 +56,8 @@
     "placementEndDesc": "Accoda il brano all'ultimo posto della scaletta",
     "clear": "Svuota coda",
     "confirmClear": "Sei sicuro di voler svuotare l'intera scaletta della coda?",
-    "cleared": "Coda svuotata con successo"
+    "cleared": "Coda svuotata con successo",
+    "hintPlayOrDoubleClick": "Doppio click o Play per avviare"
   },
   "singers": {
     "title": "Gestione Cantanti",
@@ -162,7 +163,12 @@
     "supportTitle": "Supporta il Progetto",
     "supportDescription": "Se Karaoke Live Station ti è utile per le tue serate e vuoi sostenere lo sviluppo continuo di nuove funzionalità e aggiornamenti, puoi offrire un caffè con una donazione libera!",
     "donateButton": "Dona con PayPal",
-    "saveAndClose": "Salva e Chiudi"
+    "saveAndClose": "Salva e Chiudi",
+    "showPitchOnStage": "Mostra variazione tonalità sullo schermo del palco",
+    "showPitchOnStageDesc": "Visualizza il badge con i semitoni di variazione (+/-) sullo schermo del palco per il cantante.",
+    "autoArchiveWarningTitle": "Attenzione disattivazione archiviazione automatica",
+    "autoArchiveWarningDesc": "Attenzione: disattivando l'archiviazione automatica, i brani scaricati non verranno salvati nella libreria permanente. Rimarranno disponibili nella cache temporanea solo finché sono presenti in coda (anche riavviando l'app) e verranno eliminati dal disco solo quando saranno scodati o la coda verrà svuotata.",
+    "confirmDisableAutoArchive": "Conferma disattivazione"
   },
   "history": {
     "title": "Storico Esecuzioni",
@@ -234,5 +240,8 @@
     "help": "Mostra questa guida scorciatoie",
     "closeModal": "Chiudi finestra di dialogo / modale",
     "close": "Chiudi"
+  },
+  "common": {
+    "cancel": "Annulla"
   }
 }

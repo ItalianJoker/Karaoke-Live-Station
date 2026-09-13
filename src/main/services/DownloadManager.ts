@@ -32,6 +32,7 @@ export type DownloadProgressCallback = (payload: DownloadProgressPayload) => voi
  */
 export class DownloadManager {
   private tempDir: string;
+  private queueCacheDir: string;
   private ffmpegPath: string;
   private ytdlpPath: string;
   private activeProcesses: Map<string, { process: ChildProcess; payload: DownloadProgressPayload; url: string }> = new Map();
@@ -39,14 +40,20 @@ export class DownloadManager {
   private progressListeners: Set<DownloadProgressCallback> = new Set();
 
   /**
-   * Initializes the DownloadManager with a working temporary directory.
+   * Initializes the DownloadManager with working temporary and persistent queue cache directories.
    *
    * @param tempDir - Absolute path to folder used for in-progress downloads
+   * @param queueCacheDir - Optional absolute path to folder used for persistent queued tracks
    */
-  constructor(tempDir: string) {
+  constructor(tempDir: string, queueCacheDir?: string) {
     this.tempDir = tempDir;
     if (!fs.existsSync(this.tempDir)) {
       fs.mkdirSync(this.tempDir, { recursive: true });
+    }
+
+    this.queueCacheDir = queueCacheDir || path.join(path.dirname(this.tempDir), 'queue_cache');
+    if (!fs.existsSync(this.queueCacheDir)) {
+      fs.mkdirSync(this.queueCacheDir, { recursive: true });
     }
 
     // Resolve ffmpeg and yt-dlp binary paths (bundled or system PATH fallback)
@@ -86,6 +93,10 @@ export class DownloadManager {
    * @returns Generated download task ID
    */
   public async startDownload(options: DownloadOptions): Promise<string> {
+    // Dynamically refresh binary paths to immediately use updated executables
+    this.ytdlpPath = resolveYtDlpPath();
+    this.ffmpegPath = resolveFfmpegPath();
+
     // If there is already an active download for this exact URL, reuse it to prevent duplicates
     const existingDownloadId = this.activeUrls.get(options.url);
     if (existingDownloadId && this.activeProcesses.has(existingDownloadId)) {
@@ -313,6 +324,118 @@ export class DownloadManager {
     };
 
     return track;
+  }
+
+  /**
+   * Moves a downloaded media file to the dedicated persistent queue cache directory.
+   * Unlike temp files, queue cache files persist across app restarts until the track is dequeued.
+   *
+   * @param tempFilePath - Downloaded file path in temp directory
+   * @param trackMetadata - Song title, artist, and duration
+   * @returns Local filesystem destination path and karaoke://local/ URI
+   */
+  public async saveToQueueCache(
+    tempFilePath: string,
+    trackMetadata: { title: string; artist: string; durationSec: number }
+  ): Promise<{ localFilePath: string; uri: string }> {
+    if (!fs.existsSync(tempFilePath)) {
+      throw new Error(`Temp file not found: ${tempFilePath}`);
+    }
+
+    if (!fs.existsSync(this.queueCacheDir)) {
+      fs.mkdirSync(this.queueCacheDir, { recursive: true });
+    }
+
+    const ext = path.extname(tempFilePath);
+    const sanitizedTitle = DownloadManager.sanitizeFilenamePart(trackMetadata.title);
+    const sanitizedArtist = DownloadManager.sanitizeFilenamePart(trackMetadata.artist);
+    const cacheFileName = `qc_${Date.now()}_${sanitizedArtist} - ${sanitizedTitle}${ext}`;
+    const destinationPath = path.join(this.queueCacheDir, cacheFileName);
+
+    try {
+      await fs.promises.rename(tempFilePath, destinationPath);
+    } catch {
+      await fs.promises.copyFile(tempFilePath, destinationPath);
+      try {
+        await fs.promises.unlink(tempFilePath);
+      } catch {}
+    }
+
+    return {
+      localFilePath: destinationPath,
+      uri: `karaoke://local/${encodeURIComponent(destinationPath)}`
+    };
+  }
+
+  /**
+   * Safely deletes a cached media file if and only if it resides within
+   * the persistent queue cache directory or temporary download directory.
+   * Prevents deletion of user files outside managed cache folders.
+   *
+   * @param filePath - Absolute path to cached media file
+   * @returns Success boolean
+   */
+  public async deleteCachedFile(filePath: string): Promise<{ success: boolean }> {
+    if (!filePath || typeof filePath !== 'string') return { success: false };
+
+    try {
+      const resolvedPath = path.resolve(filePath);
+      const resolvedCache = path.resolve(this.queueCacheDir);
+      const resolvedTemp = path.resolve(this.tempDir);
+
+      const isInCache = resolvedPath.startsWith(resolvedCache + path.sep);
+      const isInTemp = resolvedPath.startsWith(resolvedTemp + path.sep);
+
+      if (!isInCache && !isInTemp) {
+        console.warn('Security guard: Refused deletion of file outside queue_cache/temp:', filePath);
+        return { success: false };
+      }
+
+      if (fs.existsSync(resolvedPath)) {
+        await fs.promises.unlink(resolvedPath);
+        return { success: true };
+      }
+    } catch (err) {
+      console.warn('Failed to delete cached file:', filePath, err);
+    }
+    return { success: false };
+  }
+
+  /**
+   * Scans the persistent queue cache directory and removes any orphaned media files
+   * that are no longer referenced in the active playback queue.
+   *
+   * @param activeFilePaths - Array of file paths currently referenced in the queue
+   * @returns Number of orphaned files pruned
+   */
+  public async cleanupUnreferencedCache(activeFilePaths: string[]): Promise<{ deletedCount: number }> {
+    let deletedCount = 0;
+    try {
+      if (!fs.existsSync(this.queueCacheDir)) return { deletedCount: 0 };
+
+      const activeNormalized = new Set(
+        activeFilePaths
+          .filter(Boolean)
+          .map((p) => path.resolve(p).toLowerCase())
+      );
+
+      const files = await fs.promises.readdir(this.queueCacheDir);
+      for (const file of files) {
+        const fullPath = path.join(this.queueCacheDir, file);
+        const resolved = path.resolve(fullPath);
+        if (!activeNormalized.has(resolved.toLowerCase())) {
+          try {
+            await fs.promises.unlink(fullPath);
+            deletedCount++;
+          } catch (delErr) {
+            console.warn('Failed to delete orphaned queue cache file:', fullPath, delErr);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to cleanup unreferenced cache:', err);
+    }
+    return { deletedCount };
   }
 
   /**

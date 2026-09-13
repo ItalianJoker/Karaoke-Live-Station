@@ -99,6 +99,17 @@ export interface KaraokeAPI {
       durationSec: number;
       targetDirectory?: string;
     }) => Promise<KaraokeMediaTrack>;
+    /** Moves a downloaded file into the persistent queue cache */
+    saveToQueueCache: (payload: {
+      tempFilePath: string;
+      title: string;
+      artist: string;
+      durationSec: number;
+    }) => Promise<{ localFilePath: string; uri: string }>;
+    /** Deletes a cached file from disk when dequeued */
+    deleteCachedFile: (filePath: string) => Promise<{ success: boolean }>;
+    /** Purges orphaned cache files not referenced in active queue */
+    cleanupUnreferencedCache: (activeFilePaths: string[]) => Promise<{ deletedCount: number }>;
     /** Subscribes to live download progress updates */
     onProgress: (callback: (payload: DownloadProgressPayload) => void) => () => void;
   };
@@ -244,6 +255,9 @@ const karaokeApi: KaraokeAPI = {
     start: (options) => ipcRenderer.invoke('download:start', options),
     cancel: (downloadId) => ipcRenderer.invoke('download:cancel', downloadId),
     saveToLibrary: (payload) => ipcRenderer.invoke('download:save-to-library', payload),
+    saveToQueueCache: (payload) => ipcRenderer.invoke('download:save-to-queue-cache', payload),
+    deleteCachedFile: (filePath: string) => ipcRenderer.invoke('cache:delete-file', filePath),
+    cleanupUnreferencedCache: (activeFilePaths: string[]) => ipcRenderer.invoke('cache:cleanup-unreferenced', activeFilePaths),
     onProgress: (callback: (payload: DownloadProgressPayload) => void) => {
       const handler = (_event: IpcRendererEvent, payload: DownloadProgressPayload) => callback(payload);
       ipcRenderer.on('download:progress', handler);

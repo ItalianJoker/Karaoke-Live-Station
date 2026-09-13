@@ -146,8 +146,33 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
                   source: 'local_library'
                 });
                 await loadLocalCatalog();
+                window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
               } catch (err) {
                 console.error('Auto-archive failed:', err);
+              }
+            } else {
+              // Auto-archive disabled: persist downloaded media into dedicated queue cache directory
+              try {
+                const cached = await window.karaokeApi.downloads.saveToQueueCache({
+                  tempFilePath: payload.outputFilePath,
+                  title: associatedTrack.title,
+                  artist: associatedTrack.artist,
+                  durationSec: associatedTrack.durationSec
+                });
+                updateTrackInQueue(associatedTrack.id, {
+                  localFilePath: cached.localFilePath,
+                  uri: cached.uri
+                });
+                updateTrackInQueue(associatedTrack.uri, {
+                  localFilePath: cached.localFilePath,
+                  uri: cached.uri
+                });
+                updateTrackInQueue(payload.outputFilePath, {
+                  localFilePath: cached.localFilePath,
+                  uri: cached.uri
+                });
+              } catch (err) {
+                console.error('Queue cache save failed:', err);
               }
             }
           }

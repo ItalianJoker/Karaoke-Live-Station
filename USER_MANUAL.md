@@ -43,6 +43,9 @@
 3. **Guest Portal LAN:**  
    Server web leggero integrato su rete locale (Wi-Fi). Permette agli spettatori in sala di inquadrare un QR Code con il proprio smartphone, consultare il catalogo canzoni e inviare richieste indicando il proprio nome e la tonalità desiderata.
 
+4. **Protezione Istanza Singola (Single Instance Lock):**  
+   L'applicazione impedisce l'esecuzione di istanze duplicate del programma. Qualsiasi tentativo di avvio di una seconda istanza viene bloccato immediatamente, ripristinando e mettendo a fuoco la finestra di regia già aperta.
+
 ---
 
 ## 2. Installazione e Prima Configurazione
@@ -69,10 +72,12 @@
 
 ### Controlli di Riproduzione & Transport
 - **Play / Pausa (Tasto `Spazio`):** Avvia o mette in pausa la traccia correntemente caricata.
+- **Avvio Veloce ("Doppio click o Play per avviare"):** Puoi avviare la riproduzione premendo il tasto Play sul primo brano in scaletta oppure facendo doppio click su qualsiasi brano presente in coda.
 - **Stop (Tasto `S`):** Interrompe immediatamente la riproduzione, riavvolge il minutaggio a 0:00 e arresta il motore DSP/MIDI.
 - **Ricomincia (Tasto `R`):** Riporta all'inizio (0:00) la canzone in esecuzione senza scaricarla dalla coda.
 - **Prossimo Brano (Tasto `N`):** Conclude la traccia corrente, ne registra l'esecuzione nello storico SIAE e avanza al cantante successivo in scaletta.
 - **Scrubbing & Salto Temporale (`←` / `→`):** Clicca sulla barra di avanzamento o premi i tasti freccia per saltare indietro o avanti di 5 secondi con riallineamento istantaneo del video sullo schermo del palco.
+- **Salvataggio Rapido in Libreria (Icona 💾):** Se un brano in scaletta o in esecuzione proviene dal Web o dalla cache temporanea di coda, compare un pulsante dedicato con un clic ("Salva in libreria") sia sulla riga della coda che nella barra superiore del player per archiviarlo permanentemente nella propria cartella locale.
 
 ### Tonalità (Pitch Shift) & Velocità (Tempo)
 - **Regolazione Tonalità (`+` / `-` oppure `Ctrl+↑` / `Ctrl+↓`):** Modifica l'intonazione in semitoni (da -8 a +8).  
@@ -94,6 +99,7 @@
 - **Auto-Ducking BGM (Tasto `D`):** Abbassa automaticamente il livello della musica di sottofondo a -14 dB quando l'operatore parla o effettua un annuncio microfonico, ripristinando il volume standard al termine della voce.
 
 ### Fair Queue (Scaletta Intelligente Anti-Monopolio)
+- **Attiva di Default:** L'algoritmo di rotazione equa è abilitato per impostazione predefinita (`enableFairQueue: true`), garantendo un'esperienza meritocratica fin dal primo avvio.
 - **Punteggio di Equità (Fair Score):** Assegna a ciascun cantante una priorità dinamica basata sul numero di brani già eseguiti nella serata. Chi ha cantato di meno riceve priorità automatica.
 - **Priorità VIP:** Permette al DJ di forzare una posizione privilegiata per ospiti speciali, festeggiati o celebrazioni.
 - **Riordino Manuale:** È sempre possibile trascinare e rilasciare (Drag & Drop) i brani in scaletta per modificare l'ordine al volo.
@@ -129,6 +135,9 @@ La finestra del Palco è concepita per rimanere aperta sul monitor rivolto al pu
 3. **Titolo Brano in Sovrimpressione:**  
    Mostra titolo e autore in sovrimpressione non invasiva nei primi 8 secondi della canzone.
 
+### Visualizzazione Tonalità Cantante (Pitch Badge)
+- Nelle Opzioni puoi scegliere se mostrare o nascondere sullo schermo del palco il badge che indica i semitoni di variazione (`+` / `-`) rispetto alla tonalità originale del brano (`showPitchOnStage`). In questo modo puoi decidere se rendere visibile al pubblico l'offset di pitch o mantenerlo discreto solo sulla console di regia.
+
 ---
 
 ## 5. Guest Portal per Smartphone (Richieste via LAN)
@@ -159,13 +168,19 @@ Il **Guest Portal** permette agli ospiti del locale di sfogliare il catalogo del
   - **Modalità Locale:** Cerca istantaneamente nel database SQLite tra i file residenti sul disco rigido (testi, video e basi MIDI).
   - **Modalità Web / YouTube:** Cerca in tempo reale su YouTube basi musicali karaoke.
 
-### Download & Archiviazione Trasparente
-- Aggiungendo un brano YouTube alla coda o premendo l'icona di download, il motore basato su `yt-dlp` avvia lo scaricamento in background.
-- Il brano è riproducibile immediatamente non appena completato il download.
-- **Salvataggio nella Libreria Permanente:**  
-  - Cliccando su *Salva in Libreria* (o impostando *Archiviazione Automatica* nelle Opzioni), il file viene spostato dalla directory temporanea alla cartella della tua libreria.
-  - La scaletta in riproduzione viene aggiornata istantaneamente per puntare al nuovo file permanente, evitando qualsiasi errore 404 o fallback indesiderato.
-  - I nomi dei file preservano tutti gli accenti (es. `à, è, é, ì, ò, ù`) e gli spazi, garantendo compatibilità universale su Windows, macOS e Linux.
+### Download, Archiviazione & Cache di Coda Persistente
+- **Archiviazione Automatica di Default:** L'impostazione *Archiviazione Automatica Brani Web* (`autoArchiveWebTracks`) è attiva per impostazione predefinita (`true`). Ogni brano scaricato da YouTube viene salvato direttamente nella cartella della tua libreria permanente, rendendolo immediatamente riutilizzabile per le serate future.
+- **Modale Obbligatorio di Conferma alla Disattivazione:** Tentando di disattivare l'archiviazione automatica nelle Opzioni, l'applicazione mostra un modale di sicurezza obbligatorio con un avviso chiaro: disattivando l'archiviazione, i brani scaricati rimarranno disponibili solo nella cache temporanea e verranno eliminati una volta rimossi dalla coda.
+- **Cache di Coda Persistente (`<userData>/queue_cache/`):** Quando l'archiviazione automatica è disattivata, i download vengono salvati nella cartella protetta `queue_cache`. I file rimangono perfettamente integri e riproducibili anche se chiudi e riapri il programma, purché il brano sia ancora presente nella scaletta salvata.
+- **Garbage Collection (GC) Intelligente al Solo Scodamento:** I file della cache di coda vengono rimossi fisicamente dal disco **esclusivamente** quando il brano viene rimosso dalla coda (a seguito di esecuzione completata, cancellazione manuale o svuotamento dell'intera coda). Se un brano identico è ancora presente in altri punti della scaletta, il file viene mantenuto protetto.
+- **Salvataggio Contestuale in Libreria in 1 Clic:** Sia dalla riga del brano in coda che dalla barra superiore del player in esecuzione, puoi cliccare in qualunque momento su *Salva in Libreria* per promuovere istantaneamente un brano dalla cache alla tua libreria locale definitiva.
+- **Aggiornamento Immediato della Vista Libreria:** Sia i download automatici che i salvataggi manuali emettono un evento di re-indicizzazione immediato che ricarica al volo la visualizzazione della Libreria, senza bisogno di premere pulsanti di refresh o riavviare.
+- **Preservazione Nomi File & Accenti:** I file salvati preservano fedelmente spazi e lettere accentate (`à, è, é, ì, ò, ù, ñ, ç...`), ripulendo i caratteri speciali per garantire massima compatibilità su Windows, macOS e Linux.
+
+### Gestione Protetta Dipendenze Esterne (`yt-dlp`)
+- **Collocazione Esclusiva in `<app_data_dir>/bin/`**: L'eseguibile `yt-dlp` viene memorizzato ed eseguito unicamente all'interno della cartella dati protetta dell'applicazione (`userData/bin/`), salvaguardandolo da utility di pulizia del sistema (`/tmp`) o sovrascritture di pacchetto.
+- **Riuso Senza Riscaricamenti Ridondanti**: Se il binario è già presente ed eseguibile, il software riutilizza l'istanza locale e verifica in background gli aggiornamenti su GitHub Releases in modo non bloccante, scaricando un nuovo file solo in presenza di un effettivo incremento di versione.
+- **Risoluzione Dinamica al Download**: I percorsi degli eseguibili vengono ricalcolati dinamicamente prima di ogni download o ricerca, consentendo l'applicazione a caldo di nuove versioni senza riavviare il programma.
 
 ---
 
@@ -232,6 +247,9 @@ La tabella seguente riassume tutte le scorciatoie utilizzabili dall'operatore du
 3. **Mobile LAN Guest Portal:**  
    Built-in zero-configuration local HTTP server. Audience members scan a dynamic QR code with any smartphone to search the song catalog and submit performance requests with custom key preferences.
 
+4. **Single Instance Lock Protection:**  
+   The application strictly enforces a single running instance. Any attempt to launch a second instance is automatically intercepted and terminated, instantly refocusing and restoring the already running Control Console.
+
 ---
 
 ## 2. Installation and Initial Configuration
@@ -258,10 +276,12 @@ La tabella seguente riassume tutte le scorciatoie utilizzabili dall'operatore du
 
 ### Transport & Playback
 - **Play / Pause (`Space`):** Toggles playback for the active track.
+- **Fast Track Start ("Double click or Play to start"):** You can start playback by pressing the Play button on the top queued track or by double-clicking any track in the queue lineup.
 - **Stop (`S`):** Immediately stops playback, silences the audio engine, and resets timecode to 0:00.
 - **Restart (`R`):** Rewinds the current song back to 0:00 without removing it from the queue.
 - **Next Track (`N`):** Logs the completed performance to copyright history and transitions to the next queued singer.
 - **Seek & Jump (`←` / `→`):** Click the progress scrubber or press arrow keys to skip backward or forward by 5 seconds with instant Stage screen video re-sync.
+- **1-Click Save to Library (💾 Icon):** Whenever a queued or actively playing song originates from the web or temporary queue cache, a contextual "Save to Library" button appears in both the queue row and player header to permanently archive it to your local library.
 
 ### Key (Pitch Shift) & Tempo (Speed)
 - **Key Adjustment (`+` / `-` or `Ctrl + ↑ / ↓`):** Shifts pitch by semitones (-8 to +8).  
@@ -283,9 +303,11 @@ La tabella seguente riassume tutte le scorciatoie utilizzabili dall'operatore du
 - **Microphone Auto-Ducking (`D`):** Attenuates background music by -14 dB when speech is detected, restoring full volume when speaking finishes.
 
 ### Fair Queue Scheduling
+- **Enabled by Default:** The fair rotation algorithm is enabled by default (`enableFairQueue: true`), providing an anti-monopoly, balanced queue experience from first launch.
 - **Fair Score Algorithm:** Prioritizes singers who have performed the fewest songs, preventing queue monopolization during busy live shows.
 - **VIP Priority:** Instantly elevates designated VIP performances when necessary.
 - **Manual Drag & Drop:** Freely rearrange upcoming songs by dragging queue items.
+- **Restore Fair Queue:** Instantly re-sorts waiting tracks back into optimal mathematical Fair Queue order with a single click.
 
 ### 16-Channel MIDI / KAR Synth Mixer
 When a MIDI or KAR file is loaded, the mixer panel automatically exposes all 16 MIDI channels with live note activity indicators and channel-specific mute controls (e.g., Channel 4 vocal melody, Channel 2 bass, Channel 10 drums).
@@ -303,6 +325,9 @@ When a MIDI or KAR file is loaded, the mixer panel automatically exposes all 16 
 ### Fullscreen Controls
 - Press **`F11`** or **`Esc`** while focused on the Stage window.
 - Double-click (or click twice in rapid succession) anywhere on the display to toggle borderless fullscreen.
+
+### Performer Pitch Badge Display
+- In Settings, you can configure whether to display or conceal the semitone transposition badge (`+` / `-`) on the stage monitor (`showPitchOnStage`). This allows you to choose whether pitch shifts are visible to the audience or kept discrete to the operator console.
 
 ---
 
@@ -327,10 +352,19 @@ When a MIDI or KAR file is loaded, the mixer panel automatically exposes all 16 
 - **Local Mode:** Queries the internal SQLite database for files stored on your local disk.
 - **Web / YouTube Mode:** Searches YouTube for karaoke backing tracks.
 
-### Background Downloads & Permanent Library Storage
-- Adding a web track to the queue downloads the media in the background via `yt-dlp`.
-- Clicking *Save to Library* (or enabling *Auto-Archive* in Settings) moves the file into your permanent collection and immediately updates the active queue pointer.
-- Filename sanitization preserves spaces and international accented letters (`à, è, é, ì, ò, ù...`) across all operating systems.
+### Downloads, Auto-Archiving & Persistent Queue Cache
+- **Auto-Archive Enabled by Default:** The *Auto-Archive Web Tracks* setting (`autoArchiveWebTracks`) is enabled by default (`true`). Every track downloaded from YouTube is saved directly into your permanent library directory, indexed immediately, and available for future gigs.
+- **Mandatory Disabling Confirmation Modal:** Attempting to turn off automatic archiving in Settings presents a mandatory security modal with an explicit warning: unarchived tracks will only reside in the temporary cache and will be purged once removed from the queue.
+- **Persistent Queue Cache (`<userData>/queue_cache/`):** When auto-archiving is turned off, media downloads are directed to a dedicated `queue_cache` directory. These files remain intact and playable across app restarts as long as the song remains in the persisted queue lineup.
+- **Intelligent Dequeue-Only Garbage Collection (GC):** Queue cache media files are physically deleted from disk **exclusively** when the song is removed from the queue (via normal completion, manual removal, or clearing the entire queue). If duplicate instances of the same track remain in the queue, the disk file is safely preserved.
+- **Contextual 1-Click "Save to Library":** Prominently accessible via both queue track rows and the player control bar, allowing hosts to promote any cached track to their permanent collection with a single click.
+- **Instant Automatic Library View Refresh:** Both automatic downloads and manual saves dispatch an instant re-indexing event that reloads the Library tab without requiring a manual refresh click or application restart.
+- **Accented Letter & Space Preservation:** Saved filenames preserve European accented characters (`à, è, é, ì, ò, ù, ñ, ç...`) and spaces while stripping illegal filesystem tokens for cross-platform reliability on Windows, macOS, and Linux.
+
+### Protected yt-dlp Binary Management
+- **Exclusive Placement in `<app_data_dir>/bin/`**: The `yt-dlp` executable is stored and executed exclusively within the application's protected user data directory (`userData/bin/`), safeguarding it from OS temp cleaning routines (`/tmp`) or package updates.
+- **Reuse Without Redundant Downloads**: If an executable binary is already present locally, the application reuses it and queries GitHub Releases in a non-blocking background check, downloading only when a genuine new version is released.
+- **Dynamic Binary Resolution**: Binary paths are dynamically re-resolved prior to each download and search operation, ensuring hot updates take effect immediately without requiring an application restart.
 
 ---
 
@@ -376,3 +410,4 @@ Press **`F1`** or **`?`** inside the application to open this quick reference at
 ### Performance Logging and CSV Export
 - Completed performances are logged with timestamp, artist, title, duration, and singer name.
 - Click **Export SIAE (CSV)** in the History tab to generate an official borderò report ready for copyright filing.
+

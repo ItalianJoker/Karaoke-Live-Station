@@ -154,12 +154,13 @@ class KaraokeMainProcess {
   constructor() {
     const userDataPath = app.getPath('userData');
     const tempDownloadDir = path.join(userDataPath, 'temp');
+    const queueCacheDir = path.join(userDataPath, 'queue_cache');
 
     this.logger = new Logger(userDataPath, 'info');
     this.setupGlobalAnomalyHandlers();
 
     this.db = new DatabaseManager(userDataPath);
-    this.downloadManager = new DownloadManager(tempDownloadDir);
+    this.downloadManager = new DownloadManager(tempDownloadDir, queueCacheDir);
     this.ytDlpUpdater = new YtDlpUpdater(userDataPath, this.logger);
 
     this.setupAppLifecycle();
@@ -265,6 +266,17 @@ class KaraokeMainProcess {
    * Binds application lifecycle handlers for window closure, cleanup, and bootstrap.
    */
   private setupAppLifecycle(): void {
+    app.on('second-instance', () => {
+      // Focus existing Control Window when a second application instance is launched
+      if (this.controlWindow) {
+        if (this.controlWindow.isMinimized()) {
+          this.controlWindow.restore();
+        }
+        this.controlWindow.show();
+        this.controlWindow.focus();
+      }
+    });
+
     app.on('window-all-closed', () => {
       if (process.platform !== 'darwin') {
         app.quit();
@@ -865,6 +877,23 @@ class KaraokeMainProcess {
       return track;
     });
 
+    ipcMain.handle('download:save-to-queue-cache', async (_event, payload: {
+      tempFilePath: string;
+      title: string;
+      artist: string;
+      durationSec: number;
+    }) => {
+      return await this.downloadManager.saveToQueueCache(payload.tempFilePath, payload);
+    });
+
+    ipcMain.handle('cache:delete-file', async (_event, filePath: string) => {
+      return await this.downloadManager.deleteCachedFile(filePath);
+    });
+
+    ipcMain.handle('cache:cleanup-unreferenced', async (_event, activeFilePaths: string[]) => {
+      return await this.downloadManager.cleanupUnreferencedCache(activeFilePaths);
+    });
+
     // 8. Diagnostic Logging IPC Handlers
     ipcMain.on('logger:log', (_event, entry: { level: LogLevel; source: string; message: string; data?: unknown }) => {
       this.logger.log(entry.level, entry.source, entry.message, entry.data);
@@ -1177,5 +1206,10 @@ class KaraokeMainProcess {
   }
 }
 
-// Instantiate Main Process
-new KaraokeMainProcess();
+// Enforce Single Application Instance Lock
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  new KaraokeMainProcess();
+}

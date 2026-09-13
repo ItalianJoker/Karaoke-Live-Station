@@ -56,7 +56,8 @@
     "placementEndDesc": "Append track to the very end of the playlist",
     "clear": "Clear Queue",
     "confirmClear": "Are you sure you want to clear the entire playback queue?",
-    "cleared": "Queue cleared successfully"
+    "cleared": "Queue cleared successfully",
+    "hintPlayOrDoubleClick": "Double-click or Play to start"
   },
   "singers": {
     "title": "Singers Management",
@@ -162,7 +163,12 @@
     "supportTitle": "Support the Project",
     "supportDescription": "If Karaoke Live Station helps you host great karaoke shows and you want to support future developments and ongoing updates, consider buying me a coffee with a donation!",
     "donateButton": "Donate with PayPal",
-    "saveAndClose": "Save and Close"
+    "saveAndClose": "Save and Close",
+    "showPitchOnStage": "Show pitch shift on stage screen",
+    "showPitchOnStageDesc": "Displays the semitone pitch offset (+/-) badge on the stage monitor for the singer.",
+    "autoArchiveWarningTitle": "Warning: Disabling Automatic Archiving",
+    "autoArchiveWarningDesc": "Warning: by disabling automatic archiving, downloaded songs will not be saved to the permanent library. They will remain available in the temporary cache only while they are in the queue (even when restarting the app) and will be deleted from disk only when they are dequeued or the queue is cleared.",
+    "confirmDisableAutoArchive": "Confirm Disabling"
   },
   "history": {
     "title": "Playback History",
@@ -234,5 +240,8 @@
     "help": "Show keyboard shortcuts guide",
     "closeModal": "Close dialog / modal",
     "close": "Close"
+  },
+  "common": {
+    "cancel": "Cancel"
   }
 }

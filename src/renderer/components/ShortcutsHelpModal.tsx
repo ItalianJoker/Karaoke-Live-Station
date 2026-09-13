@@ -188,3 +188,4 @@ export const ShortcutsHelpModal: React.FC<ShortcutsHelpModalProps> = ({ isOpen, 
     </div>
   );
 };
+

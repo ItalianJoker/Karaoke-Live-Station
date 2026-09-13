@@ -75,13 +75,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   midiSoundFontPath: '',
   libraryPath: '',
 
-  enableFairQueue: false,
+  enableFairQueue: true,
   enableVocalRemover: false,
   enableAutoDuckingBGM: false,
   enableAudioNormalization: true,
   enableGuestPortal: true,
   enableSiaeReporting: true,
-  autoArchiveWebTracks: false,
+  autoArchiveWebTracks: true,
+  showPitchOnStage: true,
 
   bannerIntroDurationSec: 6,
   bannerOutroTriggerSec: 20,
@@ -174,6 +175,26 @@ export function sortQueueByFairAlgorithm(items: QueueItem[], enableFairQueue: bo
  * - Guest request approvals and notifications
  */
 let transitionTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Deletes a cached media file from queue_cache if it is no longer referenced
+ * by any item in the remaining queue.
+ */
+export function cleanupQueueCacheFileIfUnreferenced(filePath?: string, remainingQueue: QueueItem[] = []): void {
+  if (!filePath || typeof window === 'undefined' || !window.karaokeApi?.downloads?.deleteCachedFile) return;
+  // Only garbage collect files located in queue_cache or with qc_ prefix
+  if (!filePath.includes('queue_cache') && !filePath.includes('qc_')) return;
+
+  const isStillReferenced = remainingQueue.some(
+    (item) => item.track.localFilePath === filePath
+  );
+
+  if (!isStillReferenced) {
+    window.karaokeApi.downloads.deleteCachedFile(filePath).catch((err) => {
+      console.warn('Queue GC failed for cached file:', filePath, err);
+    });
+  }
+}
 
 export const useKaraokeStore = create<KaraokeStoreState>()(
   persist(
@@ -466,9 +487,13 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
 
       removeFromQueue: (queueId: string) => {
         set((state) => {
+          const target = state.queue.find((item) => item.queueId === queueId);
           const updated = state.queue.filter((item) => item.queueId !== queueId);
           if (typeof window !== 'undefined' && window.karaokeApi) {
             window.karaokeApi.syncQueueCache(updated);
+          }
+          if (target?.track.localFilePath) {
+            cleanupQueueCacheFileIfUnreferenced(target.track.localFilePath, updated);
           }
           return { queue: updated };
         });
@@ -605,6 +630,12 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         }
 
         const nextQueue = queue.slice(1);
+
+        // Clean up cached file if it resided in queue_cache and is no longer queued
+        if (currentFinished.track.localFilePath) {
+          cleanupQueueCacheFileIfUnreferenced(currentFinished.track.localFilePath, nextQueue);
+        }
+
         const nextTrackItem = nextQueue[0] || null;
         const autoAdvance = get().settings.autoAdvanceNext;
         const pauseSec = get().settings.transitionPauseSec || 0;
@@ -696,6 +727,14 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
       },
 
       clearQueue: () => {
+        const { queue } = get();
+        // Garbage collect all cached files from queue_cache upon queue purge
+        for (const item of queue) {
+          if (item.track.localFilePath) {
+            cleanupQueueCacheFileIfUnreferenced(item.track.localFilePath, []);
+          }
+        }
+
         set((state) => ({
           queue: [],
           playback: {
@@ -777,3 +816,17 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
     }
   )
 );
+
+// Safely prune unreferenced queue cache files after initial store hydration
+if (typeof window !== 'undefined' && window.karaokeApi?.downloads?.cleanupUnreferencedCache) {
+  setTimeout(() => {
+    try {
+      const activePaths = useKaraokeStore.getState().queue
+        .map((item) => item.track.localFilePath)
+        .filter((p): p is string => Boolean(p));
+      window.karaokeApi?.downloads.cleanupUnreferencedCache(activePaths);
+    } catch (err) {
+      console.warn('Startup queue cache reconciliation skipped:', err);
+    }
+  }, 4000);
+}

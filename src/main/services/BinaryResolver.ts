@@ -68,8 +68,9 @@ export function resolveYtDlpPath(): string {
   const isWin = process.platform === 'win32';
   const binaryName = isWin ? 'yt-dlp.exe' : 'yt-dlp';
 
+  const userDataBin = path.join(getUserDataBinDir(), binaryName);
   const candidates = [
-    typeof app?.getPath === 'function' ? path.join(app.getPath('userData'), 'bin', binaryName) : '',
+    userDataBin,
     process.resourcesPath ? path.join(process.resourcesPath, 'bin', binaryName) : '',
     process.resourcesPath ? path.join(process.resourcesPath, binaryName) : '',
     typeof app?.getPath === 'function' ? path.join(path.dirname(app.getPath('exe')), binaryName) : '',

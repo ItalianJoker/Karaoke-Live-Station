@@ -44,17 +44,21 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 - **Finestra Regia (Control Desk)**: Console operatore completa con scrubber audio, visualizzatore di forma d'onda, mixer a 16 canali MIDI, gestione coda, ricerca catalogo e pre-ascolto in cuffia (CUE).
 - **Finestra Palco (Stage Screen)**: Schermo pulito per cantante e pubblico da inviare su TV o videoproiettore (supporto F11 / doppio clic per fullscreen senza bordi). Visualizza video MP4/WebM, grafica CD+G o testo karaoke sincronizzato con banner animati "Ora Canta" e "Preparati".
 - **Streaming HTTP 206 Partial Content**: Protocollo proprietario `karaoke://local/` con streaming a chunk byte-range. Lo schermo del palco può essere aperto, chiuso o riaperto a brano in corso senza pause né desincronizzazioni.
+- **Protezione Istanza Singola (Single Instance Lock)**: Previene l'apertura accidentale di istanze duplicate; qualsiasi avvio concorrente ripristina e mette a fuoco la console di regia principale già aperta.
 
 ### 🎨 9 Temi Grafici & Schermo Palco Ottimizzato Edge-to-Edge
 - **9 Combinazioni Cromatiche Complete**: Personalizzazione indipendente per Regia e Palco (*Dark Stage, Midnight Neon, Club Gold, Ocean Breeze, Sunset Crimson, Emerald Matrix, Royal Amethyst, High Contrast, Light Studio*).
 - **Video a Tutto Schermo (Edge-to-Edge al 100%)**: Lo Schermo Palco massimizza l'area visiva senza cornici o padding sprecato, adattando video 16:9, 4:3 e panoramici senza distorsioni.
 - **Titolo Brano Flottante a Scomparsa**: Titolo e artista appaiono fluttuanti in basso al centro per una durata configurabile nelle opzioni (da 2 a 30 secondi, default 8s) per poi dissolversi dolcemente, lasciando il video e il testo del karaoke privi di ostacoli visivi.
 - **Barra di Avanzamento a Basso Profilo**: Barra di avanzamento ultra-sottile integrata a filo sul bordo estremo inferiore.
+- **Badge Tonalità Configurabile su Schermo Palco**: Possibilità di mostrare o nascondere nelle Opzioni il badge con i semitoni di variazione (+/-) rispetto alla tonalità originale (`showPitchOnStage`).
 
 ### 📁 Configurazione Libreria & Anteprima Video Versioni
 - **Scelta Guidata al Primo Avvio**: Alla prima apertura, una finestra di dialogo interattiva consente all'utente di scegliere se utilizzare la cartella predefinita "Karaoke" nella propria home utente (`~/Karaoke` o `C:\Users\<Utente>\Karaoke`) oppure selezionare una cartella personalizzata già esistente sul computer.
-- **Refresh Automatico all'Avvio**: Ad ogni avvio del programma, se la libreria è impostata, viene eseguita automaticamente una scansione in background della cartella per indicizzare istantaneamente nuovi brani aggiunti o aggiornare il catalogo locale.
+- **Refresh Automatico all'Avvio & Ricarica Istantanea**: Ad ogni avvio del programma, viene eseguita automaticamente una scansione in background della cartella. Inoltre, ogni nuovo download o salvataggio aggiorna istantaneamente la vista Libreria senza attese.
 - **Aggiornamento Manuale con 1 Clic**: Il pulsante **"Aggiorna Libreria"** esegue la scansione immediata della cartella configurata con un solo clic, senza dover riaprire la finestra di dialogo del file system.
+- **Archiviazione Automatica & Cache di Coda Persistente**: L'archiviazione automatica è attiva per default (`true`). Disattivandola (con modale di conferma e avviso di sicurezza), i download web vengono custoditi nella cartella protetta `<userData>/queue_cache/`, persistendo tra i riavvii finché in scaletta, e vengono rimossi dal disco tramite Garbage Collection solo allo scodamento effettivo.
+- **Salvataggio Contestuale in 1 Clic**: Pulsante "Salva in Libreria" sempre visibile sulle righe della coda e nella testata del player per promuovere qualsiasi traccia web/cache nella libreria definitiva.
 - **Anteprima Video 16:9 & Riconoscimento Versioni**: Ciascun brano in libreria e nei risultati di ricerca mostra una miniatura video reale (estratta automaticamente con `ffmpeg` a 4 secondi per i file locali, e da YouTube per le ricerche online) e i chip di riconoscimento versione (es. *KaraFun*, *Karaoke Academy Italia*, *Sing King*, *Con Cori*, *Strumentale*).
 - **Modale di Ispezione Video Interattiva**: Cliccando sulla miniatura o sull'icona Anteprima (`Eye`), si apre un player dedicato con scrubber e volume controllato per verificare la versione, visualizzare il percorso del file e aggiungere il brano direttamente in coda con assegnazione del cantante.
 
@@ -97,7 +101,7 @@ Premi **`F1`** o **`?`** in qualsiasi momento per aprire la guida interattiva co
 - 📖 Per la guida operativa passo-passo consulta il [Manuale Utente completo (USER_MANUAL.md)](USER_MANUAL.md).
 
 ### ⚖️ Algoritmo Fair Queue, Drag & Drop, Ripristino & Memoria Tonalità
-- **Rotazione Equa Anti-Monopolio**: Prioritizza le richieste calcolando il turno equo in base al numero di canzoni già cantate da ciascun partecipante e all'orario di richiesta, con override manuale VIP.
+- **Rotazione Equa Anti-Monopolio (Attiva di Default)**: Abilitata per impostazione predefinita (`enableFairQueue: true`), prioritizza le richieste calcolando il turno equo in base al numero di canzoni già cantate da ciascun partecipante e all'orario di richiesta, con override manuale VIP.
 - **Drag & Drop della Coda**: Possibilità di riordinare visivamente con il mouse i brani in attesa nella scaletta tramite la maniglia di trascinamento laterale. Il primo brano attivo in riproduzione rimane bloccato in testa per evitare disconnessioni dello stage.
 - **Pulsante "Ripristina coda automatica"**: Con un solo clic nella testata della coda, reimposta immediatamente l'ordine ideale dell'algoritmo Fair Queue, riequilibrando i turni dei cantanti dopo eventuali modifiche manuali.
 - **Scelta Posizione di Inserimento (Fair Queue vs In fondo)**: Quando si aggiunge un brano dalla Libreria o dall'Anteprima Video con l'algoritmo attivo, è possibile scegliere se lasciar calcolare la posizione equa all'algoritmo (*Fair Queue*) oppure inserire il brano direttamente in coda (*In fondo alla coda*).
@@ -314,17 +318,21 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 - **Control Desk (Regia)**: Complete operator console with timeline scrubbing, audio visualizer, 16-channel MIDI mixer, queue management, catalog search, and headphone pre-listening (CUE).
 - **Stage Screen (Palco)**: Clean external display for singers and audience (TV/Projector output with `F11` / double-click borderless fullscreen). Renders MP4/WebM videos, CD+G graphics, or synchronized lyrics with animated "Now Singing" and "Get Ready" notification banners.
 - **HTTP 206 Partial Content Streaming**: Custom `karaoke://local/` protocol with byte-range streaming. The stage screen can be closed and reopened mid-song without pausing or desynchronizing audio.
+- **Single Instance Lock Protection**: Native single-instance enforcement prevents duplicate windows; any concurrent launch immediately refocuses and restores the existing control console.
 
 ### 🎨 9 Color Themes & Edge-to-Edge Stage Screen
 - **9 Distinct Visual Themes**: Independent theme customization for both Control Console and Stage Screen (*Dark Stage, Midnight Neon, Club Gold, Ocean Breeze, Sunset Crimson, Emerald Matrix, Royal Amethyst, High Contrast, Light Studio*).
 - **100% Edge-to-Edge Video Utilization**: Maximizes available display area on the Stage Screen with zero wasted padding or borders, supporting 16:9, 4:3, and ultrawide video ratios without aspect ratio distortion.
 - **Temporary Floating Song Title Banner**: Track title and artist float at the bottom center of the video for a user-configurable duration (2–30 seconds, 8s default) before smoothly fading out, ensuring singer lyrics remain completely unobstructed.
 - **Low-Profile Flush Progress Bar**: Ultra-thin progress indicator along the screen's bottom edge with subtle illumination that never hides subtitles.
+- **Configurable Stage Monitor Pitch Badge**: Option in Settings to show or hide the semitone transposition badge (+/-) on the singer stage monitor (`showPitchOnStage`).
 
 ### 📁 Configurable Library Path & Video Version Previews
 - **Guided First-Launch Setup**: On first launch, an interactive dialog invites the user to choose between using the default "Karaoke" folder in their home directory (`~/Karaoke` or `C:\Users\<Username>\Karaoke`) or selecting an existing custom folder.
-- **Automatic Refresh on Startup**: Every time the application starts up, if a library folder is configured, it automatically performs a background scan and refresh to index newly added or modified tracks immediately.
+- **Automatic Refresh on Startup & Instant View Updates**: On every application startup, a background catalog scan indexes newly added tracks. In addition, downloads and saves automatically trigger an instant Library view reload.
 - **1-Click Manual Refresh**: The **"Refresh Library"** button scans and indexes the configured directory directly with a single click, without opening file picker dialogs.
+- **Auto-Archiving & Persistent Queue Cache**: Automatic web track archiving is enabled by default (`true`). When turned off (protected by a safety confirmation modal), downloaded tracks reside in `<userData>/queue_cache/`, persisting across restarts while queued, and cleaned up via intelligent GC strictly upon dequeue.
+- **Contextual 1-Click "Save to Library"**: Dedicated 1-click button visible in both queue rows and the player bar to promote any cached track to permanent storage.
 - **16:9 Video Previews & Version Detection**: Every song in the library and search results features an actual 16:9 video thumbnail (auto-extracted via `ffmpeg` at 4 seconds for local files, and fetched from YouTube for online results) along with version badges (e.g. *KaraFun*, *Karaoke Academy Italia*, *Sing King*, *With Backing Vocals*, *Instrumental*).
 - **Interactive Video Preview Modal**: Clicking any thumbnail or the Preview (`Eye`) button opens a dedicated video player with timeline scrubbing and safe preview volume to verify song arrangements, inspect local file paths, and directly queue with singer selection.
 
@@ -367,7 +375,7 @@ Press **`F1`** or **`?`** at any time to open the searchable interactive guide.
 - 📖 For the complete operating guide, see the [Dedicated User Manual (USER_MANUAL.md)](USER_MANUAL.md).
 
 ### ⚖️ Fair Queue Algorithm, Drag & Drop, Restore & Singer Pitch Memory
-- **Anti-Monopoly Fair Rotation**: Dynamically balances song requests based on rotation fairness (number of songs already performed) and request timestamp, with VIP manual override.
+- **Anti-Monopoly Fair Rotation (Enabled by Default)**: Enabled by default (`enableFairQueue: true`), it dynamically balances song requests based on rotation fairness (number of songs already performed) and request timestamp, with VIP manual override.
 - **Queue Drag & Drop**: Intuitively reorder waiting queue items with mouse drag-and-drop using visual grip handles. The currently active track at index 0 remains locked to prevent playback interruptions.
 - **"Restore Fair Queue" Button**: One-click button in the queue header to instantly re-sort waiting tracks back into optimal Fair Queue order whenever manual reordering or additions took place.
 - **Flexible Queue Placement (Fair Queue vs End of Queue)**: When adding a song from the Library or Video Preview with Fair Queue active, choose between automatic fair scheduling (*Fair Queue*) or direct append (*End of Queue*).

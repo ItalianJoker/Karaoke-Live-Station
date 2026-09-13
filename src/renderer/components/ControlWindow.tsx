@@ -28,7 +28,8 @@ import {
   Star,
   History,
   GripVertical,
-  HelpCircle
+  HelpCircle,
+  Download
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AudioGraphManager } from '../core/AudioGraphManager';
@@ -254,6 +255,56 @@ export const ControlWindow: React.FC = () => {
 
   const handleRestart = () => {
     handleSeek(0);
+  };
+
+  const [savingTrackIds, setSavingTrackIds] = useState<Set<string>>(new Set());
+
+  const handleSaveToPermanentLibrary = async (track: any) => {
+    if (!window.karaokeApi?.downloads?.saveToLibrary) return;
+    if (!track.localFilePath) {
+      alert(t('library.missingFile'));
+      return;
+    }
+
+    setSavingTrackIds((prev) => new Set(prev).add(track.id));
+    try {
+      const saved = await window.karaokeApi.downloads.saveToLibrary({
+        tempFilePath: track.localFilePath,
+        title: track.title,
+        artist: track.artist,
+        durationSec: track.durationSec,
+        targetDirectory: settings.libraryPath || undefined
+      });
+
+      updateTrackInQueue(track.id, {
+        localFilePath: saved.localFilePath,
+        uri: saved.uri,
+        source: 'local_library'
+      });
+      updateTrackInQueue(track.uri, {
+        localFilePath: saved.localFilePath,
+        uri: saved.uri,
+        source: 'local_library'
+      });
+      if (track.localFilePath) {
+        updateTrackInQueue(track.localFilePath, {
+          localFilePath: saved.localFilePath,
+          uri: saved.uri,
+          source: 'local_library'
+        });
+      }
+
+      window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+    } catch (err: any) {
+      console.error('Failed to save track to library:', err);
+      alert(t('errors.downloadFailed', { error: err?.message || String(err) }));
+    } finally {
+      setSavingTrackIds((prev) => {
+        const next = new Set(prev);
+        next.delete(track.id);
+        return next;
+      });
+    }
   };
 
   // Initialize AudioGraphManager
@@ -781,9 +832,23 @@ export const ControlWindow: React.FC = () => {
               <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4" /> {t('player.nowPlaying')}
               </span>
-              <span className="text-xs text-slate-400 font-mono">
-                {currentTrack ? `${currentTrack.artist} - ${currentTrack.title}` : t('player.noTrackLoaded')}
-              </span>
+              <div className="flex items-center gap-2 overflow-hidden">
+                <span className="text-xs text-slate-400 font-mono truncate max-w-xs">
+                  {currentTrack ? `${currentTrack.artist} - ${currentTrack.title}` : t('player.noTrackLoaded')}
+                </span>
+                {currentTrack && (currentTrack.source !== 'local_library' || currentTrack.localFilePath?.includes('queue_cache')) && currentTrack.localFilePath && (
+                  <button
+                    type="button"
+                    onClick={() => handleSaveToPermanentLibrary(currentTrack)}
+                    disabled={savingTrackIds.has(currentTrack.id)}
+                    className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-700/60 text-[10px] font-semibold transition-all shrink-0 active:scale-95 shadow-sm"
+                    title={t('library.saveToLibrary', 'Salva in Libreria')}
+                  >
+                    <Download className={`w-3 h-3 ${savingTrackIds.has(currentTrack.id) ? 'animate-spin' : ''}`} />
+                    <span>{t('library.saveToLibrary', 'Salva')}</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Video preview element */}
@@ -1145,7 +1210,7 @@ export const ControlWindow: React.FC = () => {
                     <span>{t('queue.clear', 'Svuota coda')}</span>
                   </button>
                   <div className="text-[10px] text-slate-400 font-medium hidden sm:block">
-                    💡 Doppio click per avviare
+                    💡 {t('queue.hintPlayOrDoubleClick', 'Doppio click o Play per avviare')}
                   </div>
                 </div>
               </div>
@@ -1318,6 +1383,20 @@ export const ControlWindow: React.FC = () => {
                         >
                           +
                         </button>
+                        {(item.track.source !== 'local_library' || item.track.localFilePath?.includes('queue_cache')) && item.track.localFilePath && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSaveToPermanentLibrary(item.track);
+                            }}
+                            disabled={savingTrackIds.has(item.track.id)}
+                            className="p-1 hover:bg-emerald-950/60 rounded text-emerald-400 hover:text-emerald-300 transition-colors ml-0.5"
+                            title={t('library.saveToLibrary', 'Salva in Libreria')}
+                          >
+                            <Download className={`w-3.5 h-3.5 ${savingTrackIds.has(item.track.id) ? 'animate-spin' : ''}`} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => removeFromQueue(item.queueId)}
