@@ -62,6 +62,7 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 - **Barra di Avanzamento a Basso Profilo**: Barra di avanzamento ultra-sottile integrata a filo sul bordo estremo inferiore.
 - **Messaggi Stage personalizzabili (testo, stile, sfondo)**: In Impostazioni → Schermo Stage puoi modificare testo, grassetto/corsivo, dimensione, attivazione e **sfondo dello Stage (colore o immagine) per ogni messaggio** (es. “Prossimo cantante”). Lo sfondo personalizzato vale solo mentre il messaggio è visibile; al termine torna lo sfondo normale del tema/video.
 - **Badge Tonalità Configurabile su Schermo Palco**: Possibilità di mostrare o nascondere nelle Opzioni il badge con i semitoni di variazione (+/-) rispetto alla tonalità originale (`showPitchOnStage`).
+- **Badge Velocità Configurabile su Schermo Palco**: Opzione per mostrare o nascondere il badge della velocità di riproduzione (es. 1.00x, 1.25x) sul monitor palco (`showSpeedOnStage`).
 
 ### 📁 Configurazione Libreria & Anteprima Video Versioni
 - **Scelta Guidata al Primo Avvio**: Alla prima apertura, una finestra di dialogo interattiva consente all'utente di scegliere se utilizzare la cartella predefinita "Karaoke" nella propria home utente (`~/Karaoke` o `C:\Users\<Utente>\Karaoke`) oppure selezionare una cartella personalizzata già esistente sul computer.
@@ -69,8 +70,10 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 - **Aggiornamento Manuale con 1 Clic**: Il pulsante **"Aggiorna Libreria"** esegue la scansione immediata della cartella configurata con un solo clic, senza dover riaprire la finestra di dialogo del file system.
 - **Archiviazione Automatica & Cache di Coda Persistente**: L'archiviazione automatica è attiva per default (`true`). Disattivandola (con modale di conferma e avviso di sicurezza), i download web vengono custoditi nella cartella protetta `<userData>/queue_cache/`, persistendo tra i riavvii finché in scaletta, e vengono rimossi dal disco tramite Garbage Collection solo allo scodamento effettivo.
 - **Salvataggio Contestuale in 1 Clic**: Pulsante "Salva in Libreria" sempre visibile sulle righe della coda e nella testata del player per promuovere qualsiasi traccia web/cache nella libreria definitiva.
+- **Ricerca Locale / Web ad ambiti separati**: Le modalità Libreria e Web/YouTube mantengono query, risultati, loading e scroll indipendenti: cambiare tab non perde lo stato né avvia ricerche indesiderate.
+- **Elimina dalla libreria**: Rimozione dal catalogo SQLite con conferma; i file su disco vengono cancellati solo se permanenti sotto la cartella libreria (`libraryPath`), non dalla cache di coda.
 - **Anteprima Video 16:9 & Riconoscimento Versioni**: Ciascun brano in libreria e nei risultati di ricerca mostra una miniatura video reale (estratta automaticamente con `ffmpeg` a 4 secondi per i file locali, e da YouTube per le ricerche online) e i chip di riconoscimento versione (es. *KaraFun*, *Karaoke Academy Italia*, *Sing King*, *Con Cori*, *Strumentale*).
-- **Modale di Ispezione Video Interattiva**: Cliccando sulla miniatura o sull'icona Anteprima (`Eye`), si apre un player dedicato con scrubber e volume controllato per verificare la versione, visualizzare il percorso del file e aggiungere il brano direttamente in coda con assegnazione del cantante.
+- **Modale Anteprima / Pre-Ascolto tematico**: Miniatura, Anteprima (`Eye`) o **Pre-ascolto** aprono un modale tematico con audio sul dispositivo CUE; mute/volume sul player incorporato (niente barra volume dedicata) e avviso se CUE e Master coincidono al unmute.
 
 ### 🎹 Sintesi MIDI & KAR con SpessaSynth
 - **SoundFont GeneralUser GS (31 MB) Integrato**: Suono ricco e fedele all'hardware, configurato come predefinito out-of-the-box per Linux, Windows e macOS.
@@ -82,24 +85,19 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 ### 🎵 Motore DSP Audio & Pre-Ascolto Cuffie (CUE)
 - **Pitch-Shifting Professionale SoundTouch WSOLA**: Variazione tonalità da -8 a +8 semitoni ad altissima fedeltà su tracce audio e video tramite correlazione di forma d'onda WSOLA (Waveform Similarity Overlap-Add), eliminando qualsiasi distorsione armonica, flanging metallico o caduta di volume. Bypass diretto a 0 semitoni con latenza zero e 0% CPU.
 - **Time-Stretching e Variazione Velocità Estesa (0.50x–1.50x)**: Regolazione fine del tempo di riproduzione senza alcuna alterazione del pitch. Cliccando sull'indicatore numerico si ripristina istantaneamente la velocità standard 1.00x.
-- **Vocal Remover DSP In-Phase ad Alta Fedeltà (Tasto `V`)**: Riprogettata pipeline di cancellazione del canale centrale a latenza zero per abbattere efficacemente la voce solista senza rendere l'audio cupo o ovattato:
-  - *Matrice Differenziale a Fase Zero*: Sottrazione diretta `0.5 * (L - R)` ad abbattimento spettrale completo ($-\infty$ dB) dei segnali posti al centro dello stereo senza rotazioni di fase o notch spettrali distruttivi.
-  - *Rinforzo Dinamico Bassi (< 160 Hz)*: Somma mono `0.5 * (L + R)` filtrata passa-basso Butterworth del 2° ordine per mantenere inalterata la spinta di cassa e basso.
-  - *Preservazione Acustica Alti (> 5500 Hz)*: Filtri passa-alto Butterworth dedicati per ciascun canale stereo che mantengono intatta la definizione dei piatti della batteria, l'aria e il riverbero originale.
-  - *Distribuzione In-Phase per Diffusori Acustici*: Il segnale vocale soppresso viene distribuito con polarità positiva identica sia a sinistra che a destra, prevenendo qualsiasi cancellazione acustica nell'aria tra le casse dell'impianto PA.
-  - *Makeup Leveling Gain a 1.25x*: Compensa l'energia sottratta mantenendo il livello percepito coerente con la traccia originale.
+- **Rimuovi Voce Guida (Sperimentale) — DSP classico mid/side (Tasto `V`)**: Riduzione voce **algoritmica in tempo reale** (centro-canale / L−R karaoke), leggera, senza AI/ML né download di modelli. In **Impostazioni → Audio** tendina algoritmo: `centerCancelBassKeep` (default, mantieni bassi), `centerCancel` (L−R completo), `softMid` (attenuazione soft).
 - **Normalizzazione Dinamica del Volume Audio (Auto-Leveling)**: Stadio DSP basato su processore `DynamicsCompressorNode` (soglia a -22 dB, ratio 6:1, knee 24 dB, attacco ultra-rapido a 3 ms e rilascio a 250 ms) combinato con trucco di makeup gain a 1.35x. Livella in tempo reale la dinamica del volume tra brani diversi, attenuando le tracce con picchi eccessivi e amplificando quelle a basso volume, garantendo un'emissione acustica omogenea e professionale nella sala senza continui interventi manuali sul fader del volume.
-- **Pre-ascolto CUE**: Routing audio su scheda audio secondaria (`setSinkId`) per testare i brani in cuffia mentre il pubblico ascolta la musica principale.
+- **Pre-ascolto CUE**: Routing audio su scheda secondaria (`setSinkId`); dalla Libreria apre il modale anteprima tematico sul dispositivo CUE (mute via player; avviso stesso-dispositivo all’unmute).
 - **Auto-Ducking Intelligente**: Abbassamento automatico e graduale della musica durante gli annunci al microfono.
 
 ### ⌨️ Scorciatoie da Tastiera Rapide & Guida Interattiva (Control Console)
-Premi **`F1`** o **`?`** in qualsiasi momento per aprire la guida interattiva con ricerca.
+Premi **`F1`** o **`?`** in qualsiasi momento per aprire la guida interattiva con ricerca (stesso inventario completo anche in **Impostazioni → Scorciatoie**).
 - **`Spazio`**: Play / Pausa immediato.
 - **`S`**: Stop con riavvolgimento traccia a 0:00.
 - **`R`**: Riavvia la canzone corrente dall'inizio (0:00).
 - **`N`**: Salta al prossimo brano in scaletta (con registrazione nello storico SIAE).
 - **`M`**: Muto Master On/Off immediato.
-- **`V`**: Attiva / Disattiva la Rimozione Voce Guida DSP.
+- **`V`**: Attiva / Disattiva la Rimozione Voce Guida DSP (**Sperimentale**).
 - **`D`**: Attiva / Disattiva il Microfono Auto-Ducking.
 - **`+` / `-`** oppure **`CTRL + Freccia Su / Giù`**: Regolazione tonalità (±1 semitono, da -8 a +8 ST).
 - **`CTRL + Freccia Sinistra / Destra`**: Regolazione tempo (±5%, da 0.50x a 1.50x).
@@ -342,6 +340,7 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 - **Low-Profile Flush Progress Bar**: Ultra-thin progress indicator along the screen's bottom edge with subtle illumination that never hides subtitles.
 - **Customizable Stage messages (text, style, background)**: Under Settings → Stage Screen you can edit text, bold/italic, size, enable/disable, and a **per-message Stage background (solid color or image)** (e.g. “Up next”). The custom backdrop applies only while that message is visible; when it hides, the normal theme/video Stage look is restored.
 - **Configurable Stage Monitor Pitch Badge**: Option in Settings to show or hide the semitone transposition badge (+/-) on the singer stage monitor (`showPitchOnStage`).
+- **Configurable Stage Monitor Speed Badge**: Option to show or hide the playback speed badge (e.g. 1.00x, 1.25x) on the stage monitor (`showSpeedOnStage`).
 
 ### 📁 Configurable Library Path & Video Version Previews
 - **Guided First-Launch Setup**: On first launch, an interactive dialog invites the user to choose between using the default "Karaoke" folder in their home directory (`~/Karaoke` or `C:\Users\<Username>\Karaoke`) or selecting an existing custom folder.
@@ -349,8 +348,10 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 - **1-Click Manual Refresh**: The **"Refresh Library"** button scans and indexes the configured directory directly with a single click, without opening file picker dialogs.
 - **Auto-Archiving & Persistent Queue Cache**: Automatic web track archiving is enabled by default (`true`). When turned off (protected by a safety confirmation modal), downloaded tracks reside in `<userData>/queue_cache/`, persisting across restarts while queued, and cleaned up via intelligent GC strictly upon dequeue.
 - **Contextual 1-Click "Save to Library"**: Dedicated 1-click button visible in both queue rows and the player bar to promote any cached track to permanent storage.
+- **Scoped Local / Web Search**: Library and Web/YouTube modes keep independent query, results, loading, and scroll state so tab switches never leak or fire unwanted searches.
+- **Delete from Library**: Confirmed removal from the SQLite catalog; disk files are deleted only when they are permanent files under the library folder (`libraryPath`), not queue-cache entries.
 - **16:9 Video Previews & Version Detection**: Every song in the library and search results features an actual 16:9 video thumbnail (auto-extracted via `ffmpeg` at 4 seconds for local files, and fetched from YouTube for online results) along with version badges (e.g. *KaraFun*, *Karaoke Academy Italia*, *Sing King*, *With Backing Vocals*, *Instrumental*).
-- **Interactive Video Preview Modal**: Clicking any thumbnail or the Preview (`Eye`) button opens a dedicated video player with timeline scrubbing and safe preview volume to verify song arrangements, inspect local file paths, and directly queue with singer selection.
+- **Themed Preview / Pre-Listen Modal**: Thumbnail, Preview (`Eye`), or **Pre-Listen** opens a Settings-styled modal with audio on the CUE device; mute/volume via the embedded player (no separate volume bar) and a same-device unmute warning when CUE equals Master.
 
 ### 🎹 MIDI & KAR Synthesis with SpessaSynth
 - **Bundled GeneralUser GS SoundFont (31 MB)**: Rich, hardware-grade acoustic samples configured as the default out-of-the-box across Linux, Windows, and macOS.
@@ -362,24 +363,19 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 ### 🎵 Audio DSP Engine & Headphone Monitoring (CUE)
 - **SoundTouch WSOLA Studio Pitch Shifting**: High-fidelity pitch transposition (-8 to +8 semitones) on audio and video tracks using Waveform Similarity Overlap-Add (WSOLA), completely eliminating harmonic distortion, metallic comb-filtering, and volume wobbles. Direct bit-perfect bypass at 0 semitones with zero latency and 0% CPU overhead.
 - **Extended Independent Tempo Scaling (0.50x–1.50x)**: Continuous playback speed adjustment without modifying audio pitch. Clicking the speed indicator immediately resets playback rate to 1.00x.
-- **High-Fidelity In-Phase Vocal Remover DSP (`V` key)**: Zero-latency center-channel suppression pipeline engineered to cleanly remove lead vocals without muffling audio:
-  - *Zero-Phase Difference Matrix*: Direct subtraction `0.5 * (L - R)` achieving infinite center vocal cancellation ($-\infty$ dB) across all frequencies with zero phase distortion.
-  - *Dynamic Mono Bass Reinforcement (< 160 Hz)*: 2nd-order Butterworth low-pass mono sum `0.5 * (L + R)` preserves 100% of kick drum punch, weight, and bassline definition.
-  - *Acoustic Treble Preservation (> 5500 Hz)*: Dedicated 2nd-order Butterworth high-pass filters per stereo channel retain cymbals, air, and original room reverberation without comb filtering.
-  - *In-Phase Room Speaker Distribution*: Cancelled vocal signal is delivered with identical positive polarity to both left and right speaker outputs, preventing destructive acoustic wave cancellation in the venue room.
-  - *1.25x Leveling Makeup Gain*: Balances subtracted energy to maintain consistent perceived loudness with the original track.
-- **CUE Pre-listening**: Route preview audio to a secondary sound card (`setSinkId`) to check tracks in headphones while front-of-house room playback continues uninterrupted.
+- **Vocal Remover (Experimental) — classical mid/side DSP (`V` key)**: Real-time **algorithmic** center-channel / karaoke-style L−R vocal reduction — lightweight, no AI/ML, no model downloads. Settings → Audio algorithm dropdown: `centerCancelBassKeep` (default, keep bass), `centerCancel` (full L−R), `softMid` (gentler attenuation).
+- **CUE Pre-listening**: Route preview audio to a secondary output (`setSinkId`); from the Library, Pre-Listen opens the themed preview modal on the CUE device (mute via player; same-device unmute warning).
 - **Dynamic Audio Volume Normalization (Auto-Leveling)**: DSP dynamics processor powered by `DynamicsCompressorNode` (-22 dB threshold, 6:1 ratio, 24 dB knee, 3 ms attack, 250 ms release) combined with 1.35x makeup leveling gain. Equalizes acoustic dynamics across diverse songs in real time, taming aggressive volume spikes and lifting quiet backing tracks for a seamless, professional listening experience without riding the master fader. Configurable and toggleable in Audio Settings.
 - **Intelligent Auto-Ducking**: Automatically and smoothly attenuates background music when speaking into the microphone.
 
 ### ⌨️ Quick Keyboard Shortcuts & Interactive Guide (Control Console)
-Press **`F1`** or **`?`** at any time to open the searchable interactive guide.
+Press **`F1`** or **`?`** at any time to open the searchable interactive guide (same full inventory also under **Settings → Shortcuts**).
 - **`Space`**: Instant Play / Pause toggle.
 - **`S`**: Stop playback and rewind timecode to 0:00.
 - **`R`**: Restart current song from beginning (0:00).
 - **`N`**: Skip to next track in queue (with copyright / SIAE logging).
 - **`M`**: Toggle Master Mute On/Off.
-- **`V`**: Toggle DSP Lead Vocal Remover.
+- **`V`**: Toggle DSP Lead Vocal Remover (**Experimental**).
 - **`D`**: Toggle Microphone Auto-Ducking.
 - **`+` / `-`** or **`CTRL + Arrow Up / Down`**: Pitch shift / key adjustment (±1 semitone, from -8 to +8 ST).
 - **`CTRL + Arrow Left / Right`**: Playback tempo adjustment (±5%, from 0.50x to 1.50x).
