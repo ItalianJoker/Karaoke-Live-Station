@@ -257,6 +257,21 @@ export class DownloadManager {
    * @param trackMetadata - Song title, artist, and duration
    * @returns Persisted KaraokeMediaTrack
    */
+  /**
+   * Sanitizes a string for safe filesystem usage across Windows, macOS, and Linux.
+   * Preserves accented characters (à, è, é, ì, ò, ù, ñ, etc.), spaces, and hyphens,
+   * while stripping filesystem-reserved characters (/\?%*:|"<>).
+   *
+   * @param name - Raw track title or artist string
+   * @returns Clean, valid filename component
+   */
+  public static sanitizeFilenamePart(name: string): string {
+    return (name || '')
+      .replace(/[/\\?%*:|"<>]/g, '')
+      .replace(/[\x00-\x1f\x7f]/g, '')
+      .trim() || 'Unknown';
+  }
+
   public async saveToLibrary(
     tempFilePath: string,
     targetLibraryDirectory: string,
@@ -271,8 +286,8 @@ export class DownloadManager {
     }
 
     const ext = path.extname(tempFilePath);
-    const sanitizedTitle = trackMetadata.title.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const sanitizedArtist = trackMetadata.artist.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const sanitizedTitle = DownloadManager.sanitizeFilenamePart(trackMetadata.title);
+    const sanitizedArtist = DownloadManager.sanitizeFilenamePart(trackMetadata.artist);
     const finalFileName = `${sanitizedArtist} - ${sanitizedTitle}${ext}`;
     const destinationPath = path.join(targetLibraryDirectory, finalFileName);
 

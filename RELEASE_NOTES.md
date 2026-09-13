@@ -25,9 +25,44 @@ Benvenuti alla release ufficiale di **Karaoke Live Station**, la workstation des
 
 *Tutti i pacchetti includono già i binari necessari compilati per la piattaforma (`yt-dlp`, `ffmpeg`, `better-sqlite3` e il banco sonoro GeneralUser GS SoundFont da 31 MB), garantendo funzionamento offline immediato e zero configurazioni di sistema.*
 
+## 🚀 Note di Rilascio — Versione 1.2.0 (Aggiornamento Stabilità & Nuove Funzionalità)
+
+### 🖥️ Isolamento Pipeline di Rendering Schermo Palco (Stage Display)
+- **Eliminazione Dipendenze CDN a Runtime**: Lo script Tailwind CSS caricato da CDN esterna è stato completamente rimosso. Tailwind v4 è ora compilato AOT tramite Vite direttamente nel bundle statico dell'applicazione, garantendo caricamento istantaneo e funzionamento al 100% offline senza latenze di rete.
+- **Handshake di Prontezza IPC (`stage:ready`)**: La finestra secondaria del Palco viene inizializzata nascosta (`show: false`) con sfondo nero profondo (`#000000`). Viene mostrata a video solo dopo che il layout DOM, i font di sistema (`document.fonts.ready`) e la sincronizzazione dello stato sono stati completati, eliminando qualsiasi sfarfallio visivo o comparsa occasionale di stringhe di codice/CSS non renderizzate sul proiettore o TV secondaria.
+- **Fallback di Ripristino Automatico**: Timer di sicurezza per garantire la visibilità della finestra anche in caso di rallentamenti dell'hardware video esterno.
+
+### 💾 Risoluzione Path Archiviazione Libreria & Switch Immediato Scaletta
+- **Rispetto Rigoroso della Cartella Libreria**: Le operazioni di salvataggio permanente (`download:save-to-library`) utilizzano ora prioritariamente il percorso configurato dall'utente in `settings.libraryPath`, con fallback sicuro su `userData/library`.
+- **Switch Dinamico del Puntatore in Coda**: Al completamento del salvataggio di un brano web, la scaletta di riproduzione aggiorna immediatamente il riferimento (`localFilePath` e `uri` `karaoke://local/...`) dal file temporaneo al file definitivo salvato. Questo previene qualsiasi errore 404 e azzera il rischio di fallback indesiderato su streaming YouTube.
+- **Preservazione Accenti e Spazi nei Nomi File**: Il modulo di sanitizzazione preserva fedelmente le lettere accentate italiane ed europee (`à, è, é, ì, ò, ù, ñ, ç...`) e gli spazi, ripulendo al contempo i caratteri vietati dai file system (`/ \ ? % * : | " < >`) per la massima compatibilità cross-platform tra Windows, macOS e Linux.
+
+### 🔊 Curva di Volume Performativa (Quadratica Psicoacustica)
+- **Risposta Naturale del Fader ($Gain = volume^2$)**: Sostituita la precedente mappatura lineare con una curva quadratica ad alta precisione psicoacustica conforme alla percezione logaritmica dell'orecchio umano (legge di Weber-Fechner). Il volume al 50% corrisponde ora all'esatto dimezzamento percepito della pressione sonora (-12 dB), con attenuazione dolce a bassi livelli e controllo fluido in cima alla corsa.
+- **Rampa Lineare Anti-Click a 50ms**: Le regolazioni di volume e l'attivazione/disattivazione del muto applicano una rampa anti-zipper a 50ms che azzera qualsiasi scoppiettio, click o sbalzo DC su impianti audio professionali.
+
+### ⌨️ Nuove Scorciatoie da Tastiera & Modale Interattiva di Aiuto
+- **Comandi Rapidi DJ / KJ**:
+  - `M`: Attiva / Disattiva Muto Master
+  - `V`: Attiva / Disattiva Rimozione Voce Guida DSP
+  - `D`: Attiva / Disattiva Microfono Auto-Ducking
+  - `S`: Stop riproduzione con riavvolgimento a 0:00
+  - `R`: Riavvia la canzone corrente dall'inizio (0:00)
+  - `P`: Riapri / Metti a fuoco lo Schermo del Palco
+  - `1`, `2`, `3`: Navigazione rapida tra schede (1: Coda, 2: Libreria, 3: Storico SIAE)
+  - `F1` o `?`: Mostra la guida alle scorciatoie da tastiera
+- **Nuovo Componente `ShortcutsHelpModal`**: Finestra interattiva con barra di ricerca in tempo reale, suddivisione visiva per categorie (Riproduzione, Audio/DSP, Navigazione) e badge tasti `<kbd>` eleganti.
+- **Pulsante di Aiuto Rapido**: Icona punto interrogativo integrata direttamente nell'intestazione della console operatore.
+
+### 🧪 Suite di Test Automatizzata & Manuale Utente Dedicato
+- **Test Suite Completa (`scripts/run-tests.js`)**: 32 test automatici che verificano monotonicità della curva di volume, sanitizzazione caratteri, aggiornamento della scaletta e parità al 100% delle chiavi di traduzione (`it`, `en`, `es`, `fr`). Integrata con `npm test`.
+- **Manuale Utente Dedicato (`USER_MANUAL.md`)**: Documentazione esaustiva e bilingue (Italiano e Inglese) che guida l'utente attraverso tutte le funzionalità del software.
+
 ---
 
-## 🌟 Novità e Funzionalità Principali
+## 🌟 Cronologia Versioni Precedenti
+
+### 📦 Note di Rilascio — Versione 1.0.0
 
 ### 🛡️ Assistente Firewall & Connessione LAN Multipiattaforma
 - **Diagnosi Automatica al Volo**: Rileva in tempo reale il sistema operativo in uso ed esegue un'ispezione non invasiva dello stato del firewall di sistema:
@@ -112,9 +147,44 @@ Welcome to the official release of **Karaoke Live Station**, the professional, c
 
 *All packages bundle precompiled platform-specific binaries (`yt-dlp`, `ffmpeg`, `better-sqlite3`, and the 31 MB GeneralUser GS SoundFont soundbank), delivering out-of-the-box offline operation with zero external dependencies.*
 
+## 🚀 Release Notes — Version 1.2.0 (Stability Update & New Features)
+
+### 🖥️ Stage Window Rendering Pipeline Isolation
+- **Eliminated Runtime CDN Dependencies**: Removed runtime CDN Tailwind CSS script. Tailwind v4 is now compiled Ahead-of-Time (AOT) via Vite directly into the application's static bundle, delivering instant layout initialization and 100% offline reliability without network latency.
+- **IPC Readiness Handshake (`stage:ready`)**: The secondary Stage window initializes completely hidden (`show: false`) with a solid black backdrop (`#000000`). It reveals itself only after DOM markup, system web fonts (`document.fonts.ready`), and state synchronization have completed, eliminating visual stutter or flashes of unrendered code/CSS on external TVs and projectors.
+- **Safety Fallback Reveal**: Watchdog timer ensures the window reliably displays even if external display hardware delays video signals.
+
+### 💾 Library Storage Path Resolution & Live Queue Pointer Switch
+- **Strict Library Directory Enforcement**: Permanent save operations (`download:save-to-library`) prioritize the user-configured `settings.libraryPath`, falling back securely to `userData/library`.
+- **Immediate Queue Pointer Redirection**: When a downloaded web track is saved to the library, the playback queue immediately redirects its pointers (`localFilePath` and `uri` `karaoke://local/...`) from the temporary folder to the permanent library path. This prevents 404 file-not-found errors and completely eliminates unwanted fallbacks to YouTube streaming.
+- **Accented Letter & Space Preservation**: Filename sanitization preserves Italian and European accented characters (`à, è, é, ì, ò, ù, ñ, ç...`) and spaces while stripping illegal filesystem tokens (`/ \ ? % * : | " < >`) for seamless cross-platform support across Windows, macOS, and Linux.
+
+### 🔊 Perceptual Audio Volume Attenuation Curve
+- **Acoustic Quadratic Taper ($Gain = volume^2$)**: Replaced linear gain scaling with a psychoacoustic quadratic power curve aligned with human hearing perception (governed by the Weber-Fechner law). Fader position at 50% now corresponds to perceived half-loudness (-12 dB), delivering smooth low-end control and natural response across the fader travel.
+- **50ms Anti-Click Linear Ramp**: Volume adjustments and mute toggling transition smoothly over 50 milliseconds, eliminating audible clicks, zipper noise, or DC offset pops on PA sound systems.
+
+### ⌨️ Advanced Keyboard Shortcuts for DJ/KJ & Interactive Help Modal
+- **New Live Operator Shortcuts**:
+  - `M`: Toggle Master Mute
+  - `V`: Toggle DSP Vocal Remover
+  - `D`: Toggle Microphone Auto-Ducking
+  - `S`: Stop playback and rewind timecode to 0:00
+  - `R`: Restart active song from beginning (0:00)
+  - `P`: Reopen / Focus Stage Window
+  - `1`, `2`, `3`: Quick tab switching (1: Queue, 2: Library, 3: History)
+  - `F1` or `?`: Open interactive Keyboard Shortcuts guide
+- **New `ShortcutsHelpModal` Component**: Searchable modal with real-time query filtering, category groupings (Playback, Audio/DSP, Navigation), and stylish `<kbd>` badges.
+- **Quick-Access Help Button**: Help button in the operator console header.
+
+### 🧪 Automated Test Suite & Dedicated User Manual
+- **Full Automated Test Suite (`scripts/run-tests.js`)**: 32 automated tests validating volume curve linearity and monotonicity, filename sanitization, queue pointer redirection, and 100% i18n translation parity across `it`, `en`, `es`, `fr`. Integrated with `npm test`.
+- **Dedicated User Manual (`USER_MANUAL.md`)**: Comprehensive bilingual (Italian and English) operating manual detailing all system modules, multi-monitor configuration, and troubleshooting procedures.
+
 ---
 
-## 🌟 What's New & Key Highlights
+## 🌟 Version History
+
+### 📦 Release Notes — Version 1.0.0
 
 ### 🛡️ Cross-Platform Firewall & LAN Connection Assistant
 - **Automated Live Diagnosis**: Dynamically identifies the host operating system and safely probes the local firewall status:

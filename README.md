@@ -76,17 +76,25 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 - **Pre-ascolto CUE**: Routing audio su scheda audio secondaria (`setSinkId`) per testare i brani in cuffia mentre il pubblico ascolta la musica principale.
 - **Auto-Ducking Intelligente**: Abbassamento automatico e graduale della musica durante gli annunci al microfono.
 
-### ⌨️ Scorciatoie da Tastiera Rapide (Control Console)
-- **CTRL + Freccia Su**: Alza la tonalità di +1 semitono (fino a +8 ST).
-- **CTRL + Freccia Giù**: Abbassa la tonalità di -1 semitono (fino a -8 ST).
-- **CTRL + Freccia Sinistra**: Rallenta il tempo di -0.05x (fino a 0.50x).
-- **CTRL + Freccia Destra**: Aumenta il tempo di +0.05x (fino a 1.50x).
-- **Spazio**: Play / Pausa immediato.
-- **Key N**: Salta al prossimo brano in scaletta.
-- **Freccia Sinistra / Destra**: Salto temporale avanti / indietro di 5 secondi.
-- **Freccia Su / Giù**: Regolazione del volume master (±5%).
-- **CTRL + F**: Apri la scheda Libreria e focalizza la barra di ricerca.
-- **Esc**: Chiudi finestre modali o disattiva il focus corrente.
+### ⌨️ Scorciatoie da Tastiera Rapide & Guida Interattiva (Control Console)
+Premi **`F1`** o **`?`** in qualsiasi momento per aprire la guida interattiva con ricerca.
+- **`Spazio`**: Play / Pausa immediato.
+- **`S`**: Stop con riavvolgimento traccia a 0:00.
+- **`R`**: Riavvia la canzone corrente dall'inizio (0:00).
+- **`N`**: Salta al prossimo brano in scaletta (con registrazione nello storico SIAE).
+- **`M`**: Muto Master On/Off immediato.
+- **`V`**: Attiva / Disattiva la Rimozione Voce Guida DSP.
+- **`D`**: Attiva / Disattiva il Microfono Auto-Ducking.
+- **`+` / `-`** oppure **`CTRL + Freccia Su / Giù`**: Regolazione tonalità (±1 semitono, da -8 a +8 ST).
+- **`CTRL + Freccia Sinistra / Destra`**: Regolazione tempo (±5%, da 0.50x a 1.50x).
+- **`Freccia Sinistra / Destra`**: Salto temporale indietro / avanti di 5 secondi.
+- **`Freccia Su / Giù`**: Regolazione del volume master (±5%) con curva quadratica psicoacustica ($Gain = volume^2$) e anti-click ramping a 50ms.
+- **`1` / `2` / `3`**: Passaggio rapido schede (1: Coda Cantanti, 2: Ricerca & Libreria, 3: Storico SIAE).
+- **`CTRL + F`**: Apri la scheda Libreria e focalizza la barra di ricerca.
+- **`P`**: Riapri / Metti a fuoco lo Schermo del Palco.
+- **`F11` / `Esc`**: Schermo intero (sul monitor del Palco).
+- **`Esc`**: Chiudi finestre modali o disattiva il focus corrente.
+- 📖 Per la guida operativa passo-passo consulta il [Manuale Utente completo (USER_MANUAL.md)](USER_MANUAL.md).
 
 ### ⚖️ Algoritmo Fair Queue, Drag & Drop, Ripristino & Memoria Tonalità
 - **Rotazione Equa Anti-Monopolio**: Prioritizza le richieste calcolando il turno equo in base al numero di canzoni già cantate da ciascun partecipante e all'orario di richiesta, con override manuale VIP.
@@ -338,17 +346,25 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 - **Dynamic Audio Volume Normalization (Auto-Leveling)**: DSP dynamics processor powered by `DynamicsCompressorNode` (-22 dB threshold, 6:1 ratio, 24 dB knee, 3 ms attack, 250 ms release) combined with 1.35x makeup leveling gain. Equalizes acoustic dynamics across diverse songs in real time, taming aggressive volume spikes and lifting quiet backing tracks for a seamless, professional listening experience without riding the master fader. Configurable and toggleable in Audio Settings.
 - **Intelligent Auto-Ducking**: Automatically and smoothly attenuates background music when speaking into the microphone.
 
-### ⌨️ Quick Keyboard Shortcuts (Control Console)
-- **CTRL + Arrow Up**: Raise pitch +1 semitone (up to +8 ST).
-- **CTRL + Arrow Down**: Lower pitch -1 semitone (down to -8 ST).
-- **CTRL + Arrow Left**: Slow down tempo -0.05x (down to 0.50x).
-- **CTRL + Arrow Right**: Speed up tempo +0.05x (up to 1.50x).
-- **Space**: Instant Play / Pause toggle.
-- **Key N**: Skip to next track in queue.
-- **Arrow Left / Right**: Jump playback 5 seconds backward / forward.
-- **Arrow Up / Down**: Master volume fine adjustment (±5%).
-- **CTRL + F**: Switch to Library tab and focus the search input.
-- **Esc**: Close modals or release active focus.
+### ⌨️ Quick Keyboard Shortcuts & Interactive Guide (Control Console)
+Press **`F1`** or **`?`** at any time to open the searchable interactive guide.
+- **`Space`**: Instant Play / Pause toggle.
+- **`S`**: Stop playback and rewind timecode to 0:00.
+- **`R`**: Restart current song from beginning (0:00).
+- **`N`**: Skip to next track in queue (with copyright / SIAE logging).
+- **`M`**: Toggle Master Mute On/Off.
+- **`V`**: Toggle DSP Lead Vocal Remover.
+- **`D`**: Toggle Microphone Auto-Ducking.
+- **`+` / `-`** or **`CTRL + Arrow Up / Down`**: Pitch shift / key adjustment (±1 semitone, from -8 to +8 ST).
+- **`CTRL + Arrow Left / Right`**: Playback tempo adjustment (±5%, from 0.50x to 1.50x).
+- **`Arrow Left / Right`**: Jump playback 5 seconds backward / forward.
+- **`Arrow Up / Down`**: Master volume fine adjustment (±5%) with perceptual quadratic power curve ($Gain = volume^2$) and 50ms anti-click ramping.
+- **`1` / `2` / `3`**: Quick tab switching (1: Singer Queue, 2: Library & Search, 3: SIAE History).
+- **`CTRL + F`**: Switch to Library tab and focus the search input.
+- **`P`**: Reopen / Focus Stage Window.
+- **`F11` / `Esc`**: Fullscreen toggle (when focused on Stage Window).
+- **`Esc`**: Dismiss active modal or clear focus.
+- 📖 For the complete operating guide, see the [Dedicated User Manual (USER_MANUAL.md)](USER_MANUAL.md).
 
 ### ⚖️ Fair Queue Algorithm, Drag & Drop, Restore & Singer Pitch Memory
 - **Anti-Monopoly Fair Rotation**: Dynamically balances song requests based on rotation fairness (number of songs already performed) and request timestamp, with VIP manual override.

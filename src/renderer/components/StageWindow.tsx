@@ -67,6 +67,7 @@ export const StageWindow: React.FC = () => {
   const [currentQueue, setCurrentQueue] = useState<QueueItem[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [hasCdgLoaded, setHasCdgLoaded] = useState(false);
+  const [isStageReady, setIsStageReady] = useState(false);
 
   const lastToggleTimeRef = useRef(0);
   const clickCountRef = useRef(0);
@@ -81,6 +82,18 @@ export const StageWindow: React.FC = () => {
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.karaokeApi) return;
+
+    const checkReadyAndSignal = async () => {
+      try {
+        if ('fonts' in document) {
+          await document.fonts.ready;
+        }
+      } catch (err) {
+        console.warn('Font loading check error:', err);
+      }
+      setIsStageReady(true);
+      window.karaokeApi?.signalStageReady();
+    };
 
     // Immediately fetch initial state from main process
     window.karaokeApi.getStageInitialState().then((initial) => {
@@ -106,8 +119,10 @@ export const StageWindow: React.FC = () => {
         );
         root.classList.add(initial.settings.themeStage || 'dark-stage');
       }
+      checkReadyAndSignal();
     }).catch((err) => {
       console.warn('Could not fetch stage initial state:', err);
+      checkReadyAndSignal();
     });
 
     const unsubscribeState = window.karaokeApi.onStateSync((newState) => {
@@ -397,6 +412,10 @@ export const StageWindow: React.FC = () => {
     playback.isPlaying &&
     playback.currentTime <= titleDuration &&
     Boolean(activeTrack?.title);
+
+  if (!isStageReady) {
+    return <div className="w-screen h-screen bg-black" />;
+  }
 
   return (
     <div

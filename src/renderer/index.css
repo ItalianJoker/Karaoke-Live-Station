@@ -1,0 +1,280 @@
+@import "tailwindcss";
+
+/* Theme Definitions (9 Palettes) */
+:root.dark-stage, html.dark-stage {
+  --bg-app: #070b14;
+  --bg-card: #0f172a;
+  --bg-subtle: #1e293b;
+  --border-color: #334155;
+  --border-subtle: #1e293b;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+  --accent-glow: rgba(99, 102, 241, 0.35);
+}
+
+:root.midnight-neon, html.midnight-neon {
+  --bg-app: #070210;
+  --bg-card: #140827;
+  --bg-subtle: #240e42;
+  --border-color: #4a1d7c;
+  --border-subtle: #2d1352;
+  --text-main: #fdf4ff;
+  --text-muted: #d8b4fe;
+  --accent: #ec4899;
+  --accent-hover: #db2777;
+  --accent-glow: rgba(236, 72, 153, 0.4);
+}
+
+:root.club-gold, html.club-gold {
+  --bg-app: #0c0a09;
+  --bg-card: #1c1917;
+  --bg-subtle: #292524;
+  --border-color: #44403c;
+  --border-subtle: #292524;
+  --text-main: #fef3c7;
+  --text-muted: #d6d3d1;
+  --accent: #f59e0b;
+  --accent-hover: #d97706;
+  --accent-glow: rgba(245, 158, 11, 0.35);
+}
+
+:root.ocean-breeze, html.ocean-breeze {
+  --bg-app: #02101a;
+  --bg-card: #082030;
+  --bg-subtle: #0d3249;
+  --border-color: #134e70;
+  --border-subtle: #0f3954;
+  --text-main: #ecfeff;
+  --text-muted: #a5f3fc;
+  --accent: #06b6d4;
+  --accent-hover: #0891b2;
+  --accent-glow: rgba(6, 182, 212, 0.35);
+}
+
+:root.sunset-crimson, html.sunset-crimson {
+  --bg-app: #120407;
+  --bg-card: #220b12;
+  --bg-subtle: #38121d;
+  --border-color: #5a1928;
+  --border-subtle: #3d131d;
+  --text-main: #fff1f2;
+  --text-muted: #fecdd3;
+  --accent: #f43f5e;
+  --accent-hover: #e11d48;
+  --accent-glow: rgba(244, 63, 94, 0.35);
+}
+
+:root.emerald-matrix, html.emerald-matrix {
+  --bg-app: #02120a;
+  --bg-card: #062315;
+  --bg-subtle: #0c3620;
+  --border-color: #134e2c;
+  --border-subtle: #0f3e24;
+  --text-main: #ecfdf5;
+  --text-muted: #a7f3d0;
+  --accent: #10b981;
+  --accent-hover: #059669;
+  --accent-glow: rgba(16, 185, 129, 0.35);
+}
+
+:root.royal-amethyst, html.royal-amethyst {
+  --bg-app: #0d041a;
+  --bg-card: #1c0b33;
+  --bg-subtle: #2c124e;
+  --border-color: #4a1d80;
+  --border-subtle: #35165f;
+  --text-main: #faf5ff;
+  --text-muted: #e9d5ff;
+  --accent: #a855f7;
+  --accent-hover: #9333ea;
+  --accent-glow: rgba(168, 85, 247, 0.35);
+}
+
+:root.high-contrast, html.high-contrast {
+  --bg-app: #000000;
+  --bg-card: #0d0d0d;
+  --bg-subtle: #1a1a1a;
+  --border-color: #666666;
+  --border-subtle: #333333;
+  --text-main: #ffffff;
+  --text-muted: #e5e5e5;
+  --accent: #facc15;
+  --accent-hover: #eab308;
+  --accent-glow: rgba(250, 204, 21, 0.45);
+}
+
+:root.light, html.light {
+  --bg-app: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-subtle: #f1f5f9;
+  --border-color: #cbd5e1;
+  --border-subtle: #e2e8f0;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-glow: rgba(79, 70, 229, 0.25);
+}
+
+/* Global Smooth Transitions */
+body,
+header,
+footer,
+aside,
+main,
+nav,
+input,
+select,
+textarea,
+button,
+.stage-screen-container,
+.app-control-container,
+[class*="bg-slate-"],
+[class*="border-slate-"],
+[class*="bg-indigo-"] {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+}
+
+/* Dynamic Theme Root Application */
+html, body {
+  background-color: var(--bg-app, #070b14);
+  color: var(--text-main, #f8fafc);
+}
+
+/* Stage screen container */
+.stage-screen-container {
+  background-color: var(--bg-app) !important;
+  color: var(--text-main) !important;
+}
+
+/* App Control Container & Base Deep Backgrounds */
+.app-control-container,
+html body div.bg-slate-950,
+html body .bg-slate-950 {
+  background-color: var(--bg-app) !important;
+}
+html body .bg-slate-950\/90,
+html body .bg-slate-950\/80,
+html body .bg-slate-950\/60,
+html body .bg-slate-950\/50,
+html body .bg-slate-950\/40 {
+  background-color: color-mix(in srgb, var(--bg-app) 80%, transparent) !important;
+}
+
+/* Elevated Surfaces: Headers, Panels, Cards, Modals */
+html body header.bg-slate-900\/90,
+html body .bg-slate-900 {
+  background-color: var(--bg-card) !important;
+}
+html body .bg-slate-900\/90,
+html body .bg-slate-900\/80,
+html body .bg-slate-900\/70,
+html body .bg-slate-900\/60,
+html body .bg-slate-900\/50,
+html body .bg-slate-900\/40 {
+  background-color: color-mix(in srgb, var(--bg-card) 90%, transparent) !important;
+}
+
+/* Secondary Surfaces: Inactive Tabs, Input Controls, Table Rows */
+html body .bg-slate-800 {
+  background-color: var(--bg-subtle) !important;
+}
+html body .bg-slate-800\/80,
+html body .bg-slate-800\/70,
+html body .bg-slate-800\/60,
+html body .bg-slate-800\/50,
+html body .bg-slate-800\/40 {
+  background-color: color-mix(in srgb, var(--bg-subtle) 80%, transparent) !important;
+}
+
+/* Hover states for secondary surfaces */
+html body .hover\:bg-slate-800:hover,
+html body .hover\:bg-slate-800\/80:hover {
+  background-color: color-mix(in srgb, var(--bg-subtle) 120%, white 5%) !important;
+}
+html body .hover\:bg-slate-700:hover,
+html body .hover\:bg-slate-700\/80:hover {
+  background-color: color-mix(in srgb, var(--bg-subtle) 140%, white 10%) !important;
+}
+
+/* Borders across all cards, modals, headers, dividers */
+html body .border-slate-800,
+html body .border-slate-800\/80,
+html body .border-slate-800\/70,
+html body .border-slate-800\/60,
+html body .border-slate-800\/50,
+html body .border-slate-700,
+html body .border-slate-700\/80,
+html body .border-slate-700\/60 {
+  border-color: var(--border-color) !important;
+}
+
+/* Accent Overrides (Buttons, Highlights, Badges) */
+html body .bg-indigo-600,
+html body .bg-indigo-500 {
+  background-color: var(--accent) !important;
+}
+html body .hover\:bg-indigo-500:hover,
+html body .hover\:bg-indigo-700:hover {
+  background-color: var(--accent-hover) !important;
+}
+html body .text-indigo-400,
+html body .text-indigo-300,
+html body .text-indigo-500 {
+  color: var(--accent) !important;
+}
+html body .border-indigo-600,
+html body .border-indigo-500,
+html body .border-indigo-400,
+html body .border-indigo-500\/50 {
+  border-color: var(--accent) !important;
+}
+html body .shadow-indigo-600\/25,
+html body .shadow-indigo-500\/20 {
+  box-shadow: 0 4px 14px var(--accent-glow) !important;
+}
+
+/* Accent-adaptive Gradient Overrides */
+html.midnight-neon .from-indigo-600.to-violet-500 { --tw-gradient-from: #ec4899; --tw-gradient-to: #a855f7; }
+html.club-gold .from-indigo-600.to-violet-500 { --tw-gradient-from: #f59e0b; --tw-gradient-to: #d97706; }
+html.ocean-breeze .from-indigo-600.to-violet-500 { --tw-gradient-from: #06b6d4; --tw-gradient-to: #0284c7; }
+html.sunset-crimson .from-indigo-600.to-violet-500 { --tw-gradient-from: #f43f5e; --tw-gradient-to: #e11d48; }
+html.emerald-matrix .from-indigo-600.to-violet-500 { --tw-gradient-from: #10b981; --tw-gradient-to: #059669; }
+html.royal-amethyst .from-indigo-600.to-violet-500 { --tw-gradient-from: #a855f7; --tw-gradient-to: #7c3aed; }
+html.high-contrast .from-indigo-600.to-violet-500 { --tw-gradient-from: #facc15; --tw-gradient-to: #eab308; color: #000000 !important; }
+html.light .from-indigo-600.to-violet-500 { --tw-gradient-from: #4f46e5; --tw-gradient-to: #6366f1; }
+
+/* Light Mode Theme Special Handling */
+html.light body {
+  color: #0f172a !important;
+}
+html.light body .text-white,
+html.light body .text-slate-100,
+html.light body .text-slate-200 {
+  color: #0f172a !important;
+}
+html.light body .text-slate-300,
+html.light body .text-slate-400 {
+  color: #475569 !important;
+}
+html.light body input,
+html.light body select,
+html.light body textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+/* Ensure solid action buttons retain crisp white text in light mode */
+html.light body button.bg-indigo-600,
+html.light body .bg-indigo-600,
+html.light body .bg-indigo-600 span,
+html.light body [class*="bg-indigo-600"],
+html.light body [class*="bg-emerald-600"],
+html.light body [class*="bg-rose-600"],
+html.light body [class*="bg-red-600"],
+html.light body [class*="bg-amber-600"],
+html.light body .from-indigo-600.to-violet-500 {
+  color: #ffffff !important;
+}

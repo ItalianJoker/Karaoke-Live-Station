@@ -106,7 +106,11 @@
     "saveToLibrary": "Enregistrer dans la Bibliothèque",
     "savedSuccess": "Morceau enregistré dans la bibliothèque locale : {{title}}",
     "missingFile": "Fichier multimédia introuvable sur le disque",
-    "addAsNone": "Ajouter sous : (Aucun)"
+    "addAsNone": "Ajouter sous : (Aucun)",
+    "previewVideo": "Aperçu Vidéo",
+    "previewTitle": "Aperçu et Contrôle de Version",
+    "previewSafeAudioNotice": "Audio d'aperçu à volume modéré pour ne pas perturber la salle",
+    "versionDetected": "Version détectée"
   },
   "settings": {
     "title": "Paramètres Système",
@@ -127,6 +131,8 @@
     "autoArchive": "Archivage Automatique des Téléchargements Web",
     "bannerIntro": "Durée Bannière Intro (Sec)",
     "bannerOutro": "Déclenchement Outro 'Préparez-vous' (Sec)",
+    "showNextSingerAtIntro": "Afficher le prochain chanteur au début du morceau",
+    "showNextSingerAtIntroDesc": "Affiche sur l'écran scène qui chantera ensuite dès le début du morceau, lui permettant de se préparer à temps.",
     "transitionPause": "Pause de Transition entre Morceaux (Sec)",
     "titleOverlayDuration": "Durée Titre à l'Écran dans la Vidéo (Sec)",
     "exportSiae": "Exporter Déclaration Droits (CSV)",
@@ -197,5 +203,36 @@
     "macGui": "Réglages Système ➔ Réseau ➔ Pare-feu ➔ Options ➔ assurez-vous que \"Karaoke Live Station\" est réglée sur \"Autoriser les connexions entrantes\".",
     "linuxNotice": "Si vous utilisez UFW ou Firewalld sur Linux, autorisez le trafic TCP sur les ports du Guest Portal pour que les smartphones puissent se connecter :",
     "apIsolationTip": "Conseil Wi-Fi : Si les smartphones ne chargent pas la page tout en étant connectés au même modem, vérifiez dans les réglages du routeur que \"l'Isolation AP\" (AP Client Isolation) est DÉSACTIVÉE."
+  },
+  "shortcuts": {
+    "title": "Raccourcis Clavier",
+    "subtitle": "Guide rapide des commandes clavier pour DJ et KJ",
+    "searchPlaceholder": "Rechercher un raccourci...",
+    "categoryPlayback": "Lecture & File d'attente",
+    "categoryAudio": "Audio & DSP",
+    "categoryNavigation": "Navigation & Écrans",
+    "playPause": "Lecture / Pause",
+    "stop": "Stop (rembobiner au début et pause)",
+    "restart": "Recommencer le morceau actuel",
+    "next": "Morceau suivant",
+    "seekBackward": "Reculer de 5 secondes",
+    "seekForward": "Avancer de 5 secondes",
+    "mute": "Couper / Rétablir le son principal",
+    "volumeUp": "Augmenter le volume principal (+5%)",
+    "volumeDown": "Diminuer le volume principal (-5%)",
+    "pitchUpDown": "Tonalité / Clé (+1 / -1 demi-ton)",
+    "pitchCtrl": "Tonalité / Clé (+1 / -1 demi-ton)",
+    "speedCtrl": "Vitesse de lecture (+5% / -5%)",
+    "vocalRemover": "Activer / Désactiver la suppression vocale",
+    "ducking": "Activer / Désactiver l'auto-ducking micro",
+    "tabQueue": "Aller à l'onglet File des chanteurs",
+    "tabLibrary": "Aller à l'onglet Recherche & Bibliothèque",
+    "tabHistory": "Aller à l'onglet Historique SIAE",
+    "searchFocus": "Rechercher un morceau (focus sur le champ)",
+    "stageWindow": "Rouvrir / Mettre le focus sur l'écran Scène",
+    "fullscreen": "Plein écran Scène (F11 / Esc)",
+    "help": "Afficher ce guide des raccourcis clavier",
+    "closeModal": "Fermer la boîte de dialogue / modale",
+    "close": "Fermer"
   }
 }

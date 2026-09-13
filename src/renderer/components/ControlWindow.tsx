@@ -27,7 +27,8 @@ import {
   User,
   Star,
   History,
-  GripVertical
+  GripVertical,
+  HelpCircle
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AudioGraphManager } from '../core/AudioGraphManager';
@@ -38,6 +39,7 @@ import { SettingsModal } from './SettingsModal';
 import { SingersModal } from './SingersModal';
 import { GuestRequestsModal } from './GuestRequestsModal';
 import { FirewallGuideCard } from './FirewallGuideCard';
+import { ShortcutsHelpModal } from './ShortcutsHelpModal';
 import { AppSettings } from '../../shared/types';
 import appLogo from '../assets/logo.png';
 
@@ -76,6 +78,7 @@ export const ControlWindow: React.FC = () => {
   const [showSingersModal, setShowSingersModal] = useState(false);
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [showPortalQrModal, setShowPortalQrModal] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
 
   // View tabs on right panel: 'queue' | 'library' | 'history'
   const [activeRightTab, setActiveRightTab] = useState<'queue' | 'library' | 'history'>('queue');
@@ -566,6 +569,7 @@ export const ControlWindow: React.FC = () => {
           setShowSingersModal(false);
           setShowGuestModal(false);
           setShowPortalQrModal(false);
+          setShowShortcutsModal(false);
         }
         return;
       }
@@ -576,6 +580,7 @@ export const ControlWindow: React.FC = () => {
         setShowSingersModal(false);
         setShowGuestModal(false);
         setShowPortalQrModal(false);
+        setShowShortcutsModal(false);
       } else if (e.code === 'Space') {
         e.preventDefault();
         handlePlayPause();
@@ -583,6 +588,36 @@ export const ControlWindow: React.FC = () => {
         e.preventDefault();
         audioGraphRef.current?.stopMidiPlayback();
         advanceToNextTrack();
+      } else if (e.code === 'KeyS') {
+        e.preventDefault();
+        handleStop();
+      } else if (e.code === 'KeyR') {
+        e.preventDefault();
+        handleRestart();
+      } else if (e.code === 'KeyM') {
+        e.preventDefault();
+        setPlaybackState({ isMuted: !playback.isMuted });
+      } else if (e.code === 'KeyV') {
+        e.preventDefault();
+        setVocalRemover(!playback.isVocalRemoverActive);
+      } else if (e.code === 'KeyD') {
+        e.preventDefault();
+        setDucking(!playback.isDuckingActive);
+      } else if (e.code === 'KeyP') {
+        e.preventDefault();
+        window.karaokeApi?.reopenStageWindow();
+      } else if (e.code === 'Digit1' || e.key === '1') {
+        e.preventDefault();
+        setActiveRightTab('queue');
+      } else if (e.code === 'Digit2' || e.key === '2') {
+        e.preventDefault();
+        setActiveRightTab('library');
+      } else if (e.code === 'Digit3' || e.key === '3') {
+        e.preventDefault();
+        setActiveRightTab('history');
+      } else if (e.code === 'F1' || (e.key === '?' && !e.ctrlKey && !e.metaKey)) {
+        e.preventDefault();
+        setShowShortcutsModal((prev) => !prev);
       } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowUp') {
         e.preventDefault();
         setLivePitch(Math.min(8, playback.livePitchOffset + 1));
@@ -621,7 +656,20 @@ export const ControlWindow: React.FC = () => {
         searchInputRef.current?.focus();
       }
     },
-    [playback, handlePlayPause, advanceToNextTrack, setLivePitch, setPlaybackSpeed, setPlaybackState, closeMissingFileModal, handleSeek]
+    [
+      playback,
+      handlePlayPause,
+      handleStop,
+      handleRestart,
+      advanceToNextTrack,
+      setLivePitch,
+      setPlaybackSpeed,
+      setPlaybackState,
+      setVocalRemover,
+      setDucking,
+      closeMissingFileModal,
+      handleSeek
+    ]
   );
 
   useEffect(() => {
@@ -699,6 +747,16 @@ export const ControlWindow: React.FC = () => {
           >
             <Users className="w-4 h-4 text-amber-400" />
             Cantanti
+          </button>
+
+          {/* Scorciatoie da Tastiera */}
+          <button
+            type="button"
+            onClick={() => setShowShortcutsModal(true)}
+            className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95"
+            title={t('shortcuts.title', 'Scorciatoie da Tastiera') + ' (F1 / ?)'}
+          >
+            <HelpCircle className="w-4 h-4 text-indigo-400 hover:text-indigo-300" />
           </button>
 
           {/* Impostazioni Sistema */}
@@ -1687,6 +1745,12 @@ export const ControlWindow: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Shortcuts Help Modal */}
+      <ShortcutsHelpModal
+        isOpen={showShortcutsModal}
+        onClose={() => setShowShortcutsModal(false)}
+      />
     </div>
   );
 };

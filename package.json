@@ -13,6 +13,7 @@
     "build": "tsc -b && vite build",
     "start": "env -u ELECTRON_RUN_AS_NODE electron .",
     "typecheck": "tsc --noEmit",
+    "test": "node scripts/run-tests.js",
     "clean": "node scripts/clean-test-data.js",
     "electron:dev": "concurrently -k \"vite\" \"env -u ELECTRON_RUN_AS_NODE electron .\"",
     "electron:build": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js current && vite build && electron-builder && node scripts/restore-host-node.js",
@@ -120,6 +121,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/better-sqlite3": "^7.6.12",
     "@types/express": "^5.0.0",
     "@types/node": "^22.13.4",

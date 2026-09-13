@@ -431,7 +431,32 @@ export class AudioGraphManager {
   }
 
   /**
-   * Adjusts master output volume with smooth ramp.
+   * Computes perceptual gain using a quadratic audio taper curve.
+   *
+   * Psychoacoustic rationale: Human perception of sound pressure level is logarithmic
+   * (governed by the Weber-Fechner law). A linear gain fader produces an unnatural response
+   * where volume changes precipitously near 0 and remains almost flat between 0.5 and 1.0.
+   * Using a quadratic power curve (Gain = volume^2) provides a natural, smooth, and progressive
+   * volume taper across the entire 0.0 to 1.0 slider travel:
+   * - volume = 1.00 -> gain = 1.0000 (0.0 dB, full scale)
+   * - volume = 0.75 -> gain = 0.5625 (-5.0 dB)
+   * - volume = 0.50 -> gain = 0.2500 (-12.0 dB, perceived as half loudness)
+   * - volume = 0.25 -> gain = 0.0625 (-24.1 dB, soft background level)
+   * - volume = 0.00 -> gain = 0.0000 (-infinity dB, complete silence)
+   *
+   * @param volume - Slider position normalized from 0.0 (silent) to 1.0 (full)
+   * @param isMuted - When true, forces output gain to 0.0 regardless of slider level
+   * @returns Gain value for Web Audio GainNode (0.0 to 1.0)
+   */
+  public static computePerceptualGain(volume: number, isMuted: boolean): number {
+    if (isMuted) return 0;
+    const clamped = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 0));
+    return Math.round(Math.pow(clamped, 2) * 10000) / 10000;
+  }
+
+  /**
+   * Adjusts master output volume using a perceptual audio taper with anti-click ramping.
+   * Applies smoothly across all audio sources (HTML5 media, SoundTouch WSOLA, and SpessaSynth MIDI).
    *
    * @param volume - Gain level (0.0 to 1.0)
    * @param isMuted - If true, ramps gain to 0
@@ -439,8 +464,9 @@ export class AudioGraphManager {
   public setMasterVolume(volume: number, isMuted: boolean): void {
     if (!this.audioCtx || !this.masterGainNode) return;
     const now = this.audioCtx.currentTime;
-    const target = isMuted ? 0 : Math.max(0, Math.min(1, volume));
+    const target = AudioGraphManager.computePerceptualGain(volume, isMuted);
     this.masterGainNode.gain.cancelScheduledValues(now);
+    // 50ms linear ramp prevents audible DC offset thumps, zipper noise, or clicks
     this.masterGainNode.gain.linearRampToValueAtTime(target, now + 0.05);
   }
 

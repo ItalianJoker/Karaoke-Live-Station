@@ -400,6 +400,7 @@ class KaraokeMainProcess {
       height: 720,
       title: 'Karaoke Live Station - Palco',
       backgroundColor: '#000000',
+      show: false,
       icon: this.getWindowIcon(),
       autoHideMenuBar: true,
       webPreferences: {
@@ -409,6 +410,16 @@ class KaraokeMainProcess {
         sandbox: true,
         backgroundThrottling: false
       }
+    });
+
+    // Safety fallback: reveal window after ready-to-show if stage:ready handshake is delayed
+    this.stageWindow.once('ready-to-show', () => {
+      setTimeout(() => {
+        if (this.stageWindow && !this.stageWindow.isDestroyed() && !this.stageWindow.isVisible()) {
+          this.logger.info('StageWindow', 'Stage window revealed via safety fallback timer');
+          this.stageWindow.show();
+        }
+      }, 1200);
     });
 
     this.stageWindow.removeMenu();
@@ -595,6 +606,13 @@ class KaraokeMainProcess {
         return { isFullScreen: nextState };
       }
       return { isFullScreen: false };
+    });
+
+    ipcMain.on('stage:ready', () => {
+      if (this.stageWindow && !this.stageWindow.isDestroyed()) {
+        this.logger.info('StageWindow', 'Stage window renderer signaled readiness handshake. Displaying stage window.');
+        this.stageWindow.show();
+      }
     });
 
     // 3. Guest Server info & QR Code
@@ -832,8 +850,12 @@ class KaraokeMainProcess {
       title: string;
       artist: string;
       durationSec: number;
+      targetDirectory?: string;
     }) => {
-      const libraryDir = path.join(app.getPath('userData'), 'library');
+      const libraryDir =
+        payload.targetDirectory?.trim() ||
+        this.currentSettings?.libraryPath?.trim() ||
+        path.join(app.getPath('userData'), 'library');
       const track = await this.downloadManager.saveToLibrary(
         payload.tempFilePath,
         libraryDir,

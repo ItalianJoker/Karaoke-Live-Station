@@ -40,6 +40,8 @@ export interface KaraokeAPI {
   onStageStatusChange: (callback: (status: { isOpen: boolean }) => void) => () => void;
   /** Listens for Stage window renderer crash notifications */
   onStageCrashed: (callback: (details: unknown) => void) => () => void;
+  /** Signals that Stage window DOM, styles, and state are fully loaded and ready for rendering */
+  signalStageReady: () => void;
 
   // 3. SQLite Database Operations
   db: {
@@ -95,6 +97,7 @@ export interface KaraokeAPI {
       title: string;
       artist: string;
       durationSec: number;
+      targetDirectory?: string;
     }) => Promise<KaraokeMediaTrack>;
     /** Subscribes to live download progress updates */
     onProgress: (callback: (payload: DownloadProgressPayload) => void) => () => void;
@@ -204,6 +207,9 @@ const karaokeApi: KaraokeAPI = {
     return () => {
       ipcRenderer.removeListener('window:stage-crashed', handler);
     };
+  },
+  signalStageReady: () => {
+    ipcRenderer.send('stage:ready');
   },
 
   // Database Bridge

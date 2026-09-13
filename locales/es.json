@@ -106,7 +106,11 @@
     "saveToLibrary": "Guardar en Biblioteca",
     "savedSuccess": "Canción guardada en la biblioteca local: {{title}}",
     "missingFile": "Archivo multimedia no encontrado en disco",
-    "addAsNone": "Añadir como: (Ninguno)"
+    "addAsNone": "Añadir como: (Ninguno)",
+    "previewVideo": "Vista Previa de Video",
+    "previewTitle": "Vista Previa y Verificación de Versión",
+    "previewSafeAudioNotice": "Audio de vista previa a volumen controlado para no perturbar la sala",
+    "versionDetected": "Versión detectada"
   },
   "settings": {
     "title": "Ajustes del Sistema",
@@ -127,6 +131,8 @@
     "autoArchive": "Archivado Automático de Descargas Web en la Biblioteca",
     "bannerIntro": "Duración Banner Intro (Seg)",
     "bannerOutro": "Activación Outro 'Prepárate' (Seg)",
+    "showNextSingerAtIntro": "Mostrar próximo cantante al inicio de la canción",
+    "showNextSingerAtIntroDesc": "Muestra en la pantalla del escenario quién cantará después al inicio del tema, permitiéndole prepararse con tiempo.",
     "transitionPause": "Pausa de Transición entre Canciones (Seg)",
     "titleOverlayDuration": "Duración Título en Pantalla del Vídeo (Seg)",
     "exportSiae": "Exportar Informe de Derechos (CSV)",
@@ -197,5 +203,36 @@
     "macGui": "Ajustes del Sistema ➔ Red ➔ Firewall ➔ Opciones ➔ verifica que \"Karaoke Live Station\" esté configurada en \"Permitir conexiones entrantes\".",
     "linuxNotice": "Si usas UFW o Firewalld en Linux, permite el tráfico TCP en los puertos del Guest Portal para que los teléfonos puedan conectarse:",
     "apIsolationTip": "Consejo Wi-Fi: Si los teléfonos no cargan la página a pesar de estar conectados al mismo módem, verifica en los ajustes del router que el \"Aislamiento de AP\" (AP Client Isolation) esté DESACTIVADO."
+  },
+  "shortcuts": {
+    "title": "Atajos de Teclado",
+    "subtitle": "Referencia rápida para operaciones en vivo de DJ y KJ",
+    "searchPlaceholder": "Buscar atajo...",
+    "categoryPlayback": "Reproducción y Cola",
+    "categoryAudio": "Audio y DSP",
+    "categoryNavigation": "Navegación y Pantallas",
+    "playPause": "Reproducir / Pausar",
+    "stop": "Detener (rebobinar al inicio y pausar)",
+    "restart": "Reiniciar canción actual",
+    "next": "Siguiente pista",
+    "seekBackward": "Retroceder 5 segundos",
+    "seekForward": "Avanzar 5 segundos",
+    "mute": "Activar / Desactivar silencio master",
+    "volumeUp": "Aumentar volumen master (+5%)",
+    "volumeDown": "Disminuir volumen master (-5%)",
+    "pitchUpDown": "Tono / Clave (+1 / -1 semitono)",
+    "pitchCtrl": "Tono / Clave (+1 / -1 semitono)",
+    "speedCtrl": "Velocidad de reproducción (+5% / -5%)",
+    "vocalRemover": "Activar / Desactivar eliminador de voz",
+    "ducking": "Activar / Desactivar auto-ducking de micrófono",
+    "tabQueue": "Ir a pestaña Cola de cantantes",
+    "tabLibrary": "Ir a pestaña Búsqueda y Librería",
+    "tabHistory": "Ir a pestaña Historial SIAE",
+    "searchFocus": "Buscar canción (enfocar campo de búsqueda)",
+    "stageWindow": "Reabrir / Enfocar pantalla del Escenario",
+    "fullscreen": "Pantalla completa Escenario (F11 / Esc)",
+    "help": "Mostrar guía de atajos de teclado",
+    "closeModal": "Cerrar ventana emergente / diálogo",
+    "close": "Cerrar"
   }
 }

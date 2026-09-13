@@ -122,11 +122,28 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
             // Auto-archive web tracks if enabled in settings
             if (settings.autoArchiveWebTracks) {
               try {
-                await window.karaokeApi.downloads.saveToLibrary({
+                const saved = await window.karaokeApi.downloads.saveToLibrary({
                   tempFilePath: payload.outputFilePath,
                   title: associatedTrack.title,
                   artist: associatedTrack.artist,
-                  durationSec: associatedTrack.durationSec
+                  durationSec: associatedTrack.durationSec,
+                  targetDirectory: settings.libraryPath || undefined
+                });
+                // Switch queue pointer immediately to permanent saved file
+                updateTrackInQueue(associatedTrack.id, {
+                  localFilePath: saved.localFilePath,
+                  uri: saved.uri,
+                  source: 'local_library'
+                });
+                updateTrackInQueue(associatedTrack.uri, {
+                  localFilePath: saved.localFilePath,
+                  uri: saved.uri,
+                  source: 'local_library'
+                });
+                updateTrackInQueue(payload.outputFilePath, {
+                  localFilePath: saved.localFilePath,
+                  uri: saved.uri,
+                  source: 'local_library'
                 });
                 await loadLocalCatalog();
               } catch (err) {
@@ -138,7 +155,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
       });
       return () => unSub();
     }
-  }, [settings.autoArchiveWebTracks, trackMap, updateTrackInQueue]);
+  }, [settings.autoArchiveWebTracks, settings.libraryPath, trackMap, updateTrackInQueue]);
 
   const handleScanOrRefresh = async () => {
     if (!window.karaokeApi) return;
@@ -211,8 +228,34 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
         tempFilePath: dl.outputFilePath,
         title: track.title,
         artist: track.artist,
-        durationSec: track.durationSec
+        durationSec: track.durationSec,
+        targetDirectory: settings.libraryPath || undefined
       });
+      // Switch queue pointer to the permanent library file
+      updateTrackInQueue(track.id, {
+        localFilePath: saved.localFilePath,
+        uri: saved.uri,
+        source: 'local_library'
+      });
+      updateTrackInQueue(track.uri, {
+        localFilePath: saved.localFilePath,
+        uri: saved.uri,
+        source: 'local_library'
+      });
+      if (track.localFilePath) {
+        updateTrackInQueue(track.localFilePath, {
+          localFilePath: saved.localFilePath,
+          uri: saved.uri,
+          source: 'local_library'
+        });
+      }
+      if (dl.outputFilePath) {
+        updateTrackInQueue(dl.outputFilePath, {
+          localFilePath: saved.localFilePath,
+          uri: saved.uri,
+          source: 'local_library'
+        });
+      }
       await loadLocalCatalog();
       alert(t('library.savedSuccess', { title: saved.title }));
     } catch (err) {

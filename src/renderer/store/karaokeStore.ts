@@ -395,7 +395,11 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         set((state) => {
           let hasChanged = false;
           const updatedQueue = state.queue.map((item) => {
-            if (item.track.id === trackId || item.track.uri === trackId) {
+            if (
+              item.track.id === trackId ||
+              item.track.uri === trackId ||
+              (item.track.localFilePath && item.track.localFilePath === trackId)
+            ) {
               hasChanged = true;
               return {
                 ...item,
