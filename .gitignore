@@ -8,6 +8,11 @@ dist/
 dist-electron/
 release/
 build/
+# Keep official packaging icons (generated from public/logo.png)
+!build/icon.png
+!build/icon.ico
+!build/icons/
+!build/icons/**
 out/
 
 # Application Logs & Diagnostics

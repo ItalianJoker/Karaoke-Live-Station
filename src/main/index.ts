@@ -410,10 +410,11 @@ class KaraokeMainProcess {
    */
   private getWindowIcon(): string | undefined {
     const candidates = [
-      path.join(app.getAppPath(), 'public/logo.png'),
       path.join(app.getAppPath(), 'build/icon.png'),
-      path.join(__dirname, '../../public/logo.png'),
+      path.join(app.getAppPath(), 'public/logo.png'),
       path.join(__dirname, '../../build/icon.png'),
+      path.join(__dirname, '../../public/logo.png'),
+      process.resourcesPath ? path.join(process.resourcesPath, 'build/icon.png') : '',
       process.resourcesPath ? path.join(process.resourcesPath, 'public/logo.png') : '',
       process.resourcesPath ? path.join(process.resourcesPath, 'logo.png') : ''
     ].filter(Boolean);

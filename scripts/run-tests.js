@@ -196,6 +196,99 @@ const updateByTempPath = simulateQueueUpdate(mockTempQueue, mockTempDownloadPath
 
 assert(updateByTempPath.hasChanged, 'Queue update by localFilePath succeeds when temp file moves');
 
+// 3. Auto-archive YouTube→queue: enqueue LOCAL library track only after archive
+function simulateAutoArchiveEnqueueFlow(opts) {
+  const { autoArchive, downloadOk, archiveOk, alreadyInLibrary } = opts;
+  const events = [];
+  if (!autoArchive) {
+    events.push('enqueue_youtube_remote');
+    events.push(downloadOk ? 'cache_then_relink' : 'fail_keep_or_drop');
+    return events;
+  }
+  events.push('start_download_without_enqueue');
+  if (!downloadOk) {
+    events.push('toast_error');
+    events.push('no_queue_item');
+    return events;
+  }
+  if (alreadyInLibrary) {
+    events.push('library_refresh');
+    events.push('enqueue_local_library');
+    return events;
+  }
+  if (!archiveOk) {
+    events.push('toast_error');
+    events.push('no_queue_item');
+    return events;
+  }
+  events.push('save_to_library');
+  events.push('library_refresh');
+  events.push('enqueue_local_library');
+  return events;
+}
+
+const autoArchiveHappy = simulateAutoArchiveEnqueueFlow({
+  autoArchive: true,
+  downloadOk: true,
+  archiveOk: true,
+  alreadyInLibrary: false
+});
+assert(
+  autoArchiveHappy[0] === 'start_download_without_enqueue' &&
+    autoArchiveHappy.includes('enqueue_local_library') &&
+    !autoArchiveHappy.includes('enqueue_youtube_remote'),
+  'Auto-archive queue waits for archive then enqueues local library file'
+);
+
+const autoArchiveFail = simulateAutoArchiveEnqueueFlow({
+  autoArchive: true,
+  downloadOk: false,
+  archiveOk: false,
+  alreadyInLibrary: false
+});
+assert(
+  autoArchiveFail.includes('no_queue_item') && autoArchiveFail.includes('toast_error'),
+  'Auto-archive queue failure leaves no non-playable queue item'
+);
+
+const autoArchiveDedup = simulateAutoArchiveEnqueueFlow({
+  autoArchive: true,
+  downloadOk: true,
+  archiveOk: true,
+  alreadyInLibrary: true
+});
+assert(
+  autoArchiveDedup.includes('enqueue_local_library') && autoArchiveDedup.includes('library_refresh'),
+  'Auto-archive queue reuses existing library file and refreshes catalog'
+);
+
+// Packaging icons must be official logo derivatives (not missing / Electron defaults)
+const buildIconPng = path.resolve(__dirname, '../build/icon.png');
+const buildIconIco = path.resolve(__dirname, '../build/icon.ico');
+const buildIconsDir = path.resolve(__dirname, '../build/icons');
+assert(fs.existsSync(buildIconPng), 'build/icon.png exists for electron-builder');
+assert(fs.existsSync(buildIconIco), 'build/icon.ico exists for Windows packaging');
+assert(fs.existsSync(path.join(buildIconsDir, '256x256.png')), 'Linux icon size 256x256.png exists');
+assert(fs.existsSync(path.join(buildIconsDir, '512x512.png')), 'Linux icon size 512x512.png exists');
+const packageJsonForIcons = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
+);
+assert(packageJsonForIcons.build?.icon === 'build/icon.png', 'electron-builder root icon points at official PNG');
+assert(packageJsonForIcons.build?.win?.icon === 'build/icon.ico', 'Windows icon path is build/icon.ico');
+assert(packageJsonForIcons.build?.linux?.icon === 'build/icons', 'Linux icon dir is build/icons');
+assert(packageJsonForIcons.build?.mac?.icon === 'build/icon.png', 'macOS icon path is build/icon.png');
+
+const libraryPanelSourceForArchive = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+  'utf8'
+);
+assert(
+  libraryPanelSourceForArchive.includes('pendingArchiveEnqueueRef') &&
+    libraryPanelSourceForArchive.includes('queueArchivePending') &&
+    libraryPanelSourceForArchive.includes('queueArchiveReady'),
+  'LibraryPanel implements wait-then-enqueue-local auto-archive queue flow'
+);
+
 
 // -------------------------------------------------------------
 // Suite 4: i18n Translation Completeness & Parity

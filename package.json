@@ -14,6 +14,7 @@
     "start": "env -u ELECTRON_RUN_AS_NODE electron .",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run-tests.js",
+    "generate-icons": "node scripts/generate-icons.js",
     "clean": "node scripts/clean-test-data.js",
     "electron:dev": "concurrently -k \"vite\" \"env -u ELECTRON_RUN_AS_NODE electron .\"",
     "electron:build": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js current && vite build && electron-builder && node scripts/restore-host-node.js",
