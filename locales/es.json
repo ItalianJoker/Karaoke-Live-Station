@@ -164,5 +164,13 @@
     "removeFromQueue": "Eliminar de la Cola",
     "dismiss": "Descartar",
     "downloadFailed": "Descarga fallida: {{error}}"
+  },
+  "firewall": {
+    "title": "Asistente de Firewall y Red LAN",
+    "refresh": "Actualizar diagnóstico",
+    "winNotice": "En el primer inicio, si aparece el aviso del Firewall de Windows Defender, selecciona \"Redes Privadas\" y haz clic en \"Permitir acceso\". Si los teléfonos no cargan la página, desbloquea el puerto TCP con este comando:",
+    "macNotice": "Al abrir por primera vez, macOS mostrará un aviso de seguridad: haz clic en \"Permitir\" para aceptar conexiones entrantes. Si está bloqueado, autorízalo en el Firewall de macOS:",
+    "linuxNotice": "Si usas UFW o Firewalld en Linux, permite el tráfico TCP en los puertos del Guest Portal para que los teléfonos puedan conectarse:",
+    "apIsolationTip": "Consejo Wi-Fi: Si los teléfonos no cargan la página a pesar de estar conectados al mismo módem, verifica en los ajustes del router que el \"Aislamiento de AP\" (AP Client Isolation) esté DESACTIVADO."
   }
 }

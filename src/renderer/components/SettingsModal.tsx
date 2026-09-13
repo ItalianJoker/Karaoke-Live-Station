@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { X, Folder, FolderOpen, Download, Settings, Volume2, Globe, Clock, ShieldCheck, Headphones, FileText, Terminal, Trash2, RefreshCw, CheckCircle2, AlertCircle, Heart, Coffee, ExternalLink } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AppTheme, YtDlpStatus } from '../../shared/types';
+import { FirewallGuideCard } from './FirewallGuideCard';
 import appLogo from '../assets/logo.png';
 
 const THEME_OPTIONS: { id: AppTheme; label: string }[] = [
@@ -531,8 +532,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     <div className="text-[10px] text-slate-400">
                       Porta attiva: <span className="text-white font-mono">{portalInfo.port || settings.guestPortalPort}</span> | IP LAN: <span className="text-white font-mono">{portalInfo.ip || '127.0.0.1'}</span>
                     </div>
-                    <div className="text-[10px] text-amber-400/90 pt-1 leading-relaxed">
-                      🔒 <strong>Nota Firewall:</strong> Se gli smartphone nella stessa rete Wi-Fi non caricano la pagina, sblocca la porta nel firewall di sistema (su Linux: <code className="text-emerald-400 bg-black/60 px-1 py-0.5 rounded select-all font-mono">sudo ufw allow 3000:3010/tcp</code>).
+                    <div className="pt-2">
+                      <FirewallGuideCard />
                     </div>
                   </div>
                 )}

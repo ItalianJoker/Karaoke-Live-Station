@@ -324,3 +324,33 @@ export interface YtDlpStatus {
   error?: string;
 }
 
+/**
+ * Supported host operating systems.
+ */
+export type OperatingSystem = 'win32' | 'darwin' | 'linux';
+
+/**
+ * Firewall rule diagnostics and configuration steps for a given OS.
+ */
+export interface FirewallRuleInfo {
+  platform: OperatingSystem;
+  port: number;
+  status: 'allowed' | 'blocked' | 'unknown';
+  serviceName: string;
+  summary: string;
+  command?: string;
+  commandExplanation?: string;
+  guiSteps?: string[];
+}
+
+/**
+ * Complete multiplatform firewall check result payload.
+ */
+export interface FirewallCheckResult {
+  currentPlatform: OperatingSystem;
+  activePort: number;
+  lanIp: string;
+  rules: Record<OperatingSystem, FirewallRuleInfo>;
+}
+
+

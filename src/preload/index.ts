@@ -8,7 +8,8 @@ import {
   GuestSongRequest,
   AppSettings,
   LogLevel,
-  YtDlpStatus
+  YtDlpStatus,
+  FirewallCheckResult
 } from '../shared/types';
 
 /**
@@ -129,6 +130,8 @@ export interface KaraokeAPI {
     }>;
     /** Safely opens an external HTTP/HTTPS URL in the default system browser */
     openExternal: (url: string) => Promise<{ success: boolean }>;
+    /** Inspects and diagnoses firewall rules across Windows, macOS, and Linux */
+    checkFirewall: () => Promise<FirewallCheckResult>;
   };
 
   // 10. Diagnostic Logger
@@ -274,7 +277,8 @@ const karaokeApi: KaraokeAPI = {
     getDefaultSoundFont: () => ipcRenderer.invoke('system:get-default-soundfont'),
     initPaths: (clientSettings: { libraryPath?: string; midiSoundFontPath?: string }) =>
       ipcRenderer.invoke('system:init-paths', clientSettings),
-    openExternal: (url: string) => ipcRenderer.invoke('system:open-external', url)
+    openExternal: (url: string) => ipcRenderer.invoke('system:open-external', url),
+    checkFirewall: () => ipcRenderer.invoke('system:check-firewall')
   },
 
   // Diagnostic Logger

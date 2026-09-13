@@ -164,5 +164,13 @@
     "removeFromQueue": "Retirer de la File",
     "dismiss": "Ignorer",
     "downloadFailed": "Échec du téléchargement: {{error}}"
+  },
+  "firewall": {
+    "title": "Assistant Pare-feu et Réseau LAN",
+    "refresh": "Actualiser le diagnostic",
+    "winNotice": "Au premier lancement, si l'invite du Pare-feu Windows Defender apparaît, cochez \"Réseaux Privés\" et cliquez sur \"Autoriser l'accès\". Si les téléphones ne chargent pas la page, débloquez le port TCP avec cette commande :",
+    "macNotice": "À la première ouverture, macOS affichera une invite de sécurité : cliquez sur \"Autoriser\" pour accepter les connexions entrantes. Si bloqué, autorisez l'application dans le Pare-feu macOS :",
+    "linuxNotice": "Si vous utilisez UFW ou Firewalld sur Linux, autorisez le trafic TCP sur les ports du Guest Portal pour que les smartphones puissent se connecter :",
+    "apIsolationTip": "Conseil Wi-Fi : Si les smartphones ne chargent pas la page tout en étant connectés au même modem, vérifiez dans les réglages du routeur que \"l'Isolation AP\" (AP Client Isolation) est DÉSACTIVÉE."
   }
 }

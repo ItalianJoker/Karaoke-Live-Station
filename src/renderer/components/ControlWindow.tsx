@@ -37,6 +37,7 @@ import { HistoryPanel } from './HistoryPanel';
 import { SettingsModal } from './SettingsModal';
 import { SingersModal } from './SingersModal';
 import { GuestRequestsModal } from './GuestRequestsModal';
+import { FirewallGuideCard } from './FirewallGuideCard';
 import { AppSettings } from '../../shared/types';
 import appLogo from '../assets/logo.png';
 
@@ -1636,18 +1637,9 @@ export const ControlWindow: React.FC = () => {
             )}
             <p className="font-mono text-xs text-indigo-400 select-all mb-3 font-semibold">{portalInfo.url}</p>
 
-            {/* Firewall Help Notice Box */}
-            <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 text-left mb-4">
-              <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-[11px] mb-1">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <span>Risoluzione Accesso Dispositivi LAN</span>
-              </div>
-              <p className="text-[10px] text-slate-300 leading-relaxed mb-1.5">
-                Se gli smartphone nella stessa rete non caricano la pagina, sblocca la porta nel firewall di sistema (es. Linux UFW):
-              </p>
-              <code className="block bg-black/70 border border-slate-800 px-2 py-1 rounded text-[10px] font-mono text-emerald-400 select-all">
-                sudo ufw allow 3000:3010/tcp
-              </code>
+            {/* Multiplatform Firewall & LAN Access Guide */}
+            <div className="text-left mb-4 max-h-60 overflow-y-auto pr-1">
+              <FirewallGuideCard compact={true} />
             </div>
 
             <button

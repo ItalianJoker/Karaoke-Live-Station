@@ -10,6 +10,7 @@ import { DownloadManager } from './services/DownloadManager';
 import { Logger } from './services/Logger';
 import { resolveFfmpegPath, resolveYtDlpPath } from './services/BinaryResolver';
 import { YtDlpUpdater } from './services/YtDlpUpdater';
+import { FirewallHelper } from './services/FirewallHelper';
 import {
   ActivePlaybackState,
   AppSettings,
@@ -639,6 +640,12 @@ class KaraokeMainProcess {
         return { success: true };
       }
       return { success: false };
+    });
+
+    ipcMain.handle('system:check-firewall', () => {
+      const port = this.guestServer ? this.guestServer.getActualPort() : 3000;
+      const ip = this.guestServer ? this.guestServer.getLocalIp() : '127.0.0.1';
+      return FirewallHelper.checkFirewall(port, ip);
     });
 
     ipcMain.handle(

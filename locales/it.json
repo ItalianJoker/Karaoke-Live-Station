@@ -186,5 +186,13 @@
     "removeFromQueue": "Rimuovi dalla Coda",
     "dismiss": "Ignora",
     "downloadFailed": "Download fallito: {{error}}"
+  },
+  "firewall": {
+    "title": "Assistente Firewall & Connessione LAN",
+    "refresh": "Aggiorna diagnosi",
+    "winNotice": "Al primo avvio, se compare la richiesta di Windows Defender Firewall, seleziona \"Reti Private\" e premi \"Consenti accesso\". Se gli smartphone non caricano la pagina, autorizza la porta TCP con questo comando:",
+    "macNotice": "Alla prima apertura, macOS mostra un avviso di sicurezza: clicca su \"Consenti\" per accettare le connessioni in ingresso. Se bloccato, sblocca l'app nel firewall di macOS:",
+    "linuxNotice": "Se usi UFW o Firewalld su Linux, autorizza le porte TCP del Guest Portal per consentire agli smartphone di connettersi:",
+    "apIsolationTip": "Nota Wi-Fi: Se gli smartphone non caricano la pagina pur essendo connessi allo stesso modem, verifica nelle impostazioni del router che l'opzione \"Isolamento AP\" (AP Client Isolation) sia DISATTIVATA."
   }
 }
