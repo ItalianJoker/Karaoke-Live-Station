@@ -1,14 +1,40 @@
 # Changelog — Karaoke Live Station
 
-All notable changes for the Phases 1–6 delivery on branch `cursor/phase-1-portability-ytdlp-855c` (PR #1).
+All notable changes to Karaoke Live Station.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ---
 
+## [1.1.0] — Refresh (PR #3) — 2026-09-13
+
+Overwrite of GitHub Release `v1.1.0` after merge of `cursor/preascolto-preview-fix-855c`.
+
+### Added
+- **Algorithmic Vocal Remover (Experimental)** — real-time classical mid/side DSP (`centerCancelBassKeep`, `centerCancel`, `softMid`); Settings → Audio algorithm dropdown; Control button labeled *(Sperimentale)/(Experimental)*
+- **Pre-Ascolto themed preview** — Library headphones opens Settings-styled modal; audio on CUE device; mute/volume via embedded player; same-device unmute warning; works for video / audio-only / MIDI
+- **Library delete** — themed confirm modal; SQLite catalog removal; disk delete only for permanent files under `libraryPath` (never queue_cache / temp / incomplete)
+- Stage per-message backgrounds (color/image) while overlays are visible
+- Settings → Shortcuts parity with **?** / F1 help inventory
+- Scoped Library / Web search (separate query & results per sub-tab)
+- Stage playback-speed badge (`showSpeedOnStage`)
+
+### Changed
+- Vocal removal path is **algorithmic Web Audio only** (no model download, no offline stem separation)
+- Pre-Ascolto no longer toggles legacy CUE play/stop as a side effect of opening preview
+- Pitch shifter ScriptProcessor stays disconnected at 0 semitones (true bypass)
+
+### Removed
+- Demucs / HTDemucs / ONNX neural vocal-separation path (`demucs-web`, `onnxruntime-web`, model IPC, stem cache)
+
+### Fixed
+- Choppy / no-op vocal remover behavior by wiring a continuous native AudioNode graph (no main-thread ML)
+
+---
+
 ## [1.1.0] — Phases 1–6 pipeline (2026-09-13)
 
-Shipped from PR #1 (`cursor/phase-1-portability-ytdlp-855c`).
+Shipped from PR #1 (`cursor/phase-1-portability-ytdlp-855c`), later refreshed by PR #3 (see above).
 
 ### Added
 - Per-message Stage background (color/image) while overlay messages are visible.
@@ -27,7 +53,7 @@ Shipped from PR #1 (`cursor/phase-1-portability-ytdlp-855c`).
 - Queue-cache GC on dequeue / clear queue
 
 #### Audio & playback (Phase 3)
-- Demucs HTDemucs vocal removal via `demucs-web` + `onnxruntime-web` (true stem separation)
+- Real-time algorithmic mid/side vocal reduction (Experimental) — superseded any earlier ML/Demucs experiments
 - Perceptual master volume curve `gain = volume²`
 - Non-blocking toasts / non-modal native dialogs so Web Audio is not suspended by UI chrome
 - Auto-advance **OFF** by default (`autoAdvanceNext: false`) with configurable `transitionPauseSec` (default 3s)
@@ -43,10 +69,10 @@ Shipped from PR #1 (`cursor/phase-1-portability-ytdlp-855c`).
 - Live shortcuts with register/cleanup; exact hint **Doppio click o Play per avviare**
 
 #### Performance & tests (Phase 5)
-- Demucs instrumental stem LRU (`MAX_CACHED_STEMS`) + cache clear on dispose / track change
+- Algorithmic vocal-remover graph with enable crossfade; no stem LRU / ONNX cache
 - MIDI voice-release timeout cancellation on `AudioGraphManager.dispose`
 - SQLite `searchTracks` + indexes exposed over IPC (`db:search-tracks`)
-- Holistic automated suite expanded to **110** assertions (Suite 11: Stage, embed 153, download badge, shortcuts, cache, defaults)
+- Holistic automated suite (Suite 7 rewritten for algorithmic vocal remover)
 
 #### Documentation (Phase 6)
 - Exhaustive Italian `USER_MANUAL.md` + `USER_MANUAL_it.md`
@@ -63,7 +89,6 @@ Shipped from PR #1 (`cursor/phase-1-portability-ytdlp-855c`).
 - Intermittent Stage CSS/string mount before video show
 - YouTube iframe preview error 153
 - Download “in progress” sticky state after completion
-- Potential Demucs `AudioBuffer` retention across long shows
 - Orphan MIDI `setTimeout` callbacks after audio graph dispose
 
 ### Defaults (operator-facing)
@@ -88,6 +113,6 @@ Shipped from PR #1 (`cursor/phase-1-portability-ytdlp-855c`).
 
 ---
 
-## Validation (Phases 4–5 gates)
-- `npx tsc --noEmit` — pass
-- `npm test` — 110 passed / 0 failed
+## Validation
+- `npx tsc --noEmit` / `npm run typecheck` — pass
+- `npm test` — pass (algorithmic vocal-remover suite)

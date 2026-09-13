@@ -1,8 +1,84 @@
-# 🎤 Karaoke Live Station v1.0.0 — Release Notes
+# 🎤 Karaoke Live Station v1.1.0 — Release Notes
 
 <p align="center">
   <a href="#-italiano">🇮🇹 <strong>Italiano</strong></a> • <a href="#-english">🇬🇧 <strong>English</strong></a>
 </p>
+
+---
+
+<a name="v110-italiano"></a>
+# 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
+
+Aggiornamento della release **v1.1.0** (overwrite GitHub) con le novità della PR #3 e follow-up Cycle 2.
+
+## 📦 File di Installazione
+
+| Piattaforma | File | Descrizione |
+| :--- | :--- | :--- |
+| **Windows** | `Karaoke Live Station 1.1.0.exe` | Eseguibile portatile |
+| **Windows** | `Karaoke Live Station-1.1.0-win.zip` | Archivio completo Windows 64-bit |
+| **Linux** | `Karaoke Live Station-1.1.0.AppImage` | AppImage universale |
+| **Linux** | `karaoke-live-station_1.1.0_amd64.deb` | Pacchetto Debian/Ubuntu |
+| **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
+
+## 🌟 Novità di questa refresh
+
+### 🎙️ Rimuovi Voce Guida (Sperimentale) — DSP algoritmico
+- **Niente AI / Demucs / ONNX**: riduzione voce **classica mid/side** in tempo reale, leggera e adatta al live.
+- **Tendina Impostazioni → Audio**: `centerCancelBassKeep` (default), `centerCancel`, `softMid`.
+- Pulsante Regia etichettato **(Sperimentale)**; scorciatoia `V`.
+
+### 🎧 Pre-Ascolto tematico (CUE)
+- Dalla Libreria apre il **modale anteprima** (tema Impostazioni), audio sul dispositivo CUE.
+- Volume/muto solo dal player incorporato; avviso se CUE = Master all’unmute.
+- Supporto video, audio-only e MIDI.
+
+### 🗑️ Elimina dalla libreria
+- Conferma tematica; rimozione catalogo SQLite; cancellazione disco solo per file permanenti sotto `libraryPath`.
+
+### 🎭 Stage & ricerca
+- Sfondi per-messaggio (colore/immagine) mentre l’overlay è visibile.
+- Scorciatoie Impostazioni allineate a **?** / F1.
+- Ricerca Libreria/Web separata per sotto-scheda.
+- Badge velocità sullo Stage.
+
+---
+
+<a name="v110-english"></a>
+# 🇬🇧 Release Notes — Version 1.1.0 (refresh)
+
+GitHub Release **v1.1.0** overwrite with PR #3 / Cycle 2 features.
+
+## 📦 Installers
+
+| Platform | File | Description |
+| :--- | :--- | :--- |
+| **Windows** | `Karaoke Live Station 1.1.0.exe` | Portable executable |
+| **Windows** | `Karaoke Live Station-1.1.0-win.zip` | Full Windows 64-bit archive |
+| **Linux** | `Karaoke Live Station-1.1.0.AppImage` | Universal AppImage |
+| **Linux** | `karaoke-live-station_1.1.0_amd64.deb` | Debian/Ubuntu package |
+| **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
+
+## 🌟 What’s new in this refresh
+
+### 🎙️ Vocal Remover (Experimental) — algorithmic DSP
+- **No AI / Demucs / ONNX**: classical real-time mid/side vocal reduction.
+- **Settings → Audio** dropdown: `centerCancelBassKeep` (default), `centerCancel`, `softMid`.
+- Control button labeled **(Experimental)**; shortcut `V`.
+
+### 🎧 Themed Pre-Ascolto (CUE)
+- Library opens the **preview modal** (Settings theme) with audio on the CUE device.
+- Mute/volume via embedded player only; same-device unmute warning.
+- Video, audio-only, and MIDI supported.
+
+### 🗑️ Delete from library
+- Themed confirmation; SQLite removal; disk delete only for permanent files under `libraryPath`.
+
+### 🎭 Stage & search
+- Per-message Stage backgrounds while overlays are visible.
+- Settings shortcuts parity with **?** / F1.
+- Scoped Library / Web search.
+- Stage speed badge.
 
 ---
 
@@ -26,6 +102,8 @@ Benvenuti alla release ufficiale di **Karaoke Live Station**, la workstation des
 *Tutti i pacchetti includono già i binari necessari compilati per la piattaforma (`yt-dlp`, `ffmpeg`, `better-sqlite3` e il banco sonoro GeneralUser GS SoundFont da 31 MB), garantendo funzionamento offline immediato e zero configurazioni di sistema.*
 
 ## 🚀 Note di Rilascio — Versione 1.3.1 (Architettura DSP Vocal Remover In-Phase & Logica Storico SIAE)
+
+> **Nota v1.1.0:** la rimozione voce guida attuale è **DSP mid/side algoritmico (Sperimentale)** (vedi sezione 1.1.0 sopra). Le descrizioni storiche In-Phase/Demucs qui sotto restano come cronologia di sviluppo e non descrivono il percorso AI/ML (rimosso).
 
 ### 🎙️ Pipeline DSP Vocal Remover In-Phase Ad Alta Fedeltà
 - **Risoluzione Audio Cupo e Soppressione Efficace della Voce Guida**: Riprogettata interamente la catena audio Web Audio DSP per la rimozione della voce solista (tasto `V` o toggle in regia). La precedente architettura a filtri IIR causava sfasamenti a 180° che attenuavano gravemente le alte frequenze ("audio cupo") lasciando udibile la voce.
@@ -196,6 +274,8 @@ Welcome to the official release of **Karaoke Live Station**, the professional, c
 | **macOS** | `Karaoke Live Station-1.0.0-mac.zip` | Standalone `.app` bundle for macOS (Intel & Apple Silicon via Rosetta) |
 
 ## 🚀 Release Notes — Version 1.3.1 (In-Phase Vocal Remover DSP & SIAE History Lifecycle)
+
+> **v1.1.0 note:** current guide-vocal removal is **algorithmic mid/side DSP (Experimental)** (see 1.1.0 section above). Historical In-Phase/Demucs write-ups below are development chronology and do **not** describe an AI/ML path (removed).
 
 ### 🎙️ High-Fidelity In-Phase Vocal Remover DSP Pipeline
 - **Elimination of Muffled Sound & Clean Lead Vocal Cancellation**: Completely re-engineered the Web Audio DSP vocal removal pipeline (shortcut `V` or control console toggle). The previous cascaded IIR filter design suffered from frequency-dependent phase rotations that introduced destructive notches across the treble spectrum ("muffled sound") without effectively suppressing center-panned vocals.
