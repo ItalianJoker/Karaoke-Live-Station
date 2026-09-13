@@ -14,6 +14,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 let testsPassed = 0;
 let testsFailed = 0;
@@ -145,6 +146,15 @@ function simulateQueueUpdate(queue, targetIdentifier, updates) {
   return { updatedQueue, hasChanged };
 }
 
+// Portable mock paths — never hardcode /home/... or /tmp/... machine literals
+const mockTempDownloadPath = path.join(os.tmpdir(), 'karaoke_downloads', 'temp_abc123.mp4');
+const mockLibraryTrackPath = path.join(
+  os.homedir(),
+  'Karaoke',
+  "Massimo Ranieri - Perdere L'Amore.mp4"
+);
+const mockLibraryTrackUri = `karaoke://local/${encodeURIComponent(mockLibraryTrackPath)}`;
+
 const mockTempQueue = [
   {
     queueId: 'q_1',
@@ -155,15 +165,15 @@ const mockTempQueue = [
       artist: 'Massimo Ranieri',
       durationSec: 240,
       uri: 'https://www.youtube.com/watch?v=abc123',
-      localFilePath: '/tmp/karaoke_downloads/temp_abc123.mp4'
+      localFilePath: mockTempDownloadPath
     }
   }
 ];
 
 // 1. Update by track ID
 const updateById = simulateQueueUpdate(mockTempQueue, 'yt_abc123', {
-  localFilePath: '/home/user/Karaoke/Massimo Ranieri - Perdere L\'Amore.mp4',
-  uri: 'karaoke://local/%2Fhome%2Fuser%2FKaraoke%2FMassimo%20Ranieri%20-%20Perdere%20L%27Amore.mp4',
+  localFilePath: mockLibraryTrackPath,
+  uri: mockLibraryTrackUri,
   source: 'local_library'
 });
 
@@ -173,14 +183,14 @@ assert(
   'Track source correctly transitioned from youtube to local_library'
 );
 assert(
-  updateById.updatedQueue[0].track.localFilePath === '/home/user/Karaoke/Massimo Ranieri - Perdere L\'Amore.mp4',
+  updateById.updatedQueue[0].track.localFilePath === mockLibraryTrackPath,
   'Track localFilePath points to permanent storage'
 );
 
 // 2. Update by temp localFilePath
-const updateByTempPath = simulateQueueUpdate(mockTempQueue, '/tmp/karaoke_downloads/temp_abc123.mp4', {
-  localFilePath: '/home/user/Karaoke/Massimo Ranieri - Perdere L\'Amore.mp4',
-  uri: 'karaoke://local/%2Fhome%2Fuser%2FKaraoke%2FMassimo%20Ranieri%20-%20Perdere%20L%27Amore.mp4',
+const updateByTempPath = simulateQueueUpdate(mockTempQueue, mockTempDownloadPath, {
+  localFilePath: mockLibraryTrackPath,
+  uri: mockLibraryTrackUri,
   source: 'local_library'
 });
 
@@ -267,9 +277,10 @@ function shouldDeleteCachedFile(filePath, remainingQueue) {
   return !isStillReferenced;
 }
 
-const cacheFile1 = '/userData/queue_cache/qc_123_artist - title.mp4';
-const cacheFile2 = '/userData/queue_cache/qc_456_artist - title2.mp4';
-const libraryFile = '/home/user/Karaoke/artist - permanent.mp4';
+const mockUserDataRoot = path.join(os.tmpdir(), 'karaoke-live-station-testdata');
+const cacheFile1 = path.join(mockUserDataRoot, 'queue_cache', 'qc_123_artist - title.mp4');
+const cacheFile2 = path.join(mockUserDataRoot, 'queue_cache', 'qc_456_artist - title2.mp4');
+const libraryFile = path.join(os.homedir(), 'Karaoke', 'artist - permanent.mp4');
 
 const mockRemainingQueue = [
   { queueId: 'q2', track: { id: 't2', localFilePath: cacheFile2 } }
@@ -506,6 +517,71 @@ const audioGraphSource = fs.readFileSync(path.resolve(__dirname, '../src/rendere
 assert(
   audioGraphSource.includes('setupVocalRemoverGraph') && audioGraphSource.includes('setVocalRemover('),
   'AudioGraphManager contains dedicated vocal remover pipeline methods'
+);
+
+
+// -------------------------------------------------------------
+// Suite 9: Absolute Portability & yt-dlp Managed Binary Contract
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite 9: Portability Paths & yt-dlp Persistence Contract\x1b[0m');
+
+const binaryResolverSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/BinaryResolver.ts'),
+  'utf8'
+);
+const ytDlpUpdaterSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/YtDlpUpdater.ts'),
+  'utf8'
+);
+
+assert(
+  binaryResolverSource.includes("app.getPath('userData')") &&
+    binaryResolverSource.includes("path.join(app.getPath('userData'), 'bin')"),
+  'BinaryResolver resolves managed bin dir via Electron userData (not hardcoded home paths)'
+);
+assert(
+  binaryResolverSource.includes('validateYtDlpBinaryIntegrity') &&
+    binaryResolverSource.includes('ensureManagedYtDlpFromBundle'),
+  'BinaryResolver validates integrity and seeds managed yt-dlp under userData/bin'
+);
+assert(
+  binaryResolverSource.includes("0o755") || binaryResolverSource.includes('0o755'),
+  'BinaryResolver applies POSIX executable permissions'
+);
+assert(
+  ytDlpUpdaterSource.includes('SHA2-256SUMS') && ytDlpUpdaterSource.includes('sha256'),
+  'YtDlpUpdater verifies SHA-256 integrity against GitHub SHA2-256SUMS when available'
+);
+assert(
+  ytDlpUpdaterSource.includes('skipping re-download') ||
+    ytDlpUpdaterSource.includes('is up to date'),
+  'YtDlpUpdater skips blind re-download when binary is already current'
+);
+assert(
+  ytDlpUpdaterSource.includes('this.binDir') &&
+    ytDlpUpdaterSource.includes("path.join(userDataPath, 'bin')"),
+  'YtDlpUpdater installs exclusively into <userData>/bin/'
+);
+
+const hardCodedUserPathPattern = /(?:^|[^.\w])(?:\/home\/[A-Za-z]|\/Users\/[A-Za-z]|C:\\\\Users\\\\)/;
+const sourcesToScan = [
+  path.resolve(__dirname, '../src/main/services/BinaryResolver.ts'),
+  path.resolve(__dirname, '../src/main/services/YtDlpUpdater.ts'),
+  path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+  path.resolve(__dirname, '../src/main/index.ts'),
+  path.resolve(__dirname, '../scripts/run-tests.js')
+];
+let leakedHardcoded = [];
+for (const file of sourcesToScan) {
+  const text = fs.readFileSync(file, 'utf8');
+  if (hardCodedUserPathPattern.test(text)) {
+    leakedHardcoded.push(path.basename(file));
+  }
+}
+assert(
+  leakedHardcoded.length === 0,
+  'No hardcoded user-home absolute paths in core runtime/test sources',
+  leakedHardcoded.length ? `Found in: ${leakedHardcoded.join(', ')}` : ''
 );
 
 
