@@ -57,7 +57,8 @@
     "clear": "Vaciar cola",
     "confirmClear": "¿Estás seguro de que deseas vaciar toda la cola de reproducción?",
     "cleared": "Cola vaciada con éxito",
-    "hintPlayOrDoubleClick": "Doble clic o Play para iniciar"
+    "hintPlayOrDoubleClick": "Doble clic o Play para iniciar",
+    "confirmRemove": "¿Quitar este tema de la cola?"
   },
   "singers": {
     "title": "Gestión de Cantantes",
@@ -112,10 +113,20 @@
     "previewTitle": "Vista Previa y Verificación de Versión",
     "previewSafeAudioNotice": "Audio de vista previa a volumen controlado para no perturbar la sala",
     "versionDetected": "Versión detectada",
-    "alreadyLocal": "La pista ya está disponible en local. Se vinculó el archivo existente sin volver a descargar:\n{{path}}"
+    "alreadyLocal": "La pista ya está disponible en local. Se vinculó el archivo existente sin volver a descargar:\n{{path}}",
+    "downloadComplete": "Descarga completada",
+    "emptyWeb": "Sin resultados web. Escribe y pulsa Intro para buscar en YouTube.",
+    "emptyFilter": "Ningún tema coincide con la búsqueda local.",
+    "emptyLocal": "Biblioteca vacía. Escanea una carpeta o busca en la web."
   },
   "settings": {
     "title": "Ajustes del Sistema",
+    "tabGeneral": "General",
+    "tabLibrary": "Biblioteca y Descargas",
+    "tabAudio": "Audio y Reproducción",
+    "tabStage": "Pantalla Escenario",
+    "tabShortcuts": "Atajos",
+    "searchPlaceholder": "Buscar ajustes...",
     "theme": "Tema Sala de Control",
     "stageTheme": "Tema Pantalla Escenario",
     "language": "Idioma de la Interfaz",
@@ -244,6 +255,7 @@
     "close": "Cerrar"
   },
   "common": {
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "close": "Cerrar"
   }
 }

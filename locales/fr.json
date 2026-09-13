@@ -57,7 +57,8 @@
     "clear": "Vider la file",
     "confirmClear": "Êtes-vous sûr de vouloir vider l'ensemble de la file d'attente ?",
     "cleared": "File d'attente vidée avec succès",
-    "hintPlayOrDoubleClick": "Double-clic ou Play pour démarrer"
+    "hintPlayOrDoubleClick": "Double-clic ou Play pour démarrer",
+    "confirmRemove": "Retirer ce titre de la file ?"
   },
   "singers": {
     "title": "Gestion des Chanteurs",
@@ -112,10 +113,20 @@
     "previewTitle": "Aperçu et Contrôle de Version",
     "previewSafeAudioNotice": "Audio d'aperçu à volume modéré pour ne pas perturber la salle",
     "versionDetected": "Version détectée",
-    "alreadyLocal": "Morceau déjà disponible en local. Fichier existant lié sans retéléchargement :\n{{path}}"
+    "alreadyLocal": "Morceau déjà disponible en local. Fichier existant lié sans retéléchargement :\n{{path}}",
+    "downloadComplete": "Téléchargement terminé",
+    "emptyWeb": "Aucun résultat web. Saisissez et appuyez sur Entrée pour chercher sur YouTube.",
+    "emptyFilter": "Aucun titre ne correspond à la recherche locale.",
+    "emptyLocal": "Bibliothèque vide. Scannez un dossier ou cherchez sur le web."
   },
   "settings": {
     "title": "Paramètres Système",
+    "tabGeneral": "Général",
+    "tabLibrary": "Bibliothèque & Téléchargement",
+    "tabAudio": "Audio & Lecture",
+    "tabStage": "Écran Scène",
+    "tabShortcuts": "Raccourcis",
+    "searchPlaceholder": "Rechercher dans les paramètres...",
     "theme": "Thème Régie",
     "stageTheme": "Thème Écran Scène",
     "language": "Langue de l'Interface",
@@ -244,6 +255,7 @@
     "close": "Fermer"
   },
   "common": {
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "close": "Fermer"
   }
 }
