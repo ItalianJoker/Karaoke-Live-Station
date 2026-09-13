@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { execFileSync } from 'child_process';
 import { OperatingSystem, FirewallCheckResult, FirewallRuleInfo } from '../../shared/types';
 
@@ -40,14 +41,15 @@ export class FirewallHelper {
         const output = execFileSync('netsh', ['advfirewall', 'firewall', 'show', 'rule', 'name=Karaoke Live Station'], {
           encoding: 'utf8',
           timeout: 2500,
-          windowsHide: true
+          windowsHide: true,
+          stdio: ['ignore', 'pipe', 'pipe']
         });
         if (output && (output.toLowerCase().includes('allow') || output.toLowerCase().includes('consenti') || output.toLowerCase().includes('karaoke live station'))) {
           windowsRule.status = 'allowed';
           windowsRule.summary = 'Regola Windows Firewall attiva per Karaoke Live Station.';
         } else {
           windowsRule.status = 'blocked';
-          windowsRule.summary = 'Nessuna regola attiva trovata in Windows Defender Firewall.';
+          windowsRule.summary = 'Nessuna regola personalizzata trovata in Windows Defender Firewall.';
         }
       } catch {
         windowsRule.status = 'blocked';
@@ -75,7 +77,8 @@ export class FirewallHelper {
       try {
         const output = execFileSync('/usr/libexec/ApplicationFirewall/socketfilterfw', ['--getglobalstate'], {
           encoding: 'utf8',
-          timeout: 2500
+          timeout: 2500,
+          stdio: ['ignore', 'pipe', 'pipe']
         });
         if (output && output.toLowerCase().includes('disabled')) {
           macRule.status = 'allowed';
@@ -107,23 +110,24 @@ export class FirewallHelper {
 
     if (currentPlatform === 'linux') {
       try {
-        const output = execFileSync('ufw', ['status'], {
-          encoding: 'utf8',
-          timeout: 2500
-        });
-        if (output && output.toLowerCase().includes('inactive')) {
+        let isUfwEnabled = false;
+        if (fs.existsSync('/etc/ufw/ufw.conf')) {
+          const conf = fs.readFileSync('/etc/ufw/ufw.conf', 'utf8');
+          if (conf.includes('ENABLED=yes')) {
+            isUfwEnabled = true;
+          }
+        }
+
+        if (!isUfwEnabled) {
           linuxRule.status = 'allowed';
-          linuxRule.summary = 'UFW non attivo (le porte sono accessibili sulla LAN).';
-        } else if (output && output.includes(String(activePort))) {
-          linuxRule.status = 'allowed';
-          linuxRule.summary = `Regola UFW presente per la porta ${activePort}/tcp.`;
+          linuxRule.summary = 'UFW non attivo nel sistema (le porte sono accessibili sulla LAN).';
         } else {
           linuxRule.status = 'blocked';
-          linuxRule.summary = 'UFW attivo: sblocca la porta TCP per consentire l\'accesso mobile.';
+          linuxRule.summary = `UFW è attivo nel sistema: autorizza la porta TCP ${activePort} per consentire l'accesso mobile.`;
         }
       } catch {
         linuxRule.status = 'unknown';
-        linuxRule.summary = 'Verifica le regole del firewall con il comando indicato di seguito.';
+        linuxRule.summary = 'Verifica le regole del firewall con i comandi indicati di seguito.';
       }
     }
 
@@ -139,3 +143,4 @@ export class FirewallHelper {
     };
   }
 }
+
