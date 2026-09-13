@@ -7,8 +7,8 @@ node_modules/
 dist/
 dist-electron/
 release/
-build/
-# Keep official packaging icons (generated from public/logo.png)
+# Keep official packaging icons (generated from public/logo.png); ignore other build outputs
+build/*
 !build/icon.png
 !build/icon.ico
 !build/icons/
