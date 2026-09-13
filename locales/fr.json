@@ -111,7 +111,8 @@
     "previewVideo": "Aperçu Vidéo",
     "previewTitle": "Aperçu et Contrôle de Version",
     "previewSafeAudioNotice": "Audio d'aperçu à volume modéré pour ne pas perturber la salle",
-    "versionDetected": "Version détectée"
+    "versionDetected": "Version détectée",
+    "alreadyLocal": "Morceau déjà disponible en local. Fichier existant lié sans retéléchargement :\n{{path}}"
   },
   "settings": {
     "title": "Paramètres Système",
@@ -191,7 +192,8 @@
     "missingFileDesc": "Le fichier spécifié n'est plus accessible à l'emplacement: {{path}}",
     "removeFromQueue": "Retirer de la File",
     "dismiss": "Ignorer",
-    "downloadFailed": "Échec du téléchargement: {{error}}"
+    "downloadFailed": "Échec du téléchargement: {{error}}",
+    "libraryPathRequired": "Définissez le dossier bibliothèque dans les paramètres avant de télécharger."
   },
   "firewall": {
     "title": "Assistant Pare-feu et Réseau LAN",

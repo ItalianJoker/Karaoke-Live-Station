@@ -111,7 +111,8 @@
     "previewVideo": "Vista Previa de Video",
     "previewTitle": "Vista Previa y Verificación de Versión",
     "previewSafeAudioNotice": "Audio de vista previa a volumen controlado para no perturbar la sala",
-    "versionDetected": "Versión detectada"
+    "versionDetected": "Versión detectada",
+    "alreadyLocal": "La pista ya está disponible en local. Se vinculó el archivo existente sin volver a descargar:\n{{path}}"
   },
   "settings": {
     "title": "Ajustes del Sistema",
@@ -191,7 +192,8 @@
     "missingFileDesc": "El archivo especificado ya no está accesible en: {{path}}",
     "removeFromQueue": "Eliminar de la Cola",
     "dismiss": "Descartar",
-    "downloadFailed": "Descarga fallida: {{error}}"
+    "downloadFailed": "Descarga fallida: {{error}}",
+    "libraryPathRequired": "Configura la carpeta de biblioteca en ajustes antes de descargar."
   },
   "firewall": {
     "title": "Asistente de Firewall y Red LAN",

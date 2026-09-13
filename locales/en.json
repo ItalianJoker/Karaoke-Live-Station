@@ -111,7 +111,8 @@
     "previewVideo": "Video Preview",
     "previewTitle": "Video Preview & Version Check",
     "previewSafeAudioNotice": "Preview audio at controlled volume to prevent venue PA disturbance",
-    "versionDetected": "Detected version"
+    "versionDetected": "Detected version",
+    "alreadyLocal": "Track already available locally. Linked existing file without re-downloading:\n{{path}}"
   },
   "settings": {
     "title": "System Settings",
@@ -191,7 +192,8 @@
     "missingFileDesc": "The specified file is no longer accessible at: {{path}}",
     "removeFromQueue": "Remove from Queue",
     "dismiss": "Dismiss",
-    "downloadFailed": "Download failed: {{error}}"
+    "downloadFailed": "Download failed: {{error}}",
+    "libraryPathRequired": "Set the library folder in settings before downloading."
   },
   "firewall": {
     "title": "Firewall & LAN Connection Assistant",

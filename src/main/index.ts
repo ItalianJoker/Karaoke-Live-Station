@@ -852,12 +852,59 @@ class KaraokeMainProcess {
     });
 
     // 7. Download Manager IPC Bridge
-    ipcMain.handle('download:start', async (_event, options: { url: string; isAudioOnly?: boolean }) => {
-      return await this.downloadManager.startDownload(options);
-    });
+    ipcMain.handle(
+      'download:start',
+      async (
+        _event,
+        options: {
+          url: string;
+          isAudioOnly?: boolean;
+          titleHint?: string;
+          artistHint?: string;
+          trackId?: string;
+          libraryPath?: string;
+        }
+      ) => {
+        const libraryPath =
+          options.libraryPath?.trim() || this.currentSettings?.libraryPath?.trim() || undefined;
+        let catalogTracks: KaraokeMediaTrack[] = [];
+        try {
+          catalogTracks = this.db.getAllTracks();
+        } catch {
+          catalogTracks = [];
+        }
+        return await this.downloadManager.startDownload({
+          ...options,
+          libraryPath,
+          catalogTracks
+        });
+      }
+    );
 
     ipcMain.handle('download:cancel', (_event, downloadId: string) => {
       return this.downloadManager.cancelDownload(downloadId);
+    });
+
+    ipcMain.handle('download:find-existing', (_event, options: {
+      url?: string;
+      trackId?: string;
+      title?: string;
+      artist?: string;
+      libraryPath?: string;
+    }) => {
+      const libraryPath =
+        options.libraryPath?.trim() || this.currentSettings?.libraryPath?.trim() || undefined;
+      let catalogTracks: KaraokeMediaTrack[] = [];
+      try {
+        catalogTracks = this.db.getAllTracks();
+      } catch {
+        catalogTracks = [];
+      }
+      return this.downloadManager.findExistingLocalMedia({
+        ...options,
+        libraryPath,
+        catalogTracks
+      });
     });
 
     ipcMain.handle('download:save-to-library', async (_event, payload: {
@@ -866,17 +913,26 @@ class KaraokeMainProcess {
       artist: string;
       durationSec: number;
       targetDirectory?: string;
+      trackId?: string;
     }) => {
       const libraryDir =
-        payload.targetDirectory?.trim() ||
-        this.currentSettings?.libraryPath?.trim() ||
-        path.join(app.getPath('userData'), 'library');
-      const track = await this.downloadManager.saveToLibrary(
-        payload.tempFilePath,
-        libraryDir,
-        payload
-      );
+        payload.targetDirectory?.trim() || this.currentSettings?.libraryPath?.trim() || '';
+      if (!libraryDir) {
+        throw new Error(
+          'Percorso libreria non configurato. Imposta la cartella libreria nelle impostazioni prima di salvare.'
+        );
+      }
+      const track = await this.downloadManager.saveToLibrary(payload.tempFilePath, libraryDir, {
+        title: payload.title,
+        artist: payload.artist,
+        durationSec: payload.durationSec,
+        trackId: payload.trackId
+      });
       this.db.upsertTrack(track);
+      // Notify renderer windows to reindex/refresh library immediately
+      if (this.controlWindow && !this.controlWindow.isDestroyed()) {
+        this.controlWindow.webContents.send('library:reindexed');
+      }
       return track;
     });
 

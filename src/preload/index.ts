@@ -5,6 +5,8 @@ import {
   QueueItem,
   SingerProfile,
   DownloadProgressPayload,
+  ExistingLocalMedia,
+  StartDownloadResult,
   GuestSongRequest,
   AppSettings,
   LogLevel,
@@ -88,10 +90,25 @@ export interface KaraokeAPI {
 
   // 6. Download Engine Bridge
   downloads: {
-    /** Starts downloading a video or audio stream via yt-dlp */
-    start: (options: { url: string; isAudioOnly?: boolean }) => Promise<string>;
+    /** Starts downloading a video or audio stream via yt-dlp (or reuses a local copy) */
+    start: (options: {
+      url: string;
+      isAudioOnly?: boolean;
+      titleHint?: string;
+      artistHint?: string;
+      trackId?: string;
+      libraryPath?: string;
+    }) => Promise<StartDownloadResult>;
     /** Cancels an ongoing download process */
     cancel: (downloadId: string) => Promise<boolean>;
+    /** Looks up an existing local library/cache copy before downloading */
+    findExisting: (options: {
+      url?: string;
+      trackId?: string;
+      title?: string;
+      artist?: string;
+      libraryPath?: string;
+    }) => Promise<ExistingLocalMedia | null>;
     /** Moves a downloaded file into the user's permanent karaoke library */
     saveToLibrary: (payload: {
       tempFilePath: string;
@@ -99,6 +116,7 @@ export interface KaraokeAPI {
       artist: string;
       durationSec: number;
       targetDirectory?: string;
+      trackId?: string;
     }) => Promise<KaraokeMediaTrack>;
     /** Moves a downloaded file into the persistent queue cache */
     saveToQueueCache: (payload: {
@@ -106,6 +124,7 @@ export interface KaraokeAPI {
       title: string;
       artist: string;
       durationSec: number;
+      trackId?: string;
     }) => Promise<{ localFilePath: string; uri: string }>;
     /** Deletes a cached file from disk when dequeued */
     deleteCachedFile: (filePath: string) => Promise<{ success: boolean }>;
@@ -113,6 +132,8 @@ export interface KaraokeAPI {
     cleanupUnreferencedCache: (activeFilePaths: string[]) => Promise<{ deletedCount: number }>;
     /** Subscribes to live download progress updates */
     onProgress: (callback: (payload: DownloadProgressPayload) => void) => () => void;
+    /** Subscribes to library reindex notifications after saves */
+    onLibraryReindexed: (callback: () => void) => () => void;
   };
 
   // 7. Guest Portal & Requests
@@ -255,15 +276,24 @@ const karaokeApi: KaraokeAPI = {
   downloads: {
     start: (options) => ipcRenderer.invoke('download:start', options),
     cancel: (downloadId) => ipcRenderer.invoke('download:cancel', downloadId),
+    findExisting: (options) => ipcRenderer.invoke('download:find-existing', options),
     saveToLibrary: (payload) => ipcRenderer.invoke('download:save-to-library', payload),
     saveToQueueCache: (payload) => ipcRenderer.invoke('download:save-to-queue-cache', payload),
     deleteCachedFile: (filePath: string) => ipcRenderer.invoke('cache:delete-file', filePath),
-    cleanupUnreferencedCache: (activeFilePaths: string[]) => ipcRenderer.invoke('cache:cleanup-unreferenced', activeFilePaths),
+    cleanupUnreferencedCache: (activeFilePaths: string[]) =>
+      ipcRenderer.invoke('cache:cleanup-unreferenced', activeFilePaths),
     onProgress: (callback: (payload: DownloadProgressPayload) => void) => {
       const handler = (_event: IpcRendererEvent, payload: DownloadProgressPayload) => callback(payload);
       ipcRenderer.on('download:progress', handler);
       return () => {
         ipcRenderer.removeListener('download:progress', handler);
+      };
+    },
+    onLibraryReindexed: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('library:reindexed', handler);
+      return () => {
+        ipcRenderer.removeListener('library:reindexed', handler);
       };
     }
   },

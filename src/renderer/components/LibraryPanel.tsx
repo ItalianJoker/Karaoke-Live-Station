@@ -95,9 +95,13 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
       loadLocalCatalog();
     };
     window.addEventListener('karaoke:library-refreshed', handleLibraryRefreshed);
+    const unSubReindex = window.karaokeApi?.downloads?.onLibraryReindexed?.(() => {
+      loadLocalCatalog();
+    });
 
     return () => {
       window.removeEventListener('karaoke:library-refreshed', handleLibraryRefreshed);
+      unSubReindex?.();
     };
   }, [settings.libraryPath]);
 
@@ -109,6 +113,22 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
         if (payload.status === 'completed' && payload.outputFilePath) {
           const associatedTrack = trackMap[payload.downloadId];
           if (associatedTrack) {
+            // Dedup reuse: progress already points at the permanent/cache file — just relink
+            if (payload.alreadyExists) {
+              const localUri = `karaoke://local/${encodeURIComponent(payload.outputFilePath)}`;
+              updateTrackInQueue(associatedTrack.id, {
+                localFilePath: payload.outputFilePath,
+                uri: localUri,
+                source: payload.existingLocation === 'library' ? 'local_library' : associatedTrack.source
+              });
+              updateTrackInQueue(associatedTrack.uri, {
+                localFilePath: payload.outputFilePath,
+                uri: localUri,
+                source: payload.existingLocation === 'library' ? 'local_library' : associatedTrack.source
+              });
+              return;
+            }
+
             const localUri = `karaoke://local/${encodeURIComponent(payload.outputFilePath)}`;
             updateTrackInQueue(associatedTrack.id, {
               localFilePath: payload.outputFilePath,
@@ -121,13 +141,18 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
 
             // Auto-archive web tracks if enabled in settings
             if (settings.autoArchiveWebTracks) {
+              if (!settings.libraryPath?.trim()) {
+                console.error('Auto-archive skipped: libraryPath is not configured');
+                return;
+              }
               try {
                 const saved = await window.karaokeApi.downloads.saveToLibrary({
                   tempFilePath: payload.outputFilePath,
                   title: associatedTrack.title,
                   artist: associatedTrack.artist,
                   durationSec: associatedTrack.durationSec,
-                  targetDirectory: settings.libraryPath || undefined
+                  targetDirectory: settings.libraryPath,
+                  trackId: associatedTrack.id
                 });
                 // Switch queue pointer immediately to permanent saved file
                 updateTrackInQueue(associatedTrack.id, {
@@ -157,7 +182,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
                   tempFilePath: payload.outputFilePath,
                   title: associatedTrack.title,
                   artist: associatedTrack.artist,
-                  durationSec: associatedTrack.durationSec
+                  durationSec: associatedTrack.durationSec,
+                  trackId: associatedTrack.id
                 });
                 updateTrackInQueue(associatedTrack.id, {
                   localFilePath: cached.localFilePath,
@@ -235,9 +261,45 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
 
   const handleStartDownload = async (track: KaraokeMediaTrack) => {
     if (!window.karaokeApi) return;
+    if (settings.autoArchiveWebTracks && !settings.libraryPath?.trim()) {
+      alert(t('errors.libraryPathRequired', 'Imposta la cartella libreria nelle impostazioni prima di scaricare.'));
+      return;
+    }
     try {
-      const downloadId = await window.karaokeApi.downloads.start({ url: track.uri });
-      setTrackMap((prev) => ({ ...prev, [downloadId]: track }));
+      const result = await window.karaokeApi.downloads.start({
+        url: track.uri,
+        titleHint: track.title,
+        artistHint: track.artist,
+        trackId: track.id,
+        libraryPath: settings.libraryPath || undefined
+      });
+
+      setTrackMap((prev) => ({ ...prev, [result.downloadId]: track }));
+
+      if (result.alreadyExists && result.localFilePath) {
+        const localUri = result.uri || `karaoke://local/${encodeURIComponent(result.localFilePath)}`;
+        updateTrackInQueue(track.id, {
+          localFilePath: result.localFilePath,
+          uri: localUri,
+          source: result.location === 'library' ? 'local_library' : track.source
+        });
+        updateTrackInQueue(track.uri, {
+          localFilePath: result.localFilePath,
+          uri: localUri,
+          source: result.location === 'library' ? 'local_library' : track.source
+        });
+        alert(
+          t('library.alreadyLocal', {
+            path: result.localFilePath,
+            defaultValue:
+              'Brano già presente in locale. Collegato il file esistente senza riscaricare:\n{{path}}'
+          })
+        );
+        if (result.location === 'library') {
+          await loadLocalCatalog();
+          window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+        }
+      }
     } catch (err) {
       alert(t('errors.downloadFailed', { error: String(err) }));
     }
@@ -254,7 +316,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
         title: track.title,
         artist: track.artist,
         durationSec: track.durationSec,
-        targetDirectory: settings.libraryPath || undefined
+        targetDirectory: settings.libraryPath || undefined,
+        trackId: track.id
       });
       // Switch queue pointer to the permanent library file
       updateTrackInQueue(track.id, {

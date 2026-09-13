@@ -276,7 +276,8 @@ export const ControlWindow: React.FC = () => {
         title: track.title,
         artist: track.artist,
         durationSec: track.durationSec,
-        targetDirectory: settings.libraryPath || undefined
+        targetDirectory: settings.libraryPath || undefined,
+        trackId: track.id
       });
 
       updateTrackInQueue(track.id, {
@@ -520,14 +521,35 @@ export const ControlWindow: React.FC = () => {
       return;
     }
 
-    // If it's a YouTube track and has no local file, initiate download
+    // If it's a YouTube track and has no local file, initiate download (with local dedup)
     if (currentTrack.source === 'youtube' && !currentTrack.localFilePath) {
       if (!downloadProgress && window.karaokeApi) {
         setDownloadProgress({ percent: 0, speed: '0 KiB/s' });
-        window.karaokeApi.downloads.start({ url: currentTrack.uri }).catch((err) => {
-          console.error('Failed to auto-download YouTube track:', err);
-          setDownloadProgress(null);
-        });
+        const settingsSnapshot = useKaraokeStore.getState().settings;
+        window.karaokeApi.downloads
+          .start({
+            url: currentTrack.uri,
+            titleHint: currentTrack.title,
+            artistHint: currentTrack.artist,
+            trackId: currentTrack.id,
+            libraryPath: settingsSnapshot.libraryPath || undefined
+          })
+          .then((result) => {
+            if (result.alreadyExists && result.localFilePath) {
+              setDownloadProgress(null);
+              const localUri =
+                result.uri || `karaoke://local/${encodeURIComponent(result.localFilePath)}`;
+              updateTrackInQueue(currentTrack.id, {
+                localFilePath: result.localFilePath,
+                uri: localUri,
+                source: result.location === 'library' ? 'local_library' : currentTrack.source
+              });
+            }
+          })
+          .catch((err) => {
+            console.error('Failed to auto-download YouTube track:', err);
+            setDownloadProgress(null);
+          });
       }
       return;
     }

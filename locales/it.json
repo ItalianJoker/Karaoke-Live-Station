@@ -111,7 +111,8 @@
     "previewVideo": "Anteprima Video",
     "previewTitle": "Anteprima e Controllo Versione",
     "previewSafeAudioNotice": "Audio anteprima a volume controllato per non disturbare la sala",
-    "versionDetected": "Versione rilevata"
+    "versionDetected": "Versione rilevata",
+    "alreadyLocal": "Brano già presente in locale. Collegato il file esistente senza riscaricare:\n{{path}}"
   },
   "settings": {
     "title": "Impostazioni di Sistema",
@@ -191,7 +192,8 @@
     "missingFileDesc": "Il file specificato non è più accessibile al percorso indicato: {{path}}",
     "removeFromQueue": "Rimuovi dalla Coda",
     "dismiss": "Ignora",
-    "downloadFailed": "Download fallito: {{error}}"
+    "downloadFailed": "Download fallito: {{error}}",
+    "libraryPathRequired": "Imposta la cartella libreria nelle impostazioni prima di scaricare."
   },
   "firewall": {
     "title": "Assistente Firewall & Connessione LAN",

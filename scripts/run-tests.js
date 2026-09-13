@@ -586,6 +586,126 @@ assert(
 
 
 // -------------------------------------------------------------
+// Suite 10: Phase 2 Core Storage — Dedup, Archive Default, Single Instance
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite 10: Phase 2 Core Storage Contracts\x1b[0m');
+
+const downloadManagerSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+  'utf8'
+);
+const mainIndexSourceForPhase2 = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/index.ts'),
+  'utf8'
+);
+const settingsModalSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+  'utf8'
+);
+const libraryPanelSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+  'utf8'
+);
+const controlWindowSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+  'utf8'
+);
+const karaokeStoreSourceForPhase2 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+  'utf8'
+);
+
+const exactItalianWarning =
+  "Attenzione: disattivando l'archiviazione automatica, i brani scaricati non verranno salvati nella libreria permanente. Rimarranno disponibili nella cache temporanea solo finché sono presenti in coda (anche riavviando l'app) e verranno eliminati dal disco solo quando saranno scodati o la coda verrà svuotata.";
+
+assert(
+  itLocale.settings.autoArchiveWarningDesc === exactItalianWarning,
+  'Italian auto-archive warning matches required exact string'
+);
+assert(
+  settingsModalSource.includes(exactItalianWarning),
+  'Settings modal fallback embeds the exact Italian warning string'
+);
+assert(
+  /autoArchiveWebTracks:\s*true/.test(karaokeStoreSourceForPhase2),
+  'Auto-archive web tracks defaults to ON in karaoke store'
+);
+assert(
+  downloadManagerSource.includes('findExistingLocalMedia') &&
+    downloadManagerSource.includes('alreadyExists: true') &&
+    downloadManagerSource.includes('mediaFingerprint'),
+  'DownloadManager implements local-file deduplication before network I/O'
+);
+assert(
+  libraryPanelSource.includes('alreadyExists') &&
+    (libraryPanelSource.includes('library.alreadyLocal') ||
+      libraryPanelSource.includes('alreadyLocal')),
+  'LibraryPanel notifies user and relinks when a local copy already exists'
+);
+assert(
+  mainIndexSourceForPhase2.includes('requestSingleInstanceLock') &&
+    mainIndexSourceForPhase2.includes('second-instance') &&
+    (mainIndexSourceForPhase2.includes('controlWindow.focus()') ||
+      mainIndexSourceForPhase2.includes('.focus()')),
+  'Single-instance lock focuses existing Control window and exits duplicate process'
+);
+assert(
+  mainIndexSourceForPhase2.includes('Percorso libreria non configurato') ||
+    mainIndexSourceForPhase2.includes('libraryPath'),
+  'save-to-library requires configured libraryPath'
+);
+assert(
+  !/path\.join\(\s*app\.getPath\(\s*['"]userData['"]\s*\)\s*,\s*['"]library['"]\s*\)/.test(
+    (mainIndexSourceForPhase2.split('download:save-to-library')[1] || '').slice(0, 1200)
+  ),
+  'save-to-library has no silent userData/library fallback'
+);
+assert(
+  libraryPanelSource.includes('karaoke:library-refreshed') &&
+    mainIndexSourceForPhase2.includes('library:reindexed'),
+  'Library reindex/refresh events emitted after save for live Library view updates'
+);
+assert(
+  karaokeStoreSourceForPhase2.includes('cleanupQueueCacheFileIfUnreferenced') &&
+    karaokeStoreSourceForPhase2.includes('queue_cache'),
+  'Queue cache GC runs when tracks are dequeued or the queue is cleared'
+);
+assert(
+  libraryPanelSource.includes('saveToQueueCache') &&
+    (controlWindowSource.includes('saveToLibrary') ||
+      libraryPanelSource.includes('saveToLibrary')),
+  'Promote cache→Library action and queue_cache persistence paths exist'
+);
+
+function extractYouTubeIdForTest(urlOrId) {
+  if (!urlOrId || typeof urlOrId !== 'string') return null;
+  const trimmed = urlOrId.trim();
+  if (/^[\w-]{11}$/.test(trimmed)) return trimmed;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.hostname.includes('youtu.be')) {
+      const id = parsed.pathname.replace(/^\//, '').slice(0, 11);
+      return /^[\w-]{11}$/.test(id) ? id : null;
+    }
+    const v = parsed.searchParams.get('v');
+    if (v && /^[\w-]{11}$/.test(v)) return v;
+  } catch {}
+  const loose = trimmed.match(/(?:v=|\/)([\w-]{11})(?:[^\w-]|$)/);
+  return loose ? loose[1] : null;
+}
+
+assert(
+  extractYouTubeIdForTest('https://www.youtube.com/watch?v=dQw4w9WgXcQ') === 'dQw4w9WgXcQ',
+  'YouTube id extraction works for watch URLs'
+);
+assert(
+  extractYouTubeIdForTest('https://youtu.be/dQw4w9WgXcQ') === 'dQw4w9WgXcQ',
+  'YouTube id extraction works for youtu.be URLs'
+);
+assert(extractYouTubeIdForTest('dQw4w9WgXcQ') === 'dQw4w9WgXcQ', 'Bare YouTube id is accepted');
+
+
+// -------------------------------------------------------------
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');
