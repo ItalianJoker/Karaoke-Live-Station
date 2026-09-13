@@ -37,7 +37,7 @@ Consola completa del operador:
 - Transport (Play / Pausa / Stop / Reiniciar / Siguiente)
 - Volumen master con curva perceptiva
 - Pitch en semitonos y velocidad (time-stretch)
-- Eliminación de voz guía mediante **Demucs** (HTDemucs)
+- Eliminación de voz guía **(Experimental)** mediante DSP clásico mid/side (algorítmico, tiempo real)
 - Auto-ducking BGM al micrófono
 - Mezclador MIDI/KAR de 16 canales
 - Preescucha CUE en dispositivo secundario
@@ -53,6 +53,7 @@ Pantalla para cantante y público (TV o proyector):
 - Sincronización vía IPC con Regia
 - Banners «Ora Canta», «Preparati», «Prossima Esibizione» (textos de UI en italiano)
 - Badge de semitonos configurable (`showPitchOnStage`)
+- Badge de velocidad configurable (`showSpeedOnStage`)
 - Pantalla completa (F11 / Esc / doble clic)
 
 ### 1.3 Guest Portal LAN
@@ -67,7 +68,7 @@ La aplicación permite **una sola instancia** en ejecución. Un segundo arranque
 
 1. Regia posee el transport y el grafo Web Audio.
 2. Los medios locales pasan por el protocolo `karaoke://local/` con streaming por rangos de bytes (HTTP 206), de modo que Stage puede abrirse/cerrarse a mitad de tema sin desincronizar.
-3. Pitch, velocidad, Demucs, ducking, normalización y routing CUE viven en el grafo de audio de Regia.
+3. Pitch, velocidad, eliminador de voz DSP (experimental), ducking, normalización y routing CUE viven en el grafo de audio de Regia.
 4. MIDI/KAR: parsing → SpessaSynth + SoundFont → mezclador de 16 canales.
 5. El avance de cola y el registro SIAE se gestionan en el store; Stage recibe el estado vía IPC.
 
@@ -103,7 +104,6 @@ Contenidos relevantes:
 | `queue_cache/` | Archivos web no archivados en la biblioteca, persistentes mientras estén en cola |
 | `thumbnails/` | Miniaturas generadas |
 | `logs/` | Logs de diagnóstico |
-| `models/` | Modelo ONNX HTDemucs (~172 MB) para eliminación de voz |
 
 ### 2.3 Binarios gestionados en `<userData>/bin/`
 
@@ -230,19 +230,19 @@ Ejemplos: 100% → ganancia plena; 50% → ganancia 0,25 (−12 dB aprox., mitad
 - **Velocidad:** de **0,50× a 1,50×** sin alterar el pitch (WSOLA / SoundTouch). `Ctrl+←` / `Ctrl+→` ajustan ±5%. Un clic en el indicador numérico suele restaurar 1,00×.
 - MIDI: la transposición actúa sobre los números de nota en tiempo real.
 
-### 4.4 Eliminación de voz guía (Demucs)
+### 4.4 Eliminación de voz guía (DSP experimental)
 
-La tecla **`V`** / el control **Eliminar voz guía** (`Rimuovi Voce Guida`) activa la separación de stems con **Meta HTDemucs** (`demucs-web` + `onnxruntime-web`), no un simple cancelador L−R.
+La tecla **`V`** / el control **Eliminar Voz Guía (Experimental)** (`Rimuovi Voce Guida (Sperimentale)`) activa una reducción vocal **algorítmica clásica mid/side** (canal central / estilo karaoke L−R) en **tiempo real**: ligera, sin modelos AI/ML, sin descargas y sin separación offline.
 
-Flujo operativo:
+En **Ajustes → Audio y reproducción** elige el algoritmo del botón de Regia:
 
-1. En la primera activación puede descargar/cargar el modelo ONNX en `<userData>/models/` (~172 MB).
-2. La reproducción “dry” continúa mientras Demucs procesa en segundo plano.
-3. Completada la separación, crossfade hacia la mezcla instrumental (drums + bass + other, sin vocals).
-4. Play / pausa / seek permanecen sincronizados; el cambio de tema invalida el stem anterior.
-5. Caché LRU de stems instrumentales (máximo unas 4 buffers) para no saturar la RAM en noches largas.
+| Algoritmo (`vocalRemoverAlgorithm`) | Etiqueta UI |
+| :--- | :--- |
+| **`centerCancelBassKeep`** (por defecto) | Cancelar centro (mantener graves) — recomendado |
+| **`centerCancel`** | Cancelación total del centro (L−R clásico) |
+| **`softMid`** | Atenuación mid suave (menos artefactos) |
 
-Si la separación falla, permanece la mezcla original.
+La activación es instantánea sobre el mix en reproducción; el resultado depende del stereo (voces muy laterales pueden seguir audibles).
 
 ### 4.5 Auto-ducking BGM
 
@@ -258,7 +258,9 @@ Con archivos `.mid` / `.kar` aparece el **Mezclador de canales MIDI** (`Mixer Ca
 
 ### 4.7 Preescucha CUE
 
-Usa **Preescucha en auriculares (CUE)** (`Pre-ascolto Cuffie (CUE)`) para escuchar en auriculares mientras la sala oye el Master. Configura el dispositivo CUE en Ajustes. Las vistas previas de vídeo en Biblioteca usan volumen controlado para no molestar a la sala (**«Audio anteprima a volume controllato per non disturbare la sala»** — texto de UI en italiano).
+Usa **Preescucha en auriculares (CUE)** (`Pre-ascolto Cuffie (CUE)`) para escuchar en auriculares mientras la sala oye el Master. Configura el dispositivo CUE en Ajustes.
+
+En **Biblioteca**, el botón Preescucha abre el **modal de vista previa** (mismo estilo que Ajustes) y enruta el audio al dispositivo CUE. No hay barra de volumen aparte: silencio/volumen quedan en los controles del reproductor embebido (o transporte MIDI). Si CUE y Salida Principal coinciden, al quitar el silencio aparece un aviso de confirmación para no mezclar la previa en el PA de sala.
 
 ### 4.8 Persistencia de cola y anti-crash
 
@@ -325,17 +327,17 @@ Pestaña **Biblioteca y búsqueda** (`Libreria & Ricerca`) (`2` o `Ctrl+F`).
 
 ### 6.1 Búsqueda local en vivo
 
-- Modo **Local** (`Locale`)
+- Modo **Local** (ámbito independiente de la búsqueda Web)
 - Filtro **continuo** mientras escribes (`onChange`) sobre título, artista, código
 - Estados vacíos distintos:
   - **«Libreria vuota. Scansiona una cartella o cerca sul web.»** (texto de UI en italiano)
   - **«Nessun brano corrisponde alla ricerca locale.»** (texto de UI en italiano)
-- **Actualizar biblioteca** (`Aggiorna Libreria`) reescanea `libraryPath` y actualiza el catálogo SQLite
-- La consulta y el modo de búsqueda permanecen en `sessionStorage` durante la sesión; las pestañas derechas siguen montadas (ocultas) para que filtros y descargas no se pierdan al cambiar de pestaña
+- **Actualizar biblioteca** (`Aggiorna Libreria`) vuelve a escanear `libraryPath` y actualiza el catálogo SQLite
+- Consulta, resultados, carga y scroll de **Local** y **Web** quedan **separados** (ámbitos independientes): cambiar de pestaña no pierde estado ni lanza búsquedas YouTube no deseadas; persistencia en `sessionStorage` durante la sesión; las pestañas derechas siguen montadas (ocultas)
 
 ### 6.2 Búsqueda web (YouTube)
 
-- Modo **Web / YouTube**
+- Modo **Web / YouTube** (ámbito independiente de la búsqueda Local)
 - Escribe y pulsa **Intro** (`Invio`) (no busca en cada tecla)
 - Motor: **yt-dlp** desde `<userData>/bin/`
 - Placeholder: **«Cerca brano su YouTube Karaoke...»** (texto de UI en italiano)
@@ -377,6 +379,16 @@ Portadas/miniaturas y vistas previas locales se actualizan sin reiniciar (ffmpeg
 - Chip de versión (p. ej. KaraFun, Sing King, Con coros, Instrumental…)
 - Clic en miniatura / icono de vista previa → **Vista previa y control de versión** (`Anteprima e Controllo Versione`) con scrubber, ruta de archivo, añadir a cola y asignar cantante
 - Con Fair Queue activo, elección de posición Fair vs al final también desde la vista previa
+- El botón **Preescucha** abre el mismo modal temático con audio en el dispositivo CUE (véase §4.7)
+
+### 6.6 Eliminar de la biblioteca
+
+En los temas del catálogo local está **Eliminar de la biblioteca** (`Elimina dalla libreria`), con confirmación (**«Eliminare il brano?»**). La acción:
+
+1. Quita la fila del catálogo SQLite.
+2. Borra del disco **solo** los archivos permanentes bajo la carpeta de biblioteca (`libraryPath`); no borra archivos en `queue_cache` / `temp` / descargas incompletas.
+
+Tras confirmar aparece un toast de resultado (éxito o error).
 
 ---
 
@@ -403,6 +415,13 @@ Ajuste **Mostrar variación de tonalidad en la pantalla del escenario** (`Mostra
 ### 7.2a Fondos personalizados de los mensajes del escenario
 
 En **Ajustes → Pantalla de escenario**, cada mensaje superpuesto puede definir texto/estilo/activación y un **fondo del escenario (color o imagen) solo mientras el mensaje es visible**. Al ocultarse (o si se desactiva), se restaura el fondo normal de tema/vídeo sin reiniciar.
+
+### 7.2b Badge de velocidad y `showSpeedOnStage`
+
+Ajuste **Mostrar velocidad de reproducción en la pantalla del escenario** (`Mostra velocità di riproduzione sullo schermo del palco`) (`showSpeedOnStage`, por defecto típicamente ON):
+
+- Muestra el badge de velocidad (p. ej. **`1.00x`**, **`1.25x`**)
+- Descripción UI: «Visualizza il badge della velocità di riproduzione (es. 1.00x, 1.25x) sullo schermo del palco per il cantante.» (texto de UI en italiano)
 
 ### 7.3 Pantalla completa y layout
 
@@ -447,11 +466,11 @@ Abre **Ajustes del sistema** (`Impostazioni di Sistema`) (engranaje). Arriba: ca
 | :--- | :--- |
 | **General** (`Generale`) | Temas Regia/Escenario, idioma, Fair Queue, Guest Portal, SIAE, soporte del proyecto |
 | **Biblioteca y descarga** (`Libreria & Download`) | `libraryPath`, archivado automático (+ aviso), estado/actualización de yt-dlp |
-| **Audio y reproducción** (`Audio & Riproduzione`) | SoundFont, Master/CUE, sync A/V, normalización, vocal remover/ducking por defecto, auto-avance, `transitionPauseSec` |
-| **Pantalla Stage** (`Schermo Stage`) | Banners intro/outro, overlay de título, siguiente cantante en intro, **`showPitchOnStage`** |
-| **Atajos** (`Scorciatoie`) | Referencia de atajos (también abrible con F1 / ?) |
+| **Audio y reproducción** (`Audio & Riproduzione`) | SoundFont, Master/CUE, sync A/V, normalización, **algoritmo de eliminación de voz (experimental)**, vocal remover/ducking por defecto, auto-avance, `transitionPauseSec` |
+| **Pantalla Stage** (`Schermo Stage`) | Banners intro/outro, overlay de título, siguiente cantante en intro, **`showPitchOnStage`**, **`showSpeedOnStage`**, **fondos personalizados de mensajes Stage** |
+| **Atajos** (`Scorciatoie`) | Inventario completo de atajos en vivo (misma lista que el panel **?** / F1), con búsqueda |
 
-La búsqueda filtra etiquetas/descripciones **entre todas las categorías**; al vaciar el campo vuelves a la navegación por pestañas. Ningún ajuste se elimina por la reorganización en pestañas.
+La búsqueda filtra etiquetas/descripciones **entre todas las categorías** (incluida Atajos en **paridad** con la guía **?**); al vaciar el campo vuelves a la navegación por pestañas. Ningún ajuste se elimina por la reorganización en pestañas.
 
 ### 9.2 Otras opciones útiles
 
@@ -489,7 +508,7 @@ Abre la guía en cualquier momento con **`F1`** o **`?`**. Los atajos en vivo se
 | `+` / `-` | Pitch ±1 semitono |
 | `Ctrl+↑` / `Ctrl+↓` | Pitch ±1 semitono |
 | `Ctrl+←` / `Ctrl+→` | Velocidad ±5% |
-| `V` | Eliminación de voz guía (Demucs) |
+| `V` | Eliminación de voz guía DSP (experimental) |
 | `D` | Auto-ducking BGM |
 
 ### 10.3 Navegación y pantallas
@@ -510,7 +529,8 @@ Los tooltips de los controles en Regia muestran las mismas combinaciones para us
 ---
 
 
-También en Ajustes → Atajos y el panel **?** / F1: Stop (`S`), Restart (`R`), flechas de seek, Ctrl+flechas para tono/velocidad, Vocal remover (`V`), Ducking (`D`), pestañas `1`/`2`/`3`, Stage (`P`), ayuda (`F1`/`?`). Pantalla completa Stage: `F11`/`Esc` en la ventana Stage.
+También en Ajustes → Atajos y el panel **?** / F1 (mismo inventario): Stop (`S`), Restart (`R`), flechas de seek, Ctrl+flechas para tono/velocidad, Vocal remover experimental (`V`), Ducking (`D`), pestañas `1`/`2`/`3`, Stage (`P`), ayuda (`F1`/`?`). Pantalla completa Stage: `F11`/`Esc` en la ventana Stage.
+
 ## 11. Guest Portal LAN
 
 ### 11.1 Activación
@@ -639,12 +659,13 @@ Solución: Ajustes → **Cartella Libreria Karaoke** → Examinar → carpeta ex
 - Verifica **Master** y **CUE** en Ajustes.
 - Comprueba mudo (`M`) y volumen (curva cuadrática: por debajo del 50% ya es muy bajo).
 - MIDI: confirma SoundFont cargado.
-- Demucs en elaboración: el audio dry continúa; si algo falla permanece la mezcla original.
+- Eliminación de voz DSP: efecto inmediato y ligero; si el mix stereo tiene poca voz al centro, el resultado puede ser mínimo — prueba otro algoritmo en Ajustes → Audio.
 
-### 14.6 Pitch / badge en el escenario
+### 14.6 Pitch / badge de velocidad en el escenario
 
 - Si el cantante no ve los semitonos: activa **Mostra variazione tonalità sullo schermo del palco**.
-- Esperado: `+2`, `-1`, `0`, etc. según la cola.
+- Si no ve la velocidad: activa **Mostra velocità di riproduzione sullo schermo del palco**.
+- Esperado: `+2`, `-1`, `0`, y p. ej. `1.00x` / `1.25x` según la cola.
 
 ### 14.7 Vista previa de YouTube error 153
 
@@ -685,6 +706,7 @@ Ajustes → Diagnóstico y archivos de log: nivel, abrir carpeta/archivo, borrar
 | Auto-avance al siguiente tema | OFF |
 | Pausa de transición | 3 s |
 | showPitchOnStage | ON |
+| showSpeedOnStage | ON |
 | Puerto Guest Portal | 3000 |
 | Umbral de log SIAE | ≥ 120 s o final natural |
 | Rango de pitch Regia | −8 … +8 ST |

@@ -53,6 +53,8 @@ export interface KaraokeAPI {
     searchTracks: (query: string, limit?: number) => Promise<KaraokeMediaTrack[]>;
     /** Inserts or updates a catalog track */
     upsertTrack: (track: KaraokeMediaTrack) => Promise<{ success: boolean }>;
+    /** Removes a track from the catalog; deletes disk file only if under permanent libraryPath */
+    deleteTrack: (trackId: string) => Promise<{ success: boolean; deletedFile?: boolean; error?: string }>;
     /** Retrieves all registered singers ordered by priority */
     getAllSingers: () => Promise<SingerProfile[]>;
     /** Retrieves or registers a singer by name */
@@ -198,14 +200,6 @@ export interface KaraokeAPI {
     /** Checks GitHub releases for updates and performs immediate download/update if available */
     checkUpdate: () => Promise<YtDlpStatus>;
   };
-
-  /** HTDemucs ONNX model cache (main-process download / ArrayBuffer transfer) */
-  demucs: {
-    /** Returns true when the HTDemucs model is already cached under userData */
-    isModelCached: () => Promise<boolean>;
-    /** Ensures the model is downloaded and returns its raw ArrayBuffer */
-    getModelBuffer: () => Promise<ArrayBuffer>;
-  };
 }
 
 const karaokeApi: KaraokeAPI = {
@@ -261,6 +255,7 @@ const karaokeApi: KaraokeAPI = {
     getTracks: () => ipcRenderer.invoke('db:get-tracks'),
     searchTracks: (query: string, limit?: number) => ipcRenderer.invoke('db:search-tracks', query, limit),
     upsertTrack: (track: KaraokeMediaTrack) => ipcRenderer.invoke('db:upsert-track', track),
+    deleteTrack: (trackId: string) => ipcRenderer.invoke('db:delete-track', trackId),
     getAllSingers: () => ipcRenderer.invoke('db:get-singers'),
     getOrCreateSinger: (name: string) => ipcRenderer.invoke('db:get-or-create-singer', name),
     setSingerPermanent: (singerId: string, isPermanent: boolean) => ipcRenderer.invoke('db:set-singer-permanent', singerId, isPermanent),
@@ -366,11 +361,6 @@ const karaokeApi: KaraokeAPI = {
     getStatus: () => ipcRenderer.invoke('ytdlp:get-status'),
     checkUpdate: () => ipcRenderer.invoke('ytdlp:check-update')
   },
-
-  demucs: {
-    isModelCached: () => ipcRenderer.invoke('demucs:is-model-cached'),
-    getModelBuffer: () => ipcRenderer.invoke('demucs:get-model-buffer')
-  }
 };
 
 contextBridge.exposeInMainWorld('karaokeApi', karaokeApi);

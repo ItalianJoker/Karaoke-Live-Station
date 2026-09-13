@@ -18,7 +18,7 @@
     "mute": "Mute",
     "cue": "Headphone CUE Preview",
     "stopCue": "Stop CUE",
-    "vocalRemover": "Vocal Remover",
+    "vocalRemover": "Vocal Remover (Experimental)",
     "bgmDucking": "Auto-Ducking BGM",
     "nowPlaying": "Now Playing",
     "noTrackLoaded": "No track loaded",
@@ -121,7 +121,14 @@
     "previewUnmuteSameDeviceTitle": "Warning: same audio device",
     "previewUnmuteSameDeviceMessage": "Pre-Listen (CUE) and Main Output are set to the same device. Unmuting may mix preview audio onto the main PA. Continue?",
     "previewUnmuteSameDeviceConfirm": "Yes, unmute",
-    "previewUnmuteSameDeviceCancel": "Cancel"
+    "previewUnmuteSameDeviceCancel": "Cancel",
+    "deleteTrack": "Delete from library",
+    "confirmDeleteTitle": "Delete this track?",
+    "confirmDeleteMessage": "Remove “{{title}}” by {{artist}} from the catalog? Permanent files under the library folder will also be deleted from disk.",
+    "confirmDeleteConfirm": "Delete",
+    "confirmDeleteCancel": "Cancel",
+    "deleteSuccess": "Track removed from library",
+    "deleteFailed": "Could not delete track"
   },
   "settings": {
     "title": "System Settings",
@@ -211,7 +218,12 @@
     "stageMessageBackgroundImage": "Image",
     "stageMessageBackgroundImagePlaceholder": "No image selected",
     "stageMessageBackgroundBrowse": "Browse…",
-    "stageMessageBackgroundClear": "Clear"
+    "stageMessageBackgroundClear": "Clear",
+    "vocalRemoverAlgorithm": "Vocal Remover Algorithm (Experimental)",
+    "vocalRemoverAlgorithmDesc": "Real-time classical mid/side DSP methods (no AI). Chooses the algorithm used by the Control button.",
+    "vocalAlgoCenterBass": "Center cancel (keep bass) — recommended",
+    "vocalAlgoCenter": "Full center cancel (classic L−R)",
+    "vocalAlgoSoftMid": "Soft mid attenuation (fewer artifacts)"
   },
   "history": {
     "title": "Playback History",
@@ -273,7 +285,7 @@
     "pitchUpDown": "Pitch / Key (+1 / -1 semitone)",
     "pitchCtrl": "Pitch / Key (+1 / -1 semitone)",
     "speedCtrl": "Playback speed (+5% / -5%)",
-    "vocalRemover": "Toggle vocal remover",
+    "vocalRemover": "Toggle guide-vocal remover (experimental)",
     "ducking": "Toggle mic auto-ducking",
     "tabQueue": "Switch to Queue tab",
     "tabLibrary": "Switch to Library & Search tab",

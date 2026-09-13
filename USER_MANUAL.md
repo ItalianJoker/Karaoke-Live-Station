@@ -37,7 +37,7 @@ Console operatore completa:
 - Transport (Play / Pausa / Stop / Ricomincia / Prossimo)
 - Volume master con curva percettiva
 - Pitch in semitoni e velocità (time-stretch)
-- Rimozione voce guida tramite **Demucs** (HTDemucs)
+- Rimozione voce guida **(Sperimentale)** via DSP classico mid/side (algoritmico, tempo reale)
 - Auto-ducking BGM al microfono
 - Mixer MIDI/KAR a 16 canali
 - Pre-ascolto CUE su dispositivo secondario
@@ -53,6 +53,7 @@ Schermo per cantante e pubblico (TV o proiettore):
 - Sincronizzazione via IPC con la Regia
 - Banner «Ora Canta», «Preparati», «Prossima Esibizione»
 - Badge semitoni configurabile (`showPitchOnStage`)
+- Badge velocità configurabile (`showSpeedOnStage`)
 - Fullscreen (F11 / Esc / doppio clic)
 
 ### 1.3 Guest Portal LAN
@@ -67,7 +68,7 @@ L’applicazione consente **una sola istanza** in esecuzione. Un secondo avvio v
 
 1. La Regia possiede il transport e il grafo Web Audio.
 2. I media locali passano dal protocollo `karaoke://local/` con streaming a byte-range (HTTP 206), così lo Stage può aprirsi/chiudersi a brano in corso senza desincronizzare.
-3. Pitch, velocità, Demucs, ducking, normalizzazione e routing CUE vivono nel grafo audio della Regia.
+3. Pitch, velocità, rimozione voce DSP (sperimentale), ducking, normalizzazione e routing CUE vivono nel grafo audio della Regia.
 4. MIDI/KAR: parsing → SpessaSynth + SoundFont → mixer a 16 canali.
 5. Avanzamento coda e registro SIAE sono gestiti nello store; lo Stage riceve lo stato via IPC.
 
@@ -103,7 +104,6 @@ Contenuti rilevanti:
 | `queue_cache/` | File web non archiviati in libreria, persistenti finché in coda |
 | `thumbnails/` | Miniature generate |
 | `logs/` | Log diagnostici |
-| `models/` | Modello ONNX HTDemucs (~172 MB) per la rimozione voce |
 
 ### 2.3 Binari gestiti in `<userData>/bin/`
 
@@ -230,19 +230,19 @@ Esempi: 100% → guadagno pieno; 50% → guadagno 0,25 (−12 dB circa, dimezzam
 - **Velocità:** da **0,50× a 1,50×** senza alterare il pitch (WSOLA / SoundTouch). `Ctrl+←` / `Ctrl+→` regolano di ±5%. Clic sull’indicatore numerico ripristina spesso 1,00×.
 - MIDI: la trasposizione agisce sui numeri di nota in tempo reale.
 
-### 4.4 Rimozione voce guida (Demucs)
+### 4.4 Rimozione voce guida (DSP sperimentale)
 
-Il tasto **`V`** / controllo **Rimuovi Voce Guida** attiva la separazione steli con **Meta HTDemucs** (`demucs-web` + `onnxruntime-web`), non un semplice cancellatore L−R.
+Il tasto **`V`** / controllo **Rimuovi Voce Guida (Sperimentale)** attiva una riduzione voce **algoritmica classica mid/side** (centro-canale / stile karaoke L−R) in **tempo reale**: leggera, senza modelli AI/ML, senza download e senza elaborazione offline.
 
-Flusso operativo:
+In **Impostazioni → Audio & Riproduzione** puoi scegliere l’algoritmo usato dal pulsante in Regia:
 
-1. Alla prima attivazione può scaricare/caricare il modello ONNX in `<userData>/models/` (~172 MB).
-2. La riproduzione “dry” continua mentre Demucs elabora in background.
-3. Completata la separazione, crossfade verso il mix strumentale (drums + bass + other, senza vocals).
-4. Play / pausa / seek restano sincronizzati; cambio brano invalida lo stem precedente.
-5. Cache LRU degli stem strumentali (massimo circa 4 buffer) per non saturare la RAM nelle serate lunghe.
+| Algoritmo (`vocalRemoverAlgorithm`) | Descrizione UI |
+| :--- | :--- |
+| **`centerCancelBassKeep`** (default) | Cancella centro (mantieni bassi) — consigliato |
+| **`centerCancel`** | Cancella centro completo (L−R classico) |
+| **`softMid`** | Attenuazione mid soft (meno artefatti) |
 
-Se la separazione fallisce, resta il mix originale.
+Attivazione/disattivazione istantanea sul mix in riproduzione; il risultato dipende dal mix stereo (voci fortemente laterali o dry/wet particolari possono restare udibili).
 
 ### 4.5 Auto-ducking BGM
 
@@ -258,7 +258,9 @@ Con file `.mid` / `.kar` compare il **Mixer Canali MIDI**:
 
 ### 4.7 Pre-ascolto CUE
 
-Usa **Pre-ascolto Cuffie (CUE)** per ascoltare in cuffia mentre la sala sente il Master. Configura il dispositivo CUE nelle Impostazioni. Le anteprime video in Libreria usano volume controllato per non disturbare la sala (**«Audio anteprima a volume controllato per non disturbare la sala»**).
+Usa **Pre-ascolto Cuffie (CUE)** per ascoltare in cuffia mentre la sala sente il Master. Configura il dispositivo CUE nelle Impostazioni.
+
+In **Libreria**, il pulsante Pre-ascolto apre il **modale anteprima** (stesso tema delle Impostazioni) e indirizza l’audio al dispositivo CUE. Non c’è una barra volume dedicata: volume e muto restano sui controlli del player incorporato (o del trasporto MIDI). Se CUE e Uscita Principale coincidono, togliendo il muto compare un avviso di conferma per evitare di mescolare l’anteprima sul PA di sala.
 
 ### 4.8 Persistenza coda e anti-crash
 
@@ -325,17 +327,17 @@ Scheda **Libreria & Ricerca** (`2` o `Ctrl+F`).
 
 ### 6.1 Ricerca locale live
 
-- Modalità **Locale**
+- Modalità **Locale** (ambito indipendente dalla ricerca Web)
 - Filtro **continuo** mentre digiti (`onChange`) su titolo, artista, codice
 - Stati vuoti distinti:
   - **«Libreria vuota. Scansiona una cartella o cerca sul web.»**
   - **«Nessun brano corrisponde alla ricerca locale.»**
 - **Aggiorna Libreria** riscansisce `libraryPath` e aggiorna il catalogo SQLite
-- Query e modalità di ricerca restano in `sessionStorage` durante la sessione; le schede destra restano montate (nascoste) così filtri e download non si perdono cambiando tab
+- Query, risultati, loading e scroll di **Locale** e **Web** sono **separati** (hook scoped): cambiare tab non perde lo stato né avvia ricerche YouTube indesiderate; persistenza in `sessionStorage` durante la sessione; le schede destra restano montate (nascoste)
 
 ### 6.2 Ricerca web (YouTube)
 
-- Modalità **Web / YouTube**
+- Modalità **Web / YouTube** (ambito indipendente dalla ricerca Locale)
 - Digita e premi **Invio** (non ricerca a ogni tasto)
 - Motore: **yt-dlp** da `<userData>/bin/`
 - Placeholder: **«Cerca brano su YouTube Karaoke...»**
@@ -376,7 +378,17 @@ Copertine/miniature e anteprime locali si aggiornano senza riavviare (ffmpeg est
 - Miniature 16:9 in lista
 - Chip versione (es. KaraFun, Sing King, Con Cori, Strumentale…)
 - Clic su miniatura / icona anteprima → **Anteprima e Controllo Versione** con scrubber, percorso file, aggiunta in coda e assegnazione cantante
+- Il pulsante **Pre-ascolto** apre lo stesso modale tematico con audio sul dispositivo CUE (vedi §4.7)
 - Con Fair Queue attivo, scelta posizione Fair vs in fondo anche dall’anteprima
+
+### 6.6 Elimina dalla libreria
+
+Sui brani del catalogo locale è disponibile **Elimina dalla libreria**, con conferma (**«Eliminare il brano?»**). L’azione:
+
+1. Rimuove la voce dal database SQLite.
+2. Elimina dal disco **solo** i file permanenti sotto la cartella libreria (`libraryPath`); non cancella file in `queue_cache` / `temp` / download incompleti.
+
+Dopo la conferma compare un toast di esito (successo o errore).
 
 ---
 
@@ -403,6 +415,13 @@ Impostazione **Mostra variazione tonalità sullo schermo del palco** (`showPitch
 ### 7.2a Sfondi personalizzati dei messaggi Stage
 
 In **Impostazioni → Schermo Stage**, ogni messaggio overlay (Ora Canta, Preparati, Prossimo sul palco, …) può definire testo/stile/attivazione e uno **sfondo Stage (colore o immagine) valido solo mentre il messaggio è visibile**. Al termine (o se disattivato) torna lo sfondo normale tema/video, senza riavvio.
+
+### 7.2b Badge velocità e `showSpeedOnStage`
+
+Impostazione **Mostra velocità di riproduzione sullo schermo del palco** (`showSpeedOnStage`, default tipicamente ON):
+
+- Mostra il badge velocità (es. **`1.00x`**, **`1.25x`**)
+- Descrizione UI: «Visualizza il badge della velocità di riproduzione (es. 1.00x, 1.25x) sullo schermo del palco per il cantante.»
 
 ### 7.3 Fullscreen e layout
 
@@ -447,11 +466,11 @@ Apri **Impostazioni di Sistema** (ingranaggio). In alto: campo **«Cerca imposta
 | :--- | :--- |
 | **Generale** | Temi Regia/Palco, lingua, Fair Queue, Guest Portal, SIAE, supporto progetto |
 | **Libreria & Download** | `libraryPath`, archiviazione automatica (+ warning), yt-dlp stato/aggiornamento |
-| **Audio & Riproduzione** | SoundFont, Master/CUE, sync A/V, normalizzazione, vocal remover/ducking di default, auto-advance, `transitionPauseSec` |
-| **Schermo Stage** | Banner intro/outro, titolo overlay, prossimo cantante in intro, **`showPitchOnStage`** |
-| **Scorciatoie** | Riferimento scorciatoie (anche apribile con F1 / ?) |
+| **Audio & Riproduzione** | SoundFont, Master/CUE, sync A/V, normalizzazione, **algoritmo rimozione voce (sperimentale)**, vocal remover/ducking di default, auto-advance, `transitionPauseSec` |
+| **Schermo Stage** | Banner intro/outro, titolo overlay, prossimo cantante in intro, **`showPitchOnStage`**, **`showSpeedOnStage`**, **sfondi personalizzati messaggi Stage** |
+| **Scorciatoie** | Elenco completo delle scorciatoie live (stesso inventario del pannello **?** / F1), ricercabile |
 
-La ricerca filtra etichette/descrizioni **tra tutte le categorie**; svuotando il campo torni alla navigazione a tab. Nessuna impostazione viene rimossa dalla riorganizzazione a tab.
+La ricerca filtra etichette/descrizioni **tra tutte le categorie** (inclusa la scheda Scorciatoie in **parità** con la guida **?**); svuotando il campo torni alla navigazione a tab. Nessuna impostazione viene rimossa dalla riorganizzazione a tab.
 
 ### 9.2 Altre opzioni utili
 
@@ -489,7 +508,7 @@ Apri la guida in qualsiasi momento con **`F1`** o **`?`**. Le scorciatoie live s
 | `+` / `-` | Pitch ±1 semitono |
 | `Ctrl+↑` / `Ctrl+↓` | Pitch ±1 semitono |
 | `Ctrl+←` / `Ctrl+→` | Velocità ±5% |
-| `V` | Rimozione voce guida (Demucs) |
+| `V` | Rimozione voce guida DSP (sperimentale) |
 | `D` | Auto-ducking BGM |
 
 ### 10.3 Navigazione e schermi
@@ -510,7 +529,8 @@ I tooltip dei controlli in Regia riportano le stesse combinazioni per uso a colp
 ---
 
 
-Anche in Impostazioni → Scorciatoie e nel pannello **?** / F1: Stop (`S`), Restart (`R`), frecce seek, Ctrl+frecce per pitch/velocità, Vocal remover (`V`), Ducking (`D`), tab `1`/`2`/`3`, Stage (`P`), aiuto (`F1`/`?`). A schermo intero Stage: `F11`/`Esc` sulla finestra Stage.
+Anche in Impostazioni → Scorciatoie e nel pannello **?** / F1 (stesso elenco): Stop (`S`), Restart (`R`), frecce seek, Ctrl+frecce per pitch/velocità, Vocal remover sperimentale (`V`), Ducking (`D`), tab `1`/`2`/`3`, Stage (`P`), aiuto (`F1`/`?`). A schermo intero Stage: `F11`/`Esc` sulla finestra Stage.
+
 ## 11. Guest Portal LAN
 
 ### 11.1 Attivazione
@@ -639,12 +659,13 @@ Soluzione: Impostazioni → **Cartella Libreria Karaoke** → Sfoglia → cartel
 - Verifica **Master** e **CUE** nelle Impostazioni.
 - Controlla muto (`M`) e volume (curva quadratica: sotto il 50% è già molto basso).
 - MIDI: conferma SoundFont caricato.
-- Demucs in elaborazione: l’audio dry continua; se qualcosa va storto resta il mix originale.
+- Rimozione voce DSP: effetto immediato e leggero; se il mix stereo non ha voce al centro, il risultato può essere minimo — prova un altro algoritmo in Impostazioni → Audio.
 
-### 14.6 Pitch / badge sul Palco
+### 14.6 Pitch / badge velocità sul Palco
 
 - Se il cantante non vede i semitoni: abilita **Mostra variazione tonalità sullo schermo del palco**.
-- Atteso: `+2`, `-1`, `0`, ecc. in base alla coda.
+- Se non vede la velocità: abilita **Mostra velocità di riproduzione sullo schermo del palco**.
+- Atteso: `+2`, `-1`, `0`, e ad es. `1.00x` / `1.25x` in base alla coda.
 
 ### 14.7 Anteprima YouTube errore 153
 
@@ -685,6 +706,7 @@ Impostazioni → Diagnostica & File di Log: livello, apri cartella/file, cancell
 | Auto-advance prossimo brano | OFF |
 | Pausa transizione | 3 s |
 | showPitchOnStage | ON |
+| showSpeedOnStage | ON |
 | Porta Guest Portal | 3000 |
 | Soglia log SIAE | ≥ 120 s oppure fine naturale |
 | Range pitch Regia | −8 … +8 ST |

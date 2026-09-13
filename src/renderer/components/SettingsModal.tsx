@@ -321,6 +321,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     'offset',
     'ms'
   );
+  const matchVocalRemoverAlgo = matchesSearch(
+    t('settings.vocalRemoverAlgorithm'),
+    t('settings.vocalRemoverAlgorithmDesc'),
+    'vocal', 'rimozione', 'algoritmo', 'mid', 'side'
+  );
   const matchNormalization = matchesSearch(
     t('settings.audioNormalization'),
     t('settings.audioNormalizationDesc'),
@@ -392,7 +397,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     matchSupport || matchThemeLang || matchFairQueue || matchGuestPortal || matchSiae || matchLogs;
   const libraryHasMatches = matchLibraryPath || matchAutoArchive || matchYtdlp;
   const audioHasMatches =
-    matchSoundfont || matchDevices || matchAvSync || matchNormalization || matchAutoAdvance;
+    matchSoundfont || matchDevices || matchAvSync || matchVocalRemoverAlgo || matchNormalization || matchAutoAdvance;
   const stageHasMatches =
     matchBannerIntro ||
     matchBannerOutro ||
@@ -948,6 +953,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     onChange={(e) => updateSettings({ audioVideoSyncOffsetMs: parseInt(e.target.value, 10) })}
                     className="w-full accent-indigo-600"
                   />
+                </div>
+              )}
+
+
+              {(!isSearching || matchVocalRemoverAlgo) && (
+                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2">
+                  <label className="block font-semibold text-white text-xs">
+                    {t('settings.vocalRemoverAlgorithm')}
+                  </label>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    {t('settings.vocalRemoverAlgorithmDesc')}
+                  </p>
+                  <select
+                    value={settings.vocalRemoverAlgorithm || 'centerCancelBassKeep'}
+                    onChange={(e) =>
+                      updateSettings({
+                        vocalRemoverAlgorithm: e.target.value as
+                          | 'centerCancelBassKeep'
+                          | 'centerCancel'
+                          | 'softMid'
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs"
+                  >
+                    <option value="centerCancelBassKeep">{t('settings.vocalAlgoCenterBass')}</option>
+                    <option value="centerCancel">{t('settings.vocalAlgoCenter')}</option>
+                    <option value="softMid">{t('settings.vocalAlgoSoftMid')}</option>
+                  </select>
                 </div>
               )}
 

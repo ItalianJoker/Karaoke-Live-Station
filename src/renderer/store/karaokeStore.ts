@@ -82,6 +82,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 
   enableFairQueue: true,
   enableVocalRemover: false,
+  vocalRemoverAlgorithm: 'centerCancelBassKeep',
   enableAutoDuckingBGM: false,
   enableAudioNormalization: true,
   enableGuestPortal: true,

@@ -37,7 +37,7 @@ Full operator console:
 - Transport (Play / Pause / Stop / Restart / Next)
 - Master volume with a perceptual curve
 - Pitch in semitones and speed (time-stretch)
-- Guide-vocal removal via **Demucs** (HTDemucs)
+- Guide-vocal removal **(Experimental)** via classical mid/side DSP (algorithmic, real-time)
 - Auto-ducking BGM at the microphone
 - 16-channel MIDI/KAR mixer
 - CUE pre-listen on a secondary device
@@ -53,6 +53,7 @@ Display for singer and audience (TV or projector):
 - Sync via IPC with Control
 - Banners «Ora Canta», «Preparati», «Prossima Esibizione» (Italian UI copy)
 - Configurable semitone badge (`showPitchOnStage`)
+- Configurable speed badge (`showSpeedOnStage`)
 - Fullscreen (F11 / Esc / double-click)
 
 ### 1.3 Guest Portal LAN
@@ -67,7 +68,7 @@ The application allows **only one running instance**. A second launch is blocked
 
 1. Control owns the transport and the Web Audio graph.
 2. Local media go through the `karaoke://local/` protocol with byte-range streaming (HTTP 206), so Stage can open/close mid-song without desync.
-3. Pitch, speed, Demucs, ducking, normalization, and CUE routing live in Control’s audio graph.
+3. Pitch, speed, experimental DSP vocal remover, ducking, normalization, and CUE routing live in Control’s audio graph.
 4. MIDI/KAR: parsing → SpessaSynth + SoundFont → 16-channel mixer.
 5. Queue advance and the SIAE register are handled in the store; Stage receives state via IPC.
 
@@ -103,7 +104,6 @@ Relevant contents:
 | `queue_cache/` | Web files not archived to the library, kept while still in queue |
 | `thumbnails/` | Generated thumbnails |
 | `logs/` | Diagnostic logs |
-| `models/` | HTDemucs ONNX model (~172 MB) for vocal removal |
 
 ### 2.3 Managed binaries in `<userData>/bin/`
 
@@ -230,19 +230,19 @@ Examples: 100% → full gain; 50% → gain 0.25 (about −12 dB, perceived half 
 - **Speed:** from **0.50× to 1.50×** without changing pitch (WSOLA / SoundTouch). `Ctrl+←` / `Ctrl+→` adjust by ±5%. Clicking the numeric indicator often resets to 1.00×.
 - MIDI: transposition acts on note numbers in real time.
 
-### 4.4 Guide-vocal removal (Demucs)
+### 4.4 Guide-vocal removal (experimental DSP)
 
-The **`V`** key / **Remove Guide Vocal** (`Rimuovi Voce Guida`) control enables stem separation with **Meta HTDemucs** (`demucs-web` + `onnxruntime-web`), not a simple L−R canceller.
+The **`V`** key / **Vocal Remover (Experimental)** control (`Rimuovi Voce Guida (Sperimentale)`) enables **classical algorithmic mid/side** vocal reduction (center-channel / karaoke-style L−R) in **real time**: lightweight, with no AI/ML models, no downloads, and no offline separation.
 
-Operational flow:
+In **Settings → Audio & Playback** choose the algorithm used by the Control button:
 
-1. On first activation it may download/load the ONNX model into `<userData>/models/` (~172 MB).
-2. “Dry” playback continues while Demucs processes in the background.
-3. When separation completes, crossfade to the instrumental mix (drums + bass + other, no vocals).
-4. Play / pause / seek stay in sync; changing track invalidates the previous stem.
-5. LRU cache of instrumental stems (about 4 buffers max) so long nights do not saturate RAM.
+| Algorithm (`vocalRemoverAlgorithm`) | UI label |
+| :--- | :--- |
+| **`centerCancelBassKeep`** (default) | Center cancel (keep bass) — recommended |
+| **`centerCancel`** | Full center cancel (classic L−R) |
+| **`softMid`** | Soft mid attenuation (fewer artifacts) |
 
-If separation fails, the original mix remains.
+Toggle is instantaneous on the playing mix; results depend on the stereo mix (strongly panned or unusual dry/wet vocals may remain audible).
 
 ### 4.5 Auto-ducking BGM
 
@@ -258,7 +258,9 @@ With `.mid` / `.kar` files the **MIDI Channel Mixer** (`Mixer Canali MIDI`) appe
 
 ### 4.7 CUE pre-listen
 
-Use **Headphone Pre-listen (CUE)** (`Pre-ascolto Cuffie (CUE)`) to listen on headphones while the room hears Master. Configure the CUE device in Settings. Library video previews use controlled volume so they do not disturb the room (**«Audio anteprima a volume controllato per non disturbare la sala»** — Italian UI).
+Use **Headphone Pre-listen (CUE)** (`Pre-ascolto Cuffie (CUE)`) to listen on headphones while the room hears Master. Configure the CUE device in Settings.
+
+In **Library**, the Pre-Listen button opens the **themed preview modal** (same look as Settings) and routes audio to the CUE device. There is no separate volume bar: mute/volume stay on the embedded player controls (or MIDI transport). If CUE and Main Output are the same device, unmuting shows a confirmation warning so preview audio is not mixed onto the room PA by mistake.
 
 ### 4.8 Queue persistence and crash recovery
 
@@ -325,18 +327,18 @@ Tab **Library & Search** (`Libreria & Ricerca`) (`2` or `Ctrl+F`).
 
 ### 6.1 Live local search
 
-- **Local** mode (`Locale`)
+- **Local** mode (scope independent from Web search)
 - **Continuous** filter while typing (`onChange`) on title, artist, code
 - Distinct empty states:
   - **«Libreria vuota. Scansiona una cartella o cerca sul web.»** (Italian UI)
   - **«Nessun brano corrisponde alla ricerca locale.»** (Italian UI)
 - **Update Library** (`Aggiorna Libreria`) rescans `libraryPath` and updates the SQLite catalog
-- Query and search mode stay in `sessionStorage` for the session; right-hand tabs stay mounted (hidden) so filters and downloads are not lost when switching tabs
+- Query, results, loading, and scroll for **Local** and **Web** are **separate** (scoped hook): switching tabs does not lose state or fire unwanted YouTube searches; persisted in `sessionStorage` for the session; right-hand tabs stay mounted (hidden)
 
 ### 6.2 Web search (YouTube)
 
-- **Web / YouTube** mode
-- Type and press **Enter** (`Invio`) (does not search on every keystroke)
+- **Web / YouTube** mode (scope independent from Local search)
+- Type and press **Enter** (not search-on-every-key)
 - Engine: **yt-dlp** from `<userData>/bin/`
 - Placeholder: **«Cerca brano su YouTube Karaoke...»** (Italian UI)
 - Empty: **«Nessun risultato web. Digita e premi Invio per cercare su YouTube.»** (Italian UI)
@@ -376,7 +378,17 @@ Covers/thumbnails and local previews update without restart (ffmpeg extracts a f
 - 16:9 thumbnails in the list
 - Version chip (e.g. KaraFun, Sing King, With Choirs, Instrumental…)
 - Click thumbnail / preview icon → **Preview and Version Check** (`Anteprima e Controllo Versione`) with scrubber, file path, add to queue and assign singer
+- The **Pre-Listen** button opens the same themed modal with audio on the CUE device (see §4.7)
 - With Fair Queue on, Fair vs end-of-queue position choice also from the preview
+
+### 6.6 Delete from library
+
+Local catalog tracks offer **Delete from library** (`Elimina dalla libreria`) with confirmation (**«Eliminare il brano?»** / **Delete this track?**). The action:
+
+1. Removes the row from the SQLite catalog.
+2. Deletes from disk **only** permanent files under the library folder (`libraryPath`); it does not delete files in `queue_cache` / `temp` / incomplete downloads.
+
+A success or error toast follows confirmation.
 
 ---
 
@@ -408,6 +420,13 @@ In **Settings → Stage Screen**, each overlay message (Now Singing, Get Ready, 
 - **Stage background while shown**: none (keep theme/video), solid color, or image
 
 The backdrop applies **only while that message is visible**. When the banner/card hides (or the message is disabled), Stage restores the normal theme/video background without restarting.
+
+### 7.2b Speed badge and `showSpeedOnStage`
+
+Setting **Show playback speed on stage screen** (`Mostra velocità di riproduzione sullo schermo del palco`) (`showSpeedOnStage`, typically default ON):
+
+- Shows the speed badge (e.g. **`1.00x`**, **`1.25x`**)
+- UI description: «Visualizza il badge della velocità di riproduzione (es. 1.00x, 1.25x) sullo schermo del palco per il cantante.» (Italian UI)
 
 ### 7.3 Fullscreen and layout
 
@@ -452,11 +471,11 @@ Open **System Settings** (`Impostazioni di Sistema`) (gear). At the top: field *
 | :--- | :--- |
 | **General** (`Generale`) | Control/Stage themes, language, Fair Queue, Guest Portal, SIAE, project support |
 | **Library & Download** (`Libreria & Download`) | `libraryPath`, automatic archiving (+ warning), yt-dlp status/update |
-| **Audio & Playback** (`Audio & Riproduzione`) | SoundFont, Master/CUE, A/V sync, normalization, default vocal remover/ducking, auto-advance, `transitionPauseSec` |
-| **Stage Screen** (`Schermo Stage`) | Intro/outro banners, title overlay, next singer in intro, **`showPitchOnStage`**, **custom Stage message text/style/background** |
-| **Shortcuts** (`Scorciatoie`) | Shortcut reference (also openable with F1 / ?) |
+| **Audio & Playback** (`Audio & Riproduzione`) | SoundFont, Master/CUE, A/V sync, normalization, **vocal remover algorithm (experimental)**, default vocal remover/ducking, auto-advance, `transitionPauseSec` |
+| **Stage Screen** (`Schermo Stage`) | Intro/outro banners, title overlay, next singer in intro, **`showPitchOnStage`**, **`showSpeedOnStage`**, **custom Stage message text/style/background** |
+| **Shortcuts** (`Scorciatoie`) | Full live-shortcut inventory (same list as the **?** / F1 panel), searchable |
 
-Search filters labels/descriptions **across all categories**; clearing the field returns to tab navigation. No setting is removed by the tab reorganization.
+Search filters labels/descriptions **across all categories** (including Shortcuts in **parity** with the **?** guide); clearing the field returns to tab navigation. No setting is removed by the tab reorganization.
 
 ### 9.2 Other useful options
 
@@ -494,7 +513,7 @@ Open the guide anytime with **`F1`** or **`?`**. Live shortcuts are registered w
 | `+` / `-` | Pitch ±1 semitone |
 | `Ctrl+↑` / `Ctrl+↓` | Pitch ±1 semitone |
 | `Ctrl+←` / `Ctrl+→` | Speed ±5% |
-| `V` | Guide-vocal removal (Demucs) |
+| `V` | Guide-vocal removal DSP (experimental) |
 | `D` | Auto-ducking BGM |
 
 ### 10.3 Navigation and screens
@@ -515,7 +534,8 @@ Tooltips on Control controls show the same combinations for at-a-glance use.
 ---
 
 
-Also documented in Settings → Shortcuts and the **?** / F1 help panel: Stop (`S`), Restart (`R`), seek arrows, Ctrl+arrows for pitch/speed, Vocal remover (`V`), Ducking (`D`), tabs `1`/`2`/`3`, Stage (`P`), help (`F1`/`?`). Stage fullscreen uses `F11`/`Esc` on the Stage window.
+Also documented in Settings → Shortcuts and the **?** / F1 help panel (same inventory): Stop (`S`), Restart (`R`), seek arrows, Ctrl+arrows for pitch/speed, experimental Vocal remover (`V`), Ducking (`D`), tabs `1`/`2`/`3`, Stage (`P`), help (`F1`/`?`). Stage fullscreen uses `F11`/`Esc` on the Stage window.
+
 ## 11. Guest Portal LAN
 
 ### 11.1 Activation
@@ -641,15 +661,16 @@ Solution: Settings → **Cartella Libreria Karaoke** → Browse → existing fol
 
 ### 14.5 No audio or wrong device
 
-- Verify **Master** and **CUE** in Settings.
-- Check mute (`M`) and volume (quadratic curve: below 50% is already very quiet).
+- Check **Master** and **CUE** in Settings.
+- Check mute (`M`) and volume (quadratic curve: below 50% is already quite low).
 - MIDI: confirm SoundFont loaded.
-- Demucs processing: dry audio continues; if something goes wrong the original mix remains.
+- Vocal remover DSP: effect is immediate and light; if the stereo mix has little center vocal, the result may be subtle — try another algorithm in Settings → Audio.
 
-### 14.6 Pitch / badge on Stage
+### 14.6 Pitch / speed badges on Stage
 
 - If the singer does not see semitones: enable **Mostra variazione tonalità sullo schermo del palco**.
-- Expected: `+2`, `-1`, `0`, etc. based on the queue.
+- If the singer does not see playback speed: enable **Mostra velocità di riproduzione sullo schermo del palco**.
+- Expected: `+2`, `-1`, `0`, and e.g. `1.00x` / `1.25x` based on the queue.
 
 ### 14.7 YouTube preview error 153
 
@@ -690,6 +711,7 @@ Settings → Diagnostics & Log Files: level, open folder/file, clear logs. Usefu
 | Auto-advance next track | OFF |
 | Transition pause | 3 s |
 | showPitchOnStage | ON |
+| showSpeedOnStage | ON |
 | Guest Portal port | 3000 |
 | SIAE log threshold | ≥ 120 s or natural end |
 | Control pitch range | −8 … +8 ST |

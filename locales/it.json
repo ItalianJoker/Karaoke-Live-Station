@@ -18,7 +18,7 @@
     "mute": "Muto",
     "cue": "Pre-ascolto Cuffie (CUE)",
     "stopCue": "Ferma CUE",
-    "vocalRemover": "Rimuovi Voce Guida",
+    "vocalRemover": "Rimuovi Voce Guida (Sperimentale)",
     "bgmDucking": "Auto-Ducking BGM",
     "nowPlaying": "In Riproduzione",
     "noTrackLoaded": "Nessun brano caricato",
@@ -121,7 +121,14 @@
     "previewUnmuteSameDeviceTitle": "Attenzione: stesso dispositivo audio",
     "previewUnmuteSameDeviceMessage": "Pre-Ascolto e Uscita Principale sono impostati sullo stesso dispositivo. Togliendo il muto l'audio di anteprima potrebbe mescolarsi o uscire sul master di sala. Continuare?",
     "previewUnmuteSameDeviceConfirm": "Sì, togli muto",
-    "previewUnmuteSameDeviceCancel": "Annulla"
+    "previewUnmuteSameDeviceCancel": "Annulla",
+    "deleteTrack": "Elimina dalla libreria",
+    "confirmDeleteTitle": "Eliminare il brano?",
+    "confirmDeleteMessage": "Rimuovere «{{title}}» di {{artist}} dal catalogo? I file permanenti nella cartella libreria verranno eliminati dal disco.",
+    "confirmDeleteConfirm": "Elimina",
+    "confirmDeleteCancel": "Annulla",
+    "deleteSuccess": "Brano eliminato dalla libreria",
+    "deleteFailed": "Impossibile eliminare il brano"
   },
   "settings": {
     "title": "Impostazioni di Sistema",
@@ -211,7 +218,12 @@
     "stageMessageBackgroundImage": "Immagine",
     "stageMessageBackgroundImagePlaceholder": "Nessuna immagine selezionata",
     "stageMessageBackgroundBrowse": "Sfoglia…",
-    "stageMessageBackgroundClear": "Cancella"
+    "stageMessageBackgroundClear": "Cancella",
+    "vocalRemoverAlgorithm": "Algoritmo Rimozione Voce (Sperimentale)",
+    "vocalRemoverAlgorithmDesc": "Metodi DSP classici mid/side in tempo reale (nessuna AI). Scegli l’algoritmo usato dal pulsante in Regia.",
+    "vocalAlgoCenterBass": "Cancella centro (mantieni bassi) — consigliato",
+    "vocalAlgoCenter": "Cancella centro completo (L−R classico)",
+    "vocalAlgoSoftMid": "Attenuazione mid soft (meno artefatti)"
   },
   "history": {
     "title": "Storico Esecuzioni",
@@ -273,7 +285,7 @@
     "pitchUpDown": "Tonalità / Pitch (+1 / -1 semitono)",
     "pitchCtrl": "Tonalità / Pitch (+1 / -1 semitono)",
     "speedCtrl": "Velocità tempo (+5% / -5%)",
-    "vocalRemover": "Attiva / Disattiva rimozione voce guida",
+    "vocalRemover": "Attiva / Disattiva rimozione voce guida (sperimentale)",
     "ducking": "Attiva / Disattiva microfono auto-ducking",
     "tabQueue": "Vai alla scheda Coda Cantanti",
     "tabLibrary": "Vai alla scheda Ricerca & Libreria",
