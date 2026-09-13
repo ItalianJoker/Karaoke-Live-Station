@@ -509,6 +509,8 @@ Los tooltips de los controles en Regia muestran las mismas combinaciones para us
 
 ---
 
+
+También en Ajustes → Atajos y el panel **?** / F1: Stop (`S`), Restart (`R`), flechas de seek, Ctrl+flechas para tono/velocidad, Vocal remover (`V`), Ducking (`D`), pestañas `1`/`2`/`3`, Stage (`P`), ayuda (`F1`/`?`). Pantalla completa Stage: `F11`/`Esc` en la ventana Stage.
 ## 11. Guest Portal LAN
 
 ### 11.1 Activación

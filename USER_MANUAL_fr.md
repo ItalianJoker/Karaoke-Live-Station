@@ -509,6 +509,8 @@ Les info-bulles des commandes en Régie affichent les mêmes combinaisons pour u
 
 ---
 
+
+Aussi dans Paramètres → Raccourcis et le panneau **?** / F1 : Stop (`S`), Restart (`R`), flèches seek, Ctrl+flèches pour pitch/vitesse, Vocal remover (`V`), Ducking (`D`), onglets `1`/`2`/`3`, Stage (`P`), aide (`F1`/`?`). Plein écran Stage : `F11`/`Esc` sur la fenêtre Stage.
 ## 11. Guest Portal LAN
 
 ### 11.1 Activation

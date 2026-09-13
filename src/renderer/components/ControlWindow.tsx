@@ -651,6 +651,8 @@ export const ControlWindow: React.FC = () => {
   ]);
 
   // Global Keyboard Shortcuts
+  // Inventory: see `src/renderer/data/appShortcuts.ts` (shared with "?" help + Settings).
+  // Ignored while focus is in INPUT/TEXTAREA/SELECT except Escape (blur + close modals).
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)) {

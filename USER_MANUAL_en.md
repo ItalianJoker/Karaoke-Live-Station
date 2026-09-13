@@ -514,6 +514,8 @@ Tooltips on Control controls show the same combinations for at-a-glance use.
 
 ---
 
+
+Also documented in Settings → Shortcuts and the **?** / F1 help panel: Stop (`S`), Restart (`R`), seek arrows, Ctrl+arrows for pitch/speed, Vocal remover (`V`), Ducking (`D`), tabs `1`/`2`/`3`, Stage (`P`), help (`F1`/`?`). Stage fullscreen uses `F11`/`Esc` on the Stage window.
 ## 11. Guest Portal LAN
 
 ### 11.1 Activation

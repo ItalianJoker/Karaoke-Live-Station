@@ -36,6 +36,7 @@ import {
   mergeStageMessages,
   patchStageMessages
 } from '../../shared/stageMessages';
+import { APP_SHORTCUTS } from '../data/appShortcuts';
 import { FirewallGuideCard } from './FirewallGuideCard';
 import appLogo from '../assets/logo.png';
 
@@ -372,15 +373,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     'overlay'
   );
 
-  const liveShortcuts = [
-    { keys: ['Spazio'], label: t('shortcuts.playPause', 'Play / Pausa') },
-    { keys: ['N'], label: t('shortcuts.next', 'Passa al brano successivo') },
-    { keys: ['↑'], label: t('shortcuts.volumeUp', 'Aumenta volume master (+5%)') },
-    { keys: ['↓'], label: t('shortcuts.volumeDown', 'Diminuisci volume master (-5%)') },
-    { keys: ['+', '-'], label: t('shortcuts.pitchUpDown', 'Tonalità / Pitch (+1 / -1 semitono)') },
-    { keys: ['M'], label: t('shortcuts.mute', 'Attiva / Disattiva muto master') },
-    { keys: ['Ctrl', 'F'], label: t('shortcuts.searchFocus', 'Cerca brano (focus su campo di ricerca)') },
-  ];
+  // Full inventory (same as "?" help modal) so Settings search can find every live shortcut.
+  const liveShortcuts = APP_SHORTCUTS.map((s) => ({
+    keys: s.keys,
+    label: t(s.descriptionKey)
+  }));
 
   const matchingShortcuts = liveShortcuts.filter((item) =>
     matchesSearch(item.label, item.keys.join(' '), t('settings.tabShortcuts', 'Scorciatoie'), 'scorciatoie', 'shortcuts')

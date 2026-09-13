@@ -1201,6 +1201,16 @@ assert(
   'Per-message Stage backgrounds: types, helpers, Settings UI, Stage layer, locales, image picker'
 );
 
+
+assert(
+  fs.existsSync(path.resolve(__dirname, '../src/renderer/data/appShortcuts.ts')) &&
+    fs.readFileSync(path.resolve(__dirname, '../src/renderer/data/appShortcuts.ts'), 'utf8').includes('APP_SHORTCUTS') &&
+    fs.readFileSync(path.resolve(__dirname, '../src/renderer/components/ShortcutsHelpModal.tsx'), 'utf8').includes('APP_SHORTCUTS') &&
+    fs.readFileSync(path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'), 'utf8').includes('APP_SHORTCUTS') &&
+    fs.readFileSync(path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'), 'utf8').includes('appShortcuts.ts'),
+  'Shortcut inventory shared by ?, Settings, and ControlWindow handler comment'
+);
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');

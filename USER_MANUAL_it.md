@@ -509,6 +509,8 @@ I tooltip dei controlli in Regia riportano le stesse combinazioni per uso a colp
 
 ---
 
+
+Anche in Impostazioni → Scorciatoie e nel pannello **?** / F1: Stop (`S`), Restart (`R`), frecce seek, Ctrl+frecce per pitch/velocità, Vocal remover (`V`), Ducking (`D`), tab `1`/`2`/`3`, Stage (`P`), aiuto (`F1`/`?`). A schermo intero Stage: `F11`/`Esc` sulla finestra Stage.
 ## 11. Guest Portal LAN
 
 ### 11.1 Attivazione
