@@ -8,6 +8,10 @@ import {
   SingerProfile,
   GuestSongRequest
 } from '../../shared/types';
+import {
+  createDefaultStageMessages,
+  patchStageMessages
+} from '../../shared/stageMessages';
 
 export interface MissingFileModalState {
   isOpen: boolean;
@@ -85,6 +89,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoArchiveWebTracks: true,
   showPitchOnStage: true,
   showSpeedOnStage: true,
+  stageMessages: createDefaultStageMessages(),
 
   bannerIntroDurationSec: 6,
   bannerOutroTriggerSec: 20,
@@ -206,7 +211,13 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
       updateSettings: (partial) => {
         let updatedSettings: AppSettings | null = null;
         set((state) => {
-          const updated = { ...state.settings, ...partial };
+          const updated: AppSettings = { ...state.settings, ...partial };
+          if (partial.stageMessages) {
+            updated.stageMessages = patchStageMessages(
+              state.settings.stageMessages,
+              partial.stageMessages
+            );
+          }
           updatedSettings = updated;
           return { settings: updated };
         });
@@ -850,7 +861,25 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         settings: state.settings,
         singers: state.singers,
         queue: state.queue
-      })
+      }),
+      merge: (persisted, current) => {
+        const p = (persisted || {}) as Partial<KaraokeStoreState>;
+        const mergedSettings: AppSettings = {
+          ...current.settings,
+          ...(p.settings || {})
+        };
+        mergedSettings.stageMessages = patchStageMessages(
+          current.settings.stageMessages,
+          p.settings?.stageMessages || {}
+        );
+        return {
+          ...current,
+          ...p,
+          settings: mergedSettings,
+          singers: p.singers ?? current.singers,
+          queue: p.queue ?? current.queue
+        };
+      }
     }
   )
 );

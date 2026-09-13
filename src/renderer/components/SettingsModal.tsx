@@ -28,7 +28,14 @@ import {
   Library,
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
-import { AppTheme, YtDlpStatus } from '../../shared/types';
+import { AppTheme, StageMessageStyle, YtDlpStatus } from '../../shared/types';
+import {
+  STAGE_MESSAGE_KEYS,
+  StageMessageKey,
+  createDefaultStageMessages,
+  mergeStageMessages,
+  patchStageMessages
+} from '../../shared/stageMessages';
 import { FirewallGuideCard } from './FirewallGuideCard';
 import appLogo from '../assets/logo.png';
 
@@ -352,6 +359,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     'tempo',
     'playback'
   );
+  const matchStageMessages = matchesSearch(
+    t('settings.stageMessagesTitle'),
+    t('settings.stageMessagesDesc'),
+    'ora canta',
+    'preparati',
+    'prossimo',
+    'cantante',
+    'banner',
+    'message',
+    'messaggio',
+    'overlay'
+  );
 
   const liveShortcuts = [
     { keys: ['Spazio'], label: t('shortcuts.playPause', 'Play / Pausa') },
@@ -378,7 +397,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const audioHasMatches =
     matchSoundfont || matchDevices || matchAvSync || matchNormalization || matchAutoAdvance;
   const stageHasMatches =
-    matchBannerIntro || matchBannerOutro || matchTitleOverlay || matchNextSinger || matchPitchStage || matchSpeedStage;
+    matchBannerIntro ||
+    matchBannerOutro ||
+    matchTitleOverlay ||
+    matchNextSinger ||
+    matchPitchStage ||
+    matchSpeedStage ||
+    matchStageMessages;
   const shortcutsHasMatches = matchingShortcuts.length > 0;
 
   const anySearchResults =
@@ -1106,6 +1131,164 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       </div>
                     </label>
                   )}
+                </div>
+              )}
+
+              {(!isSearching || matchStageMessages) && (
+                <div
+                  className="pt-2 border-t border-slate-800/80 space-y-3"
+                  data-testid="settings-stage-messages"
+                >
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-200">
+                      {t('settings.stageMessagesTitle')}
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                      {t('settings.stageMessagesDesc')}
+                    </p>
+                  </div>
+
+                  {(() => {
+                    const stageMessages = mergeStageMessages(settings.stageMessages);
+                    const updateStageMessage = (
+                      key: StageMessageKey,
+                      patch: Partial<StageMessageStyle>
+                    ) => {
+                      updateSettings({
+                        stageMessages: patchStageMessages(settings.stageMessages, {
+                          [key]: { ...stageMessages[key], ...patch }
+                        })
+                      });
+                    };
+                    const labelKey: Record<StageMessageKey, string> = {
+                      nowSinging: 'settings.stageMessageNowSinging',
+                      getReady: 'settings.stageMessageGetReady',
+                      upNextIntro: 'settings.stageMessageUpNextIntro',
+                      nextSong: 'settings.stageMessageNextSong',
+                      nextSingerUnassigned: 'settings.stageMessageNextSingerUnassigned',
+                      upNextOnStage: 'settings.stageMessageUpNextOnStage',
+                      followingSinger: 'settings.stageMessageFollowingSinger'
+                    };
+                    const bannerKey: Record<StageMessageKey, string> = {
+                      nowSinging: 'banner.nowSinging',
+                      getReady: 'banner.getReady',
+                      upNextIntro: 'banner.upNextIntro',
+                      nextSong: 'banner.nextSong',
+                      nextSingerUnassigned: 'banner.nextSingerUnassigned',
+                      upNextOnStage: 'banner.upNextOnStage',
+                      followingSinger: 'banner.followingSinger'
+                    };
+
+                    return STAGE_MESSAGE_KEYS.map((key) => {
+                      const style = stageMessages[key];
+                      const i18nDefault = t(bannerKey[key], { name: '{{name}}' });
+                      return (
+                        <div
+                          key={key}
+                          className="p-3 rounded-xl bg-slate-950/50 border border-slate-800/80 space-y-2.5"
+                          data-testid={`settings-stage-message-${key}`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <span className="text-sm font-medium text-slate-200 block">
+                                {t(labelKey[key])}
+                              </span>
+                              <span className="text-[11px] text-slate-500 block mt-0.5 truncate">
+                                {t('settings.stageMessageDefaultHint')}: {i18nDefault}
+                              </span>
+                            </div>
+                            <label className="flex items-center gap-2 shrink-0 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={style.enabled}
+                                onChange={(e) =>
+                                  updateStageMessage(key, { enabled: e.target.checked })
+                                }
+                                className="w-4 h-4 accent-indigo-600 rounded"
+                              />
+                              <span className="text-xs text-slate-300">
+                                {t('settings.stageMessageEnabled')}
+                              </span>
+                            </label>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] text-slate-400 mb-1">
+                              {t('settings.stageMessageText')}
+                            </label>
+                            <input
+                              type="text"
+                              value={style.text}
+                              onChange={(e) =>
+                                updateStageMessage(key, { text: e.target.value })
+                              }
+                              placeholder={t('settings.stageMessageTextPlaceholder')}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500"
+                              disabled={!style.enabled}
+                            />
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3">
+                            <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={style.bold}
+                                onChange={(e) =>
+                                  updateStageMessage(key, { bold: e.target.checked })
+                                }
+                                className="w-3.5 h-3.5 accent-indigo-600 rounded"
+                                disabled={!style.enabled}
+                              />
+                              <span className="text-xs font-bold text-slate-300">
+                                {t('settings.stageMessageBold')}
+                              </span>
+                            </label>
+                            <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={style.italic}
+                                onChange={(e) =>
+                                  updateStageMessage(key, { italic: e.target.checked })
+                                }
+                                className="w-3.5 h-3.5 accent-indigo-600 rounded"
+                                disabled={!style.enabled}
+                              />
+                              <span className="text-xs italic text-slate-300">
+                                {t('settings.stageMessageItalic')}
+                              </span>
+                            </label>
+                            <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+                              <span>{t('settings.stageMessageFontSize')}</span>
+                              <input
+                                type="number"
+                                min={10}
+                                max={96}
+                                value={style.fontSizePx}
+                                onChange={(e) =>
+                                  updateStageMessage(key, {
+                                    fontSizePx: parseInt(e.target.value, 10) || style.fontSizePx
+                                  })
+                                }
+                                className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                                disabled={!style.enabled}
+                              />
+                              <span className="text-slate-500">px</span>
+                            </label>
+                            <button
+                              type="button"
+                              className="ml-auto text-[11px] text-indigo-300 hover:text-indigo-200 underline-offset-2 hover:underline disabled:opacity-40"
+                              disabled={!style.enabled}
+                              onClick={() =>
+                                updateStageMessage(key, createDefaultStageMessages()[key])
+                              }
+                            >
+                              {t('settings.stageMessageReset')}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               )}
             </div>

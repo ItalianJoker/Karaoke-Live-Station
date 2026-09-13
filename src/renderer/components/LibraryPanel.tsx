@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { KaraokeMediaTrack, DownloadProgressPayload } from '../../shared/types';
 import { useKaraokeStore } from '../store/karaokeStore';
+import { useScopedLibrarySearch } from '../hooks/useScopedLibrarySearch';
 import { VideoPreviewModal, extractVersionTags } from './VideoPreviewModal';
 
 interface LibraryPanelProps {
@@ -52,26 +53,28 @@ interface LibraryPanelProps {
  */
 export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue, activeCueUri, searchInputRef }) => {
   const { t } = useTranslation();
-  const [searchMode, setSearchMode] = useState<'local' | 'web'>(() => {
-    try {
-      return sessionStorage.getItem('kls.library.searchMode') === 'web' ? 'web' : 'local';
-    } catch {
-      return 'local';
-    }
-  });
-  const [query, setQuery] = useState(() => {
-    try {
-      return sessionStorage.getItem('kls.library.query') || '';
-    } catch {
-      return '';
-    }
-  });
+  const {
+    searchMode,
+    setSearchMode,
+    query,
+    setQuery,
+    results: searchResults,
+    setLocalResults,
+    setWebResults,
+    isSearching,
+    setLocalSearching,
+    setWebSearching,
+    patchTrackInAllResults,
+    listRef: resultsListRef,
+    onListScroll,
+    localQuery,
+    webQuery
+  } = useScopedLibrarySearch();
+  const [isScanning, setIsScanning] = useState(false);
   const [completedDownloads, setCompletedDownloads] = useState<
     Array<{ id: string; title: string; artist: string }>
   >([]);
   const [localTracks, setLocalTracks] = useState<KaraokeMediaTrack[]>([]);
-  const [searchResults, setSearchResults] = useState<KaraokeMediaTrack[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const storeSingers = useKaraokeStore((state) => state.singers);
   const singers = React.useMemo(() => {
     return Object.values(storeSingers).sort((a, b) => {
@@ -202,13 +205,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
               };
               updateTrackInQueue(associatedTrack.id, patch);
               updateTrackInQueue(associatedTrack.uri, patch);
-              setSearchResults((prev) =>
-                prev.map((track) =>
-                  track.id === associatedTrack.id || track.uri === associatedTrack.uri
-                    ? { ...track, ...patch }
-                    : track
-                )
-              );
+              patchTrackInAllResults(associatedTrack.id, associatedTrack.uri, patch);
               // Only surface complete library files in the Local list. Temp/partial/cache
               // paths must not create ghost rows (they look like duplicates until restart).
               if (opts?.touchLibraryList && isFinishedLibraryFile(localFilePath, source)) {
@@ -313,29 +310,20 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
   }, [settings.autoArchiveWebTracks, settings.libraryPath, trackMap, updateTrackInQueue, t]);
 
 
-  useEffect(() => {
-    try {
-      sessionStorage.setItem('kls.library.query', query);
-      sessionStorage.setItem('kls.library.searchMode', searchMode);
-    } catch {
-      // ignore quota / private mode
-    }
-  }, [query, searchMode]);
 
-  // Continuous local search on every keystroke via DB/IPC (web search still uses Enter/submit).
-  // Debounced searchTracks avoids shipping the full catalog across IPC on large libraries.
+  // Continuous LOCAL search only — updates the local bucket; never touches web results/network.
   useEffect(() => {
     if (searchMode !== 'local') return;
-    const q = query.trim();
+    const q = localQuery.trim();
     if (!q) {
-      setSearchResults([]);
+      setLocalResults([]);
       return;
     }
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       if (!window.karaokeApi?.db?.searchTracks) {
         const lower = q.toLowerCase();
-        setSearchResults(
+        setLocalResults(
           localTracks.filter(
             (track) =>
               track.title.toLowerCase().includes(lower) ||
@@ -346,12 +334,12 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
       }
       try {
         const matches = await window.karaokeApi.db.searchTracks(q, 200);
-        if (!cancelled) setSearchResults(matches);
+        if (!cancelled) setLocalResults(matches);
       } catch (err) {
         console.error('Local library search failed:', err);
         if (!cancelled) {
           const lower = q.toLowerCase();
-          setSearchResults(
+          setLocalResults(
             localTracks.filter(
               (track) =>
                 track.title.toLowerCase().includes(lower) ||
@@ -365,7 +353,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query, localTracks, searchMode]);
+  }, [localQuery, localTracks, searchMode, setLocalResults]);
+
 
   const handleScanOrRefresh = async () => {
     if (!window.karaokeApi) return;
@@ -377,7 +366,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
       updateSettings({ libraryPath: folder });
     }
 
-    setIsSearching(true);
+    setIsScanning(true);
     try {
       const discovered = await window.karaokeApi.library.scanFolder(folder);
       await loadLocalCatalog();
@@ -386,40 +375,61 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
     } catch (err) {
       console.error('Library scan error:', err);
     } finally {
-      setIsSearching(false);
+      setIsScanning(false);
     }
   };
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!query.trim()) {
-      setSearchResults([]);
+    // Web search only runs on explicit submit while Web tab is active.
+    // Local filtering is live; submit still refreshes the local bucket.
+    if (searchMode === 'web') {
+      const q = webQuery.trim();
+      if (!q) {
+        setWebResults([]);
+        return;
+      }
+      setWebSearching(true);
+      try {
+        if (window.karaokeApi) {
+          const ytTracks = await window.karaokeApi.library.searchYouTube(q);
+          setWebResults(ytTracks);
+        }
+      } finally {
+        setWebSearching(false);
+      }
       return;
     }
 
-    setIsSearching(true);
+    const q = localQuery.trim();
+    if (!q) {
+      setLocalResults([]);
+      return;
+    }
+    setLocalSearching(true);
     try {
-      if (searchMode === 'web') {
-        if (window.karaokeApi) {
-          const ytTracks = await window.karaokeApi.library.searchYouTube(query);
-          setSearchResults(ytTracks);
-        }
-      } else if (window.karaokeApi?.db?.searchTracks) {
-        const matches = await window.karaokeApi.db.searchTracks(query, 200);
-        setSearchResults(matches);
+      if (window.karaokeApi?.db?.searchTracks) {
+        const matches = await window.karaokeApi.db.searchTracks(q, 200);
+        setLocalResults(matches);
       } else {
-        const q = query.toLowerCase();
-        const filtered = localTracks.filter(
-          (t) => t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)
+        const lower = q.toLowerCase();
+        setLocalResults(
+          localTracks.filter(
+            (t) => t.title.toLowerCase().includes(lower) || t.artist.toLowerCase().includes(lower)
+          )
         );
-        setSearchResults(filtered);
       }
     } finally {
-      setIsSearching(false);
+      setLocalSearching(false);
     }
   };
 
-  const displayedTracks = query.trim() ? searchResults : localTracks;
+  const displayedTracks =
+    searchMode === 'local'
+      ? localQuery.trim()
+        ? searchResults
+        : localTracks
+      : searchResults;
 
   const handleStartDownload = async (track: KaraokeMediaTrack) => {
     if (!window.karaokeApi) return;
@@ -534,7 +544,6 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
             type="button"
             onClick={() => {
               setSearchMode('local');
-              setSearchResults([]);
             }}
             className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
               searchMode === 'local'
@@ -549,7 +558,6 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
             type="button"
             onClick={() => {
               setSearchMode('web');
-              setSearchResults([]);
             }}
             className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
               searchMode === 'web'
@@ -566,7 +574,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
           <button
             type="button"
             onClick={handleScanOrRefresh}
-            disabled={isSearching}
+            disabled={isScanning}
             title={
               settings.libraryPath
                 ? `${t('library.scanFolder')} (${settings.libraryPath})`
@@ -574,7 +582,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
             }
             className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSearching ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isScanning ? 'animate-spin' : ''}`} />
             {t('library.scanFolder')}
           </button>
         )}
@@ -718,7 +726,12 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
       )}
 
       {/* Results List */}
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+      <div
+        ref={resultsListRef}
+        onScroll={onListScroll}
+        className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1"
+        data-testid="library-results-list"
+      >
         {displayedTracks.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center py-12 px-4 text-slate-500 gap-2">
             <Music className="w-8 h-8 opacity-25" />
@@ -727,7 +740,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
                 ? t('library.searching')
                 : searchMode === 'web'
                   ? t('library.emptyWeb', 'Nessun risultato web. Digita e premi Invio per cercare su YouTube.')
-                  : query.trim()
+                  : localQuery.trim()
                     ? t('library.emptyFilter', 'Nessun brano corrisponde alla ricerca locale.')
                     : t('library.emptyLocal', 'Libreria vuota. Scansiona una cartella o cerca sul web.')}
             </p>
@@ -817,11 +830,12 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
                     <Eye className="w-3.5 h-3.5" />
                   </button>
 
-                  {/* CUE Headphone Pre-ascolto Button */}
+                  {/* CUE / Pre-Ascolto — opens the same video preview modal as Eye, then routes audio */}
                   {onPlayCue && onStopCue && track.uri && (
                     <button
                       type="button"
                       onClick={() => {
+                        setPreviewTrack(track);
                         if (isCueActive) {
                           onStopCue();
                         } else {
@@ -1028,6 +1042,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
         track={previewTrack}
         singers={singers}
         enableFairQueue={settings.enableFairQueue}
+        cueAudioDeviceId={settings.cueAudioDeviceId}
+        masterAudioDeviceId={settings.masterAudioDeviceId}
         onClose={() => setPreviewTrack(null)}
         onAddToQueue={(trk, sName, placement) => executeAddToQueue(trk, sName, placement)}
         onPlayCue={onPlayCue}

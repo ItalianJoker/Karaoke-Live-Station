@@ -2,6 +2,11 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Mic, Music } from 'lucide-react';
 import { ActivePlaybackState, AppSettings, QueueItem } from '../../shared/types';
+import {
+  mergeStageMessages,
+  resolveStageMessage,
+  stageMessageCss
+} from '../../shared/stageMessages';
 import { CdgParser } from '../core/CdgParser';
 import { useKaraokeStore } from '../store/karaokeStore';
 import appLogo from '../assets/logo.png';
@@ -434,6 +439,42 @@ export const StageWindow: React.FC = () => {
     playback.currentTime <= titleDuration &&
     Boolean(activeTrack?.title);
 
+  const stageMessages = mergeStageMessages(settings?.stageMessages);
+  const unassignedMsg = resolveStageMessage(
+    stageMessages.nextSingerUnassigned,
+    t('banner.nextSingerUnassigned')
+  );
+  const unassignedLabel = unassignedMsg.enabled ? unassignedMsg.text : '';
+  const nowSingingMsg = resolveStageMessage(
+    stageMessages.nowSinging,
+    t('banner.nowSinging', { name: currentSinger }),
+    { name: currentSinger }
+  );
+  const upNextIntroMsg = resolveStageMessage(
+    stageMessages.upNextIntro,
+    t('banner.upNextIntro')
+  );
+  const getReadyMsg = resolveStageMessage(
+    stageMessages.getReady,
+    t('banner.getReady', { name: nextSinger || unassignedLabel }),
+    { name: nextSinger || unassignedLabel }
+  );
+  const nextSongMsg = resolveStageMessage(stageMessages.nextSong, t('banner.nextSong'));
+  const upNextOnStageMsg = resolveStageMessage(
+    stageMessages.upNextOnStage,
+    t('banner.upNextOnStage')
+  );
+  const followingSingerMsg = resolveStageMessage(
+    stageMessages.followingSinger,
+    t('banner.followingSinger')
+  );
+  const nextQueueSingerLabel =
+    nextQueueItem?.assignedSingerName || (unassignedMsg.enabled ? unassignedMsg.text : '');
+  const upcomingSingerLabel =
+    upcomingItem?.assignedSingerName || (unassignedMsg.enabled ? unassignedMsg.text : '');
+  const followingSingerLabel =
+    followingItem?.assignedSingerName || (unassignedMsg.enabled ? unassignedMsg.text : '');
+
   if (!isStageReady) {
     return <div className="w-screen h-screen bg-black" />;
   }
@@ -444,22 +485,36 @@ export const StageWindow: React.FC = () => {
       className="stage-screen-container w-screen h-screen relative overflow-hidden select-none flex items-center justify-center cursor-pointer"
     >
       {/* Intro Banner: Ora Canta (+ Next Singer if enabled in settings) */}
-      {showIntroBanner && (
+      {showIntroBanner && (nowSingingMsg.enabled || ((settings?.showNextSingerAtIntro ?? true) && nextQueueItem && (upNextIntroMsg.enabled || unassignedMsg.enabled))) && (
         <div className="absolute top-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50 pointer-events-none">
-          <div className="bg-indigo-600/90 backdrop-blur-md px-10 py-3.5 rounded-full border border-indigo-400/50 shadow-2xl text-center animate-bounce">
-            <span className="text-2xl md:text-3xl font-black uppercase tracking-wider text-yellow-300 drop-shadow-md">
-              {t('banner.nowSinging', { name: currentSinger })}
-            </span>
-          </div>
+          {nowSingingMsg.enabled && (
+            <div className="bg-indigo-600/90 backdrop-blur-md px-10 py-3.5 rounded-full border border-indigo-400/50 shadow-2xl text-center animate-bounce">
+              <span
+                className="uppercase tracking-wider text-yellow-300 drop-shadow-md"
+                style={stageMessageCss(nowSingingMsg)}
+                data-testid="stage-msg-nowSinging"
+              >
+                {nowSingingMsg.text}
+              </span>
+            </div>
+          )}
 
-          {(settings?.showNextSingerAtIntro ?? true) && nextQueueItem && (
+          {(settings?.showNextSingerAtIntro ?? true) && nextQueueItem && (upNextIntroMsg.enabled || Boolean(nextQueueSingerLabel)) && (
             <div className="bg-slate-900/90 backdrop-blur-md px-6 py-2 rounded-full border border-indigo-500/40 shadow-xl text-center flex items-center gap-2.5 animate-fadeIn">
-              <span className="text-xs md:text-sm font-semibold text-indigo-300 uppercase tracking-wider">
-                {t('banner.upNextIntro')}:
-              </span>
-              <span className="text-sm md:text-base font-bold text-white">
-                {nextQueueItem.assignedSingerName || t('banner.nextSingerUnassigned')}
-              </span>
+              {upNextIntroMsg.enabled && (
+                <span
+                  className="text-indigo-300 uppercase tracking-wider"
+                  style={stageMessageCss(upNextIntroMsg)}
+                  data-testid="stage-msg-upNextIntro"
+                >
+                  {upNextIntroMsg.text}:
+                </span>
+              )}
+              {nextQueueSingerLabel ? (
+                <span className="text-sm md:text-base font-bold text-white" style={unassignedMsg.enabled && !nextQueueItem.assignedSingerName ? stageMessageCss(unassignedMsg) : undefined}>
+                  {nextQueueSingerLabel}
+                </span>
+              ) : null}
               <span className="text-xs md:text-sm text-slate-300 opacity-80 line-clamp-1">
                 • {nextQueueItem.track.title}
               </span>
@@ -469,18 +524,28 @@ export const StageWindow: React.FC = () => {
       )}
 
       {/* Outro Banner: Preparati + Prossima Canzone */}
-      {showOutroBanner && (
+      {showOutroBanner && (getReadyMsg.enabled || (nextQueueItem && nextSongMsg.enabled)) && (
         <div className="absolute top-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50 pointer-events-none animate-pulse">
-          <div className="bg-amber-600/90 backdrop-blur-md px-10 py-3.5 rounded-full border border-amber-400/50 shadow-2xl text-center">
-            <span className="text-2xl md:text-3xl font-black uppercase tracking-wider text-white drop-shadow-md">
-              {t('banner.getReady', { name: nextSinger || t('banner.nextSingerUnassigned') })}
-            </span>
-          </div>
+          {getReadyMsg.enabled && (
+            <div className="bg-amber-600/90 backdrop-blur-md px-10 py-3.5 rounded-full border border-amber-400/50 shadow-2xl text-center">
+              <span
+                className="uppercase tracking-wider text-white drop-shadow-md"
+                style={stageMessageCss(getReadyMsg)}
+                data-testid="stage-msg-getReady"
+              >
+                {getReadyMsg.text}
+              </span>
+            </div>
+          )}
 
-          {nextQueueItem && (
+          {nextQueueItem && nextSongMsg.enabled && (
             <div className="bg-slate-900/90 backdrop-blur-md px-6 py-2 rounded-full border border-amber-500/40 shadow-xl text-center flex items-center gap-2.5">
-              <span className="text-xs md:text-sm font-semibold text-amber-300 uppercase tracking-wider">
-                {t('banner.nextSong')}:
+              <span
+                className="text-amber-300 uppercase tracking-wider"
+                style={stageMessageCss(nextSongMsg)}
+                data-testid="stage-msg-nextSong"
+              >
+                {nextSongMsg.text}:
               </span>
               <span className="text-sm md:text-base font-bold text-white">
                 {nextQueueItem.track.title}
@@ -622,14 +687,20 @@ export const StageWindow: React.FC = () => {
 
             <div className="relative z-10 max-w-4xl w-full flex flex-col items-center gap-6">
               {/* Badge: Prossimo Cantante sul Palco */}
-              <div className="inline-flex items-center gap-2.5 px-6 py-2 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 text-sm md:text-base font-bold uppercase tracking-widest shadow-lg shadow-indigo-500/10">
-                <Mic className="w-5 h-5 text-indigo-400 animate-bounce" />
-                <span>{t('banner.upNextOnStage')}</span>
-              </div>
+              {upNextOnStageMsg.enabled && (
+                <div
+                  className="inline-flex items-center gap-2.5 px-6 py-2 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-bold uppercase tracking-widest shadow-lg shadow-indigo-500/10"
+                  style={stageMessageCss(upNextOnStageMsg)}
+                  data-testid="stage-msg-upNextOnStage"
+                >
+                  <Mic className="w-5 h-5 text-indigo-400 animate-bounce" />
+                  <span>{upNextOnStageMsg.text}</span>
+                </div>
+              )}
 
               {/* Singer Name */}
               <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-pink-400 to-indigo-300 drop-shadow-[0_10px_35px_rgba(0,0,0,0.9)] max-w-full break-words">
-                {upcomingItem.assignedSingerName || t('banner.nextSingerUnassigned')}
+                {upcomingSingerLabel}
               </h1>
 
               {/* Song Card */}
@@ -647,9 +718,14 @@ export const StageWindow: React.FC = () => {
                 )}
 
                 <div className="flex-1 text-center sm:text-left min-w-0">
-                  <span className="text-xs uppercase tracking-widest text-indigo-400 font-semibold block mb-1">
-                    {t('banner.nextSong')}
-                  </span>
+                  {nextSongMsg.enabled && (
+                    <span
+                      className="uppercase tracking-widest text-indigo-400 block mb-1"
+                      style={stageMessageCss(nextSongMsg)}
+                    >
+                      {nextSongMsg.text}
+                    </span>
+                  )}
                   <h2 className="text-2xl md:text-3xl font-extrabold text-white line-clamp-2 drop-shadow-md">
                     {upcomingItem.track.title}
                   </h2>
@@ -668,10 +744,20 @@ export const StageWindow: React.FC = () => {
               </div>
 
               {/* Following singer preview */}
-              {followingItem && (
+              {followingItem && (followingSingerMsg.enabled || Boolean(followingSingerLabel)) && (
                 <div className="text-xs md:text-sm text-slate-400 flex items-center gap-2 mt-1">
-                  <span className="uppercase tracking-wider font-semibold text-slate-500">{t('banner.followingSinger')}:</span>
-                  <span className="font-bold text-slate-300">{followingItem.assignedSingerName || t('banner.nextSingerUnassigned')}</span>
+                  {followingSingerMsg.enabled && (
+                    <span
+                      className="uppercase tracking-wider text-slate-500"
+                      style={stageMessageCss(followingSingerMsg)}
+                      data-testid="stage-msg-followingSinger"
+                    >
+                      {followingSingerMsg.text}:
+                    </span>
+                  )}
+                  {followingSingerLabel ? (
+                    <span className="font-bold text-slate-300">{followingSingerLabel}</span>
+                  ) : null}
                   <span className="text-slate-500">• {followingItem.track.title}</span>
                 </div>
               )}

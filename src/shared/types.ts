@@ -41,6 +41,33 @@ export interface LogEntry {
 /**
  * Global application settings persisted across sessions.
  */
+
+/** Visual formatting for a customizable Stage overlay message. */
+export interface StageMessageStyle {
+  /** Show this message on Stage */
+  enabled: boolean;
+  /**
+   * Custom template. Empty string = use current-locale i18n default.
+   * Supports `{{name}}` where applicable (nowSinging / getReady).
+   */
+  text: string;
+  bold: boolean;
+  italic: boolean;
+  /** Font size in CSS pixels */
+  fontSizePx: number;
+}
+
+/** Operator-editable Stage overlay copy + formatting. */
+export interface StageMessagesSettings {
+  nowSinging: StageMessageStyle;
+  getReady: StageMessageStyle;
+  upNextIntro: StageMessageStyle;
+  nextSong: StageMessageStyle;
+  nextSingerUnassigned: StageMessageStyle;
+  upNextOnStage: StageMessageStyle;
+  followingSinger: StageMessageStyle;
+}
+
 export interface AppSettings {
   /** Theme used by the operator desk (Regia) */
   themeHost: AppTheme;
@@ -89,6 +116,8 @@ export interface AppSettings {
   showPitchOnStage?: boolean;
   /** Show live playback speed badge on the stage monitor (e.g. 1.00x) */
   showSpeedOnStage?: boolean;
+  /** Customizable Stage overlay messages (Ora Canta, Preparati, …) */
+  stageMessages?: StageMessagesSettings;
 
   /** Network port for the embedded Guest Portal HTTP & Socket.IO server */
   guestPortalPort: number;

@@ -15,6 +15,7 @@
   <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind" /></a>
   <a href="https://sqlite.org/"><img src="https://img.shields.io/badge/SQLite-WAL_Mode-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" /></a>
   <a href="https://deepmind.google/"><img src="https://img.shields.io/badge/Developed%20with-Google%20Antigravity-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google Antigravity" /></a>
+  <a href="https://cursor.com/"><img src="https://img.shields.io/badge/Developed%20with-Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white" alt="Cursor" /></a>
   <a href="https://www.paypal.com/paypalme/LucaAbagnale"><img src="https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Donate with PayPal" /></a>
   <a href="#-italiano"><img src="https://img.shields.io/badge/Languages-IT%20%7C%20EN%20%7C%20ES%20%7C%20FR-blue?style=for-the-badge&logo=translate" alt="Languages: IT, EN, ES, FR" /></a>
 </p>
@@ -42,7 +43,7 @@
 
 Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore + Schermo Palco)**, integra un motore audio DSP in tempo reale per la trasposizione della tonalità (in semitoni) e la velocità (senza alterazione del pitch), sintesi General MIDI / KAR con banco SoundFont professionale GeneralUser GS da 31 MB, rendering grafico CD+G a 30 fps, coda equa anti-monopolio con memoria delle tonalità dei cantanti, e un **Guest Portal LAN** integrato con codice QR per permettere al pubblico di richiedere brani direttamente dallo smartphone.
 
-> 💡 **Nota di Sviluppo**: Questo software è stato interamente ideato, architettato e sviluppato con **Google Antigravity**, l'ambiente avanzato di sviluppo ad agenti autonomi di Google DeepMind.
+> 💡 **Nota di Sviluppo**: Questo software è stato interamente ideato, architettato e sviluppato con **Google Antigravity**, l'ambiente avanzato di sviluppo ad agenti autonomi di Google DeepMind, e con **Cursor**.
 
 ---
 
@@ -321,7 +322,7 @@ Karaoke Live Station è realizzato grazie a eccezionali librerie open source, st
 
 Built upon an **independent dual-window architecture (Control Desk + Stage Screen)**, it delivers real-time Web Audio DSP pitch transposition (in semitones) and tempo scaling, native General MIDI / KAR synthesis with the bundled 31 MB GeneralUser GS SoundFont bank, 30 fps CD+G subcode graphics decoding, an intelligent Fair Queue algorithm with singer pitch memory, and an embedded **LAN Guest Portal** with dynamic QR code requests for smartphones.
 
-> 💡 **Development Note**: This software was conceived, architected, and developed with **Google Antigravity**, the advanced autonomous agentic coding assistant by Google DeepMind.
+> 💡 **Development Note**: This software was conceived, architected, and developed with **Google Antigravity**, the advanced autonomous agentic coding assistant by Google DeepMind, and with **Cursor**.
 
 ---
 

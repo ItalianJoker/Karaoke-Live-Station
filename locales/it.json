@@ -117,7 +117,11 @@
     "downloadComplete": "Download completato",
     "emptyWeb": "Nessun risultato web. Digita e premi Invio per cercare su YouTube.",
     "emptyFilter": "Nessun brano corrisponde alla ricerca locale.",
-    "emptyLocal": "Libreria vuota. Scansiona una cartella o cerca sul web."
+    "emptyLocal": "Libreria vuota. Scansiona una cartella o cerca sul web.",
+    "previewUnmuteSameDeviceTitle": "Attenzione: stesso dispositivo audio",
+    "previewUnmuteSameDeviceMessage": "Pre-Ascolto e Uscita Principale sono impostati sullo stesso dispositivo. Togliendo il muto l'audio di anteprima potrebbe mescolarsi o uscire sul master di sala. Continuare?",
+    "previewUnmuteSameDeviceConfirm": "Sì, togli muto",
+    "previewUnmuteSameDeviceCancel": "Annulla"
   },
   "settings": {
     "title": "Impostazioni di Sistema",
@@ -182,7 +186,24 @@
     "showSpeedOnStageDesc": "Visualizza il badge della velocità di riproduzione (es. 1.00x, 1.25x) sullo schermo del palco per il cantante.",
     "autoArchiveWarningTitle": "Attenzione disattivazione archiviazione automatica",
     "autoArchiveWarningDesc": "Attenzione: disattivando l'archiviazione automatica, i brani scaricati non verranno salvati nella libreria permanente. Rimarranno disponibili nella cache temporanea solo finché sono presenti in coda (anche riavviando l'app) e verranno eliminati dal disco solo quando saranno scodati o la coda verrà svuotata.",
-    "confirmDisableAutoArchive": "Conferma disattivazione"
+    "confirmDisableAutoArchive": "Conferma disattivazione",
+    "stageMessagesTitle": "Messaggi overlay Stage",
+    "stageMessagesDesc": "Personalizza testo, formattazione, dimensione e visibilità dei banner Stage (Ora Canta, Preparati, A seguire, …). Testo vuoto = default della lingua corrente. Usa {{name}} per il nome del cantante dove previsto.",
+    "stageMessageEnabled": "Attivo",
+    "stageMessageText": "Testo personalizzato",
+    "stageMessageTextPlaceholder": "Lascia vuoto per usare il default della lingua",
+    "stageMessageBold": "Grassetto",
+    "stageMessageItalic": "Corsivo",
+    "stageMessageFontSize": "Dimensione",
+    "stageMessageReset": "Ripristina default",
+    "stageMessageDefaultHint": "Default",
+    "stageMessageNowSinging": "Ora Canta",
+    "stageMessageGetReady": "Preparati",
+    "stageMessageUpNextIntro": "A seguire (intro)",
+    "stageMessageNextSong": "Etichetta prossima canzone",
+    "stageMessageNextSingerUnassigned": "Fallback cantante non assegnato",
+    "stageMessageUpNextOnStage": "Prossima esibizione",
+    "stageMessageFollowingSinger": "Cantante a seguire"
   },
   "history": {
     "title": "Storico Esecuzioni",

@@ -117,7 +117,11 @@
     "downloadComplete": "Descarga completada",
     "emptyWeb": "Sin resultados web. Escribe y pulsa Intro para buscar en YouTube.",
     "emptyFilter": "Ningún tema coincide con la búsqueda local.",
-    "emptyLocal": "Biblioteca vacía. Escanea una carpeta o busca en la web."
+    "emptyLocal": "Biblioteca vacía. Escanea una carpeta o busca en la web.",
+    "previewUnmuteSameDeviceTitle": "Atención: mismo dispositivo de audio",
+    "previewUnmuteSameDeviceMessage": "Preescucha (CUE) y Salida Principal usan el mismo dispositivo. Al quitar el silencio, el audio de vista previa podría mezclarse con el master de sala. ¿Continuar?",
+    "previewUnmuteSameDeviceConfirm": "Sí, quitar silencio",
+    "previewUnmuteSameDeviceCancel": "Cancelar"
   },
   "settings": {
     "title": "Ajustes del Sistema",
@@ -182,7 +186,24 @@
     "showSpeedOnStageDesc": "Muestra la insignia de velocidad de reproducción (p. ej. 1.00x, 1.25x) en el monitor de escenario para el cantante.",
     "autoArchiveWarningTitle": "Atención: desactivación de archivado automático",
     "autoArchiveWarningDesc": "Atención: al desactivar el archivado automático, las canciones descargadas no se guardarán en la biblioteca permanente. Permanecerán disponibles en la caché temporal solo mientras estén en la cola (incluso reiniciando la aplicación) y se eliminarán del disco solo cuando salgan de la cola o esta se vacíe.",
-    "confirmDisableAutoArchive": "Confirmar desactivación"
+    "confirmDisableAutoArchive": "Confirmar desactivación",
+    "stageMessagesTitle": "Mensajes overlay del escenario",
+    "stageMessagesDesc": "Personaliza texto, formato, tamaño y visibilidad de los banners del escenario (Ahora canta, Prepárate, A continuación, …). Texto vacío = valor predeterminado del idioma. Usa {{name}} para el nombre del cantante cuando corresponda.",
+    "stageMessageEnabled": "Activado",
+    "stageMessageText": "Texto personalizado",
+    "stageMessageTextPlaceholder": "Déjalo vacío para usar el valor del idioma",
+    "stageMessageBold": "Negrita",
+    "stageMessageItalic": "Cursiva",
+    "stageMessageFontSize": "Tamaño",
+    "stageMessageReset": "Restablecer valores",
+    "stageMessageDefaultHint": "Predeterminado",
+    "stageMessageNowSinging": "Ahora canta",
+    "stageMessageGetReady": "Prepárate",
+    "stageMessageUpNextIntro": "A continuación (intro)",
+    "stageMessageNextSong": "Etiqueta de próxima canción",
+    "stageMessageNextSingerUnassigned": "Fallback cantante no asignado",
+    "stageMessageUpNextOnStage": "Próxima actuación",
+    "stageMessageFollowingSinger": "Cantante siguiente"
   },
   "history": {
     "title": "Historial de Reproducción",
