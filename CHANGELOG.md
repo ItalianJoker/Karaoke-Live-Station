@@ -6,7 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ---
 
-## [Unreleased] — Phases 1–6 pipeline (2026-09)
+## [1.1.0] — Phases 1–6 pipeline (2026-09-13)
+
+Shipped from PR #1 (`cursor/phase-1-portability-ytdlp-855c`).
+
+## [Unreleased]
 
 ### Added
 
