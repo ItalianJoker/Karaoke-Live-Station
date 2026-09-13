@@ -90,7 +90,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   titleOverlayDurationSec: 8,
   showNextSingerAtIntro: true,
   transitionPauseSec: 3,
-  autoAdvanceNext: true,
+  autoAdvanceNext: false,
 
   guestPortalPort: 3000,
   cueAudioDeviceId: 'default',

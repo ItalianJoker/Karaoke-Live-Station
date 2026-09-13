@@ -10,6 +10,7 @@ import { DownloadManager } from './services/DownloadManager';
 import { Logger } from './services/Logger';
 import { resolveFfmpegPath, resolveYtDlpPath } from './services/BinaryResolver';
 import { YtDlpUpdater } from './services/YtDlpUpdater';
+import { DemucsModelManager } from './services/DemucsModelManager';
 import { FirewallHelper } from './services/FirewallHelper';
 import {
   ActivePlaybackState,
@@ -146,6 +147,7 @@ class KaraokeMainProcess {
   private db: DatabaseManager;
   private downloadManager: DownloadManager;
   private ytDlpUpdater: YtDlpUpdater;
+  private demucsModelManager: DemucsModelManager;
   private guestServer: GuestPortalServer | null = null;
   private currentMasterState: ActivePlaybackState | null = null;
   private currentQueue: QueueItem[] = [];
@@ -162,6 +164,7 @@ class KaraokeMainProcess {
     this.db = new DatabaseManager(userDataPath);
     this.downloadManager = new DownloadManager(tempDownloadDir, queueCacheDir);
     this.ytDlpUpdater = new YtDlpUpdater(userDataPath, this.logger);
+    this.demucsModelManager = new DemucsModelManager(this.logger);
 
     this.setupAppLifecycle();
     this.setupCustomProtocol();
@@ -641,8 +644,9 @@ class KaraokeMainProcess {
 
     // 4. Native Dialogs
     ipcMain.handle('dialog:open-file', async (_event, filters: Electron.FileFilter[]) => {
-      if (!this.controlWindow) return null;
-      const result = await dialog.showOpenDialog(this.controlWindow, {
+      // Intentionally omit parent window so the dialog is non-modal to the
+      // control renderer — prevents Chromium from suspending media/Web Audio.
+      const result = await dialog.showOpenDialog({
         properties: ['openFile'],
         filters
       });
@@ -651,8 +655,8 @@ class KaraokeMainProcess {
     });
 
     ipcMain.handle('dialog:open-directory', async () => {
-      if (!this.controlWindow) return null;
-      const result = await dialog.showOpenDialog(this.controlWindow, {
+      // Non-modal (no parent) so library/settings folder pickers never pause playback.
+      const result = await dialog.showOpenDialog({
         properties: ['openDirectory']
       });
       if (result.canceled || result.filePaths.length === 0) return null;
@@ -984,6 +988,14 @@ class KaraokeMainProcess {
 
     ipcMain.handle('logger:get-recent', async (_event, lines?: number) => {
       return await this.logger.getRecentLogs(lines);
+    });
+
+    ipcMain.handle('demucs:is-model-cached', () => {
+      return this.demucsModelManager.isModelCached();
+    });
+
+    ipcMain.handle('demucs:get-model-buffer', async () => {
+      return this.demucsModelManager.readModelBuffer();
     });
 
     ipcMain.handle('ytdlp:get-status', () => {

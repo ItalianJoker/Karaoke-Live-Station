@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { showToast, confirmAsync } from '../utils/toast';
 import { useTranslation } from 'react-i18next';
 import { X, Folder, FolderOpen, Download, Settings, Volume2, Globe, Clock, ShieldCheck, Headphones, FileText, Terminal, Trash2, RefreshCw, CheckCircle2, AlertCircle, AlertTriangle, Heart, Coffee, ExternalLink } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
@@ -124,7 +125,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     if (!window.karaokeApi) return;
     const res = await window.karaokeApi.siae.exportCsv();
     if (res.success && res.filePath) {
-      alert(t('settings.siaeExportSuccess', { path: res.filePath }));
+      showToast(t('settings.siaeExportSuccess', { path: res.filePath }));
     }
   };
 
@@ -142,9 +143,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const handleClearLogs = async () => {
     if (window.karaokeApi?.logger?.clearLogs) {
-      if (confirm(t('settings.confirmClearLogs'))) {
+      if (await confirmAsync(t('settings.confirmClearLogs'))) {
         await window.karaokeApi.logger.clearLogs();
-        alert(t('settings.logsCleared'));
+        showToast(t('settings.logsCleared'));
       }
     }
   };
@@ -454,17 +455,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-400 mb-1">{t('settings.transitionPause')}</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="15"
-                  value={settings.transitionPauseSec}
-                  onChange={(e) => updateSettings({ transitionPauseSec: parseInt(e.target.value, 10) || 3 })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
-                />
-              </div>
 
               <div>
                 <label className="block text-slate-400 mb-1">{t('settings.titleOverlayDuration')}</label>
@@ -553,15 +543,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 )}
               </div>
 
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.autoAdvanceNext}
-                  onChange={(e) => updateSettings({ autoAdvanceNext: e.target.checked })}
-                  className="w-4 h-4 accent-indigo-600 rounded"
-                />
-                <span>{t('settings.autoAdvance')}</span>
-              </label>
+              <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoAdvanceNext}
+                    onChange={(e) => updateSettings({ autoAdvanceNext: e.target.checked })}
+                    className="w-4 h-4 accent-indigo-600 rounded"
+                  />
+                  <span className="font-semibold text-white">{t('settings.autoAdvance')}</span>
+                </label>
+                <div className={settings.autoAdvanceNext ? 'opacity-100' : 'opacity-50 pointer-events-none'}>
+                  <label className="block text-slate-400 mb-1 text-xs">
+                    {t('settings.transitionPause')}
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="0"
+                      max="15"
+                      step="1"
+                      value={settings.transitionPauseSec}
+                      onChange={(e) =>
+                        updateSettings({ transitionPauseSec: parseInt(e.target.value, 10) || 0 })
+                      }
+                      className="flex-1 accent-indigo-600"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="15"
+                      value={settings.transitionPauseSec}
+                      onChange={(e) =>
+                        updateSettings({ transitionPauseSec: parseInt(e.target.value, 10) || 0 })
+                      }
+                      className="w-16 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-white text-center"
+                    />
+                    <span className="text-xs text-slate-500">sec</span>
+                  </div>
+                </div>
+              </div>
 
               <label className="flex items-center gap-3 cursor-pointer">
                 <input

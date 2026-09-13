@@ -342,86 +342,121 @@ assert(
 
 
 // -------------------------------------------------------------
-// Suite 7: Vocal Remover Enhanced In-Phase DSP Simulation
+// Suite 7: Demucs HTDemucs Vocal Separation Integration
 // -------------------------------------------------------------
-console.log('\n\x1b[36m▶ Suite 7: Vocal Remover Enhanced In-Phase DSP Pipeline Simulation\x1b[0m');
+console.log('\n\x1b[36m▶ Suite 7: Demucs HTDemucs Vocal Separation Integration\x1b[0m');
 
-/**
- * Simulates AudioGraphManager's Enhanced In-Phase Center-Channel Canceller matrix:
- *
- * Difference Bus: diff = 0.5 * (L - R)
- * Bass Mono Bus:  bass = 0.5 * (L + R) * LowpassResponse(f)
- * Highs Stereo:   highL = L * HighpassResponse(f), highR = R * HighpassResponse(f)
- *
- * OutL = (diff + bass + highL) * makeupGain (1.25)
- * OutR = (diff + bass + highR) * makeupGain (1.25)
- */
-function simulateVocalRemover(inL, inR, freqBand) {
-  const makeupGain = 1.25;
-  const diffBus = 0.5 * (inL - inR);
-
-  // Bandpass approximations based on 160 Hz / 5500 Hz cutoffs:
-  let bassGain = 0;
-  let highGain = 0;
-
-  if (freqBand === 'bass') {
-    bassGain = 1.0; // below 160 Hz
-    highGain = 0.0;
-  } else if (freqBand === 'vocal_mid') {
-    bassGain = 0.0; // 160 Hz - 5500 Hz
-    highGain = 0.0;
-  } else if (freqBand === 'high') {
-    bassGain = 0.0;
-    highGain = 1.0; // above 5500 Hz
-  }
-
-  const monoBass = 0.5 * (inL + inR) * bassGain;
-  const highL = inL * highGain;
-  const highR = inR * highGain;
-
-  const outL = (diffBus + monoBass + highL) * makeupGain;
-  const outR = (diffBus + monoBass + highR) * makeupGain;
-
-  return { outL, outR, diffBus };
-}
-
-// 1. Center-panned lead vocal cancellation (inL = 1.0, inR = 1.0, midrange frequency)
-const centerVocal = simulateVocalRemover(1.0, 1.0, 'vocal_mid');
-assert(
-  centerVocal.diffBus === 0.0 && centerVocal.outL === 0.0 && centerVocal.outR === 0.0,
-  'Center-panned vocal (L=1.0, R=1.0) in midrange produces exact 0.0 (-∞ dB cancellation)'
+const audioGraphSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
+  'utf8'
+);
+const demucsSeparatorSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/DemucsVocalSeparator.ts'),
+  'utf8'
+);
+const demucsManagerSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/DemucsModelManager.ts'),
+  'utf8'
+);
+const packageJson = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
 );
 
-// 2. Hard-panned stereo instrument preservation (inL = 1.0, inR = 0.0, midrange frequency)
-const pannedInstrument = simulateVocalRemover(1.0, 0.0, 'vocal_mid');
 assert(
-  pannedInstrument.diffBus === 0.5 && pannedInstrument.outL === 0.625 && pannedInstrument.outR === 0.625,
-  'Hard-panned stereo instrument (L=1.0, R=0.0) is cleanly preserved and distributed'
+  Boolean(packageJson.dependencies['demucs-web']) &&
+    Boolean(packageJson.dependencies['onnxruntime-web']),
+  'package.json depends on demucs-web + onnxruntime-web (dedicated OSS vocal separator)'
 );
 
-// 3. Center bass & kick drum punch retention (< 160 Hz)
-const centerBass = simulateVocalRemover(1.0, 1.0, 'bass');
 assert(
-  centerBass.diffBus === 0.0 && centerBass.outL === 1.25 && centerBass.outR === 1.25,
-  'Center bass (<160 Hz) retains full punch (1.25x makeup gain) via mono sum'
+  demucsSeparatorSource.includes("from 'demucs-web'") &&
+    demucsSeparatorSource.includes('DemucsProcessor') &&
+    demucsSeparatorSource.includes('onnxruntime-web'),
+  'DemucsVocalSeparator imports demucs-web DemucsProcessor and onnxruntime-web'
 );
 
-// 4. Stereo high-frequency preservation (> 5500 Hz)
-const stereoHighs = simulateVocalRemover(1.0, -0.5, 'high');
 assert(
-  stereoHighs.outL > 0 && stereoHighs.outR !== 0,
-  'Stereo high frequencies (>5500 Hz) retain highpass detail and brightness'
+  demucsSeparatorSource.includes('stems.drums') &&
+    demucsSeparatorSource.includes('stems.bass') &&
+    demucsSeparatorSource.includes('stems.other') &&
+    demucsSeparatorSource.includes('drums.left[i]') &&
+    demucsSeparatorSource.includes('stems.other.left[i]'),
+  'DemucsVocalSeparator mixes drums+bass+other instrumental stems (excludes lead vocals)'
 );
 
-// 5. In-phase acoustic room radiation (OutL + OutR acoustic wave collision)
-// Unlike old out-of-phase OOPS where OutR = -(L-R) caused OutL + OutR = 0 in room air,
-// the in-phase design gives OutL + OutR = 2 * diffBus * 1.25 != 0
-const acousticRoomSum = pannedInstrument.outL + pannedInstrument.outR;
 assert(
-  acousticRoomSum === 1.25,
-  'In-phase speaker radiation avoids acoustic destructive cancellation in venue room'
+  !audioGraphSource.includes('Center-Channel Canceller') &&
+    !audioGraphSource.includes('0.5 * (L - R)') &&
+    !audioGraphSource.includes('createChannelSplitter'),
+  'AudioGraphManager no longer uses homemade center-channel / EQ vocal cancel graph'
 );
 
+assert(
+  audioGraphSource.includes('setupVocalRemoverGraph') &&
+    audioGraphSource.includes('setVocalRemover(') &&
+    audioGraphSource.includes('activateDemucsInstrumental') &&
+    audioGraphSource.includes('getDemucsVocalSeparator'),
+  'AudioGraphManager routes vocal removal through Demucs instrumental stem playback'
+);
+
+assert(
+  demucsManagerSource.includes('htdemucs_embedded.onnx') &&
+    demucsManagerSource.includes('huggingface.co'),
+  'Main-process DemucsModelManager caches HTDemucs ONNX model from Hugging Face'
+);
+
+assert(
+  fs.existsSync(path.resolve(__dirname, '../public/ort/ort-wasm-simd-threaded.wasm')),
+  'ORT WASM assets are vendored under public/ort for Electron offline inference'
+);
+
+assert(
+  computePerceptualGain(0.5, false) === 0.25 &&
+    computePerceptualGain(1, false) === 1 &&
+    computePerceptualGain(0, false) === 0,
+  'Perceptual volume curve Gain=(volume)^2 still covers the full 0–1 range'
+);
+
+const karaokeStoreSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+  'utf8'
+);
+assert(
+  /autoAdvanceNext:\s*false/.test(karaokeStoreSource),
+  'autoAdvanceNext defaults to OFF (manual play required after track end)'
+);
+assert(
+  /enableFairQueue:\s*true/.test(karaokeStoreSource),
+  'enableFairQueue defaults to ON at startup'
+);
+
+const toastSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/utils/toast.ts'),
+  'utf8'
+);
+const controlSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+  'utf8'
+);
+assert(
+  toastSource.includes('showToast') &&
+    toastSource.includes('confirmAsync') &&
+    controlSource.includes('ToastHost') &&
+    controlSource.includes('showToast(') &&
+    !controlSource.includes('alert('),
+  'Control UI uses non-blocking ToastHost instead of window.alert for audio isolation'
+);
+
+const mainSourceForDialogs = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/index.ts'),
+  'utf8'
+);
+assert(
+  mainSourceForDialogs.includes('demucs:get-model-buffer') &&
+    (mainSourceForDialogs.includes('Non-modal (no parent)') ||
+      mainSourceForDialogs.includes('Intentionally omit parent window')),
+  'Demucs IPC registered and native file dialogs avoid modal parent that can stall audio'
+);
 
 // -------------------------------------------------------------
 // Suite 8: SIAE History Playback Tracking & 120s Threshold
@@ -512,8 +547,7 @@ assert(
   'SIAE CSV export includes standard ISO 8601 date-time and epoch ms columns'
 );
 
-// 8. Verify AudioGraphManager vocal remover methods exist
-const audioGraphSource = fs.readFileSync(path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'), 'utf8');
+// 8. Verify AudioGraphManager vocal remover methods still present after Demucs integration
 assert(
   audioGraphSource.includes('setupVocalRemoverGraph') && audioGraphSource.includes('setVocalRemover('),
   'AudioGraphManager contains dedicated vocal remover pipeline methods'

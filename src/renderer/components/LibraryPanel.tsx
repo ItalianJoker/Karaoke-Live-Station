@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { showToast } from '../utils/toast';
 import { useTranslation } from 'react-i18next';
 import {
   Search,
@@ -223,7 +224,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
       const discovered = await window.karaokeApi.library.scanFolder(folder);
       await loadLocalCatalog();
       window.dispatchEvent(new CustomEvent('karaoke:library-refreshed', { detail: { count: discovered.length } }));
-      alert(t('library.scanSuccess', { count: discovered.length }));
+      showToast(t('library.scanSuccess', { count: discovered.length }));
     } catch (err) {
       console.error('Library scan error:', err);
     } finally {
@@ -262,7 +263,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
   const handleStartDownload = async (track: KaraokeMediaTrack) => {
     if (!window.karaokeApi) return;
     if (settings.autoArchiveWebTracks && !settings.libraryPath?.trim()) {
-      alert(t('errors.libraryPathRequired', 'Imposta la cartella libreria nelle impostazioni prima di scaricare.'));
+      showToast(t('errors.libraryPathRequired', 'Imposta la cartella libreria nelle impostazioni prima di scaricare.'));
       return;
     }
     try {
@@ -288,7 +289,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
           uri: localUri,
           source: result.location === 'library' ? 'local_library' : track.source
         });
-        alert(
+        showToast(
           t('library.alreadyLocal', {
             path: result.localFilePath,
             defaultValue:
@@ -301,7 +302,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
         }
       }
     } catch (err) {
-      alert(t('errors.downloadFailed', { error: String(err) }));
+      showToast(t('errors.downloadFailed', { error: String(err) }));
     }
   };
 
@@ -345,9 +346,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
         });
       }
       await loadLocalCatalog();
-      alert(t('library.savedSuccess', { title: saved.title }));
+      showToast(t('library.savedSuccess', { title: saved.title }));
     } catch (err) {
-      alert(t('errors.downloadFailed', { error: String(err) }));
+      showToast(t('errors.downloadFailed', { error: String(err) }));
     }
   };
 

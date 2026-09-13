@@ -37,6 +37,8 @@ import { MidiChannelMixer } from './MidiChannelMixer';
 import { LibraryPanel } from './LibraryPanel';
 import { HistoryPanel } from './HistoryPanel';
 import { SettingsModal } from './SettingsModal';
+import { ToastHost } from './ToastHost';
+import { showToast, confirmAsync } from '../utils/toast';
 import { SingersModal } from './SingersModal';
 import { GuestRequestsModal } from './GuestRequestsModal';
 import { FirewallGuideCard } from './FirewallGuideCard';
@@ -265,7 +267,7 @@ export const ControlWindow: React.FC = () => {
   const handleSaveToPermanentLibrary = async (track: any) => {
     if (!window.karaokeApi?.downloads?.saveToLibrary) return;
     if (!track.localFilePath) {
-      alert(t('library.missingFile'));
+      showToast(t('library.missingFile'));
       return;
     }
 
@@ -301,7 +303,7 @@ export const ControlWindow: React.FC = () => {
       window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
     } catch (err: any) {
       console.error('Failed to save track to library:', err);
-      alert(t('errors.downloadFailed', { error: err?.message || String(err) }));
+      showToast(t('errors.downloadFailed', { error: err?.message || String(err) }));
     } finally {
       setSavingTrackIds((prev) => {
         const next = new Set(prev);
@@ -451,6 +453,12 @@ export const ControlWindow: React.FC = () => {
       manager.dispose();
     };
   }, []);
+
+  
+  // Re-run Demucs separation when the active track media changes while remover is on
+  useEffect(() => {
+    audioGraphRef.current?.refreshVocalRemoverForCurrentMedia();
+  }, [playback.currentTrackId]);
 
   // Update Audio Graph on DSP state change (decoupled from currentTime tracking to eliminate stutter)
   const mutedMidiChannelsKey = playback.mutedMidiChannels.slice().sort().join(',');
@@ -1225,8 +1233,8 @@ export const ControlWindow: React.FC = () => {
                   )}
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm(t('queue.confirmClear', "Sei sicuro di voler svuotare l'intera coda dei brani?"))) {
+                    onClick={async () => {
+                      if (await confirmAsync(t('queue.confirmClear', "Sei sicuro di voler svuotare l'intera coda dei brani?"))) {
                         handleStop();
                         clearQueue();
                       }
@@ -1458,6 +1466,7 @@ export const ControlWindow: React.FC = () => {
 
       {/* Modals */}
       <SettingsModal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
+      <ToastHost />
       <SingersModal
         isOpen={showSingersModal}
         onClose={() => {

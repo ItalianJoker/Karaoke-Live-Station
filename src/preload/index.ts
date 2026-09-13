@@ -195,6 +195,14 @@ export interface KaraokeAPI {
     /** Checks GitHub releases for updates and performs immediate download/update if available */
     checkUpdate: () => Promise<YtDlpStatus>;
   };
+
+  /** HTDemucs ONNX model cache (main-process download / ArrayBuffer transfer) */
+  demucs: {
+    /** Returns true when the HTDemucs model is already cached under userData */
+    isModelCached: () => Promise<boolean>;
+    /** Ensures the model is downloaded and returns its raw ArrayBuffer */
+    getModelBuffer: () => Promise<ArrayBuffer>;
+  };
 }
 
 const karaokeApi: KaraokeAPI = {
@@ -349,6 +357,11 @@ const karaokeApi: KaraokeAPI = {
   ytdlp: {
     getStatus: () => ipcRenderer.invoke('ytdlp:get-status'),
     checkUpdate: () => ipcRenderer.invoke('ytdlp:check-update')
+  },
+
+  demucs: {
+    isModelCached: () => ipcRenderer.invoke('demucs:is-model-cached'),
+    getModelBuffer: () => ipcRenderer.invoke('demucs:get-model-buffer')
   }
 };
 
