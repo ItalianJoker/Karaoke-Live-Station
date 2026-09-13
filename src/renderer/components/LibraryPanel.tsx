@@ -101,7 +101,24 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
   const loadLocalCatalog = async () => {
     if (window.karaokeApi) {
       const tracks = await window.karaokeApi.db.getTracks();
-      setLocalTracks(tracks);
+      // Client-side safety net: one row per local path / stable id
+      const byKey = new Map<string, KaraokeMediaTrack>();
+      for (const track of tracks) {
+        if (track.source === 'youtube' && !track.localFilePath) continue;
+        const pathKey = (track.localFilePath || '').toLowerCase();
+        const key = pathKey || track.id;
+        const prev = byKey.get(key);
+        if (!prev) {
+          byKey.set(key, track);
+          continue;
+        }
+        const prefer =
+          (/^[\w-]{11}$/.test(track.id) ? 2 : 0) + (track.source === 'local_library' ? 1 : 0);
+        const prevScore =
+          (/^[\w-]{11}$/.test(prev.id) ? 2 : 0) + (prev.source === 'local_library' ? 1 : 0);
+        if (prefer >= prevScore) byKey.set(key, track);
+      }
+      setLocalTracks(Array.from(byKey.values()));
       await useKaraokeStore.getState().loadSingersFromDb();
     }
   };
@@ -163,10 +180,20 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
         if (payload.status === 'completed' && payload.outputFilePath) {
           const associatedTrack = trackMap[payload.downloadId];
           if (associatedTrack) {
+            const isFinishedLibraryFile = (filePath: string, source?: KaraokeMediaTrack['source']) => {
+              if (source !== 'local_library') return false;
+              const lower = filePath.toLowerCase();
+              if (!filePath) return false;
+              if (lower.includes('queue_cache') || lower.includes(`${'temp'}`) || lower.includes('/tmp')) return false;
+              if (lower.endsWith('.part') || lower.endsWith('.ytdl') || lower.endsWith('.tmp')) return false;
+              return true;
+            };
+
             const applyLocalPreview = (
               localFilePath: string,
               uri: string,
-              source?: KaraokeMediaTrack['source']
+              source?: KaraokeMediaTrack['source'],
+              opts?: { touchLibraryList?: boolean }
             ) => {
               const patch: Partial<KaraokeMediaTrack> = {
                 localFilePath,
@@ -182,18 +209,23 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
                     : track
                 )
               );
-              setLocalTracks((prev) => {
-                const idx = prev.findIndex(
-                  (track) => track.id === associatedTrack.id || track.uri === associatedTrack.uri
-                );
-                if (idx === -1) {
-                  // Newly archived/cached web track — surface immediately in local list for filtering/preview
-                  return [{ ...associatedTrack, ...patch, source: (source || associatedTrack.source) }, ...prev];
-                }
-                const next = [...prev];
-                next[idx] = { ...next[idx], ...patch };
-                return next;
-              });
+              // Only surface complete library files in the Local list. Temp/partial/cache
+              // paths must not create ghost rows (they look like duplicates until restart).
+              if (opts?.touchLibraryList && isFinishedLibraryFile(localFilePath, source)) {
+                setLocalTracks((prev) => {
+                  const keyPath = localFilePath.toLowerCase();
+                  const filtered = prev.filter(
+                    (track) =>
+                      track.id !== associatedTrack.id &&
+                      track.uri !== associatedTrack.uri &&
+                      (track.localFilePath || '').toLowerCase() !== keyPath
+                  );
+                  return [
+                    { ...associatedTrack, ...patch, source: 'local_library' as const, id: associatedTrack.id },
+                    ...filtered
+                  ];
+                });
+              }
               setTrackMap((prev) => {
                 const existing = prev[payload.downloadId];
                 if (!existing) return prev;
@@ -207,7 +239,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
               applyLocalPreview(
                 payload.outputFilePath,
                 localUri,
-                payload.existingLocation === 'library' ? 'local_library' : associatedTrack.source
+                payload.existingLocation === 'library' ? 'local_library' : associatedTrack.source,
+                { touchLibraryList: false }
               );
               if (payload.existingLocation === 'library') {
                 await loadLocalCatalog();
@@ -217,7 +250,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
             }
 
             const localUri = `karaoke://local/${encodeURIComponent(payload.outputFilePath)}`;
-            applyLocalPreview(payload.outputFilePath, localUri);
+            // Relink queue/search only — never index temp/partial output as a library row
+            applyLocalPreview(payload.outputFilePath, localUri, undefined, { touchLibraryList: false });
 
             // Auto-archive web tracks if enabled in settings
             if (settings.autoArchiveWebTracks) {
@@ -235,13 +269,16 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
                   trackId: associatedTrack.id
                 });
                 if (saved.localFilePath && saved.uri) {
-                  applyLocalPreview(saved.localFilePath, saved.uri, 'local_library');
+                  applyLocalPreview(saved.localFilePath, saved.uri, 'local_library', {
+                    touchLibraryList: false
+                  });
                   updateTrackInQueue(payload.outputFilePath, {
                     localFilePath: saved.localFilePath,
                     uri: saved.uri,
                     source: 'local_library'
                   });
                 }
+                // Single authoritative refresh after upsert — drops any temp/path-hash ghosts
                 await loadLocalCatalog();
                 window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
               } catch (err) {

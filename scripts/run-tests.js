@@ -811,6 +811,39 @@ assert(
     /showPitchOnStage:\s*true/.test(karaokeStoreSourceP45),
   'showPitchOnStage setting exists and defaults to ON'
 );
+
+assert(
+  stageWindowSource.includes('showSpeedOnStage') &&
+    stageWindowSource.includes('stage-speed-badge') &&
+    settingsModalSourceP45.includes('showSpeedOnStage') &&
+    /showSpeedOnStage:\s*true/.test(karaokeStoreSourceP45),
+  'showSpeedOnStage setting exists, defaults to ON, and Stage renders speed badge'
+);
+
+assert(
+  settingsModalSourceP45.indexOf('PayPal support banner') > -1 &&
+    settingsModalSourceP45.indexOf('PayPal support banner') <
+      settingsModalSourceP45.indexOf('{/* Instant search */}'),
+  'PayPal banner is pinned above the Settings search bar'
+);
+
+assert(
+  libraryPanelSourceP45.includes('isFinishedLibraryFile') &&
+    libraryPanelSourceP45.includes('touchLibraryList') &&
+    libraryPanelSourceP45.includes('Client-side safety net'),
+  'LibraryPanel refuses temp/partial downloads as finished library rows and dedupes on refresh'
+);
+
+const mainScanSource = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+const databaseSourceDedupe = fs.readFileSync(path.resolve(__dirname, '../src/main/db/database.ts'), 'utf8');
+assert(
+  mainScanSource.includes('.part') &&
+    mainScanSource.includes('stableYtId') &&
+    databaseSourceDedupe.includes('deleteTracksByLocalPathExcept') &&
+    databaseSourceDedupe.includes('dedupeTracksByIdentity'),
+  'Library scan skips incomplete files, prefers YouTube ids, and DB collapses path duplicates'
+);
+
 assert(
   stageWindowSource.includes('document.styleSheets') &&
     stageWindowSource.includes('requestAnimationFrame') &&
@@ -819,14 +852,29 @@ assert(
 );
 
 // --- YouTube preview without error 153 ---
+const youtubeEmbedHelperSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/youtubeEmbed.ts'),
+  'utf8'
+);
+const mainProcessSourceFor153 = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/index.ts'),
+  'utf8'
+);
 assert(
-  videoPreviewSource.includes('youtube-nocookie.com/embed/') &&
-    videoPreviewSource.includes('enablejsapi=1') &&
-    videoPreviewSource.includes('playsinline=1') &&
-    videoPreviewSource.includes('origin=') &&
-    (videoPreviewSource.includes('widget_referrer=') || videoPreviewSource.includes('widget_referrer')) &&
-    videoPreviewSource.includes('referrerPolicy'),
-  'YouTube preview embed includes nocookie + jsapi/origin/playsinline/referrerPolicy (153 mitigation)'
+  youtubeEmbedHelperSource.includes('buildYouTubeEmbedSrc') &&
+    youtubeEmbedHelperSource.includes('youtube-nocookie.com/embed/') &&
+    youtubeEmbedHelperSource.includes('enablejsapi') &&
+    youtubeEmbedHelperSource.includes('playsinline') &&
+    youtubeEmbedHelperSource.includes('origin') &&
+    youtubeEmbedHelperSource.includes('YOUTUBE_EMBED_REFERRER_POLICY') &&
+    youtubeEmbedHelperSource.includes('YOUTUBE_EMBED_APP_ORIGIN') &&
+    youtubeEmbedHelperSource.includes('resolveYouTubeEmbedOrigin') &&
+    videoPreviewSource.includes('buildYouTubeEmbedSrc') &&
+    videoPreviewSource.includes('YOUTUBE_EMBED_REFERRER_POLICY') &&
+    mainProcessSourceFor153.includes('setupYouTubeEmbedReferer') &&
+    mainProcessSourceFor153.includes('onBeforeSendHeaders') &&
+    /headers\[['"]Referer['"]\]/.test(mainProcessSourceFor153),
+  'YouTube preview embed uses shared builder + Electron Referer injection (153 mitigation)'
 );
 
 // --- Dynamic search + dismissible download complete ---

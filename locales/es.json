@@ -178,6 +178,8 @@
     "saveAndClose": "Guardar y Cerrar",
     "showPitchOnStage": "Mostrar cambio de tono en la pantalla del escenario",
     "showPitchOnStageDesc": "Muestra la insignia con los semitonos de variación (+/-) en el monitor de escenario para el cantante.",
+    "showSpeedOnStage": "Mostrar velocidad de reproducción en la pantalla del escenario",
+    "showSpeedOnStageDesc": "Muestra la insignia de velocidad de reproducción (p. ej. 1.00x, 1.25x) en el monitor de escenario para el cantante.",
     "autoArchiveWarningTitle": "Atención: desactivación de archivado automático",
     "autoArchiveWarningDesc": "Atención: al desactivar el archivado automático, las canciones descargadas no se guardarán en la biblioteca permanente. Permanecerán disponibles en la caché temporal solo mientras estén en la cola (incluso reiniciando la aplicación) y se eliminarán del disco solo cuando salgan de la cola o esta se vacíe.",
     "confirmDisableAutoArchive": "Confirmar desactivación"

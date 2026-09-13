@@ -84,6 +84,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   enableSiaeReporting: true,
   autoArchiveWebTracks: true,
   showPitchOnStage: true,
+  showSpeedOnStage: true,
 
   bannerIntroDurationSec: 6,
   bannerOutroTriggerSec: 20,

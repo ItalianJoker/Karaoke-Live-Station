@@ -178,6 +178,8 @@
     "saveAndClose": "Enregistrer et Fermer",
     "showPitchOnStage": "Afficher le décalage de tonalité sur l'écran de scène",
     "showPitchOnStageDesc": "Affiche le badge avec les demi-tons de variation (+/-) sur le moniteur de scène pour le chanteur.",
+    "showSpeedOnStage": "Afficher la vitesse de lecture sur l'écran de scène",
+    "showSpeedOnStageDesc": "Affiche le badge de vitesse de lecture (ex. 1.00x, 1.25x) sur le moniteur de scène pour le chanteur.",
     "autoArchiveWarningTitle": "Attention : désactivation de l'archivage automatique",
     "autoArchiveWarningDesc": "Attention : en désactivant l'archivage automatique, les morceaux téléchargés ne seront pas enregistrés dans la bibliothèque permanente. Ils resteront disponibles dans le cache temporaire uniquement tant qu'ils sont présents dans la file d'attente (même en redémarrant l'application) et ne seront supprimés du disque que lorsqu'ils seront retirés de la file ou que celle-ci sera vidée.",
     "confirmDisableAutoArchive": "Confirmer la désactivation"

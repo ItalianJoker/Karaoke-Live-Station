@@ -10,8 +10,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 Shipped from PR #1 (`cursor/phase-1-portability-ytdlp-855c`).
 
-## [Unreleased]
-
 ### Added
 
 #### Architecture & portability (Phase 1)
@@ -77,6 +75,15 @@ Shipped from PR #1 (`cursor/phase-1-portability-ytdlp-855c`).
 | `autoArchiveWebTracks` | `true` |
 | `showPitchOnStage` | `true` |
 | SIAE log threshold | ≥ 120s or natural end |
+
+### Fixed (follow-up)
+- YouTube preview Error 153: Electron Referer injection + shared embed URL builder
+- Duplicate local-library rows when queuing from web search (stable YouTube id upsert + scan dedupe)
+- Incomplete / in-progress downloads no longer indexed as finished library tracks
+
+### Added (follow-up)
+- Stage playback-speed badge toggle (`showSpeedOnStage`), mirroring pitch badge
+- PayPal support banner pinned above Settings search (visible on all tabs)
 
 ---
 

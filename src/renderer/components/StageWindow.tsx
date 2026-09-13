@@ -506,6 +506,16 @@ export const StageWindow: React.FC = () => {
         </div>
       )}
 
+      {(settings?.showSpeedOnStage ?? true) && (
+        <div
+          className="absolute top-6 right-28 z-[70] bg-slate-950/95 backdrop-blur-md border border-emerald-500/50 px-4 py-2 rounded-full text-sm font-mono text-emerald-300 font-bold shadow-[0_8px_30px_rgba(0,0,0,0.65)] pointer-events-none tracking-wide"
+          data-testid="stage-speed-badge"
+          aria-label={`Speed ${(playback.playbackSpeed || 1).toFixed(2)}x`}
+        >
+          {`${Number(playback.playbackSpeed || 1).toFixed(2)}x`}
+        </div>
+      )}
+
       {/* Temporary Floating Bottom-Center Track Title & Artist Overlay */}
       {showTitleOverlay && activeTrack?.title && (
         <div className="absolute bottom-6 md:bottom-10 left-1/2 -translate-x-1/2 z-40 max-w-[90vw] text-center pointer-events-none transition-all duration-700 ease-in-out">

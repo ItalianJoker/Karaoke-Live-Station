@@ -26,7 +26,8 @@
 - 🇬🇧 [User manual (EN)](./USER_MANUAL_en.md)
 - 🇪🇸 [Manual de usuario (ES)](./USER_MANUAL_es.md)
 - 🇫🇷 [Manuel utilisateur (FR)](./USER_MANUAL_fr.md)
-- 📋 [CHANGELOG.md](./CHANGELOG.md)
+- 📋 [CHANGELOG.md](./CHANGELOG.md) · [RELEASE_NOTES.md](./RELEASE_NOTES.md)
+- 🧰 Managed binaries (`yt-dlp`, helpers): `<app_userData>/bin/` (Electron `userData`) — portable across updates
 
 ### 🌐 Lingua / Language
 - [🇮🇹 **Italiano**](#-italiano) • [☕ *Supporta il Progetto*](#-supporta-il-progetto) • [⚖️ *Disclaimer Legale & Copyright*](#️-disclaimer-legale-copyright--marchi-registrati) • [📚 *Fonti & Licenze Terze*](#-attribuzioni-fonti--licenze-librerie-terze)
@@ -313,15 +314,6 @@ Karaoke Live Station è realizzato grazie a eccezionali librerie open source, st
 <br/>
 
 <a name="english"></a>
-
----
-
-## 📚 Docs & runtime paths
-
-- Full operator manuals: [IT](./USER_MANUAL.md) · [EN](./USER_MANUAL_en.md) · [ES](./USER_MANUAL_es.md) · [FR](./USER_MANUAL_fr.md)
-- Managed binaries (yt-dlp and helpers) live under **`<app_userData>/bin/`** (Electron `app.getPath('userData')`), never inside the install/asar tree — portable across updates.
-- Live keyboard shortcuts are listed in each manual (§10) and in-app under **Settings → Scorciatoie** / **F1**.
-
 
 # 🇬🇧 English
 

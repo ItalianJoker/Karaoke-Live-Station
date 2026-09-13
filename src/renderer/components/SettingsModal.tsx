@@ -344,6 +344,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     'tonalità',
     'semitoni'
   );
+  const matchSpeedStage = matchesSearch(
+    t('settings.showSpeedOnStage'),
+    t('settings.showSpeedOnStageDesc'),
+    'speed',
+    'velocità',
+    'tempo',
+    'playback'
+  );
 
   const liveShortcuts = [
     { keys: ['Spazio'], label: t('shortcuts.playPause', 'Play / Pausa') },
@@ -370,7 +378,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const audioHasMatches =
     matchSoundfont || matchDevices || matchAvSync || matchNormalization || matchAutoAdvance;
   const stageHasMatches =
-    matchBannerIntro || matchBannerOutro || matchTitleOverlay || matchNextSinger || matchPitchStage;
+    matchBannerIntro || matchBannerOutro || matchTitleOverlay || matchNextSinger || matchPitchStage || matchSpeedStage;
   const shortcutsHasMatches = matchingShortcuts.length > 0;
 
   const anySearchResults =
@@ -392,6 +400,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* PayPal support banner — always visible above search, all tabs */}
+        <div className="pt-4 pb-0 shrink-0">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/40 border border-indigo-500/30 p-4 shadow-lg shadow-indigo-950/20">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0 text-indigo-400">
+                  <Heart className="w-5 h-5 text-rose-400 animate-pulse" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>{t('settings.supportTitle')}</span>
+                    <span className="text-[10px] font-semibold bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30">
+                      PayPal
+                    </span>
+                  </h4>
+                  <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
+                    {t('settings.supportDescription')}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenDonation}
+                className="px-4 py-2.5 bg-[#0070BA] hover:bg-[#005ea6] active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-blue-900/30 border border-blue-400/30 transition-all shrink-0 cursor-pointer"
+              >
+                <Coffee className="w-4 h-4 text-amber-200" />
+                <span>{t('settings.donateButton')}</span>
+                <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Instant search */}
@@ -450,38 +491,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </h3>
               )}
 
-              {/* Support & Donations Banner */}
-              {(!isSearching || matchSupport) && (
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/40 border border-indigo-500/30 p-4 shadow-lg shadow-indigo-950/20">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0 text-indigo-400">
-                        <Heart className="w-5 h-5 text-rose-400 animate-pulse" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                          <span>{t('settings.supportTitle')}</span>
-                          <span className="text-[10px] font-semibold bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30">
-                            PayPal
-                          </span>
-                        </h4>
-                        <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
-                          {t('settings.supportDescription')}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleOpenDonation}
-                      className="px-4 py-2.5 bg-[#0070BA] hover:bg-[#005ea6] active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-blue-900/30 border border-blue-400/30 transition-all shrink-0 cursor-pointer"
-                    >
-                      <Coffee className="w-4 h-4 text-amber-200" />
-                      <span>{t('settings.donateButton')}</span>
-                      <ExternalLink className="w-3.5 h-3.5 opacity-70" />
-                    </button>
-                  </div>
-                </div>
-              )}
 
               {/* Themes & Localization */}
               {(!isSearching || matchThemeLang) && (
@@ -1049,7 +1058,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               {(
                 !isSearching ||
                 matchNextSinger ||
-                matchPitchStage
+                matchPitchStage ||
+                matchSpeedStage
               ) && (
                 <div className="pt-2 border-t border-slate-800/80 space-y-3">
                   {(!isSearching || matchNextSinger) && (
@@ -1078,6 +1088,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       <div>
                         <span className="text-sm font-medium text-slate-200 block">{t('settings.showPitchOnStage')}</span>
                         <span className="text-xs text-slate-400 block mt-0.5">{t('settings.showPitchOnStageDesc')}</span>
+                      </div>
+                    </label>
+                  )}
+
+                  {(!isSearching || matchSpeedStage) && (
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.showSpeedOnStage ?? true}
+                        onChange={(e) => updateSettings({ showSpeedOnStage: e.target.checked })}
+                        className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-slate-200 block">{t('settings.showSpeedOnStage')}</span>
+                        <span className="text-xs text-slate-400 block mt-0.5">{t('settings.showSpeedOnStageDesc')}</span>
                       </div>
                     </label>
                   )}

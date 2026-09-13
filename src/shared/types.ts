@@ -87,6 +87,8 @@ export interface AppSettings {
   autoAdvanceNext: boolean;
   /** Show live semitone pitch shift badge on the stage monitor */
   showPitchOnStage?: boolean;
+  /** Show live playback speed badge on the stage monitor (e.g. 1.00x) */
+  showSpeedOnStage?: boolean;
 
   /** Network port for the embedded Guest Portal HTTP & Socket.IO server */
   guestPortalPort: number;

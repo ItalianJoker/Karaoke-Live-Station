@@ -14,6 +14,10 @@ import {
   Info
 } from 'lucide-react';
 import { KaraokeMediaTrack, SingerProfile } from '../../shared/types';
+import {
+  buildYouTubeEmbedSrc,
+  YOUTUBE_EMBED_REFERRER_POLICY
+} from '../../shared/youtubeEmbed';
 
 interface VideoPreviewModalProps {
   isOpen: boolean;
@@ -216,11 +220,14 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
               />
             ) : isYouTube ? (
               <iframe
-                src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(track.id)}?autoplay=1&mute=1&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : 'https://localhost')}&widget_referrer=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : 'https://localhost')}&rel=0&modestbranding=1`}
+                src={buildYouTubeEmbedSrc({
+                  videoId: track.id,
+                  windowOrigin: typeof window !== 'undefined' ? window.location.origin : undefined
+                })}
                 title={track.title}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
-                referrerPolicy="strict-origin-when-cross-origin"
+                referrerPolicy={YOUTUBE_EMBED_REFERRER_POLICY}
                 className="w-full h-full border-0"
               />
             ) : isMidi ? (

@@ -178,6 +178,8 @@
     "saveAndClose": "Salva e Chiudi",
     "showPitchOnStage": "Mostra variazione tonalità sullo schermo del palco",
     "showPitchOnStageDesc": "Visualizza il badge con i semitoni di variazione (+/-) sullo schermo del palco per il cantante.",
+    "showSpeedOnStage": "Mostra velocità di riproduzione sullo schermo del palco",
+    "showSpeedOnStageDesc": "Visualizza il badge della velocità di riproduzione (es. 1.00x, 1.25x) sullo schermo del palco per il cantante.",
     "autoArchiveWarningTitle": "Attenzione disattivazione archiviazione automatica",
     "autoArchiveWarningDesc": "Attenzione: disattivando l'archiviazione automatica, i brani scaricati non verranno salvati nella libreria permanente. Rimarranno disponibili nella cache temporanea solo finché sono presenti in coda (anche riavviando l'app) e verranno eliminati dal disco solo quando saranno scodati o la coda verrà svuotata.",
     "confirmDisableAutoArchive": "Conferma disattivazione"
