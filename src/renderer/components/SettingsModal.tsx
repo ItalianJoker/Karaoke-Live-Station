@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Folder, FolderOpen, Download, Settings, Volume2, Globe, Clock, ShieldCheck, Headphones, FileText, Terminal, Trash2, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Folder, FolderOpen, Download, Settings, Volume2, Globe, Clock, ShieldCheck, Headphones, FileText, Terminal, Trash2, RefreshCw, CheckCircle2, AlertCircle, Heart, Coffee, ExternalLink } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AppTheme, YtDlpStatus } from '../../shared/types';
 import appLogo from '../assets/logo.png';
@@ -98,6 +98,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const handleResetDefaultSoundFont = () => {
     if (defaultSystemSf) {
       updateSettings({ midiSoundFontPath: defaultSystemSf });
+    }
+  };
+
+  const handleOpenDonation = () => {
+    const url = 'https://www.paypal.com/paypalme/LucaAbagnale';
+    if (window.karaokeApi?.system?.openExternal) {
+      window.karaokeApi.system.openExternal(url);
+    } else {
+      window.open(url, '_blank');
     }
   };
 
@@ -666,6 +675,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   {ytdlpMessage}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Section 9: Support & Donations */}
+          <div className="pt-3 border-t border-slate-800">
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/40 border border-indigo-500/30 p-4 shadow-lg shadow-indigo-950/20">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0 text-indigo-400">
+                    <Heart className="w-5 h-5 text-rose-400 animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>{t('settings.supportTitle')}</span>
+                      <span className="text-[10px] font-semibold bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30">
+                        PayPal
+                      </span>
+                    </h4>
+                    <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
+                      {t('settings.supportDescription')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenDonation}
+                  className="px-4 py-2.5 bg-[#0070BA] hover:bg-[#005ea6] active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-blue-900/30 border border-blue-400/30 transition-all shrink-0 cursor-pointer"
+                >
+                  <Coffee className="w-4 h-4 text-amber-200" />
+                  <span>{t('settings.donateButton')}</span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

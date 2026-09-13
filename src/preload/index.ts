@@ -127,6 +127,8 @@ export interface KaraokeAPI {
       midiSoundFontPath: string;
       wasPrompted: boolean;
     }>;
+    /** Safely opens an external HTTP/HTTPS URL in the default system browser */
+    openExternal: (url: string) => Promise<{ success: boolean }>;
   };
 
   // 10. Diagnostic Logger
@@ -271,7 +273,8 @@ const karaokeApi: KaraokeAPI = {
   system: {
     getDefaultSoundFont: () => ipcRenderer.invoke('system:get-default-soundfont'),
     initPaths: (clientSettings: { libraryPath?: string; midiSoundFontPath?: string }) =>
-      ipcRenderer.invoke('system:init-paths', clientSettings)
+      ipcRenderer.invoke('system:init-paths', clientSettings),
+    openExternal: (url: string) => ipcRenderer.invoke('system:open-external', url)
   },
 
   // Diagnostic Logger

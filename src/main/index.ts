@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, dialog, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, dialog, Menu, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { Readable } from 'stream';
@@ -631,6 +631,14 @@ class KaraokeMainProcess {
     // 4b. System Defaults
     ipcMain.handle('system:get-default-soundfont', () => {
       return getDefaultSystemSoundFont();
+    });
+
+    ipcMain.handle('system:open-external', async (_event, url: string) => {
+      if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
+        await shell.openExternal(url);
+        return { success: true };
+      }
+      return { success: false };
     });
 
     ipcMain.handle(

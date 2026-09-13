@@ -159,6 +159,9 @@
     "ytdlpUpToDate": "All'ultima versione disponibile",
     "ytdlpUpdateSuccess": "Aggiornato con successo alla v{{version}}",
     "ytdlpUpdateFailed": "Aggiornamento non riuscito: {{error}}",
+    "supportTitle": "Supporta il Progetto",
+    "supportDescription": "Se Karaoke Live Station ti è utile per le tue serate e vuoi sostenere lo sviluppo continuo di nuove funzionalità e aggiornamenti, puoi offrire un caffè con una donazione libera!",
+    "donateButton": "Dona con PayPal",
     "saveAndClose": "Salva e Chiudi"
   },
   "history": {

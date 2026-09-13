@@ -15,13 +15,14 @@
   <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind" /></a>
   <a href="https://sqlite.org/"><img src="https://img.shields.io/badge/SQLite-WAL_Mode-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" /></a>
   <a href="https://deepmind.google/"><img src="https://img.shields.io/badge/Developed%20with-Google%20Antigravity-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google Antigravity" /></a>
+  <a href="https://www.paypal.com/paypalme/LucaAbagnale"><img src="https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Donate with PayPal" /></a>
 </p>
 
 ---
 
 ### 🌐 Lingua / Language
-- [🇮🇹 **Italiano**](#-italiano) • [⚖️ *Disclaimer Legale & Copyright*](#️-disclaimer-legale-copyright--marchi-registrati) • [📚 *Fonti & Licenze Terze*](#-attribuzioni-fonti--licenze-librerie-terze)
-- [🇬🇧 **English**](#-english) • [⚖️ *Legal Disclaimer & Trademarks*](#️-legal-disclaimer-copyright--trademarks) • [📚 *Third-Party Sources & Licenses*](#-third-party-libraries-citations--licenses)
+- [🇮🇹 **Italiano**](#-italiano) • [☕ *Supporta il Progetto*](#-supporta-il-progetto) • [⚖️ *Disclaimer Legale & Copyright*](#️-disclaimer-legale-copyright--marchi-registrati) • [📚 *Fonti & Licenze Terze*](#-attribuzioni-fonti--licenze-librerie-terze)
+- [🇬🇧 **English**](#-english) • [☕ *Support the Project*](#-support-the-project) • [⚖️ *Legal Disclaimer & Trademarks*](#️-legal-disclaimer-copyright--trademarks) • [📚 *Third-Party Sources & Licenses*](#-third-party-libraries-citations--licenses)
 
 ---
 
@@ -197,6 +198,24 @@ npm run electron:build:all
 > - **Refresh Automatico all'Avvio**: Ad ogni apertura del programma, se la cartella della libreria è impostata, viene eseguita automaticamente una scansione in background del percorso per rilevare e indicizzare istantaneamente nel catalogo eventuali nuovi brani aggiunti o rimossi.
 > - **SoundFont Predefinito**: Il banco ad alta fedeltà `GeneralUser-GS.sf2` (31 MB) è pre-incluso in tutte le release ed è configurato come predefinito out-of-the-box.
 > - **Zero Inquinamento Multipiattaforma**: Ogni pacchetto di release contiene esclusivamente gli eseguibili e le librerie native compilate per quel sistema operativo (nessun eseguibile `.exe` su Linux/Mac, nessun binario ELF su Windows).
+
+---
+
+## ☕ Supporta il Progetto
+
+Se trovi utile **Karaoke Live Station** per le tue serate, feste o eventi e desideri sostenere il continuo sviluppo, l'aggiunta di nuove funzionalità e la manutenzione del software, puoi offrire un caffè o fare una donazione libera tramite PayPal:
+
+<p align="center">
+  <a href="https://www.paypal.com/paypalme/LucaAbagnale" target="_blank">
+    <img src="https://img.shields.io/badge/Donazione-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Fai una donazione con PayPal" />
+  </a>
+</p>
+
+<p align="center">
+  👉 <a href="https://www.paypal.com/paypalme/LucaAbagnale"><strong>paypal.me/LucaAbagnale</strong></a> 👈
+</p>
+
+> ❤️ *Ogni contributo, anche piccolo, è un supporto prezioso per mantenere il progetto aperto, gratuito, aggiornato e indipendente per tutti. Grazie di cuore!*
 
 ---
 
@@ -472,6 +491,24 @@ KaraokeStation/
 ├── tsconfig.json                   # TypeScript configuration
 └── vite.config.ts                  # Vite & electron plugins configuration
 ```
+
+---
+
+## ☕ Support the Project
+
+If you find **Karaoke Live Station** valuable for your shows, venues, or private events and would like to support ongoing development, maintenance, and future enhancements, you can buy me a coffee or make a free donation via PayPal:
+
+<p align="center">
+  <a href="https://www.paypal.com/paypalme/LucaAbagnale" target="_blank">
+    <img src="https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Donate with PayPal" />
+  </a>
+</p>
+
+<p align="center">
+  👉 <a href="https://www.paypal.com/paypalme/LucaAbagnale"><strong>paypal.me/LucaAbagnale</strong></a> 👈
+</p>
+
+> ❤️ *Every contribution, no matter the size, is deeply appreciated and helps keep this software open-source, free, and continuously maintained for everyone. Thank you so much!*
 
 ---
 
