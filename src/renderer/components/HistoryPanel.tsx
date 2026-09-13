@@ -14,14 +14,8 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
-export interface SiaeLogEntry {
-  id: number;
-  trackTitle: string;
-  trackArtist: string;
-  singerName: string | null;
-  executedAt: number;
-  durationSec: number;
-}
+import { SiaeLogEntry } from '../../shared/types';
+export type { SiaeLogEntry };
 
 /**
  * HistoryPanel Component

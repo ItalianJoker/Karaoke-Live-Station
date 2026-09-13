@@ -95,7 +95,7 @@
 - **Muto Master (Tasto `M`):** Azzera istantaneamente il volume del canale master mantenendo la posizione del fader.
 
 ### Processore Vocale DSP & Microfono
-- **Rimozione Voce Guida (Tasto `V`):** Attiva un filtro di cancellazione spettrale a inversione di fase (Center-Channel Vocal Cancellation) per abbattere la voce solista incisa su tracce audio stereo commerciali.
+- **Rimozione Voce Guida In-Phase (Tasto `V`):** Attiva una matrice DSP ad alta fedeltà di cancellazione del canale centrale (Enhanced In-Phase Center-Channel Canceller). Sottrae la componente mono (`0.5 * (L - R)`) per abbattere a $-\infty$ dB la voce solista incisa al centro dello stereo, mentre preserva il punch di basso e cassa (< 160 Hz in mono), la brillantezza e l'aria delle alte frequenze (> 5500 Hz in stereo) e applica la medesima polarità positiva su entrambi gli altoparlanti del locale, prevenendo qualsiasi interferenza distruttiva nell'aria.
 - **Auto-Ducking BGM (Tasto `D`):** Abbassa automaticamente il livello della musica di sottofondo a -14 dB quando l'operatore parla o effettua un annuncio microfonico, ripristinando il volume standard al termine della voce.
 
 ### Fair Queue (Scaletta Intelligente Anti-Monopolio)
@@ -226,8 +226,12 @@ La tabella seguente riassume tutte le scorciatoie utilizzabili dall'operatore du
 - Se utilizzi cavi HDMI lunghi o adattatori video USB, la finestra si auto-ripristina automaticamente appena il sistema operativo rileva nuovamente il display secondario.
 
 ### Registro Esecuzioni e Borderò SIAE
-- Ogni canzone eseguita fino al termine viene automaticamente registrata nel database interno con data, ora esatta, titolo, artista, cantante e durata.
-- Per esportare il registro ai fini della dichiarazione di diritti musicali (SIAE / SCF / BMI / ASCAP), vai nella scheda **Storico** (Tasto `3`) e clicca su **Esporta SIAE (CSV)** per generare un foglio di calcolo compatibile con Excel o LibreOffice.
+- **Regole di Registrazione nello Storico**: Una canzone in esecuzione viene registrata nel registro delle esecuzioni SIAE nei seguenti casi:
+  1. Se giunge al suo **termine naturale** (`naturalEnd`), anche in caso di canzoni o intermezzi brevi;
+  2. Se viene fermata (`Stop` o tasto `S`) oppure saltata al brano successivo (`Next` o tasto `N`) dopo essere stata riprodotta per **almeno 2 minuti (120 secondi)**.
+  - Brani avviati per errore e fermati/saltati sotto i 120 secondi non vengono registrati nello storico.
+- **Protezione Anti-Duplicati (`alreadyLogged`)**: Se un brano supera i 120 secondi e viene fermato/messo in pausa e successivamente ripreso e terminato o saltato, il sistema impedisce duplicazioni, registrando una sola riga nel registro per quella specifica esecuzione.
+- **Timestamp Certificato ed Esportazione CSV**: Ciascuna esecuzione registra il timestamp ISO 8601 UTC, l'epoch millisecondi e la data locale. Per esportare il registro ai fini della dichiarazione di diritti musicali (SIAE / SCF / BMI / ASCAP), vai nella scheda **Storico** (Tasto `3`) e clicca su **Esporta SIAE (CSV)** per generare un foglio di calcolo compatibile con Microsoft Excel, Apple Numbers o LibreOffice Calc.
 
 ---
 ---
@@ -299,7 +303,7 @@ La tabella seguente riassume tutte le scorciatoie utilizzabili dall'operatore du
 - **Master Mute (`M`):** Instantly mutes master audio output while maintaining slider position.
 
 ### DSP Vocal Processor
-- **Vocal Remover (`V`):** Activates spectral center-channel phase inversion to suppress lead vocals in commercial stereo mixes.
+- **In-Phase Vocal Remover (`V`):** Activates a high-fidelity Enhanced In-Phase Center-Channel Canceller. Subtracts mono energy (`0.5 * (L - R)`) to eliminate center-panned lead vocals ($-\infty$ dB), while preserving mono kick/bass energy (< 160 Hz) and stereo treble air (> 5500 Hz), delivering identical positive polarity to both room speakers to eliminate destructive acoustic interference.
 - **Microphone Auto-Ducking (`D`):** Attenuates background music by -14 dB when speech is detected, restoring full volume when speaking finishes.
 
 ### Fair Queue Scheduling
@@ -408,6 +412,10 @@ Press **`F1`** or **`?`** inside the application to open this quick reference at
 - The auto-recovery system monitors HDMI re-attachments and restores video playback and lyrics overlays without requiring an app restart.
 
 ### Performance Logging and CSV Export
-- Completed performances are logged with timestamp, artist, title, duration, and singer name.
-- Click **Export SIAE (CSV)** in the History tab to generate an official borderò report ready for copyright filing.
+- **History Logging Rules**: A song is logged to the performance history and SIAE copyright registry if:
+  1. It reaches its **natural end** (`naturalEnd`), including short songs or interludes;
+  2. It is stopped (`Stop` or `S` key) or skipped (`Next` or `N` key) after being played for **at least 2 minutes (120 seconds)**.
+  - Songs stopped or skipped prematurely under 120 seconds are discarded to prevent false records from accidental starts.
+- **Duplicate Prevention (`alreadyLogged`)**: Each queued song instance tracks its logged state. If a track passes 120 seconds and is stopped, and later resumed, finished, or skipped, it is logged strictly once.
+- **Certified Timestamps & CSV Export**: All performances record high-precision epoch milliseconds and ISO 8601 UTC strings. Click **Export SIAE (CSV)** in the History tab to generate an official spreadsheet report (compatible with Excel, Numbers, LibreOffice) ready for copyright filing.
 

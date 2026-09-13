@@ -9,7 +9,8 @@ import {
   AppSettings,
   LogLevel,
   YtDlpStatus,
-  FirewallCheckResult
+  FirewallCheckResult,
+  SiaeLogEntry
 } from '../shared/types';
 
 /**
@@ -62,7 +63,7 @@ export interface KaraokeAPI {
     /** Increments performance counter for a singer */
     incrementSingerCount: (singerId: string) => Promise<{ success: boolean }>;
     /** Logs an executed track performance for copyright reporting */
-    logSiae: (log: { title: string; artist: string; singer?: string; durationSec: number }) => Promise<{ success: boolean }>;
+    logSiae: (log: { title: string; artist: string; singer?: string; durationSec: number; executedAt?: number | string }) => Promise<{ success: boolean }>;
   };
 
   // 4. Library Scanner & YouTube Search
@@ -78,7 +79,7 @@ export interface KaraokeAPI {
   // 5. SIAE Reporting
   siae: {
     /** Retrieves historical execution logs */
-    getLogs: () => Promise<Array<{ id: number; trackTitle: string; trackArtist: string; singerName: string | null; executedAt: number; durationSec: number }>>;
+    getLogs: () => Promise<SiaeLogEntry[]>;
     /** Exports execution logs to a user-selected CSV file */
     exportCsv: () => Promise<{ success: boolean; filePath?: string }>;
     /** Clears all historical performance logs from the persistent database */

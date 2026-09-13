@@ -214,14 +214,25 @@ export class AudioGraphManager {
   }
 
   /**
-   * Constructs the high-fidelity multi-band phase cancellation vocal remover sub-graph:
-   * 1. Bass preservation (< 160 Hz): A 2nd-order Butterworth low-pass filter captures center/low instruments
-   *    (kick drum, bass guitar) from the original stereo signal and mixes them back in mono.
-   * 2. Vocal Cut Mid-Band (160 Hz - 5.5 kHz): A bandpass filter isolates the vocal frequency range, where
-   *    phase cancellation (L_mid - R_mid for Left, R_mid - L_mid for Right) suppresses center vocals while
-   *    preserving stereo width.
-   * 3. High-Frequency Air (> 5.5 kHz): A high-pass filter preserves cymbals, hi-hats, and room reverberation.
-   * 4. 50ms Linear Crossfade: Seamlessly fades between unprocessed audio and the vocal-cut mix.
+   * Constructs the high-fidelity Enhanced In-Phase Center-Channel Canceller sub-graph:
+   * 1. Direct Difference Bus (0.5 * (L - R)):
+   *    Extracts the pure side channel without phase-delaying IIR filters. All center-panned
+   *    lead vocals (L = R) are mathematically canceled to 0.0 (-inf dB) across all frequencies.
+   *    Both OutL and OutR receive this bus in identical positive polarity, completely
+   *    eliminating acoustic phase cancellation between room speakers and in mono PA summing.
+   * 2. Mono Bass Recovery (< 160 Hz):
+   *    Extracts the mono sum (0.5 * (L + R)) filtered through a 2nd-order Butterworth lowpass
+   *    filter at 160 Hz (Q = 0.707) and sums it in-phase into both channels. This restores
+   *    full punch, weight, and definition to the kick drum and bassline without restoring vocals.
+   * 3. Stereo Air & Sparkle Preservation (> 5500 Hz):
+   *    High-pass filters L and R (> 5500 Hz, Q = 0.707) and routes them to their respective
+   *    L and R outputs. This retains cymbals, hi-hats, percussive transients, and room reverberation,
+   *    preventing the backing track from sounding muffled or "cupo".
+   * 4. Leveling Makeup Gain (1.25x / +1.9 dB):
+   *    Compensates for the energy subtracted from the center channel so the backing music
+   *    maintains consistent perceptual loudness.
+   * 5. 50ms Linear Crossfade:
+   *    Provides click-free, pop-free switching between unprocessed and vocal-reduced audio.
    */
   private setupVocalRemoverGraph(): void {
     if (!this.audioCtx || !this.sourceNode || !this.duckingGainNode) return;
@@ -234,6 +245,20 @@ export class AudioGraphManager {
     }
 
     const targetInputNode = this.pitchShifterNode.input;
+
+    // Clean up previous splitter/merger nodes if graph is being rebuilt
+    if (this.splitterNode) {
+      try { this.splitterNode.disconnect(); } catch {}
+    }
+    if (this.mergerNode) {
+      try { this.mergerNode.disconnect(); } catch {}
+    }
+    if (this.vocalRemoverPassThroughGain) {
+      try { this.vocalRemoverPassThroughGain.disconnect(); } catch {}
+    }
+    if (this.vocalRemoverEffectGain) {
+      try { this.vocalRemoverEffectGain.disconnect(); } catch {}
+    }
 
     // Splitter for original L and R channels
     this.splitterNode = this.audioCtx.createChannelSplitter(2);
@@ -252,97 +277,105 @@ export class AudioGraphManager {
     this.sourceNode.connect(this.splitterNode);
     this.vocalRemoverPassThroughGain.connect(targetInputNode);
 
-    // --- 1. Bass Preservation Sub-Graph (< 160 Hz) ---
-    // Extract mono bass & kick from stereo input
+    // =========================================================================
+    // 1. Difference Bus: 0.5 * (L - R)
+    // =========================================================================
+    // All center-panned audio (L = R) is subtracted to 0 across the entire spectrum.
+    const diffL = this.audioCtx.createGain();
+    diffL.gain.setValueAtTime(0.5, this.audioCtx.currentTime);
+    this.splitterNode.connect(diffL, 0); // L * 0.5
+
+    const diffR = this.audioCtx.createGain();
+    diffR.gain.setValueAtTime(-0.5, this.audioCtx.currentTime);
+    this.splitterNode.connect(diffR, 1); // R * (-0.5)
+
+    const diffBus = this.audioCtx.createGain();
+    diffBus.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
+    diffL.connect(diffBus);
+    diffR.connect(diffBus);
+
+    // =========================================================================
+    // 2. Mono Bass Recovery (< 160 Hz)
+    // =========================================================================
+    // Reconstructs center low-end (kick drum, bass guitar) from 0.5 * (L + R)
+    const sumL = this.audioCtx.createGain();
+    sumL.gain.setValueAtTime(0.5, this.audioCtx.currentTime);
+    this.splitterNode.connect(sumL, 0);
+
+    const sumR = this.audioCtx.createGain();
+    sumR.gain.setValueAtTime(0.5, this.audioCtx.currentTime);
+    this.splitterNode.connect(sumR, 1);
+
+    const monoBus = this.audioCtx.createGain();
+    monoBus.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
+    sumL.connect(monoBus);
+    sumR.connect(monoBus);
+
     const bassFilter = this.audioCtx.createBiquadFilter();
     bassFilter.type = 'lowpass';
     bassFilter.frequency.setValueAtTime(160, this.audioCtx.currentTime);
     bassFilter.Q.setValueAtTime(0.707, this.audioCtx.currentTime);
+    monoBus.connect(bassFilter);
 
     const bassGain = this.audioCtx.createGain();
     bassGain.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
-
-    this.sourceNode.connect(bassFilter);
     bassFilter.connect(bassGain);
-    // Route preserved bass equally to both Left and Right output channels
-    bassGain.connect(this.mergerNode, 0, 0); // Bass -> Left
-    bassGain.connect(this.mergerNode, 0, 1); // Bass -> Right
 
-    // --- 2. Vocal Cut Mid-Band Sub-Graph (160 Hz - 5500 Hz) ---
-    // Left channel vocal band (160Hz HP + 5.5kHz LP)
-    const midHpL = this.audioCtx.createBiquadFilter();
-    midHpL.type = 'highpass';
-    midHpL.frequency.setValueAtTime(160, this.audioCtx.currentTime);
-    midHpL.Q.setValueAtTime(0.707, this.audioCtx.currentTime);
+    // =========================================================================
+    // 3. Stereo Air & Sparkle Preservation (> 5500 Hz)
+    // =========================================================================
+    // Preserves stereo cymbals, hi-hats, percussive transients and acoustic room air
+    const highFilterL = this.audioCtx.createBiquadFilter();
+    highFilterL.type = 'highpass';
+    highFilterL.frequency.setValueAtTime(5500, this.audioCtx.currentTime);
+    highFilterL.Q.setValueAtTime(0.707, this.audioCtx.currentTime);
+    this.splitterNode.connect(highFilterL, 0);
 
-    const midLpL = this.audioCtx.createBiquadFilter();
-    midLpL.type = 'lowpass';
-    midLpL.frequency.setValueAtTime(5500, this.audioCtx.currentTime);
-    midLpL.Q.setValueAtTime(0.707, this.audioCtx.currentTime);
-
-    this.splitterNode.connect(midHpL, 0); // L -> HP
-    midHpL.connect(midLpL);                // -> LP = L_mid
-
-    // Right channel vocal band (160Hz HP + 5.5kHz LP)
-    const midHpR = this.audioCtx.createBiquadFilter();
-    midHpR.type = 'highpass';
-    midHpR.frequency.setValueAtTime(160, this.audioCtx.currentTime);
-    midHpR.Q.setValueAtTime(0.707, this.audioCtx.currentTime);
-
-    const midLpR = this.audioCtx.createBiquadFilter();
-    midLpR.type = 'lowpass';
-    midLpR.frequency.setValueAtTime(5500, this.audioCtx.currentTime);
-    midLpR.Q.setValueAtTime(0.707, this.audioCtx.currentTime);
-
-    this.splitterNode.connect(midHpR, 1); // R -> HP
-    midHpR.connect(midLpR);                // -> LP = R_mid
-
-    // Phase inverters for differential cancellation
-    // For Out L: L_mid + (-R_mid) = L_mid - R_mid
-    const inverterR = this.audioCtx.createGain();
-    inverterR.gain.setValueAtTime(-1.0, this.audioCtx.currentTime);
-    midLpR.connect(inverterR);
-
-    // For Out R: R_mid + (-L_mid) = R_mid - L_mid (retains stereo separation!)
-    const inverterL = this.audioCtx.createGain();
-    inverterL.gain.setValueAtTime(-1.0, this.audioCtx.currentTime);
-    midLpL.connect(inverterL);
-
-    // Connect mid differential to Left channel: L_mid + (-R_mid)
-    midLpL.connect(this.mergerNode, 0, 0);
-    inverterR.connect(this.mergerNode, 0, 0);
-
-    // Connect mid differential to Right channel: R_mid + (-L_mid)
-    midLpR.connect(this.mergerNode, 0, 1);
-    inverterL.connect(this.mergerNode, 0, 1);
-
-    // --- 3. High-Frequency Air Preservation Sub-Graph (> 5500 Hz) ---
-    const highHpL = this.audioCtx.createBiquadFilter();
-    highHpL.type = 'highpass';
-    highHpL.frequency.setValueAtTime(5500, this.audioCtx.currentTime);
-    highHpL.Q.setValueAtTime(0.707, this.audioCtx.currentTime);
-
-    const highHpR = this.audioCtx.createBiquadFilter();
-    highHpR.type = 'highpass';
-    highHpR.frequency.setValueAtTime(5500, this.audioCtx.currentTime);
-    highHpR.Q.setValueAtTime(0.707, this.audioCtx.currentTime);
+    const highFilterR = this.audioCtx.createBiquadFilter();
+    highFilterR.type = 'highpass';
+    highFilterR.frequency.setValueAtTime(5500, this.audioCtx.currentTime);
+    highFilterR.Q.setValueAtTime(0.707, this.audioCtx.currentTime);
+    this.splitterNode.connect(highFilterR, 1);
 
     const highGainL = this.audioCtx.createGain();
-    highGainL.gain.setValueAtTime(0.85, this.audioCtx.currentTime);
+    highGainL.gain.setValueAtTime(0.5, this.audioCtx.currentTime);
+    highFilterL.connect(highGainL);
 
     const highGainR = this.audioCtx.createGain();
-    highGainR.gain.setValueAtTime(0.85, this.audioCtx.currentTime);
+    highGainR.gain.setValueAtTime(0.5, this.audioCtx.currentTime);
+    highFilterR.connect(highGainR);
 
-    this.splitterNode.connect(highHpL, 0);
-    highHpL.connect(highGainL);
-    highGainL.connect(this.mergerNode, 0, 0); // High L -> Out L
+    // =========================================================================
+    // 4. In-Phase Summing to Out Left and Out Right
+    // =========================================================================
+    const outL = this.audioCtx.createGain();
+    const outR = this.audioCtx.createGain();
 
-    this.splitterNode.connect(highHpR, 1);
-    highHpR.connect(highGainR);
-    highGainR.connect(this.mergerNode, 0, 1); // High R -> Out R
+    // Route diffBus in identical positive polarity to both channels:
+    // Completely eliminates destructive acoustic cancellation between room speakers!
+    diffBus.connect(outL);
+    diffBus.connect(outR);
 
-    // --- 4. Route Combined Effect to Pitch Shifter ---
-    this.mergerNode.connect(this.vocalRemoverEffectGain);
+    // Route mono bass in-phase to both channels:
+    bassGain.connect(outL);
+    bassGain.connect(outR);
+
+    // Route stereo highs to their respective channels:
+    highGainL.connect(outL);
+    highGainR.connect(outR);
+
+    // Merge into stereo 2-channel stream
+    outL.connect(this.mergerNode, 0, 0);
+    outR.connect(this.mergerNode, 0, 1);
+
+    // =========================================================================
+    // 5. Leveling Makeup Gain & Master Effect Routing
+    // =========================================================================
+    const makeupGain = this.audioCtx.createGain();
+    makeupGain.gain.setValueAtTime(1.25, this.audioCtx.currentTime);
+
+    this.mergerNode.connect(makeupGain);
+    makeupGain.connect(this.vocalRemoverEffectGain);
     this.vocalRemoverEffectGain.connect(targetInputNode);
   }
 

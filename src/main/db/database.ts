@@ -270,20 +270,45 @@ export class DatabaseManager {
   /**
    * Logs an executed song for copyright reporting (SIAE Borderò).
    */
-  public logSiaePerformance(trackTitle: string, trackArtist: string, singerName: string | undefined, durationSec: number): void {
+  public logSiaePerformance(
+    trackTitle: string,
+    trackArtist: string,
+    singerName: string | undefined,
+    durationSec: number,
+    executedAt?: number | string
+  ): void {
+    let timestampMs: number;
+    if (typeof executedAt === 'number') {
+      timestampMs = executedAt;
+    } else if (typeof executedAt === 'string') {
+      const parsed = new Date(executedAt).getTime();
+      timestampMs = isNaN(parsed) ? Date.now() : parsed;
+    } else {
+      timestampMs = Date.now();
+    }
+
     const stmt = this.db.prepare(`
       INSERT INTO siae_logs (trackTitle, trackArtist, singerName, executedAt, durationSec)
       VALUES (?, ?, ?, ?, ?)
     `);
-    stmt.run(trackTitle, trackArtist, singerName ?? null, Date.now(), durationSec);
+    stmt.run(trackTitle, trackArtist, singerName ?? null, timestampMs, durationSec);
   }
 
   /**
-   * Retrieves all historical SIAE execution logs in reverse chronological order.
+   * Retrieves all historical SIAE execution logs in reverse chronological order,
+   * enriched with precise ISO 8601 formatted timestamp metadata.
    */
-  public getSiaeLogs(): Array<{ id: number; trackTitle: string; trackArtist: string; singerName: string | null; executedAt: number; durationSec: number }> {
+  public getSiaeLogs(): Array<{
+    id: number;
+    trackTitle: string;
+    trackArtist: string;
+    singerName: string | null;
+    executedAt: number;
+    executedAtIso: string;
+    durationSec: number;
+  }> {
     const stmt = this.db.prepare('SELECT * FROM siae_logs ORDER BY executedAt DESC');
-    return stmt.all() as Array<{
+    const rows = stmt.all() as Array<{
       id: number;
       trackTitle: string;
       trackArtist: string;
@@ -291,6 +316,11 @@ export class DatabaseManager {
       executedAt: number;
       durationSec: number;
     }>;
+
+    return rows.map((row) => ({
+      ...row,
+      executedAtIso: new Date(row.executedAt).toISOString()
+    }));
   }
 
   /**

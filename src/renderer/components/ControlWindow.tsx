@@ -227,6 +227,9 @@ export const ControlWindow: React.FC = () => {
   };
 
   const handleStop = () => {
+    // Record into SIAE history if the song was played for at least 120s (2 minutes) before stopping
+    useKaraokeStore.getState().logCurrentTrackExecution({ naturalEnd: false });
+
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
@@ -370,7 +373,7 @@ export const ControlWindow: React.FC = () => {
     });
 
     manager.registerPlaybackEndCallback(() => {
-      advanceToNextTrack();
+      advanceToNextTrack({ naturalEnd: true });
     });
 
     if (window.karaokeApi) {
@@ -650,7 +653,11 @@ export const ControlWindow: React.FC = () => {
         setPlaybackState({ isMuted: !playback.isMuted });
       } else if (e.code === 'KeyV') {
         e.preventDefault();
-        setVocalRemover(!playback.isVocalRemoverActive);
+        const nextState = !playback.isVocalRemoverActive;
+        setVocalRemover(nextState);
+        if (window.karaokeApi?.logger?.log) {
+          window.karaokeApi.logger.log('info', 'ControlWindow', `Keyboard shortcut [V]: Vocal Remover ${nextState ? 'enabled' : 'disabled'}`);
+        }
       } else if (e.code === 'KeyD') {
         e.preventDefault();
         setDucking(!playback.isDuckingActive);
@@ -891,7 +898,7 @@ export const ControlWindow: React.FC = () => {
                   }
                 }}
                 onEnded={() => {
-                  advanceToNextTrack();
+                  advanceToNextTrack({ naturalEnd: true });
                 }}
               />
               {/* Centered lyrics in control preview */}
@@ -1008,7 +1015,7 @@ export const ControlWindow: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={advanceToNextTrack}
+                  onClick={() => advanceToNextTrack()}
                   className="w-9 h-9 bg-slate-800/90 hover:bg-slate-700/90 rounded-full text-slate-300 border border-slate-700/60 shadow-sm flex items-center justify-center transition-all active:scale-95 shrink-0"
                   title={t('player.next')}
                 >

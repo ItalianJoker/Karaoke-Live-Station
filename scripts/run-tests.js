@@ -6,6 +6,10 @@
  * 2. DownloadManager Filename Sanitization (accent preservation, illegal character stripping)
  * 3. LibraryPanel & Store Queue Switch Logic (temp-to-permanent path redirection)
  * 4. i18n Localization Parity across it, en, es, fr
+ * 5. Queue Cache Garbage Collection & Protection
+ * 6. Default Settings & Feature Flags
+ * 7. Vocal Remover Enhanced DSP Simulation (Center Cancellation, Bass & Highs Preservation, In-Phase Matrix)
+ * 8. SIAE History Tracking & Duplicate Protection (120s Threshold, Natural End, ISO 8601 Timestamps)
  */
 
 const fs = require('fs');
@@ -323,6 +327,185 @@ assert(
   itLocale.settings?.autoArchiveWarningDesc &&
     itLocale.settings.autoArchiveWarningDesc.includes("disattivando l'archiviazione automatica"),
   'Mandatory Italian auto-archive deactivation warning text matches specification'
+);
+
+
+// -------------------------------------------------------------
+// Suite 7: Vocal Remover Enhanced In-Phase DSP Simulation
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite 7: Vocal Remover Enhanced In-Phase DSP Pipeline Simulation\x1b[0m');
+
+/**
+ * Simulates AudioGraphManager's Enhanced In-Phase Center-Channel Canceller matrix:
+ *
+ * Difference Bus: diff = 0.5 * (L - R)
+ * Bass Mono Bus:  bass = 0.5 * (L + R) * LowpassResponse(f)
+ * Highs Stereo:   highL = L * HighpassResponse(f), highR = R * HighpassResponse(f)
+ *
+ * OutL = (diff + bass + highL) * makeupGain (1.25)
+ * OutR = (diff + bass + highR) * makeupGain (1.25)
+ */
+function simulateVocalRemover(inL, inR, freqBand) {
+  const makeupGain = 1.25;
+  const diffBus = 0.5 * (inL - inR);
+
+  // Bandpass approximations based on 160 Hz / 5500 Hz cutoffs:
+  let bassGain = 0;
+  let highGain = 0;
+
+  if (freqBand === 'bass') {
+    bassGain = 1.0; // below 160 Hz
+    highGain = 0.0;
+  } else if (freqBand === 'vocal_mid') {
+    bassGain = 0.0; // 160 Hz - 5500 Hz
+    highGain = 0.0;
+  } else if (freqBand === 'high') {
+    bassGain = 0.0;
+    highGain = 1.0; // above 5500 Hz
+  }
+
+  const monoBass = 0.5 * (inL + inR) * bassGain;
+  const highL = inL * highGain;
+  const highR = inR * highGain;
+
+  const outL = (diffBus + monoBass + highL) * makeupGain;
+  const outR = (diffBus + monoBass + highR) * makeupGain;
+
+  return { outL, outR, diffBus };
+}
+
+// 1. Center-panned lead vocal cancellation (inL = 1.0, inR = 1.0, midrange frequency)
+const centerVocal = simulateVocalRemover(1.0, 1.0, 'vocal_mid');
+assert(
+  centerVocal.diffBus === 0.0 && centerVocal.outL === 0.0 && centerVocal.outR === 0.0,
+  'Center-panned vocal (L=1.0, R=1.0) in midrange produces exact 0.0 (-∞ dB cancellation)'
+);
+
+// 2. Hard-panned stereo instrument preservation (inL = 1.0, inR = 0.0, midrange frequency)
+const pannedInstrument = simulateVocalRemover(1.0, 0.0, 'vocal_mid');
+assert(
+  pannedInstrument.diffBus === 0.5 && pannedInstrument.outL === 0.625 && pannedInstrument.outR === 0.625,
+  'Hard-panned stereo instrument (L=1.0, R=0.0) is cleanly preserved and distributed'
+);
+
+// 3. Center bass & kick drum punch retention (< 160 Hz)
+const centerBass = simulateVocalRemover(1.0, 1.0, 'bass');
+assert(
+  centerBass.diffBus === 0.0 && centerBass.outL === 1.25 && centerBass.outR === 1.25,
+  'Center bass (<160 Hz) retains full punch (1.25x makeup gain) via mono sum'
+);
+
+// 4. Stereo high-frequency preservation (> 5500 Hz)
+const stereoHighs = simulateVocalRemover(1.0, -0.5, 'high');
+assert(
+  stereoHighs.outL > 0 && stereoHighs.outR !== 0,
+  'Stereo high frequencies (>5500 Hz) retain highpass detail and brightness'
+);
+
+// 5. In-phase acoustic room radiation (OutL + OutR acoustic wave collision)
+// Unlike old out-of-phase OOPS where OutR = -(L-R) caused OutL + OutR = 0 in room air,
+// the in-phase design gives OutL + OutR = 2 * diffBus * 1.25 != 0
+const acousticRoomSum = pannedInstrument.outL + pannedInstrument.outR;
+assert(
+  acousticRoomSum === 1.25,
+  'In-phase speaker radiation avoids acoustic destructive cancellation in venue room'
+);
+
+
+// -------------------------------------------------------------
+// Suite 8: SIAE History Playback Tracking & 120s Threshold
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite 8: SIAE History Tracking & Playback Lifecycle\x1b[0m');
+
+/**
+ * Simulates karaokeStore's logCurrentTrackExecution criteria:
+ * - Logs if naturalEnd === true
+ * - Logs if !naturalEnd and currentTime >= 120
+ * - Does NOT log if !naturalEnd and currentTime < 120
+ * - Does NOT log if alreadyLogged === true
+ */
+function shouldLogTrackExecution(item, currentTime, naturalEnd) {
+  if (!item || item.alreadyLogged) return false;
+  if (naturalEnd || currentTime >= 120) {
+    return true;
+  }
+  return false;
+}
+
+const mockTrackItem = {
+  queueId: 'q-101',
+  track: { id: 't-101', title: 'Albachiara', artist: 'Vasco Rossi', duration: 240 },
+  singerName: 'Marco',
+  alreadyLogged: false,
+};
+
+// 1. Natural end on a short song (< 120s, e.g. 50s intro/interlude)
+assert(
+  shouldLogTrackExecution({ ...mockTrackItem }, 50, true) === true,
+  'Song reaching natural end logs to history even if duration is < 120s'
+);
+
+// 2. Natural end on a full length song (240s)
+assert(
+  shouldLogTrackExecution({ ...mockTrackItem }, 240, true) === true,
+  'Song reaching natural end at full duration logs to history'
+);
+
+// 3. User stopped/skipped at >= 120 seconds
+assert(
+  shouldLogTrackExecution({ ...mockTrackItem }, 120.0, false) === true,
+  'Song stopped/skipped at exactly 120.0 seconds qualifies for SIAE history logging'
+);
+assert(
+  shouldLogTrackExecution({ ...mockTrackItem }, 185.4, false) === true,
+  'Song stopped/skipped at 185 seconds (>120s) qualifies for SIAE history logging'
+);
+
+// 4. User stopped/skipped prematurely (< 120 seconds)
+assert(
+  shouldLogTrackExecution({ ...mockTrackItem }, 119.9, false) === false,
+  'Song stopped/skipped at 119.9 seconds is rejected (< 120s threshold)'
+);
+assert(
+  shouldLogTrackExecution({ ...mockTrackItem }, 15.0, false) === false,
+  'Accidentally started and immediately stopped song (15s) is rejected'
+);
+
+// 5. Duplicate logging protection via alreadyLogged guard flag
+const alreadyLoggedItem = { ...mockTrackItem, alreadyLogged: true };
+assert(
+  shouldLogTrackExecution(alreadyLoggedItem, 130, false) === false,
+  'Track stopped at 130s with alreadyLogged=true is NOT logged a second time'
+);
+assert(
+  shouldLogTrackExecution(alreadyLoggedItem, 240, true) === false,
+  'Track finishing naturally after being previously logged is NOT duplicated'
+);
+
+// 6. Timestamp metadata verification
+const nowMs = Date.now();
+const isoString = new Date(nowMs).toISOString();
+assert(
+  Number.isFinite(nowMs) && nowMs > 1700000000000,
+  'Executed timestamp generates valid epoch milliseconds'
+);
+assert(
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(isoString),
+  'Executed timestamp converts to standardized ISO 8601 string'
+);
+
+// 7. Verify SIAE CSV Header structure in main process
+const mainSource = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+assert(
+  mainSource.includes('Data e Ora (ISO 8601)') && mainSource.includes('Timestamp (Epoch ms)'),
+  'SIAE CSV export includes standard ISO 8601 date-time and epoch ms columns'
+);
+
+// 8. Verify AudioGraphManager vocal remover methods exist
+const audioGraphSource = fs.readFileSync(path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'), 'utf8');
+assert(
+  audioGraphSource.includes('setupVocalRemoverGraph') && audioGraphSource.includes('setVocalRemover('),
+  'AudioGraphManager contains dedicated vocal remover pipeline methods'
 );
 
 

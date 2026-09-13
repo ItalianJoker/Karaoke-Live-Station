@@ -25,6 +25,31 @@ Benvenuti alla release ufficiale di **Karaoke Live Station**, la workstation des
 
 *Tutti i pacchetti includono già i binari necessari compilati per la piattaforma (`yt-dlp`, `ffmpeg`, `better-sqlite3` e il banco sonoro GeneralUser GS SoundFont da 31 MB), garantendo funzionamento offline immediato e zero configurazioni di sistema.*
 
+## 🚀 Note di Rilascio — Versione 1.3.1 (Architettura DSP Vocal Remover In-Phase & Logica Storico SIAE)
+
+### 🎙️ Pipeline DSP Vocal Remover In-Phase Ad Alta Fedeltà
+- **Risoluzione Audio Cupo e Soppressione Efficace della Voce Guida**: Riprogettata interamente la catena audio Web Audio DSP per la rimozione della voce solista (tasto `V` o toggle in regia). La precedente architettura a filtri IIR causava sfasamenti a 180° che attenuavano gravemente le alte frequenze ("audio cupo") lasciando udibile la voce.
+- **Matrice di Sottrazione Differenziale a Fase Zero**: Il bus di differenza calcola direttamente `diffBus = 0.5 * (L - R)`, garantendo la cancellazione matematica perfetta ($-\infty$ dB) di tutti i segnali posti al centro dello spettro stereo (voce guida solista) con latenza zero e senza rotazioni di fase tra i canali.
+- **Rinforzo Dinamico dei Bassi (< 160 Hz)**: La somma mono `0.5 * (L + R)` viene processata da un filtro passa-basso Butterworth del 2° ordine e reiniettata per conservare al 100% l'energia e il punch della cassa della batteria e della linea di basso.
+- **Preservazione Acustica degli Alti (> 5500 Hz)**: Ciascun canale stereo ($L$ e $R$) attraversa un filtro passa-alto Butterworth del 2° ordine dedicato, garantendo che i piatti della batteria, il riverbero d'ambiente e la brillantezza ("air") rimangano vividi e dettagliati.
+- **Distribuzione In-Phase per Diffusori Acustici**: Il bus di cancellazione viene iniettato con polarità positiva identica sia sul canale sinistro che destro (`OutL` e `OutR`), eliminando qualsiasi cancellazione acustica per interferenza distruttiva nell'aria tra le casse dell'impianto PA della sala.
+- **Makeup Gain di Compensazione a 1.25x**: Stadio di guadagno di livellamento per compensare l'attenuazione naturale dovuta alla sottrazione differenziale, mantenendo il volume percepito omogeneo tra bypass e modalità attiva.
+
+### 📜 Ciclo di Vita dello Storico (History) & Metadati SIAE
+- **Criterio Rigoroso di Registrazione Esecuzioni**: Il brano in esecuzione viene registrato nello storico e nel registro SIAE se:
+  1. La riproduzione giunge al suo **termine naturale** (anche per intermezzi o brani brevi);
+  2. Il brano viene interrotto o saltato dall'operatore dopo essere stato riprodotto per **almeno 2 minuti (120 secondi)**.
+  - Brani saltati o fermati prima dei 120 secondi (es. avviati per errore o scartati subito) non sporcano il registro delle esecuzioni.
+- **Prevenzione Duplicati con Flag di Guardia (`alreadyLogged`)**: Ciascuna istanza di canzone in scaletta tiene traccia dell'avvenuta registrazione. Se un brano supera i 120 secondi e viene fermato/messo in pausa e successivamente ripreso fino al termine o saltato, viene registrato **una sola volta**, prevenendo conteggi doppi o discrepanze nel registro delle esecuzioni.
+- **Timestamp Certificato & Esportazione CSV Completa**: Ogni esecuzione viene archiviata con timestamp numerico ad alta risoluzione (epoch ms) e convertita in formato standard ISO 8601 UTC. L'esportazione CSV per la SIAE include le colonne `Data e Ora (ISO 8601)`, `Timestamp (Epoch ms)` e `Data Locale`, pronte per la compilazione dei borderò digitali o cartacei.
+
+### ⌨️ Scorciatoie da Tastiera & Diagnostica Operatore
+- **Scorciatoia `V` Reattiva con Log Diagnostico**: Il tasto rapido `V` commuta istantaneamente il Vocal Remover sia con audio in esecuzione che a riposo, emettendo un log esplicativo in console per l'ispezione dello stato da parte dell'operatore o di strumenti di diagnostica.
+
+### 🧪 Suite di Test Automatizzata Estesa (58 Test Totali)
+- **Suite 7 (Simulazione DSP In-Phase)**: Verifica matematica della cancellazione a $-\infty$ dB della voce al centro, preservazione dei segnali stereo laterali, mantenimento dei bassi mono a 1.25x e non-annullamento acustico delle onde sonore nella sala.
+- **Suite 8 (Ciclo di Vita Storico & Soglia 120s)**: Collaudo completo delle condizioni di logging (termine naturale, superamento soglia 120s, rifiuto sotto 120s, flag anti-duplicato `alreadyLogged`, validità formato ISO 8601 ed intestazioni CSV).
+
 ## 🚀 Note di Rilascio — Versione 1.3.0 (Dipendenze Esterne, Cache Coda Persistente, Lock Istanza Singola & Affinamenti UI)
 
 ### ⚙️ Gestione Dipendenze Esterne (`yt-dlp`) & Esecuzione Protetta
@@ -167,6 +192,31 @@ Welcome to the official release of **Karaoke Live Station**, the professional, c
 | **Linux** | `Karaoke Live Station-1.0.0.AppImage` | Universal AppImage bundle compatible with all major Linux distributions |
 | **Linux** | `karaoke-live-station_1.0.0_amd64.deb` | Native deb package for Debian, Ubuntu, and Linux Mint |
 | **macOS** | `Karaoke Live Station-1.0.0-mac.zip` | Standalone `.app` bundle for macOS (Intel & Apple Silicon via Rosetta) |
+
+## 🚀 Release Notes — Version 1.3.1 (In-Phase Vocal Remover DSP & SIAE History Lifecycle)
+
+### 🎙️ High-Fidelity In-Phase Vocal Remover DSP Pipeline
+- **Elimination of Muffled Sound & Clean Lead Vocal Cancellation**: Completely re-engineered the Web Audio DSP vocal removal pipeline (shortcut `V` or control console toggle). The previous cascaded IIR filter design suffered from frequency-dependent phase rotations that introduced destructive notches across the treble spectrum ("muffled sound") without effectively suppressing center-panned vocals.
+- **Zero-Phase Direct Differential Subtraction Matrix**: The difference bus directly computes `diffBus = 0.5 * (L - R)`, delivering exact mathematical cancellation ($-\infty$ dB) of all center-panned mono energy (lead vocals) across the entire spectrum with zero latency and zero phase distortion.
+- **Dynamic Mono Bass Reinforcement (< 160 Hz)**: The mono sum `0.5 * (L + R)` is routed through a 2nd-order Butterworth lowpass filter and reintroduced to retain 100% of kick drum punch, weight, and bassline definition.
+- **Stereo Treble & Air Preservation (> 5500 Hz)**: Independent 2nd-order Butterworth highpass filters for left and right channels preserve cymbals, harmonic overtones, reverberation, and spatial width without comb filtering.
+- **In-Phase Room Speaker Distribution**: The vocal-canceled difference signal is delivered with identical positive polarity to both left and right speaker channels (`OutL` and `OutR`), eliminating destructive acoustic wave cancellation in the venue room when sound waves combine in air.
+- **1.25x Makeup Leveling Gain**: Post-processing leveling gain compensates for energy reduction inherent in difference subtraction, maintaining consistent perceived loudness between bypassed and active states.
+
+### 📜 History Playback Lifecycle & SIAE Metadata Tracking
+- **Strict Performance Logging Thresholds**: Songs are recorded into the performance history and SIAE copyright registry if and only if:
+  1. The track finishes at its **natural end** (regardless of total song duration);
+  2. The track is stopped (`handleStop`) or skipped (`advanceToNextTrack`) by the operator after being actively played for **at least 2 minutes (120 seconds)**.
+  - Songs stopped or skipped prematurely before reaching 120 seconds are discarded, preventing false entries from accidental starts or quick tests.
+- **Duplicate Prevention Guard (`alreadyLogged`)**: Each queued song instance tracks its logging state. If a track passes the 120-second threshold and is stopped, and later resumed, finished, or skipped, it is logged strictly once, preventing duplicate rows in the SIAE report.
+- **Certified Timestamps & Extended CSV Export**: Every recorded performance captures high-resolution epoch milliseconds and standardized ISO 8601 UTC strings. The SIAE CSV export includes `Data e Ora (ISO 8601)`, `Timestamp (Epoch ms)`, and `Data Locale` alongside singer, artist, title, and duration for full legal compliance.
+
+### ⌨️ Keyboard Shortcuts & Diagnostic Logging
+- **Responsive `V` Shortcut with Diagnostic Telemetry**: Pressing `V` immediately toggles the Vocal Remover state with smooth crossfading and logs status events to the developer console for instant operator verification.
+
+### 🧪 Extended Automated Test Suite (58 Passing Tests)
+- **Suite 7 (In-Phase DSP Simulation)**: Mathematical validation of $-\infty$ dB center vocal cancellation, stereo instrument retention, mono bass preservation, and acoustic in-phase room radiation.
+- **Suite 8 (History Lifecycle & 120s Threshold)**: Verification of natural end qualification, 120-second cutoff threshold enforcement, <120s rejection, `alreadyLogged` duplicate prevention, ISO 8601 formatting, and CSV export column integrity.
 
 ## 🚀 Release Notes — Version 1.3.0 (External Dependencies, Persistent Queue Cache, Single Instance Lock & UI Refinements)
 

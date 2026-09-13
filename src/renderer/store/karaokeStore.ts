@@ -50,7 +50,8 @@ export interface KaraokeStoreState {
   restoreFairQueueOrder: () => void;
   updateQueueItemSinger: (queueId: string, singerName: string) => void;
   jumpToQueueItem: (queueIndex: number) => void;
-  advanceToNextTrack: () => QueueItem | null;
+  advanceToNextTrack: (options?: { naturalEnd?: boolean }) => QueueItem | null;
+  logCurrentTrackExecution: (options?: { naturalEnd?: boolean }) => boolean;
   clearQueue: () => void;
 
   // 5. Missing File Modal & Error Handling
@@ -605,7 +606,49 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         }
       },
 
-      advanceToNextTrack: () => {
+      logCurrentTrackExecution: (options?: { naturalEnd?: boolean }): boolean => {
+        const { queue, playback } = get();
+        if (queue.length === 0) return false;
+
+        const currentItem = queue[0];
+        if (!currentItem) return false;
+
+        // Prevent duplicate logs for the same execution instance
+        if (currentItem.alreadyLogged) {
+          return false;
+        }
+
+        const isNaturalEnd = options?.naturalEnd === true;
+        const currentElapsedSec = playback.currentTime || 0;
+        const reachedMinThreshold = currentElapsedSec >= 120;
+
+        // Strict criteria: must reach natural end OR be played for at least 120s (2 minutes)
+        if (!isNaturalEnd && !reachedMinThreshold) {
+          return false;
+        }
+
+        // Set flag to prevent future duplicate logging
+        currentItem.alreadyLogged = true;
+
+        const executedAt = Date.now();
+        const durationSec = isNaturalEnd
+          ? (currentItem.track.durationSec || Math.round(currentElapsedSec))
+          : Math.round(currentElapsedSec);
+
+        if (typeof window !== 'undefined' && window.karaokeApi?.db?.logSiae) {
+          window.karaokeApi.db.logSiae({
+            title: currentItem.track.title,
+            artist: currentItem.track.artist,
+            singer: currentItem.assignedSingerName,
+            durationSec,
+            executedAt
+          });
+        }
+
+        return true;
+      },
+
+      advanceToNextTrack: (options?: { naturalEnd?: boolean }) => {
         if (transitionTimer) {
           clearTimeout(transitionTimer);
           transitionTimer = null;
@@ -619,15 +662,9 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           get().incrementSingerCount(currentFinished.assignedSingerId);
         }
 
-        // Always record executed performance into persistent SQLite history (SIAE log table)
-        if (typeof window !== 'undefined' && window.karaokeApi?.db?.logSiae) {
-          window.karaokeApi.db.logSiae({
-            title: currentFinished.track.title,
-            artist: currentFinished.track.artist,
-            singer: currentFinished.assignedSingerName,
-            durationSec: currentFinished.track.durationSec
-          });
-        }
+        // Record executed performance into persistent SQLite history if eligible
+        // (Natural end reached, or played for >= 120s before being skipped, unless already logged)
+        get().logCurrentTrackExecution(options);
 
         const nextQueue = queue.slice(1);
 

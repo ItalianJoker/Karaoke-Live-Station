@@ -815,8 +815,8 @@ class KaraokeMainProcess {
       return { success: true };
     });
 
-    ipcMain.handle('db:log-siae', (_event, log: { title: string; artist: string; singer?: string; durationSec: number }) => {
-      this.db.logSiaePerformance(log.title, log.artist, log.singer, log.durationSec);
+    ipcMain.handle('db:log-siae', (_event, log: { title: string; artist: string; singer?: string; durationSec: number; executedAt?: number | string }) => {
+      this.db.logSiaePerformance(log.title, log.artist, log.singer, log.durationSec, log.executedAt);
       return { success: true };
     });
 
@@ -834,10 +834,13 @@ class KaraokeMainProcess {
       if (saveRes.canceled || !saveRes.filePath) return { success: false };
 
       const logs = this.db.getSiaeLogs();
-      const csvHeader = 'ID,Titolo,Artista,Cantante,Data Esecuzione,Durata (Sec)\n';
-      const csvRows = logs.map(l => 
-        `"${l.id}","${l.trackTitle.replace(/"/g, '""')}","${l.trackArtist.replace(/"/g, '""')}","${(l.singerName || '').replace(/"/g, '""')}","${new Date(l.executedAt).toISOString()}","${l.durationSec}"`
-      ).join('\n');
+      const csvHeader = 'ID,Titolo,Artista,Cantante,Data e Ora (ISO 8601),Timestamp (Epoch ms),Data Locale,Durata (Sec)\n';
+      const csvRows = logs.map(l => {
+        const dateObj = new Date(l.executedAt);
+        const isoStr = l.executedAtIso || dateObj.toISOString();
+        const localStr = dateObj.toLocaleString('it-IT');
+        return `"${l.id}","${l.trackTitle.replace(/"/g, '""')}","${l.trackArtist.replace(/"/g, '""')}","${(l.singerName || '').replace(/"/g, '""')}","${isoStr}","${l.executedAt}","${localStr}","${l.durationSec}"`;
+      }).join('\n');
 
       await fs.promises.writeFile(saveRes.filePath, csvHeader + csvRows, 'utf8');
       return { success: true, filePath: saveRes.filePath };

@@ -72,10 +72,12 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 ### 🎵 Motore DSP Audio & Pre-Ascolto Cuffie (CUE)
 - **Pitch-Shifting Professionale SoundTouch WSOLA**: Variazione tonalità da -8 a +8 semitoni ad altissima fedeltà su tracce audio e video tramite correlazione di forma d'onda WSOLA (Waveform Similarity Overlap-Add), eliminando qualsiasi distorsione armonica, flanging metallico o caduta di volume. Bypass diretto a 0 semitoni con latenza zero e 0% CPU.
 - **Time-Stretching e Variazione Velocità Estesa (0.50x–1.50x)**: Regolazione fine del tempo di riproduzione senza alcuna alterazione del pitch. Cliccando sull'indicatore numerico si ripristina istantaneamente la velocità standard 1.00x.
-- **Vocal Remover DSP a Crossover Multi-Banda**: Architettura a 3 bande avanzata con filtri Butterworth per la rimozione della voce solista più pulita e naturale possibile:
-  - *Banda Bassi (< 160 Hz)*: Isolata con filtro passa-basso Butterworth del 2° ordine e preservata al 100% in mono (mantiene intatto il punch della cassa e della linea di basso).
-  - *Banda Vocale Media (160 Hz – 5.5 kHz)*: Isolata con filtro passa-banda e cancellata tramite inversione di fase differenziale stereo (`L - R` a sinistra, `R - L` a destra), preservando l'ampiezza stereo senza collassare l'audio in mono.
-  - *Banda Alti (> 5.5 kHz)*: Isolata con filtro passa-alto, preservando i piatti della batteria, l'apertura acustica ("aria") e il riverbero stereo originale della traccia.
+- **Vocal Remover DSP In-Phase ad Alta Fedeltà (Tasto `V`)**: Riprogettata pipeline di cancellazione del canale centrale a latenza zero per abbattere efficacemente la voce solista senza rendere l'audio cupo o ovattato:
+  - *Matrice Differenziale a Fase Zero*: Sottrazione diretta `0.5 * (L - R)` ad abbattimento spettrale completo ($-\infty$ dB) dei segnali posti al centro dello stereo senza rotazioni di fase o notch spettrali distruttivi.
+  - *Rinforzo Dinamico Bassi (< 160 Hz)*: Somma mono `0.5 * (L + R)` filtrata passa-basso Butterworth del 2° ordine per mantenere inalterata la spinta di cassa e basso.
+  - *Preservazione Acustica Alti (> 5500 Hz)*: Filtri passa-alto Butterworth dedicati per ciascun canale stereo che mantengono intatta la definizione dei piatti della batteria, l'aria e il riverbero originale.
+  - *Distribuzione In-Phase per Diffusori Acustici*: Il segnale vocale soppresso viene distribuito con polarità positiva identica sia a sinistra che a destra, prevenendo qualsiasi cancellazione acustica nell'aria tra le casse dell'impianto PA.
+  - *Makeup Leveling Gain a 1.25x*: Compensa l'energia sottratta mantenendo il livello percepito coerente con la traccia originale.
 - **Normalizzazione Dinamica del Volume Audio (Auto-Leveling)**: Stadio DSP basato su processore `DynamicsCompressorNode` (soglia a -22 dB, ratio 6:1, knee 24 dB, attacco ultra-rapido a 3 ms e rilascio a 250 ms) combinato con trucco di makeup gain a 1.35x. Livella in tempo reale la dinamica del volume tra brani diversi, attenuando le tracce con picchi eccessivi e amplificando quelle a basso volume, garantendo un'emissione acustica omogenea e professionale nella sala senza continui interventi manuali sul fader del volume.
 - **Pre-ascolto CUE**: Routing audio su scheda audio secondaria (`setSinkId`) per testare i brani in cuffia mentre il pubblico ascolta la musica principale.
 - **Auto-Ducking Intelligente**: Abbassamento automatico e graduale della musica durante gli annunci al microfono.
@@ -138,9 +140,11 @@ Premi **`F1`** o **`?`** in qualsiasi momento per aprire la guida interattiva co
 
 ### 📜 Tab Storico Esecuzioni & Borderò SIAE
 - **Nuovo Tab Dedicato "Storico"**: Organizzazione a 3 schede nella console di Regia (*Coda*, *Libreria*, *Storico*).
-- **Memoria Storica Persistente**: Traccia automaticamente tutte le esecuzioni completate su database SQLite (`siae_logs`), registrando titolo, artista, cantante assegnato, data/ora esatta e durata in secondi. La memoria rimane salvata tra un avvio e l'altro fino allo svuotamento manuale.
+- **Criterio Intelligente di Tracciamento Esecuzioni**: Il brano in esecuzione viene registrato nello storico e nel registro SIAE se giunge al suo **termine naturale** oppure se viene fermato/saltato dall'operatore dopo essere stato riprodotto per **almeno 2 minuti (120 secondi)**. Brani scartati o fermati prima dei 120 secondi non sporcano il registro.
+- **Prevenzione Duplicati con Flag di Guardia (`alreadyLogged`)**: Ciascuna istanza di brano tiene traccia dell'avvenuta registrazione, impedendo duplicazioni accidentali in caso di stop successivi o avanzamenti dopo i 120 secondi.
+- **Memoria Storica Persistente & Timestamp ISO 8601**: Archiviazione su database SQLite (`siae_logs`) con data/ora in formato standard ISO 8601, timestamp Unix in millisecondi, titolo, artista, cantante e durata effettiva.
 - **Filtro di Ricerca Istantaneo**: Permette di cercare rapidamente tra i brani già cantati per titolo, autore o nome del cantante.
-- **Esportazione Borderò SIAE (CSV)**: Generazione con un clic del file CSV conforme per la rendicontazione dei diritti d'autore SIAE.
+- **Esportazione Borderò SIAE (CSV)**: Generazione con un clic del file CSV conforme con colonne `Data e Ora (ISO 8601)` e `Timestamp (Epoch ms)` per la rendicontazione dei diritti d'autore SIAE.
 - **Svuotamento Sicuro con Conferma**: Pulsante "Svuota Storico" con dialogo di sicurezza per azzerare il registro al termine della serata o dell'evento.
 - **Log Diagnostico Persistente**: Sistema di log diagnostico continuo su file con rotazione e livelli configurabili (Debug, Info, Warn, Error).
 
@@ -346,10 +350,12 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 ### 🎵 Audio DSP Engine & Headphone Monitoring (CUE)
 - **SoundTouch WSOLA Studio Pitch Shifting**: High-fidelity pitch transposition (-8 to +8 semitones) on audio and video tracks using Waveform Similarity Overlap-Add (WSOLA), completely eliminating harmonic distortion, metallic comb-filtering, and volume wobbles. Direct bit-perfect bypass at 0 semitones with zero latency and 0% CPU overhead.
 - **Extended Independent Tempo Scaling (0.50x–1.50x)**: Continuous playback speed adjustment without modifying audio pitch. Clicking the speed indicator immediately resets playback rate to 1.00x.
-- **Multi-Band Crossover Vocal Remover DSP**: Advanced 3-band crossover architecture using Butterworth filters to deliver the cleanest and most natural vocal attenuation possible:
-  - *Sub-Bass Band (< 160 Hz)*: 2nd-order Butterworth low-pass filter preserves 100% of kick drum punch and bassline power in mono.
-  - *Mid Vocal Band (160 Hz – 5.5 kHz)*: Isolated with a bandpass filter and cancelled via differential stereo phase cancellation (`L - R` on Left, `R - L` on Right), maintaining full stereo imaging without collapsing audio into mono.
-  - *High "Air" Band (> 5.5 kHz)*: Isolated with a high-pass filter, retaining acoustic sparkle, hi-hats, and original stereo room reverb.
+- **High-Fidelity In-Phase Vocal Remover DSP (`V` key)**: Zero-latency center-channel suppression pipeline engineered to cleanly remove lead vocals without muffling audio:
+  - *Zero-Phase Difference Matrix*: Direct subtraction `0.5 * (L - R)` achieving infinite center vocal cancellation ($-\infty$ dB) across all frequencies with zero phase distortion.
+  - *Dynamic Mono Bass Reinforcement (< 160 Hz)*: 2nd-order Butterworth low-pass mono sum `0.5 * (L + R)` preserves 100% of kick drum punch, weight, and bassline definition.
+  - *Acoustic Treble Preservation (> 5500 Hz)*: Dedicated 2nd-order Butterworth high-pass filters per stereo channel retain cymbals, air, and original room reverberation without comb filtering.
+  - *In-Phase Room Speaker Distribution*: Cancelled vocal signal is delivered with identical positive polarity to both left and right speaker outputs, preventing destructive acoustic wave cancellation in the venue room.
+  - *1.25x Leveling Makeup Gain*: Balances subtracted energy to maintain consistent perceived loudness with the original track.
 - **CUE Pre-listening**: Route preview audio to a secondary sound card (`setSinkId`) to check tracks in headphones while front-of-house room playback continues uninterrupted.
 - **Dynamic Audio Volume Normalization (Auto-Leveling)**: DSP dynamics processor powered by `DynamicsCompressorNode` (-22 dB threshold, 6:1 ratio, 24 dB knee, 3 ms attack, 250 ms release) combined with 1.35x makeup leveling gain. Equalizes acoustic dynamics across diverse songs in real time, taming aggressive volume spikes and lifting quiet backing tracks for a seamless, professional listening experience without riding the master fader. Configurable and toggleable in Audio Settings.
 - **Intelligent Auto-Ducking**: Automatically and smoothly attenuates background music when speaking into the microphone.
@@ -412,9 +418,11 @@ Press **`F1`** or **`?`** at any time to open the searchable interactive guide.
 
 ### 📜 Playback History Tab & Royalty Reporting (SIAE)
 - **Dedicated 3-Tab Console Layout**: Smooth segmented switching between *Queue*, *Library*, and *History*.
-- **Persistent Execution Memory**: Automatically logs every finished song into a persistent SQLite database table (`siae_logs`), recording track title, artist, assigned performer, exact execution timestamp, and duration in seconds. Persists indefinitely across app restarts until explicitly wiped.
+- **Intelligent Playback Logging Rules**: A track is logged to performance history and the SIAE copyright database if it finishes at its **natural end** or is stopped/skipped after being actively played for **at least 2 minutes (120 seconds)**. Premature skips under 120 seconds are ignored to keep logs clean.
+- **Duplicate Prevention Guard (`alreadyLogged`)**: Prevents duplicate log rows if a track is stopped after 120 seconds and subsequently resumed, completed, or skipped.
+- **Persistent Execution Memory & ISO 8601 Timestamps**: Records full track details in SQLite (`siae_logs`) with standardized ISO 8601 UTC timestamps, epoch milliseconds, and local date for compliance auditing.
 - **Real-Time History Filter**: Instant fuzzy search across executed tracks by title, artist, or performer name.
-- **1-Click Royalty CSV Export**: Native dialog to export standardized CSV reports compatible with copyright organizations (such as SIAE Borderò).
+- **1-Click Royalty CSV Export**: Native dialog to export standardized CSV reports including ISO 8601 and epoch timestamps compatible with copyright organizations (such as SIAE Borderò).
 - **Safe Clear History Workflow**: "Clear History" button with a confirmation modal to safely reset logs at the end of a gig or event.
 - **Persistent Diagnostic Logger**: Disk-backed diagnostic logs with configurable levels (Debug, Info, Warn, Error, Off).
 

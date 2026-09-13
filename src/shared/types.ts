@@ -148,6 +148,24 @@ export interface QueueItem {
   fairScore?: number;
   /** Force placement at the end of the queue, bypassing automatic fair position */
   forceEnd?: boolean;
+  /** Flag indicating whether this track execution has already been recorded into SIAE history */
+  alreadyLogged?: boolean;
+}
+
+/**
+ * Historical record of an executed karaoke track for SIAE / copyright borderò.
+ */
+export interface SiaeLogEntry {
+  id: number;
+  trackTitle: string;
+  trackArtist: string;
+  singerName: string | null;
+  /** Unix epoch timestamp in milliseconds when the song was logged */
+  executedAt: number;
+  /** ISO 8601 formatted timestamp (YYYY-MM-DDTHH:mm:ss.sssZ) */
+  executedAtIso?: string;
+  /** Duration of the performance in seconds */
+  durationSec: number;
 }
 
 /**
