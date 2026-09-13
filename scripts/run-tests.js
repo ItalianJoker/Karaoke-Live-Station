@@ -833,8 +833,9 @@ assert(
 assert(
   libraryPanelSourceP45.includes('sessionStorage') &&
     libraryPanelSourceP45.includes('kls.library.query') &&
-    libraryPanelSourceP45.includes('setSearchResults'),
-  'Library persists query and filters results reactively'
+    libraryPanelSourceP45.includes('setSearchResults') &&
+    libraryPanelSourceP45.includes('searchTracks'),
+  'Library persists query and filters results reactively via db.searchTracks'
 );
 assert(
   libraryPanelSourceP45.includes('download-complete-badge') &&

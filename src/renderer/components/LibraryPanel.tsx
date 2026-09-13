@@ -285,21 +285,49 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
     }
   }, [query, searchMode]);
 
-  // Continuous local filtering on every keystroke (web search still uses Enter/submit).
+  // Continuous local search on every keystroke via DB/IPC (web search still uses Enter/submit).
+  // Debounced searchTracks avoids shipping the full catalog across IPC on large libraries.
   useEffect(() => {
     if (searchMode !== 'local') return;
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     if (!q) {
       setSearchResults([]);
       return;
     }
-    setSearchResults(
-      localTracks.filter(
-        (track) =>
-          track.title.toLowerCase().includes(q) ||
-          track.artist.toLowerCase().includes(q)
-      )
-    );
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      if (!window.karaokeApi?.db?.searchTracks) {
+        const lower = q.toLowerCase();
+        setSearchResults(
+          localTracks.filter(
+            (track) =>
+              track.title.toLowerCase().includes(lower) ||
+              track.artist.toLowerCase().includes(lower)
+          )
+        );
+        return;
+      }
+      try {
+        const matches = await window.karaokeApi.db.searchTracks(q, 200);
+        if (!cancelled) setSearchResults(matches);
+      } catch (err) {
+        console.error('Local library search failed:', err);
+        if (!cancelled) {
+          const lower = q.toLowerCase();
+          setSearchResults(
+            localTracks.filter(
+              (track) =>
+                track.title.toLowerCase().includes(lower) ||
+                track.artist.toLowerCase().includes(lower)
+            )
+          );
+        }
+      }
+    }, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [query, localTracks, searchMode]);
 
   const handleScanOrRefresh = async () => {
@@ -339,6 +367,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
           const ytTracks = await window.karaokeApi.library.searchYouTube(query);
           setSearchResults(ytTracks);
         }
+      } else if (window.karaokeApi?.db?.searchTracks) {
+        const matches = await window.karaokeApi.db.searchTracks(query, 200);
+        setSearchResults(matches);
       } else {
         const q = query.toLowerCase();
         const filtered = localTracks.filter(
