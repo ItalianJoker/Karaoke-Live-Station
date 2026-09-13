@@ -158,6 +158,22 @@
     "donateButton": "Donar con PayPal",
     "saveAndClose": "Guardar y Cerrar"
   },
+  "history": {
+    "title": "Historial de Reproducción",
+    "tabTitle": "Historial",
+    "subtitle": "Registro histórico de canciones ya reproducidas (SIAE)",
+    "searchPlaceholder": "Buscar en el historial por título, artista o cantante...",
+    "empty": "No se ha reproducido ninguna canción todavía.",
+    "exportCsv": "Exportar SIAE (CSV)",
+    "clear": "Vaciar Historial",
+    "confirmClear": "¿Estás seguro de que deseas vaciar el historial de reproducción? Todas las canciones registradas se eliminarán permanentemente.",
+    "cleared": "Historial de reproducción vaciado con éxito.",
+    "count": "{{count}} canciones interpretadas",
+    "singer": "Cantante: {{name}}",
+    "noSinger": "Sin cantante",
+    "time": "Fecha/Hora",
+    "duration": "Duración"
+  },
   "errors": {
     "missingFileTitle": "Archivo Dañado o No Encontrado",
     "missingFileDesc": "El archivo especificado ya no está accesible en: {{path}}",
@@ -168,8 +184,17 @@
   "firewall": {
     "title": "Asistente de Firewall y Red LAN",
     "refresh": "Actualizar diagnóstico",
+    "copy": "Copiar",
+    "copied": "¡Copiado!",
+    "commandPrompt": "Comando PowerShell / Símbolo del sistema (Administrador):",
+    "commandMac": "Comando Terminal de macOS (sudo):",
+    "commandUfw": "Comando UFW (Ubuntu / Debian / Mint):",
+    "commandFirewalld": "Comando Firewalld (Fedora / RHEL / CentOS):",
+    "guiMethod": "Método Gráfico (GUI):",
     "winNotice": "En el primer inicio, si aparece el aviso del Firewall de Windows Defender, selecciona \"Redes Privadas\" y haz clic en \"Permitir acceso\". Si los teléfonos no cargan la página, desbloquea el puerto TCP con este comando:",
+    "winGui": "Panel de control ➔ Firewall de Windows Defender ➔ Permitir una aplicación ➔ marca \"Karaoke Live Station\" en Redes Privadas.",
     "macNotice": "Al abrir por primera vez, macOS mostrará un aviso de seguridad: haz clic en \"Permitir\" para aceptar conexiones entrantes. Si está bloqueado, autorízalo en el Firewall de macOS:",
+    "macGui": "Ajustes del Sistema ➔ Red ➔ Firewall ➔ Opciones ➔ verifica que \"Karaoke Live Station\" esté configurada en \"Permitir conexiones entrantes\".",
     "linuxNotice": "Si usas UFW o Firewalld en Linux, permite el tráfico TCP en los puertos del Guest Portal para que los teléfonos puedan conectarse:",
     "apIsolationTip": "Consejo Wi-Fi: Si los teléfonos no cargan la página a pesar de estar conectados al mismo módem, verifica en los ajustes del router que el \"Aislamiento de AP\" (AP Client Isolation) esté DESACTIVADO."
   }

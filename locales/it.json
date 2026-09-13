@@ -190,8 +190,17 @@
   "firewall": {
     "title": "Assistente Firewall & Connessione LAN",
     "refresh": "Aggiorna diagnosi",
+    "copy": "Copia",
+    "copied": "Copiato!",
+    "commandPrompt": "Comando PowerShell / Prompt (Esegui come Amministratore):",
+    "commandMac": "Comando Terminale macOS (sudo):",
+    "commandUfw": "Comando UFW (Ubuntu / Debian / Mint):",
+    "commandFirewalld": "Comando Firewalld (Fedora / RHEL / CentOS):",
+    "guiMethod": "Metodo Grafico (GUI):",
     "winNotice": "Al primo avvio, se compare la richiesta di Windows Defender Firewall, seleziona \"Reti Private\" e premi \"Consenti accesso\". Se gli smartphone non caricano la pagina, autorizza la porta TCP con questo comando:",
+    "winGui": "Pannello di controllo ➔ Windows Defender Firewall ➔ Consenti app tramite firewall ➔ spunta \"Karaoke Live Station\" su Reti Private.",
     "macNotice": "Alla prima apertura, macOS mostra un avviso di sicurezza: clicca su \"Consenti\" per accettare le connessioni in ingresso. Se bloccato, sblocca l'app nel firewall di macOS:",
+    "macGui": "Impostazioni di Sistema ➔ Rete ➔ Firewall ➔ Opzioni ➔ verifica che \"Karaoke Live Station\" sia impostata su \"Consenti connessioni in entrata\".",
     "linuxNotice": "Se usi UFW o Firewalld su Linux, autorizza le porte TCP del Guest Portal per consentire agli smartphone di connettersi:",
     "apIsolationTip": "Nota Wi-Fi: Se gli smartphone non caricano la pagina pur essendo connessi allo stesso modem, verifica nelle impostazioni del router che l'opzione \"Isolamento AP\" (AP Client Isolation) sia DISATTIVATA."
   }

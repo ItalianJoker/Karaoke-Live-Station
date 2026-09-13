@@ -158,6 +158,22 @@
     "donateButton": "Faire un don avec PayPal",
     "saveAndClose": "Enregistrer et Fermer"
   },
+  "history": {
+    "title": "Historique de Lecture",
+    "tabTitle": "Historique",
+    "subtitle": "Registre historique des morceaux déjà chantés (SIAE)",
+    "searchPlaceholder": "Rechercher dans l'historique par titre, artiste ou chanteur...",
+    "empty": "Aucun morceau lu pour le moment.",
+    "exportCsv": "Exporter SIAE (CSV)",
+    "clear": "Vider l'Historique",
+    "confirmClear": "Êtes-vous sûr de vouloir vider l'historique de lecture ? Tous les morceaux enregistrés seront supprimés définitivement.",
+    "cleared": "Historique de lecture vidé avec succès.",
+    "count": "{{count}} morceaux chantés",
+    "singer": "Chanteur : {{name}}",
+    "noSinger": "Aucun chanteur",
+    "time": "Date/Heure",
+    "duration": "Durée"
+  },
   "errors": {
     "missingFileTitle": "Fichier Endommagé ou Introuvable",
     "missingFileDesc": "Le fichier spécifié n'est plus accessible à l'emplacement: {{path}}",
@@ -168,8 +184,17 @@
   "firewall": {
     "title": "Assistant Pare-feu et Réseau LAN",
     "refresh": "Actualiser le diagnostic",
+    "copy": "Copier",
+    "copied": "Copié !",
+    "commandPrompt": "Commande PowerShell / Invite de commandes (Administrateur) :",
+    "commandMac": "Commande Terminal macOS (sudo) :",
+    "commandUfw": "Commande UFW (Ubuntu / Debian / Mint) :",
+    "commandFirewalld": "Commande Firewalld (Fedora / RHEL / CentOS) :",
+    "guiMethod": "Méthode Graphique (GUI) :",
     "winNotice": "Au premier lancement, si l'invite du Pare-feu Windows Defender apparaît, cochez \"Réseaux Privés\" et cliquez sur \"Autoriser l'accès\". Si les téléphones ne chargent pas la page, débloquez le port TCP avec cette commande :",
+    "winGui": "Panneau de configuration ➔ Pare-feu Windows Defender ➔ Autoriser une application ➔ cochez \"Karaoke Live Station\" sur Réseaux Privés.",
     "macNotice": "À la première ouverture, macOS affichera une invite de sécurité : cliquez sur \"Autoriser\" pour accepter les connexions entrantes. Si bloqué, autorisez l'application dans le Pare-feu macOS :",
+    "macGui": "Réglages Système ➔ Réseau ➔ Pare-feu ➔ Options ➔ assurez-vous que \"Karaoke Live Station\" est réglée sur \"Autoriser les connexions entrantes\".",
     "linuxNotice": "Si vous utilisez UFW ou Firewalld sur Linux, autorisez le trafic TCP sur les ports du Guest Portal pour que les smartphones puissent se connecter :",
     "apIsolationTip": "Conseil Wi-Fi : Si les smartphones ne chargent pas la page tout en étant connectés au même modem, vérifiez dans les réglages du routeur que \"l'Isolation AP\" (AP Client Isolation) est DÉSACTIVÉE."
   }

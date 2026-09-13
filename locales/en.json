@@ -190,8 +190,17 @@
   "firewall": {
     "title": "Firewall & LAN Connection Assistant",
     "refresh": "Refresh Diagnosis",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "commandPrompt": "PowerShell / Command Prompt (Run as Administrator):",
+    "commandMac": "macOS Terminal Command (sudo):",
+    "commandUfw": "UFW Command (Ubuntu / Debian / Mint):",
+    "commandFirewalld": "Firewalld Command (Fedora / RHEL / CentOS):",
+    "guiMethod": "Graphical Method (GUI):",
     "winNotice": "On first launch, if Windows Defender Firewall prompts you, choose \"Private Networks\" and click \"Allow access\". If mobile phones cannot load the page, unblock the TCP port with this command:",
+    "winGui": "Control Panel ➔ Windows Defender Firewall ➔ Allow an app through firewall ➔ check \"Karaoke Live Station\" on Private Networks.",
     "macNotice": "On first launch, macOS will display a security prompt: click \"Allow\" to accept incoming connections. If blocked, authorize the app in macOS Firewall:",
+    "macGui": "System Settings ➔ Network ➔ Firewall ➔ Options ➔ ensure \"Karaoke Live Station\" is set to \"Allow incoming connections\".",
     "linuxNotice": "If you use UFW or Firewalld on Linux, allow incoming TCP traffic for the Guest Portal ports so smartphones can connect:",
     "apIsolationTip": "Wi-Fi Tip: If smartphones cannot load the page despite being connected to the same network, verify in your router settings that \"AP Client Isolation\" is DISABLED."
   }

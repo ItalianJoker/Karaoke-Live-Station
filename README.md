@@ -16,6 +16,7 @@
   <a href="https://sqlite.org/"><img src="https://img.shields.io/badge/SQLite-WAL_Mode-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" /></a>
   <a href="https://deepmind.google/"><img src="https://img.shields.io/badge/Developed%20with-Google%20Antigravity-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google Antigravity" /></a>
   <a href="https://www.paypal.com/paypalme/LucaAbagnale"><img src="https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Donate with PayPal" /></a>
+  <a href="#-italiano"><img src="https://img.shields.io/badge/Languages-IT%20%7C%20EN%20%7C%20ES%20%7C%20FR-blue?style=for-the-badge&logo=translate" alt="Languages: IT, EN, ES, FR" /></a>
 </p>
 
 ---
@@ -104,6 +105,24 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 - **QR Code Dinamico**: Il pubblico inquadra il QR code con lo smartphone, visualizza la scaletta in tempo reale e invia richieste direttamente dal telefono.
 - **Selezione Obbligatoria da Libreria**: Ricerca istantanea con filtro in tempo reale sul catalogo locale. Sostituisce l'inserimento manuale a testo libero: solo i brani realmente presenti nella libreria possono essere prenotati, con selezione del cantante e della tonalità vocale (da -4 a +4 semitoni).
 - **Approvazione DJ Immediata**: Il gestore approva le richieste con un clic, inserendo nella scaletta il brano effettivo con la sua tonalità richiesta.
+
+### 🛡️ Assistente Firewall & Connessione LAN Multipiattaforma
+- **Diagnosi Automatica al Volo**: Rileva automaticamente il sistema operativo in uso ed esegue un'ispezione non invasiva dello stato del firewall di sistema:
+  - **Windows**: Rileva le regole di ingresso di *Windows Defender Firewall* tramite `netsh advfirewall`.
+  - **macOS**: Rileva lo stato globale del firewall applicativo di macOS (*ALF*) tramite `socketfilterfw`.
+  - **Linux**: Rileva lo stato di *UFW* (`/etc/ufw/ufw.conf`) e genera comandi per *UFW* e *Firewalld*.
+- **Comandi di Sblocco con Copia in 1 Clic**: Se gli smartphone non riescono a caricare la pagina del Guest Portal (porta TCP 3000-3010), l'assistente fornisce il comando esatto per PowerShell / Prompt o Terminale, con pulsante di copia dedicato e formattazione a riga singola con scorrimento orizzontale privo di tagli o parole spezzate.
+- **Istruzioni Grafiche Passo-Passo (GUI)**: Guida integrata per autorizzare l'applicazione tramite l'interfaccia grafica di sistema (Pannello di controllo di Windows o Impostazioni di Sistema macOS).
+- **Verifica Isolamento AP Wi-Fi**: Promemoria integrato per verificare che nelle impostazioni del modem o router l'opzione "Isolamento AP" (AP Client Isolation) sia disattivata.
+
+### 🌐 Supporto Multilingua Nativo (i18n)
+- **4 Lingue Supportate al 100%**:
+  - 🇮🇹 **Italiano** (Lingua nativa con interfaccia completa, registro SIAE e guide)
+  - 🇬🇧 **English** (Full international English translation across all dialogs and features)
+  - 🇪🇸 **Español** (Traducción completa al español para consola y pantalla del escenario)
+  - 🇫🇷 **Français** (Traduction française intégrale de la régie et de la scène)
+- **Rilevamento Automatico della Lingua**: All'avvio il software rileva la lingua del sistema operativo dell'utente impostandola automaticamente.
+- **Cambio Lingua Istantaneo**: Dalla finestra Opzioni (`Impostazioni` ➔ `Lingua / Language`) è possibile cambiare lingua in qualsiasi momento in tempo reale, con salvataggio persistente della preferenza senza dover riavviare l'applicazione.
 
 ### 📜 Tab Storico Esecuzioni & Borderò SIAE
 - **Nuovo Tab Dedicato "Storico"**: Organizzazione a 3 schede nella console di Regia (*Coda*, *Libreria*, *Storico*).
@@ -348,6 +367,24 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 - **Dynamic QR Code**: Guests scan the on-screen QR code with their mobile phone to view the live queue and send requests.
 - **Library-Only Song Selection**: Dynamic live search with instant filtering over the indexed local catalog. Replaces manual free-text inputs: only songs actually existing in the library can be selected and requested, including singer name and key transposition (-4 to +4 semitones).
 - **1-Click DJ Approval**: Host reviews requests in the queue and approves them with a single click, immediately queueing the real media track with the requested pitch offset.
+
+### 🛡️ Cross-Platform Firewall & LAN Connection Assistant
+- **Automated Real-Time Diagnosis**: Automatically identifies the host operating system and safely probes the local firewall state:
+  - **Windows**: Inspects *Windows Defender Firewall* inbound rules via `netsh advfirewall`.
+  - **macOS**: Queries the *macOS Application Firewall (ALF)* status via `socketfilterfw`.
+  - **Linux**: Probes *UFW* state (`/etc/ufw/ufw.conf`) and provides commands for *UFW* and *Firewalld*.
+- **1-Click Copyable Unblock Commands**: If guest phones cannot reach the mobile portal (TCP ports 3000–3010), the assistant supplies ready-to-run PowerShell / CMD or Terminal commands, complete with dedicated copy buttons and horizontal scrolling that prevents mid-command truncation or word wrapping.
+- **Step-by-Step Graphical (GUI) Guides**: Straightforward step-by-step instructions for allowing incoming traffic via Windows Defender Control Panel or macOS System Settings without opening a terminal.
+- **Wi-Fi AP Isolation Guidance**: Alerts the operator to disable "AP Client Isolation" on Wi-Fi routers, ensuring guests' mobile devices can communicate with the host PC.
+
+### 🌐 Full Native Multilingual Support (i18n)
+- **4 Complete Translations (100% Coverage)**:
+  - 🇮🇹 **Italiano** (Native Italian interface, SIAE reporting, and localized guides)
+  - 🇬🇧 **English** (Full international English localization across all modules)
+  - 🇪🇸 **Español** (Complete Spanish localization for operator and guests)
+  - 🇫🇷 **Français** (Comprehensive French localization for control and stage)
+- **Automatic System Locale Detection**: Auto-detects the operating system's native language on first launch with graceful fallbacks.
+- **Instant Live Language Switcher**: Switch languages on the fly at any time via Settings (`Settings` ➔ `Language`), with persistent preferences retained across app restarts without requiring a reload.
 
 ### 📜 Playback History Tab & Royalty Reporting (SIAE)
 - **Dedicated 3-Tab Console Layout**: Smooth segmented switching between *Queue*, *Library*, and *History*.

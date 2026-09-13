@@ -1,11 +1,67 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ShieldCheck, ShieldAlert, Copy, Check, Info, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Copy, Check, Info, RefreshCw, AlertTriangle, Terminal, Sliders } from 'lucide-react';
 import { OperatingSystem, FirewallCheckResult, FirewallRuleInfo } from '../../shared/types';
 
 interface FirewallGuideCardProps {
   compact?: boolean;
 }
+
+interface CommandBlockProps {
+  label: string;
+  command: string;
+  copyKey: string;
+  copiedKey: string | null;
+  onCopy: (cmd: string, key: string) => void;
+  colorClass?: string;
+}
+
+const CommandBlock: React.FC<CommandBlockProps> = ({
+  label,
+  command,
+  copyKey,
+  copiedKey,
+  onCopy,
+  colorClass = 'text-cyan-300'
+}) => {
+  const isCopied = copiedKey === copyKey;
+  const { t } = useTranslation();
+
+  return (
+    <div className="space-y-1.5 bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10.5px] font-semibold text-slate-300 flex items-center gap-1.5 min-w-0">
+          <Terminal className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <span className="truncate">{label}</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => onCopy(command, copyKey)}
+          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-slate-700 hover:border-slate-600 transition-all shrink-0 cursor-pointer shadow-sm active:scale-95"
+          title={t('firewall.copy', 'Copia')}
+        >
+          {isCopied ? (
+            <>
+              <Check className="w-3 h-3 text-emerald-400" />
+              <span className="text-emerald-400 font-bold">{t('firewall.copied', 'Copiato!')}</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-3 h-3 text-slate-400" />
+              <span>{t('firewall.copy', 'Copia')}</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      <div className="bg-black/95 border border-slate-800/90 rounded-lg p-2.5 overflow-x-auto select-all shadow-inner custom-scrollbar">
+        <code className={`block font-mono text-[11px] ${colorClass} whitespace-pre leading-relaxed tracking-tight`}>
+          {command}
+        </code>
+      </div>
+    </div>
+  );
+};
 
 export const FirewallGuideCard: React.FC<FirewallGuideCardProps> = ({ compact = false }) => {
   const { t } = useTranslation();
@@ -43,6 +99,9 @@ export const FirewallGuideCard: React.FC<FirewallGuideCardProps> = ({ compact = 
 
   const activeRule: FirewallRuleInfo | undefined = diag?.rules?.[selectedOs];
   const isCurrentPlatform = diag?.currentPlatform === selectedOs;
+  const activePort = diag?.activePort || 3000;
+  const minPort = activePort;
+  const maxPort = activePort + 10;
 
   return (
     <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3.5 space-y-3 shadow-inner">
@@ -64,7 +123,7 @@ export const FirewallGuideCard: React.FC<FirewallGuideCardProps> = ({ compact = 
           onClick={fetchFirewallInfo}
           disabled={isRefreshing}
           title={t('firewall.refresh', 'Aggiorna diagnosi')}
-          className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition-colors"
+          className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition-colors cursor-pointer"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
         </button>
@@ -137,137 +196,109 @@ export const FirewallGuideCard: React.FC<FirewallGuideCardProps> = ({ compact = 
       {/* Instructions & Commands per OS */}
       <div className="space-y-2.5 text-[11px] text-slate-300 leading-relaxed">
         {selectedOs === 'win32' && (
-          <div className="space-y-2">
-            <p className="text-slate-300">
+          <div className="space-y-2.5">
+            <p className="text-slate-300 leading-relaxed">
               {t(
                 'firewall.winNotice',
                 'Al primo avvio, se compare la richiesta di Windows Defender Firewall, seleziona "Reti Private" e premi "Consenti accesso". Se gli smartphone non caricano la pagina, autorizza la porta TCP con questo comando:'
               )}
             </p>
             {activeRule?.command && (
-              <div className="relative group">
-                <code className="block bg-black/80 border border-slate-800 rounded-lg p-2 font-mono text-[10.5px] text-blue-300 pr-16 select-all break-all">
-                  {activeRule.command}
-                </code>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(activeRule.command!, 'win')}
-                  className="absolute right-1.5 top-1.5 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[10px] font-semibold flex items-center gap-1 border border-slate-700 transition-colors"
-                >
-                  {copiedKey === 'win' ? (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-400" />
-                      <span className="text-emerald-400">Copiato!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3 text-slate-400" />
-                      <span>Copia</span>
-                    </>
-                  )}
-                </button>
-              </div>
+              <CommandBlock
+                label={t('firewall.commandPrompt', 'PowerShell / CMD (Amministratore):')}
+                command={activeRule.command}
+                copyKey="win"
+                copiedKey={copiedKey}
+                onCopy={handleCopy}
+                colorClass="text-blue-300"
+              />
             )}
             {!compact && (
-              <div className="text-[10px] text-slate-400 bg-slate-900/60 p-2 rounded-lg border border-slate-800/60 space-y-1">
-                <span className="font-semibold text-slate-300 block">Metodo Grafico (GUI):</span>
-                <span>
-                  Pannello di controllo ➔ Windows Defender Firewall ➔ Consenti app tramite firewall ➔ spunta "Karaoke Live Station" su Reti Private.
-                </span>
+              <div className="text-[10.5px] text-slate-300 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60 space-y-1">
+                <div className="font-semibold text-slate-200 flex items-center gap-1.5 text-[10.5px]">
+                  <Sliders className="w-3.5 h-3.5 text-blue-400" />
+                  <span>{t('firewall.guiMethod', 'Metodo Grafico (GUI):')}</span>
+                </div>
+                <p className="text-slate-400 leading-snug">
+                  {t(
+                    'firewall.winGui',
+                    'Pannello di controllo ➔ Windows Defender Firewall ➔ Consenti app tramite firewall ➔ spunta "Karaoke Live Station" su Reti Private.'
+                  )}
+                </p>
               </div>
             )}
           </div>
         )}
 
         {selectedOs === 'darwin' && (
-          <div className="space-y-2">
-            <p className="text-slate-300">
+          <div className="space-y-2.5">
+            <p className="text-slate-300 leading-relaxed">
               {t(
                 'firewall.macNotice',
                 'Alla prima apertura, macOS mostra un avviso di sicurezza: clicca su "Consenti" per accettare le connessioni in ingresso. Se bloccato, sblocca l\'app nel firewall di macOS:'
               )}
             </p>
             {activeRule?.command && (
-              <div className="relative group">
-                <code className="block bg-black/80 border border-slate-800 rounded-lg p-2 font-mono text-[10.5px] text-indigo-300 pr-16 select-all break-all">
-                  {activeRule.command}
-                </code>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(activeRule.command!, 'mac')}
-                  className="absolute right-1.5 top-1.5 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[10px] font-semibold flex items-center gap-1 border border-slate-700 transition-colors"
-                >
-                  {copiedKey === 'mac' ? (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-400" />
-                      <span className="text-emerald-400">Copiato!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3 text-slate-400" />
-                      <span>Copia</span>
-                    </>
-                  )}
-                </button>
-              </div>
+              <CommandBlock
+                label={t('firewall.commandMac', 'Terminale macOS (sudo):')}
+                command={activeRule.command}
+                copyKey="mac"
+                copiedKey={copiedKey}
+                onCopy={handleCopy}
+                colorClass="text-indigo-300"
+              />
             )}
             {!compact && (
-              <div className="text-[10px] text-slate-400 bg-slate-900/60 p-2 rounded-lg border border-slate-800/60 space-y-1">
-                <span className="font-semibold text-slate-300 block">Metodo Grafico (GUI):</span>
-                <span>
-                  Impostazioni di Sistema ➔ Rete ➔ Firewall ➔ Opzioni ➔ verifica che "Karaoke Live Station" sia impostata su "Consenti connessioni in entrata".
-                </span>
+              <div className="text-[10.5px] text-slate-300 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60 space-y-1">
+                <div className="font-semibold text-slate-200 flex items-center gap-1.5 text-[10.5px]">
+                  <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>{t('firewall.guiMethod', 'Metodo Grafico (GUI):')}</span>
+                </div>
+                <p className="text-slate-400 leading-snug">
+                  {t(
+                    'firewall.macGui',
+                    'Impostazioni di Sistema ➔ Rete ➔ Firewall ➔ Opzioni ➔ verifica che "Karaoke Live Station" sia impostata su "Consenti connessioni in entrata".'
+                  )}
+                </p>
               </div>
             )}
           </div>
         )}
 
         {selectedOs === 'linux' && (
-          <div className="space-y-2">
-            <p className="text-slate-300">
+          <div className="space-y-2.5">
+            <p className="text-slate-300 leading-relaxed">
               {t(
                 'firewall.linuxNotice',
-                'Se usi UFW o Firewalld su Linux, autorizza le porte TCP del Guest Portal (3000-3010) per consentire agli smartphone di connettersi:'
+                'Se usi UFW o Firewalld su Linux, autorizza le porte TCP del Guest Portal per consentire agli smartphone di connettersi:'
               )}
             </p>
             {activeRule?.command && (
-              <div className="relative group">
-                <code className="block bg-black/80 border border-slate-800 rounded-lg p-2 font-mono text-[10.5px] text-emerald-300 pr-16 select-all break-all">
-                  {activeRule.command}
-                </code>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(activeRule.command!, 'linux')}
-                  className="absolute right-1.5 top-1.5 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[10px] font-semibold flex items-center gap-1 border border-slate-700 transition-colors"
-                >
-                  {copiedKey === 'linux' ? (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-400" />
-                      <span className="text-emerald-400">Copiato!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3 text-slate-400" />
-                      <span>Copia</span>
-                    </>
-                  )}
-                </button>
-              </div>
+              <CommandBlock
+                label={t('firewall.commandUfw', 'Comando UFW (Ubuntu / Debian / Mint):')}
+                command={activeRule.command}
+                copyKey="linux-ufw"
+                copiedKey={copiedKey}
+                onCopy={handleCopy}
+                colorClass="text-emerald-300"
+              />
             )}
             {!compact && (
-              <div className="text-[10px] text-slate-400 bg-slate-900/60 p-2 rounded-lg border border-slate-800/60 space-y-1">
-                <span className="font-semibold text-slate-300 block">Per Firewalld (Fedora / RHEL):</span>
-                <code className="block font-mono text-[10px] text-slate-300 select-all">
-                  sudo firewall-cmd --add-port=3000-3010/tcp --permanent && sudo firewall-cmd --reload
-                </code>
-              </div>
+              <CommandBlock
+                label={t('firewall.commandFirewalld', 'Comando Firewalld (Fedora / RHEL / CentOS):')}
+                command={`sudo firewall-cmd --add-port=${minPort}-${maxPort}/tcp --permanent && sudo firewall-cmd --reload`}
+                copyKey="linux-firewalld"
+                copiedKey={copiedKey}
+                onCopy={handleCopy}
+                colorClass="text-emerald-300"
+              />
             )}
           </div>
         )}
 
         {/* Global Router AP Isolation Tip */}
-        <div className="flex items-start gap-1.5 text-[10px] text-amber-300/80 pt-1 border-t border-slate-800/60">
-          <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2 text-[10.5px] text-amber-300/90 pt-2 border-t border-slate-800/60 leading-snug">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
           <span>
             {t(
               'firewall.apIsolationTip',

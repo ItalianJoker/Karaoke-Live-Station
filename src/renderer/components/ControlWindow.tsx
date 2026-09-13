@@ -1616,39 +1616,74 @@ export const ControlWindow: React.FC = () => {
       {/* Guest Portal QR Modal */}
       {showPortalQrModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center">
-            <div className="flex items-center justify-center gap-2.5 mb-2">
-              <img src={appLogo} alt="Logo" className="w-8 h-8 object-contain drop-shadow" />
-              <h3 className="font-bold text-base text-white">Guest Portal LAN</h3>
-            </div>
-            <p className="text-xs text-slate-400 mb-3">
-              Gli ospiti possono inquadrare il codice per richiedere canzoni dallo smartphone:
-            </p>
-            {portalInfo.qrCode ? (
-              <img
-                src={portalInfo.qrCode}
-                alt="QR Code Guest Portal"
-                className="w-52 h-52 mx-auto rounded-xl shadow-lg border border-white/10 mb-3"
-              />
-            ) : (
-              <div className="w-52 h-52 mx-auto rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center text-xs text-slate-500 mb-3">
-                Generazione QR Code...
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col max-h-[92vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <img src={appLogo} alt="Logo" className="w-7 h-7 object-contain drop-shadow" />
+                <div>
+                  <h3 className="font-bold text-sm text-white">Guest Portal LAN</h3>
+                  <p className="text-[11px] text-slate-400">Richieste canzoni dal pubblico con smartphone</p>
+                </div>
               </div>
-            )}
-            <p className="font-mono text-xs text-indigo-400 select-all mb-3 font-semibold">{portalInfo.url}</p>
-
-            {/* Multiplatform Firewall & LAN Access Guide */}
-            <div className="text-left mb-4 max-h-60 overflow-y-auto pr-1">
-              <FirewallGuideCard compact={true} />
+              <button
+                type="button"
+                onClick={() => setShowPortalQrModal(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowPortalQrModal(false)}
-              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow-md transition-colors"
-            >
-              Chiudi
-            </button>
+            {/* Modal Body: Responsive 2-column or stack */}
+            <div className="overflow-y-auto pr-1 flex-1 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                {/* Left: QR Code & Direct Link */}
+                <div className="flex flex-col items-center text-center p-4 bg-slate-950/70 rounded-2xl border border-slate-800 space-y-3">
+                  <p className="text-xs text-slate-300 font-medium">
+                    Gli ospiti possono inquadrare il codice per richiedere canzoni:
+                  </p>
+                  {portalInfo.qrCode ? (
+                    <div className="bg-white p-3 rounded-2xl shadow-xl border border-white/20">
+                      <img
+                        src={portalInfo.qrCode}
+                        alt="QR Code Guest Portal"
+                        className="w-44 h-44 object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-48 h-48 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-xs text-slate-500">
+                      Generazione QR Code...
+                    </div>
+                  )}
+                  <div className="w-full space-y-1">
+                    <span className="text-[10px] text-slate-400 block uppercase font-semibold">Oppure apri l'indirizzo:</span>
+                    <code className="block font-mono text-xs text-indigo-400 bg-black/60 px-2.5 py-1.5 rounded-lg border border-slate-800 select-all font-bold truncate">
+                      {portalInfo.url || `http://${portalInfo.ip || '127.0.0.1'}:${portalInfo.port || 3000}`}
+                    </code>
+                  </div>
+                  <p className="text-[10.5px] text-slate-500 leading-tight">
+                    Lo smartphone deve essere collegato alla stessa rete Wi-Fi di questo computer.
+                  </p>
+                </div>
+
+                {/* Right: Multiplatform Firewall & LAN Access Guide */}
+                <div>
+                  <FirewallGuideCard compact={true} />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-slate-800 mt-4 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowPortalQrModal(false)}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow-md transition-colors cursor-pointer"
+              >
+                Chiudi
+              </button>
+            </div>
           </div>
         </div>
       )}
