@@ -811,6 +811,39 @@ assert(
     /showPitchOnStage:\s*true/.test(karaokeStoreSourceP45),
   'showPitchOnStage setting exists and defaults to ON'
 );
+
+assert(
+  stageWindowSource.includes('showSpeedOnStage') &&
+    stageWindowSource.includes('stage-speed-badge') &&
+    settingsModalSourceP45.includes('showSpeedOnStage') &&
+    /showSpeedOnStage:\s*true/.test(karaokeStoreSourceP45),
+  'showSpeedOnStage setting exists, defaults to ON, and Stage renders speed badge'
+);
+
+assert(
+  settingsModalSourceP45.indexOf('PayPal support banner') > -1 &&
+    settingsModalSourceP45.indexOf('PayPal support banner') <
+      settingsModalSourceP45.indexOf('{/* Instant search */}'),
+  'PayPal banner is pinned above the Settings search bar'
+);
+
+assert(
+  libraryPanelSourceP45.includes('isFinishedLibraryFile') &&
+    libraryPanelSourceP45.includes('touchLibraryList') &&
+    libraryPanelSourceP45.includes('Client-side safety net'),
+  'LibraryPanel refuses temp/partial downloads as finished library rows and dedupes on refresh'
+);
+
+const mainScanSource = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+const databaseSourceDedupe = fs.readFileSync(path.resolve(__dirname, '../src/main/db/database.ts'), 'utf8');
+assert(
+  mainScanSource.includes('.part') &&
+    mainScanSource.includes('stableYtId') &&
+    databaseSourceDedupe.includes('deleteTracksByLocalPathExcept') &&
+    databaseSourceDedupe.includes('dedupeTracksByIdentity'),
+  'Library scan skips incomplete files, prefers YouTube ids, and DB collapses path duplicates'
+);
+
 assert(
   stageWindowSource.includes('document.styleSheets') &&
     stageWindowSource.includes('requestAnimationFrame') &&
@@ -819,22 +852,52 @@ assert(
 );
 
 // --- YouTube preview without error 153 ---
+const youtubeEmbedHelperSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/youtubeEmbed.ts'),
+  'utf8'
+);
+const mainProcessSourceFor153 = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/index.ts'),
+  'utf8'
+);
 assert(
-  videoPreviewSource.includes('youtube-nocookie.com/embed/') &&
-    videoPreviewSource.includes('enablejsapi=1') &&
-    videoPreviewSource.includes('playsinline=1') &&
-    videoPreviewSource.includes('origin=') &&
-    (videoPreviewSource.includes('widget_referrer=') || videoPreviewSource.includes('widget_referrer')) &&
-    videoPreviewSource.includes('referrerPolicy'),
-  'YouTube preview embed includes nocookie + jsapi/origin/playsinline/referrerPolicy (153 mitigation)'
+  youtubeEmbedHelperSource.includes('buildYouTubeEmbedSrc') &&
+    youtubeEmbedHelperSource.includes('youtube-nocookie.com/embed/') &&
+    youtubeEmbedHelperSource.includes('enablejsapi') &&
+    youtubeEmbedHelperSource.includes('playsinline') &&
+    youtubeEmbedHelperSource.includes('origin') &&
+    youtubeEmbedHelperSource.includes('YOUTUBE_EMBED_REFERRER_POLICY') &&
+    youtubeEmbedHelperSource.includes('YOUTUBE_EMBED_APP_ORIGIN') &&
+    youtubeEmbedHelperSource.includes('resolveYouTubeEmbedOrigin') &&
+    videoPreviewSource.includes('buildYouTubeEmbedSrc') &&
+    videoPreviewSource.includes('YOUTUBE_EMBED_REFERRER_POLICY') &&
+    mainProcessSourceFor153.includes('setupYouTubeEmbedReferer') &&
+    mainProcessSourceFor153.includes('onBeforeSendHeaders') &&
+    /headers\[['"]Referer['"]\]/.test(mainProcessSourceFor153),
+  'YouTube preview embed uses shared builder + Electron Referer injection (153 mitigation)'
 );
 
 // --- Dynamic search + dismissible download complete ---
 assert(
-  libraryPanelSourceP45.includes('sessionStorage') &&
-    libraryPanelSourceP45.includes('kls.library.query') &&
-    libraryPanelSourceP45.includes('setSearchResults'),
-  'Library persists query and filters results reactively'
+  (
+    libraryPanelSourceP45.includes('useScopedLibrarySearch') ||
+    libraryPanelSourceP45.includes('sessionStorage')
+  ) &&
+    (libraryPanelSourceP45.includes('searchTracks') ||
+      libraryPanelSourceP45.includes('db.searchTracks')) &&
+    fs
+      .readFileSync(
+        path.resolve(__dirname, '../src/renderer/hooks/useScopedLibrarySearch.ts'),
+        'utf8'
+      )
+      .includes('kls.library.localQuery') &&
+    fs
+      .readFileSync(
+        path.resolve(__dirname, '../src/renderer/hooks/useScopedLibrarySearch.ts'),
+        'utf8'
+      )
+      .includes('kls.library.webQuery'),
+  'Library persists query and filters results reactively via db.searchTracks'
 );
 assert(
   libraryPanelSourceP45.includes('download-complete-badge') &&
@@ -963,7 +1026,191 @@ assert(
 );
 
 
+
 // -------------------------------------------------------------
+// Suite: Scoped Library/Web search, Stage messages, Pre-Ascolto, README Cursor
+// -------------------------------------------------------------
+const scopedSearchHookSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/hooks/useScopedLibrarySearch.ts'),
+  'utf8'
+);
+const libraryPanelScopedSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+  'utf8'
+);
+const stageMessagesSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/stageMessages.ts'),
+  'utf8'
+);
+const settingsStageMsgSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+  'utf8'
+);
+const stageWindowMsgSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/StageWindow.tsx'),
+  'utf8'
+);
+const videoPreviewScopedSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/VideoPreviewModal.tsx'),
+  'utf8'
+);
+const readmeSourceCursor = fs.readFileSync(path.resolve(__dirname, '../README.md'), 'utf8');
+const localeEnStage = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '../locales/en.json'), 'utf8')
+);
+const localeItStage = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '../locales/it.json'), 'utf8')
+);
+const localeEsStage = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '../locales/es.json'), 'utf8')
+);
+const localeFrStage = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '../locales/fr.json'), 'utf8')
+);
+
+assert(
+  scopedSearchHookSource.includes('useScopedLibrarySearch') &&
+    scopedSearchHookSource.includes("'local'") &&
+    scopedSearchHookSource.includes("'web'") &&
+    scopedSearchHookSource.includes('kls.library.localQuery') &&
+    scopedSearchHookSource.includes('kls.library.webQuery') &&
+    scopedSearchHookSource.includes('setSearchMode') &&
+    !scopedSearchHookSource.includes('searchYouTube'),
+  'Scoped search hook keeps separate local/web buckets and does not call YouTube itself'
+);
+
+assert(
+  libraryPanelScopedSource.includes('useScopedLibrarySearch') &&
+    libraryPanelScopedSource.includes("setSearchMode('local')") &&
+    libraryPanelScopedSource.includes("setSearchMode('web')") &&
+    !/setSearchMode\('web'\);\s*setSearchResults\(\[\]\)/.test(libraryPanelScopedSource) &&
+    !/setSearchMode\('local'\);\s*setSearchResults\(\[\]\)/.test(libraryPanelScopedSource) &&
+    libraryPanelScopedSource.includes('setWebResults') &&
+    libraryPanelScopedSource.includes('setLocalResults') &&
+    libraryPanelScopedSource.includes('data-testid="library-results-list"'),
+  'LibraryPanel uses scoped search; tab switches do not clear the other tab results'
+);
+
+assert(
+  libraryPanelScopedSource.includes('setLocalResults') &&
+    libraryPanelScopedSource.includes('localQuery') &&
+    /searchMode\s*===\s*'web'/.test(libraryPanelScopedSource) &&
+    libraryPanelScopedSource.includes('searchYouTube') &&
+    libraryPanelScopedSource.includes('setWebSearching'),
+  'Local live search mutates local bucket; YouTube search only on web submit'
+);
+
+assert(
+  stageMessagesSource.includes('createDefaultStageMessages') &&
+    stageMessagesSource.includes('mergeStageMessages') &&
+    stageMessagesSource.includes('patchStageMessages') &&
+    stageMessagesSource.includes('resolveStageMessage') &&
+    stageMessagesSource.includes('stageMessageCss') &&
+    settingsStageMsgSource.includes('data-testid="settings-stage-messages"') &&
+    settingsStageMsgSource.includes('stageMessagesTitle') &&
+    stageWindowMsgSource.includes('resolveStageMessage') &&
+    stageWindowMsgSource.includes('stageMessageCss') &&
+    stageWindowMsgSource.includes('data-testid="stage-msg-nowSinging"'),
+  'Stage message settings: helpers, Settings UI, and Stage live resolve/CSS'
+);
+
+const stageMsgLocaleKeys = [
+  'stageMessagesTitle',
+  'stageMessagesDesc',
+  'stageMessageEnabled',
+  'stageMessageText',
+  'stageMessageBold',
+  'stageMessageItalic',
+  'stageMessageFontSize',
+  'stageMessageNowSinging',
+  'stageMessageGetReady'
+];
+assert(
+  stageMsgLocaleKeys.every(
+    (k) =>
+      localeEnStage.settings[k] &&
+      localeItStage.settings[k] &&
+      localeEsStage.settings[k] &&
+      localeFrStage.settings[k]
+  ),
+  'Stage message settings labels localized in en/it/es/fr'
+);
+
+assert(
+  videoPreviewScopedSource.includes('isSameCueAndMasterDevice') &&
+    videoPreviewScopedSource.includes('data-testid="preview-unmute-same-device-dialog"') &&
+    videoPreviewScopedSource.includes('data-testid="preview-unmute-same-device-confirm"') &&
+    libraryPanelScopedSource.includes('setPreviewTrack(track)') &&
+    libraryPanelScopedSource.includes('cueAudioDeviceId') &&
+    libraryPanelScopedSource.includes('masterAudioDeviceId'),
+  'Pre-Ascolto opens video preview; same-device unmute confirm is wired'
+);
+
+assert(
+  /Google Antigravity/.test(readmeSourceCursor) &&
+    /\*\*Cursor\*\*/.test(readmeSourceCursor) &&
+    readmeSourceCursor.includes('badge/Developed%20with-Cursor') &&
+    readmeSourceCursor.includes('Nota di Sviluppo') &&
+    readmeSourceCursor.includes('Development Note'),
+  'README mentions Cursor alongside Antigravity (badge + IT/EN notes)'
+);
+
+
+// -------------------------------------------------------------
+
+// -------------------------------------------------------------
+// Suite: Stage message backgrounds
+// -------------------------------------------------------------
+const stageMessagesBgSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/stageMessages.ts'),
+  'utf8'
+);
+const stageWindowBgSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/StageWindow.tsx'),
+  'utf8'
+);
+const settingsBgSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+  'utf8'
+);
+const typesBgSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/types.ts'),
+  'utf8'
+);
+const preloadBgSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/preload/index.ts'),
+  'utf8'
+);
+assert(
+  typesBgSource.includes('StageMessageBackgroundMode') &&
+    typesBgSource.includes('backgroundMode') &&
+    typesBgSource.includes('backgroundColor') &&
+    typesBgSource.includes('backgroundImagePath') &&
+    stageMessagesBgSource.includes('pickActiveStageMessageBackground') &&
+    stageMessagesBgSource.includes('stageMessageBackgroundCss') &&
+    stageMessagesBgSource.includes('STAGE_MESSAGE_BACKGROUND_PRIORITY') &&
+    stageWindowBgSource.includes('stage-message-background') &&
+    stageWindowBgSource.includes('pickActiveStageMessageBackground') &&
+    settingsBgSource.includes('settings-stage-message-bg-mode-') &&
+    settingsBgSource.includes('stageMessageBackground') &&
+    preloadBgSource.includes('openImageFile') &&
+    localeEnStage.settings.stageMessageBackground &&
+    localeItStage.settings.stageMessageBackground &&
+    localeEsStage.settings.stageMessageBackground &&
+    localeFrStage.settings.stageMessageBackground,
+  'Per-message Stage backgrounds: types, helpers, Settings UI, Stage layer, locales, image picker'
+);
+
+
+assert(
+  fs.existsSync(path.resolve(__dirname, '../src/renderer/data/appShortcuts.ts')) &&
+    fs.readFileSync(path.resolve(__dirname, '../src/renderer/data/appShortcuts.ts'), 'utf8').includes('APP_SHORTCUTS') &&
+    fs.readFileSync(path.resolve(__dirname, '../src/renderer/components/ShortcutsHelpModal.tsx'), 'utf8').includes('APP_SHORTCUTS') &&
+    fs.readFileSync(path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'), 'utf8').includes('APP_SHORTCUTS') &&
+    fs.readFileSync(path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'), 'utf8').includes('appShortcuts.ts'),
+  'Shortcut inventory shared by ?, Settings, and ControlWindow handler comment'
+);
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');

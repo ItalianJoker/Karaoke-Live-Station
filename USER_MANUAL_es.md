@@ -400,6 +400,10 @@ Ajuste **Mostrar variación de tonalidad en la pantalla del escenario** (`Mostra
 - El valor **0** se visualiza igualmente cuando el interruptor está activo (el cantante ve que no hay transposición)
 - Descripción de UI: «Visualizza il badge con i semitoni di variazione (+/-) sullo schermo del palco per il cantante.» (texto de UI en italiano)
 
+### 7.2a Fondos personalizados de los mensajes del escenario
+
+En **Ajustes → Pantalla de escenario**, cada mensaje superpuesto puede definir texto/estilo/activación y un **fondo del escenario (color o imagen) solo mientras el mensaje es visible**. Al ocultarse (o si se desactiva), se restaura el fondo normal de tema/vídeo sin reiniciar.
+
 ### 7.3 Pantalla completa y layout
 
 - **`F11`** / **`Esc`** con foco en Stage
@@ -505,6 +509,8 @@ Los tooltips de los controles en Regia muestran las mismas combinaciones para us
 
 ---
 
+
+También en Ajustes → Atajos y el panel **?** / F1: Stop (`S`), Restart (`R`), flechas de seek, Ctrl+flechas para tono/velocidad, Vocal remover (`V`), Ducking (`D`), pestañas `1`/`2`/`3`, Stage (`P`), ayuda (`F1`/`?`). Pantalla completa Stage: `F11`/`Esc` en la ventana Stage.
 ## 11. Guest Portal LAN
 
 ### 11.1 Activación

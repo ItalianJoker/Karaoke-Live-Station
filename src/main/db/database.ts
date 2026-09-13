@@ -111,7 +111,7 @@ export class DatabaseManager {
       isEmbeddable: number;
     }>;
 
-    return rows.map((r) => ({
+    const mapped = rows.map((r) => ({
       id: r.id,
       source: r.source as KaraokeMediaTrack['source'],
       title: r.title,
@@ -124,6 +124,39 @@ export class DatabaseManager {
       isMultiplex: Boolean(r.isMultiplex),
       isEmbeddable: Boolean(r.isEmbeddable)
     }));
+    return this.dedupeTracksByIdentity(mapped);
+  }
+
+  /**
+   * One logical media file => one row. Prefer stable YouTube ids over path-hash ids.
+   */
+  private dedupeTracksByIdentity(tracks: KaraokeMediaTrack[]): KaraokeMediaTrack[] {
+    const score = (t: KaraokeMediaTrack) => {
+      const yt = /^[\w-]{11}$/.test(t.id) ? 2 : t.id.startsWith('track_') ? 0 : 1;
+      const local = t.source === 'local_library' ? 1 : 0;
+      return yt * 10 + local;
+    };
+    const byPath = new Map<string, KaraokeMediaTrack>();
+    const noPath: KaraokeMediaTrack[] = [];
+    for (const t of tracks) {
+      const key = t.localFilePath ? t.localFilePath.toLowerCase() : '';
+      if (!key) {
+        noPath.push(t);
+        continue;
+      }
+      const prev = byPath.get(key);
+      if (!prev || score(t) > score(prev)) byPath.set(key, t);
+    }
+    const byId = new Map<string, KaraokeMediaTrack>();
+    for (const t of [...byPath.values(), ...noPath]) {
+      const prev = byId.get(t.id);
+      if (!prev || score(t) >= score(prev)) byId.set(t.id, t);
+    }
+    return Array.from(byId.values()).sort((a, b) => {
+      const aa = `${a.artist}\0${a.title}`.toLowerCase();
+      const bb = `${b.artist}\0${b.title}`.toLowerCase();
+      return aa.localeCompare(bb);
+    });
   }
 
   /**
@@ -181,6 +214,7 @@ export class DatabaseManager {
       INSERT INTO tracks (id, source, title, artist, durationSec, uri, localFilePath, thumbnailUrl, hasEmbeddedLyrics, isMultiplex, isEmbeddable, addedAt)
       VALUES (@id, @source, @title, @artist, @durationSec, @uri, @localFilePath, @thumbnailUrl, @hasEmbeddedLyrics, @isMultiplex, @isEmbeddable, @addedAt)
       ON CONFLICT(id) DO UPDATE SET
+        source = excluded.source,
         title = excluded.title,
         artist = excluded.artist,
         durationSec = excluded.durationSec,
@@ -206,6 +240,27 @@ export class DatabaseManager {
       isEmbeddable: track.isEmbeddable ? 1 : 0,
       addedAt: Date.now()
     });
+    if (track.localFilePath) {
+      this.deleteTracksByLocalPathExcept(track.localFilePath, track.id);
+    }
+  }
+
+  /**
+   * Deletes catalog rows that share a local file path but not the kept id.
+   * Prevents ghost duplicates when a YouTube id row and a path-hash row point at the same file.
+   */
+  public deleteTracksByLocalPathExcept(localFilePath: string, keepId: string): number {
+    if (!localFilePath) return 0;
+    const stmt = this.db.prepare(
+      `DELETE FROM tracks WHERE localFilePath = ? AND id != ?`
+    );
+    const result = stmt.run(localFilePath, keepId);
+    return Number(result.changes || 0);
+  }
+
+  /** Deletes a single track by primary key. */
+  public deleteTrackById(id: string): void {
+    this.db.prepare(`DELETE FROM tracks WHERE id = ?`).run(id);
   }
 
   /**

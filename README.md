@@ -15,6 +15,7 @@
   <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind" /></a>
   <a href="https://sqlite.org/"><img src="https://img.shields.io/badge/SQLite-WAL_Mode-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" /></a>
   <a href="https://deepmind.google/"><img src="https://img.shields.io/badge/Developed%20with-Google%20Antigravity-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google Antigravity" /></a>
+  <a href="https://cursor.com/"><img src="https://img.shields.io/badge/Developed%20with-Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white" alt="Cursor" /></a>
   <a href="https://www.paypal.com/paypalme/LucaAbagnale"><img src="https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Donate with PayPal" /></a>
   <a href="#-italiano"><img src="https://img.shields.io/badge/Languages-IT%20%7C%20EN%20%7C%20ES%20%7C%20FR-blue?style=for-the-badge&logo=translate" alt="Languages: IT, EN, ES, FR" /></a>
 </p>
@@ -26,7 +27,8 @@
 - 🇬🇧 [User manual (EN)](./USER_MANUAL_en.md)
 - 🇪🇸 [Manual de usuario (ES)](./USER_MANUAL_es.md)
 - 🇫🇷 [Manuel utilisateur (FR)](./USER_MANUAL_fr.md)
-- 📋 [CHANGELOG.md](./CHANGELOG.md)
+- 📋 [CHANGELOG.md](./CHANGELOG.md) · [RELEASE_NOTES.md](./RELEASE_NOTES.md)
+- 🧰 Managed binaries (`yt-dlp`, helpers): `<app_userData>/bin/` (Electron `userData`) — portable across updates
 
 ### 🌐 Lingua / Language
 - [🇮🇹 **Italiano**](#-italiano) • [☕ *Supporta il Progetto*](#-supporta-il-progetto) • [⚖️ *Disclaimer Legale & Copyright*](#️-disclaimer-legale-copyright--marchi-registrati) • [📚 *Fonti & Licenze Terze*](#-attribuzioni-fonti--licenze-librerie-terze)
@@ -41,7 +43,7 @@
 
 Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore + Schermo Palco)**, integra un motore audio DSP in tempo reale per la trasposizione della tonalità (in semitoni) e la velocità (senza alterazione del pitch), sintesi General MIDI / KAR con banco SoundFont professionale GeneralUser GS da 31 MB, rendering grafico CD+G a 30 fps, coda equa anti-monopolio con memoria delle tonalità dei cantanti, e un **Guest Portal LAN** integrato con codice QR per permettere al pubblico di richiedere brani direttamente dallo smartphone.
 
-> 💡 **Nota di Sviluppo**: Questo software è stato interamente ideato, architettato e sviluppato con **Google Antigravity**, l'ambiente avanzato di sviluppo ad agenti autonomi di Google DeepMind.
+> 💡 **Nota di Sviluppo**: Questo software è stato interamente ideato, architettato e sviluppato con **Google Antigravity**, l'ambiente avanzato di sviluppo ad agenti autonomi di Google DeepMind, e con **Cursor**.
 
 ---
 
@@ -58,6 +60,7 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 - **Video a Tutto Schermo (Edge-to-Edge al 100%)**: Lo Schermo Palco massimizza l'area visiva senza cornici o padding sprecato, adattando video 16:9, 4:3 e panoramici senza distorsioni.
 - **Titolo Brano Flottante a Scomparsa**: Titolo e artista appaiono fluttuanti in basso al centro per una durata configurabile nelle opzioni (da 2 a 30 secondi, default 8s) per poi dissolversi dolcemente, lasciando il video e il testo del karaoke privi di ostacoli visivi.
 - **Barra di Avanzamento a Basso Profilo**: Barra di avanzamento ultra-sottile integrata a filo sul bordo estremo inferiore.
+- **Messaggi Stage personalizzabili (testo, stile, sfondo)**: In Impostazioni → Schermo Stage puoi modificare testo, grassetto/corsivo, dimensione, attivazione e **sfondo dello Stage (colore o immagine) per ogni messaggio** (es. “Prossimo cantante”). Lo sfondo personalizzato vale solo mentre il messaggio è visibile; al termine torna lo sfondo normale del tema/video.
 - **Badge Tonalità Configurabile su Schermo Palco**: Possibilità di mostrare o nascondere nelle Opzioni il badge con i semitoni di variazione (+/-) rispetto alla tonalità originale (`showPitchOnStage`).
 
 ### 📁 Configurazione Libreria & Anteprima Video Versioni
@@ -314,22 +317,13 @@ Karaoke Live Station è realizzato grazie a eccezionali librerie open source, st
 
 <a name="english"></a>
 
----
-
-## 📚 Docs & runtime paths
-
-- Full operator manuals: [IT](./USER_MANUAL.md) · [EN](./USER_MANUAL_en.md) · [ES](./USER_MANUAL_es.md) · [FR](./USER_MANUAL_fr.md)
-- Managed binaries (yt-dlp and helpers) live under **`<app_userData>/bin/`** (Electron `app.getPath('userData')`), never inside the install/asar tree — portable across updates.
-- Live keyboard shortcuts are listed in each manual (§10) and in-app under **Settings → Scorciatoie** / **F1**.
-
-
 # 🇬🇧 English
 
 **Karaoke Live Station** is a professional, mission-critical, cross-platform desktop application designed for karaoke DJs, event entertainers, live music venues, and private party hosts.
 
 Built upon an **independent dual-window architecture (Control Desk + Stage Screen)**, it delivers real-time Web Audio DSP pitch transposition (in semitones) and tempo scaling, native General MIDI / KAR synthesis with the bundled 31 MB GeneralUser GS SoundFont bank, 30 fps CD+G subcode graphics decoding, an intelligent Fair Queue algorithm with singer pitch memory, and an embedded **LAN Guest Portal** with dynamic QR code requests for smartphones.
 
-> 💡 **Development Note**: This software was conceived, architected, and developed with **Google Antigravity**, the advanced autonomous agentic coding assistant by Google DeepMind.
+> 💡 **Development Note**: This software was conceived, architected, and developed with **Google Antigravity**, the advanced autonomous agentic coding assistant by Google DeepMind, and with **Cursor**.
 
 ---
 
@@ -346,6 +340,7 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 - **100% Edge-to-Edge Video Utilization**: Maximizes available display area on the Stage Screen with zero wasted padding or borders, supporting 16:9, 4:3, and ultrawide video ratios without aspect ratio distortion.
 - **Temporary Floating Song Title Banner**: Track title and artist float at the bottom center of the video for a user-configurable duration (2–30 seconds, 8s default) before smoothly fading out, ensuring singer lyrics remain completely unobstructed.
 - **Low-Profile Flush Progress Bar**: Ultra-thin progress indicator along the screen's bottom edge with subtle illumination that never hides subtitles.
+- **Customizable Stage messages (text, style, background)**: Under Settings → Stage Screen you can edit text, bold/italic, size, enable/disable, and a **per-message Stage background (solid color or image)** (e.g. “Up next”). The custom backdrop applies only while that message is visible; when it hides, the normal theme/video Stage look is restored.
 - **Configurable Stage Monitor Pitch Badge**: Option in Settings to show or hide the semitone transposition badge (+/-) on the singer stage monitor (`showPitchOnStage`).
 
 ### 📁 Configurable Library Path & Video Version Previews

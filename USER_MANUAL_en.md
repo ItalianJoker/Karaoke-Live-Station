@@ -400,6 +400,15 @@ Setting **Show key change on the stage screen** (`Mostra variazione tonalità su
 - The value **0** is still shown when the toggle is on (the singer sees there is no transposition)
 - UI description: «Visualizza il badge con i semitoni di variazione (+/-) sullo schermo del palco per il cantante.» (Italian UI)
 
+### 7.2a Custom Stage message backgrounds
+
+In **Settings → Stage Screen**, each overlay message (Now Singing, Get Ready, Up Next on Stage, …) can set:
+
+- custom text, bold/italic, font size, enable/disable
+- **Stage background while shown**: none (keep theme/video), solid color, or image
+
+The backdrop applies **only while that message is visible**. When the banner/card hides (or the message is disabled), Stage restores the normal theme/video background without restarting.
+
 ### 7.3 Fullscreen and layout
 
 - **`F11`** / **`Esc`** with focus on Stage
@@ -444,7 +453,7 @@ Open **System Settings** (`Impostazioni di Sistema`) (gear). At the top: field *
 | **General** (`Generale`) | Control/Stage themes, language, Fair Queue, Guest Portal, SIAE, project support |
 | **Library & Download** (`Libreria & Download`) | `libraryPath`, automatic archiving (+ warning), yt-dlp status/update |
 | **Audio & Playback** (`Audio & Riproduzione`) | SoundFont, Master/CUE, A/V sync, normalization, default vocal remover/ducking, auto-advance, `transitionPauseSec` |
-| **Stage Screen** (`Schermo Stage`) | Intro/outro banners, title overlay, next singer in intro, **`showPitchOnStage`** |
+| **Stage Screen** (`Schermo Stage`) | Intro/outro banners, title overlay, next singer in intro, **`showPitchOnStage`**, **custom Stage message text/style/background** |
 | **Shortcuts** (`Scorciatoie`) | Shortcut reference (also openable with F1 / ?) |
 
 Search filters labels/descriptions **across all categories**; clearing the field returns to tab navigation. No setting is removed by the tab reorganization.
@@ -505,6 +514,8 @@ Tooltips on Control controls show the same combinations for at-a-glance use.
 
 ---
 
+
+Also documented in Settings → Shortcuts and the **?** / F1 help panel: Stop (`S`), Restart (`R`), seek arrows, Ctrl+arrows for pitch/speed, Vocal remover (`V`), Ducking (`D`), tabs `1`/`2`/`3`, Stage (`P`), help (`F1`/`?`). Stage fullscreen uses `F11`/`Esc` on the Stage window.
 ## 11. Guest Portal LAN
 
 ### 11.1 Activation

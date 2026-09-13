@@ -1,52 +1,25 @@
 import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Keyboard, X, Search, Play, Volume2, Monitor } from 'lucide-react';
+import { APP_SHORTCUTS } from '../data/appShortcuts';
 
 interface ShortcutsHelpModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-interface ShortcutItem {
-  keys: string[];
-  descriptionKey: string;
-  category: 'playback' | 'audio' | 'navigation';
-}
-
 export const ShortcutsHelpModal: React.FC<ShortcutsHelpModalProps> = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
   const [filterQuery, setFilterQuery] = useState('');
 
-  const shortcutsList: ShortcutItem[] = useMemo(
-    () => [
-      // Playback
-      { keys: ['Spazio'], descriptionKey: 'shortcuts.playPause', category: 'playback' },
-      { keys: ['S'], descriptionKey: 'shortcuts.stop', category: 'playback' },
-      { keys: ['R'], descriptionKey: 'shortcuts.restart', category: 'playback' },
-      { keys: ['N'], descriptionKey: 'shortcuts.next', category: 'playback' },
-      { keys: ['←'], descriptionKey: 'shortcuts.seekBackward', category: 'playback' },
-      { keys: ['→'], descriptionKey: 'shortcuts.seekForward', category: 'playback' },
-
-      // Audio & DSP
-      { keys: ['M'], descriptionKey: 'shortcuts.mute', category: 'audio' },
-      { keys: ['↑'], descriptionKey: 'shortcuts.volumeUp', category: 'audio' },
-      { keys: ['↓'], descriptionKey: 'shortcuts.volumeDown', category: 'audio' },
-      { keys: ['+', '-'], descriptionKey: 'shortcuts.pitchUpDown', category: 'audio' },
-      { keys: ['Ctrl', '↑ / ↓'], descriptionKey: 'shortcuts.pitchCtrl', category: 'audio' },
-      { keys: ['Ctrl', '← / →'], descriptionKey: 'shortcuts.speedCtrl', category: 'audio' },
-      { keys: ['V'], descriptionKey: 'shortcuts.vocalRemover', category: 'audio' },
-      { keys: ['D'], descriptionKey: 'shortcuts.ducking', category: 'audio' },
-
-      // Navigation & Screens
-      { keys: ['1'], descriptionKey: 'shortcuts.tabQueue', category: 'navigation' },
-      { keys: ['2'], descriptionKey: 'shortcuts.tabLibrary', category: 'navigation' },
-      { keys: ['3'], descriptionKey: 'shortcuts.tabHistory', category: 'navigation' },
-      { keys: ['Ctrl', 'F'], descriptionKey: 'shortcuts.searchFocus', category: 'navigation' },
-      { keys: ['P'], descriptionKey: 'shortcuts.stageWindow', category: 'navigation' },
-      { keys: ['F11', 'Esc'], descriptionKey: 'shortcuts.fullscreen', category: 'navigation' },
-      { keys: ['F1', '?'], descriptionKey: 'shortcuts.help', category: 'navigation' },
-      { keys: ['Esc'], descriptionKey: 'shortcuts.closeModal', category: 'navigation' }
-    ],
+  // Shared inventory — must stay aligned with ControlWindow / StageWindow handlers.
+  const shortcutsList = useMemo(
+    () =>
+      APP_SHORTCUTS.map((s) => ({
+        keys: s.keys,
+        descriptionKey: s.descriptionKey,
+        category: s.category
+      })),
     []
   );
 

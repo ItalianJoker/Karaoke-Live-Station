@@ -14,17 +14,40 @@ import {
   Info
 } from 'lucide-react';
 import { KaraokeMediaTrack, SingerProfile } from '../../shared/types';
+import {
+  buildYouTubeEmbedSrc,
+  YOUTUBE_EMBED_REFERRER_POLICY
+} from '../../shared/youtubeEmbed';
 
 interface VideoPreviewModalProps {
   isOpen: boolean;
   track: KaraokeMediaTrack | null;
   singers: SingerProfile[];
   enableFairQueue?: boolean;
+  /** CUE headphone output device id (settings.cueAudioDeviceId) */
+  cueAudioDeviceId?: string;
+  /** Main / stage master output device id (settings.masterAudioDeviceId) */
+  masterAudioDeviceId?: string;
   onClose: () => void;
   onAddToQueue: (track: KaraokeMediaTrack, singerName?: string, placement?: 'auto' | 'end') => void;
   onPlayCue?: (uri: string) => void;
   onStopCue?: () => void;
   isCueActive?: boolean;
+}
+
+/** Normalize Web Audio / settings device ids so "default" aliases compare equal. */
+export function normalizeAudioDeviceId(deviceId?: string | null): string {
+  const v = (deviceId || 'default').trim().toLowerCase();
+  if (!v || v === 'default' || v === 'communications') return 'default';
+  return v;
+}
+
+/** True when Pre-Ascolto (CUE) and Main Output share the same physical device. */
+export function isSameCueAndMasterDevice(
+  cueAudioDeviceId?: string | null,
+  masterAudioDeviceId?: string | null
+): boolean {
+  return normalizeAudioDeviceId(cueAudioDeviceId) === normalizeAudioDeviceId(masterAudioDeviceId);
 }
 
 /**
@@ -62,6 +85,8 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
   track,
   singers,
   enableFairQueue = false,
+  cueAudioDeviceId,
+  masterAudioDeviceId,
   onClose,
   onAddToQueue,
   onPlayCue,
@@ -75,6 +100,7 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
   const [selectedSinger, setSelectedSinger] = useState<string>('');
   const [placementMode, setPlacementMode] = useState<'auto' | 'end'>('auto');
   const [isQueuedSuccess, setIsQueuedSuccess] = useState<boolean>(false);
+  const [pendingUnmuteConfirm, setPendingUnmuteConfirm] = useState<boolean>(false);
 
   // Reset state and pause video when modal opens or track changes
   useEffect(() => {
@@ -83,6 +109,7 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
       setSelectedSinger('');
       setPlacementMode('auto');
       setIsMuted(true);
+      setPendingUnmuteConfirm(false);
       if (videoRef.current) {
         videoRef.current.muted = true;
         videoRef.current.volume = volume;
@@ -123,24 +150,54 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
       track.localFilePath?.endsWith('.webm'));
   const isMidi = track.source === 'midi';
 
+  const applyUnmute = (nextVolume?: number) => {
+    const vol = nextVolume !== undefined ? nextVolume : volume || 0.5;
+    setVolume(vol);
+    setIsMuted(false);
+    setPendingUnmuteConfirm(false);
+    if (videoRef.current) {
+      videoRef.current.volume = vol;
+      videoRef.current.muted = false;
+    }
+  };
+
+  const requestUnmute = (nextVolume?: number) => {
+    if (isSameCueAndMasterDevice(cueAudioDeviceId, masterAudioDeviceId)) {
+      if (nextVolume !== undefined) setVolume(nextVolume);
+      setPendingUnmuteConfirm(true);
+      return;
+    }
+    applyUnmute(nextVolume);
+  };
+
   const handleVolumeChange = (newVolume: number) => {
+    if (newVolume === 0) {
+      setVolume(0);
+      setIsMuted(true);
+      setPendingUnmuteConfirm(false);
+      if (videoRef.current) {
+        videoRef.current.volume = 0;
+        videoRef.current.muted = true;
+      }
+      return;
+    }
+    if (isMuted) {
+      requestUnmute(newVolume);
+      return;
+    }
     setVolume(newVolume);
-    setIsMuted(newVolume === 0);
     if (videoRef.current) {
       videoRef.current.volume = newVolume;
-      videoRef.current.muted = newVolume === 0;
+      videoRef.current.muted = false;
     }
   };
 
   const toggleMute = () => {
     if (isMuted) {
-      setIsMuted(false);
-      if (videoRef.current) {
-        videoRef.current.muted = false;
-        videoRef.current.volume = volume || 0.5;
-      }
+      requestUnmute();
     } else {
       setIsMuted(true);
+      setPendingUnmuteConfirm(false);
       if (videoRef.current) {
         videoRef.current.muted = true;
       }
@@ -161,7 +218,7 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="relative bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -216,11 +273,14 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
               />
             ) : isYouTube ? (
               <iframe
-                src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(track.id)}?autoplay=1&mute=1&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : 'https://localhost')}&widget_referrer=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : 'https://localhost')}&rel=0&modestbranding=1`}
+                src={buildYouTubeEmbedSrc({
+                  videoId: track.id,
+                  windowOrigin: typeof window !== 'undefined' ? window.location.origin : undefined
+                })}
                 title={track.title}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
-                referrerPolicy="strict-origin-when-cross-origin"
+                referrerPolicy={YOUTUBE_EMBED_REFERRER_POLICY}
                 className="w-full h-full border-0"
               />
             ) : isMidi ? (
@@ -390,6 +450,44 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
             </button>
           </div>
         </div>
+
+        {pendingUnmuteConfirm && (
+          <div
+            className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+            onClick={(e) => e.stopPropagation()}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="preview-unmute-title"
+            data-testid="preview-unmute-same-device-dialog"
+          >
+            <div className="bg-slate-900 border border-amber-500/40 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-3">
+              <h4 id="preview-unmute-title" className="text-sm font-bold text-amber-200">
+                {t('library.previewUnmuteSameDeviceTitle')}
+              </h4>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                {t('library.previewUnmuteSameDeviceMessage')}
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-full text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700"
+                  onClick={() => setPendingUnmuteConfirm(false)}
+                >
+                  {t('library.previewUnmuteSameDeviceCancel')}
+                </button>
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-full text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 shadow-md"
+                  data-testid="preview-unmute-same-device-confirm"
+                  onClick={() => applyUnmute()}
+                >
+                  {t('library.previewUnmuteSameDeviceConfirm')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

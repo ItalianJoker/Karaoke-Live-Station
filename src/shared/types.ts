@@ -41,6 +41,49 @@ export interface LogEntry {
 /**
  * Global application settings persisted across sessions.
  */
+
+/** Visual formatting for a customizable Stage overlay message. */
+/** How the Stage backdrop is overridden while this message is visible. */
+export type StageMessageBackgroundMode = 'none' | 'color' | 'image';
+
+export interface StageMessageStyle {
+  /** Show this message on Stage */
+  enabled: boolean;
+  /**
+   * Custom template. Empty string = use current-locale i18n default.
+   * Supports `{{name}}` where applicable (nowSinging / getReady).
+   */
+  text: string;
+  bold: boolean;
+  italic: boolean;
+  /** Font size in CSS pixels */
+  fontSizePx: number;
+  /**
+   * Optional Stage backdrop override while this message is on screen.
+   * `none` keeps the normal theme/video Stage background.
+   * Lifecycle: applied only while the message is visible+enabled; cleared when it hides.
+   */
+  backgroundMode: StageMessageBackgroundMode;
+  /** CSS color used when backgroundMode === 'color' (e.g. #0f172a). */
+  backgroundColor: string;
+  /**
+   * Absolute filesystem path to a still image used when backgroundMode === 'image'.
+   * Stage converts this to the privileged karaoke://local/ URL for safe rendering.
+   */
+  backgroundImagePath: string;
+}
+
+/** Operator-editable Stage overlay copy + formatting. */
+export interface StageMessagesSettings {
+  nowSinging: StageMessageStyle;
+  getReady: StageMessageStyle;
+  upNextIntro: StageMessageStyle;
+  nextSong: StageMessageStyle;
+  nextSingerUnassigned: StageMessageStyle;
+  upNextOnStage: StageMessageStyle;
+  followingSinger: StageMessageStyle;
+}
+
 export interface AppSettings {
   /** Theme used by the operator desk (Regia) */
   themeHost: AppTheme;
@@ -87,6 +130,10 @@ export interface AppSettings {
   autoAdvanceNext: boolean;
   /** Show live semitone pitch shift badge on the stage monitor */
   showPitchOnStage?: boolean;
+  /** Show live playback speed badge on the stage monitor (e.g. 1.00x) */
+  showSpeedOnStage?: boolean;
+  /** Customizable Stage overlay messages (Ora Canta, Preparati, …) */
+  stageMessages?: StageMessagesSettings;
 
   /** Network port for the embedded Guest Portal HTTP & Socket.IO server */
   guestPortalPort: number;

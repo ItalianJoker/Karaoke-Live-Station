@@ -10,9 +10,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 Shipped from PR #1 (`cursor/phase-1-portability-ytdlp-855c`).
 
-## [Unreleased]
-
 ### Added
+- Per-message Stage background (color/image) while overlay messages are visible.
 
 #### Architecture & portability (Phase 1)
 - Portable resolution of managed binaries under Electron `userData` (`<app_userData>/bin/`) for yt-dlp and helpers
@@ -77,6 +76,15 @@ Shipped from PR #1 (`cursor/phase-1-portability-ytdlp-855c`).
 | `autoArchiveWebTracks` | `true` |
 | `showPitchOnStage` | `true` |
 | SIAE log threshold | ≥ 120s or natural end |
+
+### Fixed (follow-up)
+- YouTube preview Error 153: Electron Referer injection + shared embed URL builder
+- Duplicate local-library rows when queuing from web search (stable YouTube id upsert + scan dedupe)
+- Incomplete / in-progress downloads no longer indexed as finished library tracks
+
+### Added (follow-up)
+- Stage playback-speed badge toggle (`showSpeedOnStage`), mirroring pitch badge
+- PayPal support banner pinned above Settings search (visible on all tabs)
 
 ---
 

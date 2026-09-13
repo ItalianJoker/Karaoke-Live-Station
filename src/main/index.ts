@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, dialog, Menu, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, dialog, Menu, shell, session } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { Readable } from 'stream';
@@ -189,6 +189,35 @@ class KaraokeMainProcess {
    * Configures the custom 'karaoke://local/' protocol handler.
    * Implements HTTP 206 Partial Content byte-range streaming to allow seeking in Chromium.
    */
+
+  /**
+   * Injects a https Referer for YouTube embed/player requests that would otherwise
+   * ship without one from Electron file:// documents (Error 153).
+   * Does not overwrite an existing http(s) Referer (e.g. Vite dev server).
+   */
+  private setupYouTubeEmbedReferer(): void {
+    const referer = 'https://localhost/';
+    const filter = {
+      urls: [
+        '*://www.youtube.com/*',
+        '*://www.youtube-nocookie.com/*',
+        '*://*.youtube.com/*',
+        '*://*.youtube-nocookie.com/*',
+        '*://*.googlevideo.com/*'
+      ]
+    };
+    session.defaultSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
+      const headers = { ...details.requestHeaders };
+      const existingKey = Object.keys(headers).find((k) => k.toLowerCase() === 'referer');
+      const existing = existingKey ? String(headers[existingKey] || '') : '';
+      if (!/^https?:\/\//i.test(existing)) {
+        if (existingKey) delete headers[existingKey];
+        headers['Referer'] = referer;
+      }
+      callback({ requestHeaders: headers });
+    });
+  }
+
   private setupCustomProtocol(): void {
     app.whenReady().then(() => {
       protocol.handle('karaoke', async (request) => {
@@ -296,6 +325,7 @@ class KaraokeMainProcess {
 
     app.whenReady().then(async () => {
       Menu.setApplicationMenu(null);
+      this.setupYouTubeEmbedReferer();
       await this.initWindows();
       this.initGuestServer();
       setTimeout(() => {
@@ -1041,6 +1071,14 @@ class KaraokeMainProcess {
         }
 
         for (const [baseName, exts] of filesMap.entries()) {
+          // Skip incomplete / in-progress download artifacts
+          const incompleteExt = exts.some((e) =>
+            ['.part', '.ytdl', '.temp', '.tmp', '.download', '.crdownload'].includes(e)
+          );
+          if (incompleteExt || /\.part$/i.test(baseName)) {
+            continue;
+          }
+
           const hasCdg = exts.includes('.cdg');
           const hasMp3 = exts.includes('.mp3');
           const hasMp4 = exts.includes('.mp4');
@@ -1064,14 +1102,27 @@ class KaraokeMainProcess {
 
           if (targetExt) {
             const fullFilePath = path.join(dir, `${baseName}${targetExt}`);
-            const parts = baseName.split(' - ');
+
+            // Ignore zero-byte / tiny incomplete files
+            try {
+              const st = fs.statSync(fullFilePath);
+              if (!st.isFile() || st.size < 2048) continue;
+            } catch {
+              continue;
+            }
+
+            // Prefer stable YouTube id when filename is `${youtubeId}_Artist - Title`
+            const ytPrefix = baseName.match(/^([\w-]{11})_(.+)$/);
+            const stableYtId = ytPrefix ? ytPrefix[1] : null;
+            const nameForMeta = ytPrefix ? ytPrefix[2] : baseName;
+            const parts = nameForMeta.split(' - ');
             const artist = parts.length > 1 ? parts[0].trim() : 'Unknown Artist';
-            const title = parts.length > 1 ? parts.slice(1).join(' - ').trim() : baseName.trim();
+            const title = parts.length > 1 ? parts.slice(1).join(' - ').trim() : nameForMeta.trim();
 
             const thumb = this.getOrGenerateThumbnail(fullFilePath);
 
             const track: KaraokeMediaTrack = {
-              id: `track_${Buffer.from(fullFilePath).toString('base64url')}`,
+              id: stableYtId || `track_${Buffer.from(fullFilePath).toString('base64url')}`,
               source,
               title,
               artist,

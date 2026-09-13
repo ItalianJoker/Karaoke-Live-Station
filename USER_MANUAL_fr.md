@@ -400,6 +400,10 @@ Réglage **Afficher la variation de tonalité sur l’écran de scène** (`Mostr
 - La valeur **0** est tout de même affichée lorsque le bascule est actif (le chanteur voit qu’il n’y a pas de transposition)
 - Description UI : «Visualizza il badge con i semitoni di variazione (+/-) sullo schermo del palco per il cantante.» (texte d’UI en italien)
 
+### 7.2a Fonds personnalisés des messages scène
+
+Dans **Paramètres → Écran scène**, chaque message superposé peut définir texte/style/activation et un **fond scène (couleur ou image) uniquement pendant l’affichage du message**. À la disparition (ou si désactivé), le fond thème/vidéo normal est rétabli sans redémarrage.
+
 ### 7.3 Plein écran et layout
 
 - **`F11`** / **`Esc`** avec le focus sur la Stage
@@ -505,6 +509,8 @@ Les info-bulles des commandes en Régie affichent les mêmes combinaisons pour u
 
 ---
 
+
+Aussi dans Paramètres → Raccourcis et le panneau **?** / F1 : Stop (`S`), Restart (`R`), flèches seek, Ctrl+flèches pour pitch/vitesse, Vocal remover (`V`), Ducking (`D`), onglets `1`/`2`/`3`, Stage (`P`), aide (`F1`/`?`). Plein écran Stage : `F11`/`Esc` sur la fenêtre Stage.
 ## 11. Guest Portal LAN
 
 ### 11.1 Activation
