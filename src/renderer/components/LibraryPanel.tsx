@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { showToast } from '../utils/toast';
 import { useTranslation } from 'react-i18next';
 import {
   Search,
@@ -29,6 +30,8 @@ interface LibraryPanelProps {
   onPlayCue?: (uri: string) => void;
   onStopCue?: () => void;
   activeCueUri?: string;
+  /** Optional ref for Ctrl+F focus from ControlWindow shortcuts */
+  searchInputRef?: React.RefObject<HTMLInputElement>;
 }
 
 /**
@@ -47,10 +50,25 @@ interface LibraryPanelProps {
  * 4. Folder Importer:
  *    - Triggers directory picker and background scanner to index new media into the local SQLite database.
  */
-export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue, activeCueUri }) => {
+export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue, activeCueUri, searchInputRef }) => {
   const { t } = useTranslation();
-  const [searchMode, setSearchMode] = useState<'local' | 'web'>('local');
-  const [query, setQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<'local' | 'web'>(() => {
+    try {
+      return sessionStorage.getItem('kls.library.searchMode') === 'web' ? 'web' : 'local';
+    } catch {
+      return 'local';
+    }
+  });
+  const [query, setQuery] = useState(() => {
+    try {
+      return sessionStorage.getItem('kls.library.query') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [completedDownloads, setCompletedDownloads] = useState<
+    Array<{ id: string; title: string; artist: string }>
+  >([]);
   const [localTracks, setLocalTracks] = useState<KaraokeMediaTrack[]>([]);
   const [searchResults, setSearchResults] = useState<KaraokeMediaTrack[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -95,9 +113,13 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
       loadLocalCatalog();
     };
     window.addEventListener('karaoke:library-refreshed', handleLibraryRefreshed);
+    const unSubReindex = window.karaokeApi?.downloads?.onLibraryReindexed?.(() => {
+      loadLocalCatalog();
+    });
 
     return () => {
       window.removeEventListener('karaoke:library-refreshed', handleLibraryRefreshed);
+      unSubReindex?.();
     };
   }, [settings.libraryPath]);
 
@@ -106,45 +128,120 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
       const unSub = window.karaokeApi.downloads.onProgress(async (payload) => {
         setActiveDownloads((prev) => ({ ...prev, [payload.downloadId]: payload }));
 
+        if (payload.status === 'completed' || payload.status === 'error' || payload.status === 'cancelled') {
+          window.setTimeout(() => {
+            setActiveDownloads((cur) => {
+              if (!(payload.downloadId in cur)) return cur;
+              const cleaned = { ...cur };
+              delete cleaned[payload.downloadId];
+              return cleaned;
+            });
+          }, 450);
+        }
+
+        if (payload.status === 'error') {
+          showToast(
+            t('errors.downloadFailed', { error: payload.errorMessage || 'Unknown error' }),
+            'error',
+            0
+          );
+        }
+
+        if (payload.status === 'completed') {
+          const associatedTrack = trackMap[payload.downloadId];
+          if (associatedTrack) {
+            setCompletedDownloads((prev) => {
+              if (prev.some((c) => c.id === payload.downloadId)) return prev;
+              return [
+                { id: payload.downloadId, title: associatedTrack.title, artist: associatedTrack.artist },
+                ...prev
+              ].slice(0, 12);
+            });
+          }
+        }
+
         if (payload.status === 'completed' && payload.outputFilePath) {
           const associatedTrack = trackMap[payload.downloadId];
           if (associatedTrack) {
+            const applyLocalPreview = (
+              localFilePath: string,
+              uri: string,
+              source?: KaraokeMediaTrack['source']
+            ) => {
+              const patch: Partial<KaraokeMediaTrack> = {
+                localFilePath,
+                uri,
+                ...(source ? { source } : {})
+              };
+              updateTrackInQueue(associatedTrack.id, patch);
+              updateTrackInQueue(associatedTrack.uri, patch);
+              setSearchResults((prev) =>
+                prev.map((track) =>
+                  track.id === associatedTrack.id || track.uri === associatedTrack.uri
+                    ? { ...track, ...patch }
+                    : track
+                )
+              );
+              setLocalTracks((prev) => {
+                const idx = prev.findIndex(
+                  (track) => track.id === associatedTrack.id || track.uri === associatedTrack.uri
+                );
+                if (idx === -1) {
+                  // Newly archived/cached web track — surface immediately in local list for filtering/preview
+                  return [{ ...associatedTrack, ...patch, source: (source || associatedTrack.source) }, ...prev];
+                }
+                const next = [...prev];
+                next[idx] = { ...next[idx], ...patch };
+                return next;
+              });
+              setTrackMap((prev) => {
+                const existing = prev[payload.downloadId];
+                if (!existing) return prev;
+                return { ...prev, [payload.downloadId]: { ...existing, ...patch } };
+              });
+            };
+
+            // Dedup reuse: progress already points at the permanent/cache file — just relink
+            if (payload.alreadyExists) {
+              const localUri = `karaoke://local/${encodeURIComponent(payload.outputFilePath)}`;
+              applyLocalPreview(
+                payload.outputFilePath,
+                localUri,
+                payload.existingLocation === 'library' ? 'local_library' : associatedTrack.source
+              );
+              if (payload.existingLocation === 'library') {
+                await loadLocalCatalog();
+                window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+              }
+              return;
+            }
+
             const localUri = `karaoke://local/${encodeURIComponent(payload.outputFilePath)}`;
-            updateTrackInQueue(associatedTrack.id, {
-              localFilePath: payload.outputFilePath,
-              uri: localUri
-            });
-            updateTrackInQueue(associatedTrack.uri, {
-              localFilePath: payload.outputFilePath,
-              uri: localUri
-            });
+            applyLocalPreview(payload.outputFilePath, localUri);
 
             // Auto-archive web tracks if enabled in settings
             if (settings.autoArchiveWebTracks) {
+              if (!settings.libraryPath?.trim()) {
+                console.error('Auto-archive skipped: libraryPath is not configured');
+                return;
+              }
               try {
                 const saved = await window.karaokeApi.downloads.saveToLibrary({
                   tempFilePath: payload.outputFilePath,
                   title: associatedTrack.title,
                   artist: associatedTrack.artist,
                   durationSec: associatedTrack.durationSec,
-                  targetDirectory: settings.libraryPath || undefined
+                  targetDirectory: settings.libraryPath,
+                  trackId: associatedTrack.id
                 });
-                // Switch queue pointer immediately to permanent saved file
-                updateTrackInQueue(associatedTrack.id, {
-                  localFilePath: saved.localFilePath,
-                  uri: saved.uri,
-                  source: 'local_library'
-                });
-                updateTrackInQueue(associatedTrack.uri, {
-                  localFilePath: saved.localFilePath,
-                  uri: saved.uri,
-                  source: 'local_library'
-                });
-                updateTrackInQueue(payload.outputFilePath, {
-                  localFilePath: saved.localFilePath,
-                  uri: saved.uri,
-                  source: 'local_library'
-                });
+                if (saved.localFilePath && saved.uri) {
+                  applyLocalPreview(saved.localFilePath, saved.uri, 'local_library');
+                  updateTrackInQueue(payload.outputFilePath, {
+                    localFilePath: saved.localFilePath,
+                    uri: saved.uri,
+                    source: 'local_library'
+                  });
+                }
                 await loadLocalCatalog();
                 window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
               } catch (err) {
@@ -157,20 +254,16 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
                   tempFilePath: payload.outputFilePath,
                   title: associatedTrack.title,
                   artist: associatedTrack.artist,
-                  durationSec: associatedTrack.durationSec
+                  durationSec: associatedTrack.durationSec,
+                  trackId: associatedTrack.id
                 });
-                updateTrackInQueue(associatedTrack.id, {
-                  localFilePath: cached.localFilePath,
-                  uri: cached.uri
-                });
-                updateTrackInQueue(associatedTrack.uri, {
-                  localFilePath: cached.localFilePath,
-                  uri: cached.uri
-                });
-                updateTrackInQueue(payload.outputFilePath, {
-                  localFilePath: cached.localFilePath,
-                  uri: cached.uri
-                });
+                if (cached.localFilePath && cached.uri) {
+                  applyLocalPreview(cached.localFilePath, cached.uri);
+                  updateTrackInQueue(payload.outputFilePath, {
+                    localFilePath: cached.localFilePath,
+                    uri: cached.uri
+                  });
+                }
               } catch (err) {
                 console.error('Queue cache save failed:', err);
               }
@@ -180,7 +273,34 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
       });
       return () => unSub();
     }
-  }, [settings.autoArchiveWebTracks, settings.libraryPath, trackMap, updateTrackInQueue]);
+  }, [settings.autoArchiveWebTracks, settings.libraryPath, trackMap, updateTrackInQueue, t]);
+
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('kls.library.query', query);
+      sessionStorage.setItem('kls.library.searchMode', searchMode);
+    } catch {
+      // ignore quota / private mode
+    }
+  }, [query, searchMode]);
+
+  // Continuous local filtering on every keystroke (web search still uses Enter/submit).
+  useEffect(() => {
+    if (searchMode !== 'local') return;
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      setSearchResults([]);
+      return;
+    }
+    setSearchResults(
+      localTracks.filter(
+        (track) =>
+          track.title.toLowerCase().includes(q) ||
+          track.artist.toLowerCase().includes(q)
+      )
+    );
+  }, [query, localTracks, searchMode]);
 
   const handleScanOrRefresh = async () => {
     if (!window.karaokeApi) return;
@@ -197,7 +317,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
       const discovered = await window.karaokeApi.library.scanFolder(folder);
       await loadLocalCatalog();
       window.dispatchEvent(new CustomEvent('karaoke:library-refreshed', { detail: { count: discovered.length } }));
-      alert(t('library.scanSuccess', { count: discovered.length }));
+      showToast(t('library.scanSuccess', { count: discovered.length }));
     } catch (err) {
       console.error('Library scan error:', err);
     } finally {
@@ -235,11 +355,47 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
 
   const handleStartDownload = async (track: KaraokeMediaTrack) => {
     if (!window.karaokeApi) return;
+    if (settings.autoArchiveWebTracks && !settings.libraryPath?.trim()) {
+      showToast(t('errors.libraryPathRequired', 'Imposta la cartella libreria nelle impostazioni prima di scaricare.'));
+      return;
+    }
     try {
-      const downloadId = await window.karaokeApi.downloads.start({ url: track.uri });
-      setTrackMap((prev) => ({ ...prev, [downloadId]: track }));
+      const result = await window.karaokeApi.downloads.start({
+        url: track.uri,
+        titleHint: track.title,
+        artistHint: track.artist,
+        trackId: track.id,
+        libraryPath: settings.libraryPath || undefined
+      });
+
+      setTrackMap((prev) => ({ ...prev, [result.downloadId]: track }));
+
+      if (result.alreadyExists && result.localFilePath) {
+        const localUri = result.uri || `karaoke://local/${encodeURIComponent(result.localFilePath)}`;
+        updateTrackInQueue(track.id, {
+          localFilePath: result.localFilePath,
+          uri: localUri,
+          source: result.location === 'library' ? 'local_library' : track.source
+        });
+        updateTrackInQueue(track.uri, {
+          localFilePath: result.localFilePath,
+          uri: localUri,
+          source: result.location === 'library' ? 'local_library' : track.source
+        });
+        showToast(
+          t('library.alreadyLocal', {
+            path: result.localFilePath,
+            defaultValue:
+              'Brano già presente in locale. Collegato il file esistente senza riscaricare:\n{{path}}'
+          })
+        );
+        if (result.location === 'library') {
+          await loadLocalCatalog();
+          window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+        }
+      }
     } catch (err) {
-      alert(t('errors.downloadFailed', { error: String(err) }));
+      showToast(t('errors.downloadFailed', { error: String(err) }));
     }
   };
 
@@ -254,7 +410,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
         title: track.title,
         artist: track.artist,
         durationSec: track.durationSec,
-        targetDirectory: settings.libraryPath || undefined
+        targetDirectory: settings.libraryPath || undefined,
+        trackId: track.id
       });
       // Switch queue pointer to the permanent library file
       updateTrackInQueue(track.id, {
@@ -282,9 +439,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
         });
       }
       await loadLocalCatalog();
-      alert(t('library.savedSuccess', { title: saved.title }));
+      showToast(t('library.savedSuccess', { title: saved.title }));
     } catch (err) {
-      alert(t('errors.downloadFailed', { error: String(err) }));
+      showToast(t('errors.downloadFailed', { error: String(err) }));
     }
   };
 
@@ -360,6 +517,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
         <form onSubmit={handleSearch} className="col-span-7 sm:col-span-8 flex gap-2">
           <div className="relative flex-1">
             <input
+              ref={searchInputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -461,11 +619,50 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
         </div>
       )}
 
+      
+      {/* Completed download badges (dismissible) */}
+      {completedDownloads.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {completedDownloads.map((item) => (
+            <div
+              key={item.id}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-950/70 border border-emerald-700/60 text-emerald-300 text-[11px] font-semibold shadow-sm"
+              data-testid="download-complete-badge"
+            >
+              <span>
+                {t('library.downloadComplete', 'Download completato')}: {item.title}
+                {item.artist ? ` — ${item.artist}` : ''}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setCompletedDownloads((prev) => prev.filter((d) => d.id !== item.id))
+                }
+                className="p-0.5 rounded-full hover:bg-emerald-900/80 text-emerald-200 hover:text-white transition-colors"
+                title={t('common.close', 'Chiudi')}
+                aria-label={t('common.close', 'Chiudi')}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Results List */}
       <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
         {displayedTracks.length === 0 ? (
-          <div className="text-center py-12 text-slate-500 text-xs italic">
-            {isSearching ? t('library.searching') : t('queue.empty')}
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-12 px-4 text-slate-500 gap-2">
+            <Music className="w-8 h-8 opacity-25" />
+            <p className="text-xs font-medium text-slate-400">
+              {isSearching
+                ? t('library.searching')
+                : searchMode === 'web'
+                  ? t('library.emptyWeb', 'Nessun risultato web. Digita e premi Invio per cercare su YouTube.')
+                  : query.trim()
+                    ? t('library.emptyFilter', 'Nessun brano corrisponde alla ricerca locale.')
+                    : t('library.emptyLocal', 'Libreria vuota. Scansiona una cartella o cerca sul web.')}
+            </p>
           </div>
         ) : (
           displayedTracks.map((track) => {

@@ -91,8 +91,29 @@ export const StageWindow: React.FC = () => {
       } catch (err) {
         console.warn('Font loading check error:', err);
       }
+      // Wait until stylesheets have applied and layout has painted before revealing video.
+      try {
+        const sheets = Array.from(document.styleSheets);
+        await Promise.all(
+          sheets.map(async (sheet) => {
+            try {
+              void sheet.cssRules;
+            } catch {
+              // Cross-origin stylesheets may throw; ignore.
+            }
+          })
+        );
+      } catch {
+        // ignore stylesheet probe failures
+      }
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
       setIsStageReady(true);
-      window.karaokeApi?.signalStageReady();
+      // Defer IPC show handshake one more frame so React commits the stage DOM/CSS.
+      requestAnimationFrame(() => {
+        window.karaokeApi?.signalStageReady();
+      });
     };
 
     // Immediately fetch initial state from main process
@@ -474,10 +495,14 @@ export const StageWindow: React.FC = () => {
         </div>
       )}
 
-      {/* Floating Live Pitch Semitone Offset Badge */}
-      {playback.livePitchOffset !== 0 && (settings?.showPitchOnStage ?? true) && (
-        <div className="absolute top-6 right-6 z-40 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 px-4 py-1.5 rounded-full text-xs font-mono text-indigo-400 font-bold shadow-2xl pointer-events-none">
-          {playback.livePitchOffset > 0 ? `+${playback.livePitchOffset}` : playback.livePitchOffset} Semitoni
+      {/* Floating Live Pitch Semitone Offset Badge (+N / -N / 0) — always when toggle enabled */}
+      {(settings?.showPitchOnStage ?? true) && (
+        <div
+          className="absolute top-6 right-6 z-[70] bg-slate-950/95 backdrop-blur-md border border-indigo-500/50 px-4 py-2 rounded-full text-sm font-mono text-indigo-300 font-bold shadow-[0_8px_30px_rgba(0,0,0,0.65)] pointer-events-none tracking-wide"
+          data-testid="stage-semitone-badge"
+          aria-label={`Pitch ${playback.livePitchOffset > 0 ? '+' : ''}${playback.livePitchOffset}`}
+        >
+          {playback.livePitchOffset > 0 ? `+${playback.livePitchOffset}` : `${playback.livePitchOffset}`}
         </div>
       )}
 

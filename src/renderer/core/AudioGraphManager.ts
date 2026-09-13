@@ -2,6 +2,7 @@ import { MidiLyricEvent, MidiParsedSong } from '../../shared/types';
 import { MidiParser, TimedMidiEvent } from './MidiParser';
 import { PitchShifterNode } from './PitchShifterNode';
 import { WorkletSynthesizer } from 'spessasynth_lib';
+import { getDemucsVocalSeparator } from './DemucsVocalSeparator';
 
 /**
  * Callback receiving updated synchronized MIDI/KAR lyrics.
@@ -27,7 +28,7 @@ interface ActiveMidiVoice {
 /**
  * - Media element audio routing with stereo phase vocoder pitch shifting (-8 to +8 semitones)
  * - Independent tempo scaling (0.50x to 1.50x)
- * - High-fidelity multi-band vocal cancellation with bass and high-frequency air preservation
+ * - Meta HTDemucs vocal removal via demucs-web / onnxruntime-web (true stem separation)
  * - Auto-ducking BGM attenuation when microphone input or host talks
  * - AudioWorklet-based General MIDI / SoundFont 2 synthesis via SpessaSynth
  * - Real-time channel muting (channels 0-15) without desynchronizing lyrics
@@ -40,11 +41,17 @@ export class AudioGraphManager {
   private sourceNode: MediaElementAudioSourceNode | null = null;
   private pitchShifterNode: PitchShifterNode | null = null;
 
-  // Vocal Remover Nodes (Phase Inversion L-R)
-  private splitterNode: ChannelSplitterNode | null = null;
-  private mergerNode: ChannelMergerNode | null = null;
+  // Vocal Remover — Demucs HTDemucs instrumental stem path (not DIY EQ cancel)
   private vocalRemoverPassThroughGain: GainNode | null = null;
   private vocalRemoverEffectGain: GainNode | null = null;
+  private instrumentalSourceNode: AudioBufferSourceNode | null = null;
+  private instrumentalBuffer: AudioBuffer | null = null;
+  private instrumentalPlaying = false;
+  private vocalSeparationToken = 0;
+  private mediaSyncHandlersBound = false;
+  private onMediaPlaySync: (() => void) | null = null;
+  private onMediaPauseSync: (() => void) | null = null;
+  private onMediaSeekSync: (() => void) | null = null;
 
   // Ducking, Delay Sync & Master Gain
   private duckingGainNode: GainNode | null = null;
@@ -69,6 +76,10 @@ export class AudioGraphManager {
   private fallbackIntervalId: number | null = null;
   private activeMidiNotes: Map<number, number> = new Map();
   private activeVoices: ActiveMidiVoice[] = [];
+  /** Pending note-release timers — cleared on dispose so they cannot mutate a torn-down graph. */
+  private voiceReleaseTimeouts: ReturnType<typeof setTimeout>[] = [];
+  /** Last media URL used for Demucs so we can drop stems when the track changes. */
+  private lastDemucsMediaUrl: string | null = null;
   private soundFontBuffer: ArrayBuffer | null = null;
   private soundFontLoadedPath: string = '';
   private soundFontLoadingPromise: Promise<boolean> | null = null;
@@ -214,30 +225,17 @@ export class AudioGraphManager {
   }
 
   /**
-   * Constructs the high-fidelity Enhanced In-Phase Center-Channel Canceller sub-graph:
-   * 1. Direct Difference Bus (0.5 * (L - R)):
-   *    Extracts the pure side channel without phase-delaying IIR filters. All center-panned
-   *    lead vocals (L = R) are mathematically canceled to 0.0 (-inf dB) across all frequencies.
-   *    Both OutL and OutR receive this bus in identical positive polarity, completely
-   *    eliminating acoustic phase cancellation between room speakers and in mono PA summing.
-   * 2. Mono Bass Recovery (< 160 Hz):
-   *    Extracts the mono sum (0.5 * (L + R)) filtered through a 2nd-order Butterworth lowpass
-   *    filter at 160 Hz (Q = 0.707) and sums it in-phase into both channels. This restores
-   *    full punch, weight, and definition to the kick drum and bassline without restoring vocals.
-   * 3. Stereo Air & Sparkle Preservation (> 5500 Hz):
-   *    High-pass filters L and R (> 5500 Hz, Q = 0.707) and routes them to their respective
-   *    L and R outputs. This retains cymbals, hi-hats, percussive transients, and room reverberation,
-   *    preventing the backing track from sounding muffled or "cupo".
-   * 4. Leveling Makeup Gain (1.25x / +1.9 dB):
-   *    Compensates for the energy subtracted from the center channel so the backing music
-   *    maintains consistent perceptual loudness.
-   * 5. 50ms Linear Crossfade:
-   *    Provides click-free, pop-free switching between unprocessed and vocal-reduced audio.
+   * Builds the Demucs-backed vocal-remover routing graph.
+   *
+   * Dry path: MediaElementSource → passThroughGain → PitchShifter
+   * Wet path: AudioBufferSource(instrumental stems) → effectGain → PitchShifter
+   *
+   * The wet buffer is produced asynchronously by demucs-web (HTDemucs) as
+   * drums + bass + other. Until separation completes, playback stays on the dry path.
    */
   private setupVocalRemoverGraph(): void {
     if (!this.audioCtx || !this.sourceNode || !this.duckingGainNode) return;
 
-    // Create and connect PitchShifterNode if not already created
     if (!this.pitchShifterNode) {
       this.pitchShifterNode = new PitchShifterNode(this.audioCtx);
       this.pitchShifterNode.setPitchOffset(this.currentPitchOffset);
@@ -246,159 +244,178 @@ export class AudioGraphManager {
 
     const targetInputNode = this.pitchShifterNode.input;
 
-    // Clean up previous splitter/merger nodes if graph is being rebuilt
-    if (this.splitterNode) {
-      try { this.splitterNode.disconnect(); } catch {}
-    }
-    if (this.mergerNode) {
-      try { this.mergerNode.disconnect(); } catch {}
-    }
+    this.stopInstrumentalSource();
     if (this.vocalRemoverPassThroughGain) {
-      try { this.vocalRemoverPassThroughGain.disconnect(); } catch {}
+      try { this.vocalRemoverPassThroughGain.disconnect(); } catch { /* ignore */ }
     }
     if (this.vocalRemoverEffectGain) {
-      try { this.vocalRemoverEffectGain.disconnect(); } catch {}
+      try { this.vocalRemoverEffectGain.disconnect(); } catch { /* ignore */ }
     }
 
-    // Splitter for original L and R channels
-    this.splitterNode = this.audioCtx.createChannelSplitter(2);
-    this.mergerNode = this.audioCtx.createChannelMerger(2);
-
-    // Normal pass-through path
     this.vocalRemoverPassThroughGain = this.audioCtx.createGain();
-    this.vocalRemoverPassThroughGain.gain.setValueAtTime(this.isVocalRemoverEnabled ? 0 : 1, this.audioCtx.currentTime);
+    this.vocalRemoverPassThroughGain.gain.setValueAtTime(1, this.audioCtx.currentTime);
 
-    // Master vocal remover effect gain (crossfaded against normal path)
     this.vocalRemoverEffectGain = this.audioCtx.createGain();
-    this.vocalRemoverEffectGain.gain.setValueAtTime(this.isVocalRemoverEnabled ? 1 : 0, this.audioCtx.currentTime);
+    this.vocalRemoverEffectGain.gain.setValueAtTime(0, this.audioCtx.currentTime);
 
-    // Connect source to normal pass-through and splitter
     this.sourceNode.connect(this.vocalRemoverPassThroughGain);
-    this.sourceNode.connect(this.splitterNode);
     this.vocalRemoverPassThroughGain.connect(targetInputNode);
-
-    // =========================================================================
-    // 1. Difference Bus: 0.5 * (L - R)
-    // =========================================================================
-    // All center-panned audio (L = R) is subtracted to 0 across the entire spectrum.
-    const diffL = this.audioCtx.createGain();
-    diffL.gain.setValueAtTime(0.5, this.audioCtx.currentTime);
-    this.splitterNode.connect(diffL, 0); // L * 0.5
-
-    const diffR = this.audioCtx.createGain();
-    diffR.gain.setValueAtTime(-0.5, this.audioCtx.currentTime);
-    this.splitterNode.connect(diffR, 1); // R * (-0.5)
-
-    const diffBus = this.audioCtx.createGain();
-    diffBus.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
-    diffL.connect(diffBus);
-    diffR.connect(diffBus);
-
-    // =========================================================================
-    // 2. Mono Bass Recovery (< 160 Hz)
-    // =========================================================================
-    // Reconstructs center low-end (kick drum, bass guitar) from 0.5 * (L + R)
-    const sumL = this.audioCtx.createGain();
-    sumL.gain.setValueAtTime(0.5, this.audioCtx.currentTime);
-    this.splitterNode.connect(sumL, 0);
-
-    const sumR = this.audioCtx.createGain();
-    sumR.gain.setValueAtTime(0.5, this.audioCtx.currentTime);
-    this.splitterNode.connect(sumR, 1);
-
-    const monoBus = this.audioCtx.createGain();
-    monoBus.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
-    sumL.connect(monoBus);
-    sumR.connect(monoBus);
-
-    const bassFilter = this.audioCtx.createBiquadFilter();
-    bassFilter.type = 'lowpass';
-    bassFilter.frequency.setValueAtTime(160, this.audioCtx.currentTime);
-    bassFilter.Q.setValueAtTime(0.707, this.audioCtx.currentTime);
-    monoBus.connect(bassFilter);
-
-    const bassGain = this.audioCtx.createGain();
-    bassGain.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
-    bassFilter.connect(bassGain);
-
-    // =========================================================================
-    // 3. Stereo Air & Sparkle Preservation (> 5500 Hz)
-    // =========================================================================
-    // Preserves stereo cymbals, hi-hats, percussive transients and acoustic room air
-    const highFilterL = this.audioCtx.createBiquadFilter();
-    highFilterL.type = 'highpass';
-    highFilterL.frequency.setValueAtTime(5500, this.audioCtx.currentTime);
-    highFilterL.Q.setValueAtTime(0.707, this.audioCtx.currentTime);
-    this.splitterNode.connect(highFilterL, 0);
-
-    const highFilterR = this.audioCtx.createBiquadFilter();
-    highFilterR.type = 'highpass';
-    highFilterR.frequency.setValueAtTime(5500, this.audioCtx.currentTime);
-    highFilterR.Q.setValueAtTime(0.707, this.audioCtx.currentTime);
-    this.splitterNode.connect(highFilterR, 1);
-
-    const highGainL = this.audioCtx.createGain();
-    highGainL.gain.setValueAtTime(0.5, this.audioCtx.currentTime);
-    highFilterL.connect(highGainL);
-
-    const highGainR = this.audioCtx.createGain();
-    highGainR.gain.setValueAtTime(0.5, this.audioCtx.currentTime);
-    highFilterR.connect(highGainR);
-
-    // =========================================================================
-    // 4. In-Phase Summing to Out Left and Out Right
-    // =========================================================================
-    const outL = this.audioCtx.createGain();
-    const outR = this.audioCtx.createGain();
-
-    // Route diffBus in identical positive polarity to both channels:
-    // Completely eliminates destructive acoustic cancellation between room speakers!
-    diffBus.connect(outL);
-    diffBus.connect(outR);
-
-    // Route mono bass in-phase to both channels:
-    bassGain.connect(outL);
-    bassGain.connect(outR);
-
-    // Route stereo highs to their respective channels:
-    highGainL.connect(outL);
-    highGainR.connect(outR);
-
-    // Merge into stereo 2-channel stream
-    outL.connect(this.mergerNode, 0, 0);
-    outR.connect(this.mergerNode, 0, 1);
-
-    // =========================================================================
-    // 5. Leveling Makeup Gain & Master Effect Routing
-    // =========================================================================
-    const makeupGain = this.audioCtx.createGain();
-    makeupGain.gain.setValueAtTime(1.25, this.audioCtx.currentTime);
-
-    this.mergerNode.connect(makeupGain);
-    makeupGain.connect(this.vocalRemoverEffectGain);
     this.vocalRemoverEffectGain.connect(targetInputNode);
+
+    this.bindMediaSyncHandlers();
+
+    // Re-apply desired remover state after graph rebuild (e.g. new media element).
+    if (this.isVocalRemoverEnabled) {
+      void this.activateDemucsInstrumental();
+    }
+  }
+
+  private bindMediaSyncHandlers(): void {
+    if (!this.mediaElement || this.mediaSyncHandlersBound) return;
+
+    this.onMediaPlaySync = () => {
+      if (this.isVocalRemoverEnabled && this.instrumentalBuffer) {
+        this.startInstrumentalAt(this.mediaElement?.currentTime || 0);
+      }
+    };
+    this.onMediaPauseSync = () => {
+      this.stopInstrumentalSource(true);
+    };
+    this.onMediaSeekSync = () => {
+      if (this.isVocalRemoverEnabled && this.instrumentalBuffer && this.mediaElement && !this.mediaElement.paused) {
+        this.startInstrumentalAt(this.mediaElement.currentTime);
+      }
+    };
+
+    this.mediaElement.addEventListener('play', this.onMediaPlaySync);
+    this.mediaElement.addEventListener('pause', this.onMediaPauseSync);
+    this.mediaElement.addEventListener('seeked', this.onMediaSeekSync);
+    this.mediaSyncHandlersBound = true;
+  }
+
+  private unbindMediaSyncHandlers(): void {
+    if (!this.mediaElement || !this.mediaSyncHandlersBound) return;
+    if (this.onMediaPlaySync) this.mediaElement.removeEventListener('play', this.onMediaPlaySync);
+    if (this.onMediaPauseSync) this.mediaElement.removeEventListener('pause', this.onMediaPauseSync);
+    if (this.onMediaSeekSync) this.mediaElement.removeEventListener('seeked', this.onMediaSeekSync);
+    this.mediaSyncHandlersBound = false;
+  }
+
+  private stopInstrumentalSource(preserveBuffer = false): void {
+    if (this.instrumentalSourceNode || this.instrumentalPlaying) {
+      if (this.instrumentalSourceNode) {
+        try {
+          this.instrumentalSourceNode.onended = null;
+          this.instrumentalSourceNode.stop();
+        } catch { /* already stopped */ }
+        try { this.instrumentalSourceNode.disconnect(); } catch { /* ignore */ }
+        this.instrumentalSourceNode = null;
+      }
+    }
+    this.instrumentalPlaying = false;
+    if (!preserveBuffer) {
+      // keep buffer for cache reuse unless caller clears it explicitly elsewhere
+    }
+  }
+
+  private startInstrumentalAt(offsetSec: number): void {
+    if (!this.audioCtx || !this.vocalRemoverEffectGain || !this.instrumentalBuffer) return;
+
+    this.stopInstrumentalSource(true);
+
+    const safeOffset = Math.max(0, Math.min(offsetSec, Math.max(0, this.instrumentalBuffer.duration - 0.05)));
+    const source = this.audioCtx.createBufferSource();
+    source.buffer = this.instrumentalBuffer;
+    source.playbackRate.value = this.currentPlaybackSpeed;
+    source.connect(this.vocalRemoverEffectGain);
+    try {
+      source.start(0, safeOffset);
+    } catch (err) {
+      this.log('warn', 'Failed to start Demucs instrumental buffer', err);
+      return;
+    }
+
+    this.instrumentalSourceNode = source;
+    this.instrumentalPlaying = true;
+  }
+
+  private crossfadeToInstrumental(enabled: boolean): void {
+    if (!this.audioCtx || !this.vocalRemoverPassThroughGain || !this.vocalRemoverEffectGain) return;
+    const now = this.audioCtx.currentTime;
+    this.vocalRemoverPassThroughGain.gain.cancelScheduledValues(now);
+    this.vocalRemoverEffectGain.gain.cancelScheduledValues(now);
+    if (enabled) {
+      this.vocalRemoverPassThroughGain.gain.linearRampToValueAtTime(0, now + 0.08);
+      this.vocalRemoverEffectGain.gain.linearRampToValueAtTime(1, now + 0.08);
+    } else {
+      this.vocalRemoverPassThroughGain.gain.linearRampToValueAtTime(1, now + 0.08);
+      this.vocalRemoverEffectGain.gain.linearRampToValueAtTime(0, now + 0.08);
+    }
+  }
+
+  private async activateDemucsInstrumental(): Promise<void> {
+    if (!this.audioCtx || !this.mediaElement) return;
+
+    const mediaUrl = this.mediaElement.currentSrc || this.mediaElement.src;
+    if (!mediaUrl) {
+      this.log('warn', 'Vocal remover requested but media element has no src');
+      return;
+    }
+
+    // Drop stems for the previous track so we never keep two large AudioBuffers
+    // alive across a live queue advance (LRU still caps total cache size).
+    if (this.lastDemucsMediaUrl && this.lastDemucsMediaUrl !== mediaUrl) {
+      this.instrumentalBuffer = null;
+      this.stopInstrumentalSource();
+    }
+    this.lastDemucsMediaUrl = mediaUrl;
+
+    const token = ++this.vocalSeparationToken;
+    const separator = getDemucsVocalSeparator();
+    const cacheKey = mediaUrl;
+
+    try {
+      const cached = separator.getCachedInstrumental(cacheKey);
+      const instrumental =
+        cached ||
+        (await separator.separateInstrumentalFromUrl(mediaUrl, this.audioCtx, cacheKey));
+
+      if (token !== this.vocalSeparationToken || !this.isVocalRemoverEnabled) {
+        return;
+      }
+
+      this.instrumentalBuffer = instrumental;
+      if (this.mediaElement && !this.mediaElement.paused) {
+        this.startInstrumentalAt(this.mediaElement.currentTime);
+      }
+      this.crossfadeToInstrumental(true);
+      this.log('info', 'Demucs instrumental stem engaged for vocal removal');
+    } catch (err) {
+      if (token !== this.vocalSeparationToken) return;
+      this.log('error', 'Demucs vocal separation failed; keeping original mix', err);
+      this.crossfadeToInstrumental(false);
+      this.stopInstrumentalSource(true);
+    }
   }
 
   // ==========================================
   // Vocal Remover & BGM Auto-Ducking
   // ==========================================
   /**
-   * Toggles the center-channel vocal remover with smooth linear crossfade.
+   * Toggles Demucs HTDemucs vocal removal.
+   * Separation runs asynchronously; dry audio continues until the instrumental is ready.
    *
    * @param enabled - Enable or disable vocal suppression
    */
   public setVocalRemover(enabled: boolean): void {
     this.isVocalRemoverEnabled = enabled;
-    if (!this.audioCtx || !this.vocalRemoverPassThroughGain || !this.vocalRemoverEffectGain) return;
-
-    const now = this.audioCtx.currentTime;
-    if (enabled) {
-      this.vocalRemoverPassThroughGain.gain.linearRampToValueAtTime(0, now + 0.05);
-      this.vocalRemoverEffectGain.gain.linearRampToValueAtTime(1, now + 0.05);
-    } else {
-      this.vocalRemoverPassThroughGain.gain.linearRampToValueAtTime(1, now + 0.05);
-      this.vocalRemoverEffectGain.gain.linearRampToValueAtTime(0, now + 0.05);
+    if (!enabled) {
+      this.vocalSeparationToken++;
+      this.crossfadeToInstrumental(false);
+      this.stopInstrumentalSource(true);
+      return;
     }
+    void this.activateDemucsInstrumental();
   }
 
   /**
@@ -1090,11 +1107,13 @@ export class AudioGraphManager {
         voice.gainNode.gain.linearRampToValueAtTime(0.0001, time + 0.15);
         voice.sourceNode.stop(time + 0.16);
 
-        // Remove from tracking array after release
-        setTimeout(() => {
+        // Remove from tracking array after release — keep handle so dispose() can cancel.
+        const handle = setTimeout(() => {
+          this.voiceReleaseTimeouts = this.voiceReleaseTimeouts.filter((h) => h !== handle);
           const idx = this.activeVoices.indexOf(voice);
           if (idx !== -1) this.activeVoices.splice(idx, 1);
         }, (time - this.audioCtx.currentTime + 0.2) * 1000);
+        this.voiceReleaseTimeouts.push(handle);
         break;
       }
     }
@@ -1149,9 +1168,34 @@ export class AudioGraphManager {
   }
 
   /**
-   * Releases all audio nodes, worklet synthesizers, and terminates the AudioContext.
+   * Clears any Demucs instrumental cache for the previous track and re-runs
+   * separation when vocal removal is still enabled (call on track change).
    */
+  public refreshVocalRemoverForCurrentMedia(): void {
+    this.vocalSeparationToken++;
+    this.stopInstrumentalSource();
+    this.instrumentalBuffer = null;
+    this.crossfadeToInstrumental(false);
+    if (this.isVocalRemoverEnabled) {
+      void this.activateDemucsInstrumental();
+    }
+  }
+
   public dispose(): void {
+    // Invalidate in-flight Demucs work and cancel MIDI release timers before
+    // tearing down AudioNodes — otherwise timers / async stems can touch a
+    // closed AudioContext and leak references until GC.
+    this.vocalSeparationToken++;
+    for (const handle of this.voiceReleaseTimeouts) {
+      clearTimeout(handle);
+    }
+    this.voiceReleaseTimeouts = [];
+    this.activeVoices = [];
+    this.unbindMediaSyncHandlers();
+    this.stopInstrumentalSource();
+    this.instrumentalBuffer = null;
+    this.lastDemucsMediaUrl = null;
+    getDemucsVocalSeparator().clearCache();
     this.stopMidiPlayback();
     if (this.workletSynth) {
       try {
@@ -1163,6 +1207,7 @@ export class AudioGraphManager {
     }
     this.pitchShifterNode?.dispose();
     this.pitchShifterNode = null;
+    this.soundFontBuffer = null;
     if (this.audioCtx) {
       this.audioCtx.close();
       this.audioCtx = null;

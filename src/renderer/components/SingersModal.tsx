@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { showToast } from '../utils/toast';
 import { useTranslation } from 'react-i18next';
 import { X, Users, Star, Music, Plus, Trash2 } from 'lucide-react';
 import { SingerProfile } from '../../shared/types';
@@ -54,7 +55,7 @@ export const SingersModal: React.FC<SingersModalProps> = ({ isOpen, onClose }) =
       (s) => s.name.trim().toLowerCase() === trimmed.toLowerCase()
     );
     if (exists) {
-      alert(t('singers.alreadyExists'));
+      showToast(t('singers.alreadyExists'));
       return;
     }
 

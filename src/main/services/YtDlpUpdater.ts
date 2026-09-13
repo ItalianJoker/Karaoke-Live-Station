@@ -1,10 +1,20 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { execFileSync } from 'child_process';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import { Logger } from './Logger';
-import { getUserDataBinDir, resolveYtDlpPath } from './BinaryResolver';
+import {
+  ensureDir,
+  ensureExecutable,
+  ensureManagedYtDlpFromBundle,
+  getManagedYtDlpPath,
+  getUserDataBinDir,
+  getYtDlpBinaryName,
+  resolveYtDlpPath,
+  validateYtDlpBinaryIntegrity
+} from './BinaryResolver';
 import { YtDlpStatus } from '../../shared/types';
 
 interface GitHubReleaseAsset {
@@ -23,10 +33,12 @@ interface GitHubReleaseResponse {
 /**
  * Service responsible for:
  * 1. Detecting local yt-dlp binary availability and version.
- * 2. Checking GitHub Releases for latest official yt-dlp binary.
- * 3. Downloading and updating the executable in a user-writable path (userData/bin/).
- * 4. Setting execution permissions (chmod 0755) on POSIX platforms.
- * 5. Providing non-blocking automatic background updates on application startup.
+ * 2. Persisting the executable exclusively under `<userData>/bin/` (not temp dirs).
+ * 3. Seeding from bundled release binaries when the managed copy is missing.
+ * 4. Checking GitHub Releases for the latest official yt-dlp binary (auto-update, not re-download every launch).
+ * 5. Validating integrity (size + optional SHA-256 + `--version` probe) before install/use.
+ * 6. Setting execution permissions (`chmod 0755`) on POSIX platforms.
+ * 7. Providing non-blocking automatic background updates on application startup.
  */
 export class YtDlpUpdater {
   private binDir: string;
@@ -38,7 +50,10 @@ export class YtDlpUpdater {
     this.binDir = userDataPath ? path.join(userDataPath, 'bin') : getUserDataBinDir();
     this.logger = logger;
 
-    // Initialize status snapshot
+    ensureDir(this.binDir);
+    // Prefer durable managed binary; seed from package resources when possible
+    ensureManagedYtDlpFromBundle();
+
     const local = this.detectLocalStatus();
     this.cachedStatus = {
       available: local.available,
@@ -65,8 +80,9 @@ export class YtDlpUpdater {
 
   /**
    * Performs an immediate version check against GitHub releases.
-   * If an update is found (or if forceDownload is true / binary is missing),
-   * downloads and installs the updated binary.
+   * If an update is found (or if forceDownload is true / binary is missing/corrupt),
+   * downloads and installs the updated binary into `<userData>/bin/`.
+   * Does NOT re-download when the installed version already matches the latest release.
    */
   public async checkForUpdates(forceDownload: boolean = false): Promise<YtDlpStatus> {
     if (this.isUpdating) {
@@ -79,6 +95,9 @@ export class YtDlpUpdater {
     this.cachedStatus.error = undefined;
 
     try {
+      // Repair / seed managed copy before talking to the network
+      ensureManagedYtDlpFromBundle();
+
       this.logger.info('YtDlpUpdater', 'Checking GitHub for latest yt-dlp release...');
       const release = await this.fetchLatestRelease();
       const latestTag = release.tag_name;
@@ -86,16 +105,19 @@ export class YtDlpUpdater {
       this.cachedStatus.lastChecked = Date.now();
 
       const current = this.detectLocalStatus();
+      const managedIntegrity = validateYtDlpBinaryIntegrity(getManagedYtDlpPath());
       const shouldUpdate =
         forceDownload ||
         !current.available ||
+        !managedIntegrity.ok ||
         !current.version ||
         this.compareVersions(latestTag, current.version) > 0;
 
       if (!shouldUpdate) {
-        this.logger.info('YtDlpUpdater', 'yt-dlp is up to date', {
+        this.logger.info('YtDlpUpdater', 'yt-dlp is up to date — skipping re-download', {
           currentVersion: current.version,
-          latestVersion: latestTag
+          latestVersion: latestTag,
+          path: current.path
         });
         this.isUpdating = false;
         this.cachedStatus.isUpdating = false;
@@ -105,7 +127,8 @@ export class YtDlpUpdater {
       this.logger.info('YtDlpUpdater', 'Starting yt-dlp binary download and installation...', {
         currentVersion: current.version,
         targetVersion: latestTag,
-        forceDownload
+        forceDownload,
+        managedIntegrityOk: managedIntegrity.ok
       });
 
       const asset = this.selectBestAsset(release.assets);
@@ -115,7 +138,12 @@ export class YtDlpUpdater {
         );
       }
 
-      await this.downloadAndInstallAsset(asset.browser_download_url, latestTag);
+      const expectedSha256 = await this.fetchExpectedSha256(release.assets, asset.name);
+
+      await this.downloadAndInstallAsset(asset.browser_download_url, latestTag, {
+        expectedSize: asset.size,
+        expectedSha256
+      });
 
       const verified = this.detectLocalStatus();
       this.cachedStatus = {
@@ -146,9 +174,12 @@ export class YtDlpUpdater {
 
   /**
    * Background startup hook. Runs safely without blocking app lifecycle or UI rendering.
+   * Missing/corrupt binaries trigger a download; intact binaries only update when a newer
+   * GitHub release exists (not a blind re-download every launch).
    */
   public async checkAndAutoUpdateOnStartup(): Promise<void> {
     try {
+      ensureManagedYtDlpFromBundle();
       const local = this.detectLocalStatus();
       if (!local.available) {
         this.logger.info('YtDlpUpdater', 'yt-dlp not found on system startup. Initiating auto-download...');
@@ -169,25 +200,34 @@ export class YtDlpUpdater {
 
   /**
    * Detects local executable availability, absolute path, and runtime version string.
+   * Prefers the managed `<userData>/bin` path after integrity validation.
    */
   private detectLocalStatus(): { available: boolean; version?: string; path?: string } {
-    try {
-      const resolved = resolveYtDlpPath();
-      const output = execFileSync(resolved, ['--version'], {
-        encoding: 'utf8',
-        timeout: 5000,
-        stdio: ['ignore', 'pipe', 'ignore']
-      }).trim();
+    const managedPath = getManagedYtDlpPath();
+    const candidates = [managedPath, resolveYtDlpPath()];
 
-      if (output && /^[0-9]/.test(output)) {
-        return {
-          available: true,
-          version: output,
-          path: resolved
-        };
+    for (const candidate of candidates) {
+      const integrity = validateYtDlpBinaryIntegrity(candidate);
+      if (!integrity.ok) continue;
+
+      try {
+        ensureExecutable(candidate);
+        const output = execFileSync(candidate, ['--version'], {
+          encoding: 'utf8',
+          timeout: 5000,
+          stdio: ['ignore', 'pipe', 'ignore']
+        }).trim();
+
+        if (output && /^[0-9]/.test(output)) {
+          return {
+            available: true,
+            version: output,
+            path: candidate
+          };
+        }
+      } catch {
+        // Try next candidate
       }
-    } catch {
-      // Executable missing or invocation failed
     }
 
     return {
@@ -216,6 +256,60 @@ export class YtDlpUpdater {
   }
 
   /**
+   * Downloads SHA2-256SUMS (when published) and returns the hex digest for the chosen asset.
+   */
+  private async fetchExpectedSha256(
+    assets: GitHubReleaseAsset[],
+    assetName: string
+  ): Promise<string | undefined> {
+    const sumsAsset =
+      assets.find((a) => a.name === 'SHA2-256SUMS') ||
+      assets.find((a) => /sha256/i.test(a.name) && /sums/i.test(a.name));
+
+    if (!sumsAsset) {
+      this.logger.warn('YtDlpUpdater', 'No SHA2-256SUMS asset found in release; size+exec checks only');
+      return undefined;
+    }
+
+    try {
+      const res = await fetch(sumsAsset.browser_download_url, {
+        headers: {
+          'User-Agent': 'KaraokeLiveStation/1.0',
+          Accept: 'application/octet-stream'
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(15000)
+      });
+
+      if (!res.ok) {
+        this.logger.warn('YtDlpUpdater', `Failed to download SHA2-256SUMS (HTTP ${res.status})`);
+        return undefined;
+      }
+
+      const text = await res.text();
+      for (const line of text.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        // Formats: "<hex>  <filename>" or "<hex> *<filename>"
+        const match = /^([a-fA-F0-9]{64})\s+\*?(.+)$/.exec(trimmed);
+        if (!match) continue;
+        const [, hash, name] = match;
+        if (name.trim() === assetName) {
+          return hash.toLowerCase();
+        }
+      }
+
+      this.logger.warn('YtDlpUpdater', `SHA2-256SUMS did not list asset ${assetName}`);
+    } catch (err) {
+      this.logger.warn('YtDlpUpdater', 'Unable to parse SHA2-256SUMS', {
+        error: err instanceof Error ? err.message : String(err)
+      });
+    }
+
+    return undefined;
+  }
+
+  /**
    * Matches release assets against current operating system and architecture.
    */
   private selectBestAsset(assets: GitHubReleaseAsset[]): GitHubReleaseAsset | undefined {
@@ -232,7 +326,6 @@ export class YtDlpUpdater {
       candidateNames.push('yt-dlp_macos');
       candidateNames.push('yt-dlp');
     } else {
-      // Linux and other POSIX
       if (isArm) candidateNames.push('yt-dlp_linux_aarch64');
       candidateNames.push('yt-dlp_linux');
       candidateNames.push('yt-dlp');
@@ -247,15 +340,17 @@ export class YtDlpUpdater {
   }
 
   /**
-   * Downloads the remote asset to a temporary file, sets executable permissions,
-   * verifies execution, and atomically moves it into userData/bin/.
+   * Downloads the remote asset into `<userData>/bin/` (temp sibling), validates size/SHA/exec,
+   * then atomically replaces the managed binary. Never writes the final binary under OS temp.
    */
-  private async downloadAndInstallAsset(downloadUrl: string, expectedTag: string): Promise<void> {
-    if (!fs.existsSync(this.binDir)) {
-      fs.mkdirSync(this.binDir, { recursive: true });
-    }
+  private async downloadAndInstallAsset(
+    downloadUrl: string,
+    expectedTag: string,
+    integrity: { expectedSize?: number; expectedSha256?: string }
+  ): Promise<void> {
+    ensureDir(this.binDir);
 
-    const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+    const binaryName = getYtDlpBinaryName();
     const targetPath = path.join(this.binDir, binaryName);
     const tempPath = path.join(this.binDir, `${binaryName}.download.${Date.now()}`);
 
@@ -282,16 +377,50 @@ export class YtDlpUpdater {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await pipeline(Readable.fromWeb(res.body as any), writeStream);
 
-    // Apply execution permissions on POSIX
-    if (process.platform !== 'win32') {
+    const sizeCheck = validateYtDlpBinaryIntegrity(tempPath);
+    if (!sizeCheck.ok) {
       try {
-        fs.chmodSync(tempPath, 0o755);
-      } catch (err) {
-        this.logger.warn('YtDlpUpdater', 'Failed to chmod temp binary', { error: err });
+        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+      } catch {
+        // ignore cleanup errors
+      }
+      throw new Error(`Downloaded binary failed integrity size check: ${sizeCheck.reason}`);
+    }
+
+    if (integrity.expectedSize && integrity.expectedSize > 0) {
+      const actualSize = fs.statSync(tempPath).size;
+      // Allow small variance only if Content-Length style size was provided by GitHub
+      if (actualSize !== integrity.expectedSize) {
+        try {
+          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        } catch {
+          // ignore
+        }
+        throw new Error(
+          `Downloaded binary size mismatch: expected ${integrity.expectedSize}, got ${actualSize}`
+        );
       }
     }
 
-    // Verify downloaded binary runs properly
+    if (integrity.expectedSha256) {
+      const hash = await this.sha256File(tempPath);
+      if (hash !== integrity.expectedSha256.toLowerCase()) {
+        try {
+          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        } catch {
+          // ignore
+        }
+        throw new Error(
+          `Downloaded binary SHA-256 mismatch: expected ${integrity.expectedSha256}, got ${hash}`
+        );
+      }
+      this.logger.info('YtDlpUpdater', 'SHA-256 integrity verified', {
+        sha256: hash
+      });
+    }
+
+    ensureExecutable(tempPath);
+
     try {
       const verifiedVersion = execFileSync(tempPath, ['--version'], {
         encoding: 'utf8',
@@ -306,7 +435,9 @@ export class YtDlpUpdater {
     } catch (testErr) {
       try {
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-      } catch {}
+      } catch {
+        // ignore
+      }
       throw new Error(
         `Downloaded binary failed execution check: ${
           testErr instanceof Error ? testErr.message : String(testErr)
@@ -314,19 +445,19 @@ export class YtDlpUpdater {
       );
     }
 
-    // Replace existing target binary atomically
     if (fs.existsSync(targetPath)) {
       try {
         fs.unlinkSync(targetPath);
       } catch (unlinkErr) {
-        // Fallback for Windows file locks
         const backupPath = `${targetPath}.old.${Date.now()}`;
         try {
           fs.renameSync(targetPath, backupPath);
           setTimeout(() => {
             try {
               if (fs.existsSync(backupPath)) fs.unlinkSync(backupPath);
-            } catch {}
+            } catch {
+              // ignore
+            }
           }, 10000);
         } catch {
           this.logger.warn('YtDlpUpdater', 'Could not replace locked existing binary', unlinkErr);
@@ -335,14 +466,27 @@ export class YtDlpUpdater {
     }
 
     fs.renameSync(tempPath, targetPath);
+    ensureExecutable(targetPath);
 
-    if (process.platform !== 'win32') {
-      try {
-        fs.chmodSync(targetPath, 0o755);
-      } catch (err) {
-        this.logger.warn('YtDlpUpdater', 'Failed to chmod final binary', { error: err });
+    const finalCheck = validateYtDlpBinaryIntegrity(targetPath, { requireExecutableBit: true });
+    if (!finalCheck.ok && process.platform !== 'win32') {
+      // Retry chmod then re-check size only — some mounts lack exec bit semantics
+      ensureExecutable(targetPath);
+      const retry = validateYtDlpBinaryIntegrity(targetPath);
+      if (!retry.ok) {
+        throw new Error(`Installed binary failed final integrity check: ${retry.reason}`);
       }
     }
+  }
+
+  private async sha256File(filePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const hash = crypto.createHash('sha256');
+      const stream = fs.createReadStream(filePath);
+      stream.on('data', (chunk) => hash.update(chunk));
+      stream.on('error', reject);
+      stream.on('end', () => resolve(hash.digest('hex')));
+    });
   }
 
   /**

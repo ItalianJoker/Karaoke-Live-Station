@@ -10,6 +10,7 @@ import { DownloadManager } from './services/DownloadManager';
 import { Logger } from './services/Logger';
 import { resolveFfmpegPath, resolveYtDlpPath } from './services/BinaryResolver';
 import { YtDlpUpdater } from './services/YtDlpUpdater';
+import { DemucsModelManager } from './services/DemucsModelManager';
 import { FirewallHelper } from './services/FirewallHelper';
 import {
   ActivePlaybackState,
@@ -146,6 +147,7 @@ class KaraokeMainProcess {
   private db: DatabaseManager;
   private downloadManager: DownloadManager;
   private ytDlpUpdater: YtDlpUpdater;
+  private demucsModelManager: DemucsModelManager;
   private guestServer: GuestPortalServer | null = null;
   private currentMasterState: ActivePlaybackState | null = null;
   private currentQueue: QueueItem[] = [];
@@ -162,6 +164,7 @@ class KaraokeMainProcess {
     this.db = new DatabaseManager(userDataPath);
     this.downloadManager = new DownloadManager(tempDownloadDir, queueCacheDir);
     this.ytDlpUpdater = new YtDlpUpdater(userDataPath, this.logger);
+    this.demucsModelManager = new DemucsModelManager(this.logger);
 
     this.setupAppLifecycle();
     this.setupCustomProtocol();
@@ -641,8 +644,9 @@ class KaraokeMainProcess {
 
     // 4. Native Dialogs
     ipcMain.handle('dialog:open-file', async (_event, filters: Electron.FileFilter[]) => {
-      if (!this.controlWindow) return null;
-      const result = await dialog.showOpenDialog(this.controlWindow, {
+      // Intentionally omit parent window so the dialog is non-modal to the
+      // control renderer — prevents Chromium from suspending media/Web Audio.
+      const result = await dialog.showOpenDialog({
         properties: ['openFile'],
         filters
       });
@@ -651,8 +655,8 @@ class KaraokeMainProcess {
     });
 
     ipcMain.handle('dialog:open-directory', async () => {
-      if (!this.controlWindow) return null;
-      const result = await dialog.showOpenDialog(this.controlWindow, {
+      // Non-modal (no parent) so library/settings folder pickers never pause playback.
+      const result = await dialog.showOpenDialog({
         properties: ['openDirectory']
       });
       if (result.canceled || result.filePaths.length === 0) return null;
@@ -692,12 +696,14 @@ class KaraokeMainProcess {
         // If libraryPath is missing or does not exist on disk, prompt user on first launch to choose between default folder or browsing
         if (!resolvedLibrary || !fs.existsSync(resolvedLibrary)) {
           const defaultKaraokeDir = path.join(app.getPath('home'), 'Karaoke');
-          const win = this.controlWindow || BrowserWindow.getFocusedWindow();
           const isItalian = (app.getLocale() || '').toLowerCase().startsWith('it');
 
           try {
-            if (win) {
-              const choice = await dialog.showMessageBox(win, {
+            // Intentionally omit parent BrowserWindow so this first-run prompt is
+            // non-modal to Control — a parented MessageBox can suspend Chromium
+            // media/Web Audio during live setup on secondary monitors.
+            {
+              const choice = await dialog.showMessageBox({
                 type: 'question',
                 title: isItalian
                   ? 'Karaoke Live Station - Configurazione Libreria'
@@ -718,7 +724,7 @@ class KaraokeMainProcess {
 
               if (choice.response === 1) {
                 // User chose to browse for a custom folder
-                const result = await dialog.showOpenDialog(win, {
+                const result = await dialog.showOpenDialog({
                   title: isItalian
                     ? 'Seleziona la cartella della Libreria Karaoke'
                     : 'Select your Karaoke Library Folder',
@@ -736,8 +742,6 @@ class KaraokeMainProcess {
                 // User chose default folder
                 resolvedLibrary = defaultKaraokeDir;
               }
-            } else {
-              resolvedLibrary = defaultKaraokeDir;
             }
           } catch {
             resolvedLibrary = defaultKaraokeDir;
@@ -780,6 +784,11 @@ class KaraokeMainProcess {
     // 6. Database IPC Bridge
     ipcMain.handle('db:get-tracks', () => {
       return this.db.getAllTracks();
+    });
+
+    // Bound LIKE search — keeps large catalogs off the IPC bus during live typing.
+    ipcMain.handle('db:search-tracks', (_event, query: string, limit?: number) => {
+      return this.db.searchTracks(query, limit);
     });
 
     ipcMain.handle('db:upsert-track', (_event, track: KaraokeMediaTrack) => {
@@ -852,12 +861,59 @@ class KaraokeMainProcess {
     });
 
     // 7. Download Manager IPC Bridge
-    ipcMain.handle('download:start', async (_event, options: { url: string; isAudioOnly?: boolean }) => {
-      return await this.downloadManager.startDownload(options);
-    });
+    ipcMain.handle(
+      'download:start',
+      async (
+        _event,
+        options: {
+          url: string;
+          isAudioOnly?: boolean;
+          titleHint?: string;
+          artistHint?: string;
+          trackId?: string;
+          libraryPath?: string;
+        }
+      ) => {
+        const libraryPath =
+          options.libraryPath?.trim() || this.currentSettings?.libraryPath?.trim() || undefined;
+        let catalogTracks: KaraokeMediaTrack[] = [];
+        try {
+          catalogTracks = this.db.getAllTracks();
+        } catch {
+          catalogTracks = [];
+        }
+        return await this.downloadManager.startDownload({
+          ...options,
+          libraryPath,
+          catalogTracks
+        });
+      }
+    );
 
     ipcMain.handle('download:cancel', (_event, downloadId: string) => {
       return this.downloadManager.cancelDownload(downloadId);
+    });
+
+    ipcMain.handle('download:find-existing', (_event, options: {
+      url?: string;
+      trackId?: string;
+      title?: string;
+      artist?: string;
+      libraryPath?: string;
+    }) => {
+      const libraryPath =
+        options.libraryPath?.trim() || this.currentSettings?.libraryPath?.trim() || undefined;
+      let catalogTracks: KaraokeMediaTrack[] = [];
+      try {
+        catalogTracks = this.db.getAllTracks();
+      } catch {
+        catalogTracks = [];
+      }
+      return this.downloadManager.findExistingLocalMedia({
+        ...options,
+        libraryPath,
+        catalogTracks
+      });
     });
 
     ipcMain.handle('download:save-to-library', async (_event, payload: {
@@ -866,17 +922,26 @@ class KaraokeMainProcess {
       artist: string;
       durationSec: number;
       targetDirectory?: string;
+      trackId?: string;
     }) => {
       const libraryDir =
-        payload.targetDirectory?.trim() ||
-        this.currentSettings?.libraryPath?.trim() ||
-        path.join(app.getPath('userData'), 'library');
-      const track = await this.downloadManager.saveToLibrary(
-        payload.tempFilePath,
-        libraryDir,
-        payload
-      );
+        payload.targetDirectory?.trim() || this.currentSettings?.libraryPath?.trim() || '';
+      if (!libraryDir) {
+        throw new Error(
+          'Percorso libreria non configurato. Imposta la cartella libreria nelle impostazioni prima di salvare.'
+        );
+      }
+      const track = await this.downloadManager.saveToLibrary(payload.tempFilePath, libraryDir, {
+        title: payload.title,
+        artist: payload.artist,
+        durationSec: payload.durationSec,
+        trackId: payload.trackId
+      });
       this.db.upsertTrack(track);
+      // Notify renderer windows to reindex/refresh library immediately
+      if (this.controlWindow && !this.controlWindow.isDestroyed()) {
+        this.controlWindow.webContents.send('library:reindexed');
+      }
       return track;
     });
 
@@ -928,6 +993,14 @@ class KaraokeMainProcess {
 
     ipcMain.handle('logger:get-recent', async (_event, lines?: number) => {
       return await this.logger.getRecentLogs(lines);
+    });
+
+    ipcMain.handle('demucs:is-model-cached', () => {
+      return this.demucsModelManager.isModelCached();
+    });
+
+    ipcMain.handle('demucs:get-model-buffer', async () => {
+      return this.demucsModelManager.readModelBuffer();
     });
 
     ipcMain.handle('ytdlp:get-status', () => {

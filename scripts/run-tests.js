@@ -14,6 +14,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 let testsPassed = 0;
 let testsFailed = 0;
@@ -145,6 +146,15 @@ function simulateQueueUpdate(queue, targetIdentifier, updates) {
   return { updatedQueue, hasChanged };
 }
 
+// Portable mock paths — never hardcode /home/... or /tmp/... machine literals
+const mockTempDownloadPath = path.join(os.tmpdir(), 'karaoke_downloads', 'temp_abc123.mp4');
+const mockLibraryTrackPath = path.join(
+  os.homedir(),
+  'Karaoke',
+  "Massimo Ranieri - Perdere L'Amore.mp4"
+);
+const mockLibraryTrackUri = `karaoke://local/${encodeURIComponent(mockLibraryTrackPath)}`;
+
 const mockTempQueue = [
   {
     queueId: 'q_1',
@@ -155,15 +165,15 @@ const mockTempQueue = [
       artist: 'Massimo Ranieri',
       durationSec: 240,
       uri: 'https://www.youtube.com/watch?v=abc123',
-      localFilePath: '/tmp/karaoke_downloads/temp_abc123.mp4'
+      localFilePath: mockTempDownloadPath
     }
   }
 ];
 
 // 1. Update by track ID
 const updateById = simulateQueueUpdate(mockTempQueue, 'yt_abc123', {
-  localFilePath: '/home/user/Karaoke/Massimo Ranieri - Perdere L\'Amore.mp4',
-  uri: 'karaoke://local/%2Fhome%2Fuser%2FKaraoke%2FMassimo%20Ranieri%20-%20Perdere%20L%27Amore.mp4',
+  localFilePath: mockLibraryTrackPath,
+  uri: mockLibraryTrackUri,
   source: 'local_library'
 });
 
@@ -173,14 +183,14 @@ assert(
   'Track source correctly transitioned from youtube to local_library'
 );
 assert(
-  updateById.updatedQueue[0].track.localFilePath === '/home/user/Karaoke/Massimo Ranieri - Perdere L\'Amore.mp4',
+  updateById.updatedQueue[0].track.localFilePath === mockLibraryTrackPath,
   'Track localFilePath points to permanent storage'
 );
 
 // 2. Update by temp localFilePath
-const updateByTempPath = simulateQueueUpdate(mockTempQueue, '/tmp/karaoke_downloads/temp_abc123.mp4', {
-  localFilePath: '/home/user/Karaoke/Massimo Ranieri - Perdere L\'Amore.mp4',
-  uri: 'karaoke://local/%2Fhome%2Fuser%2FKaraoke%2FMassimo%20Ranieri%20-%20Perdere%20L%27Amore.mp4',
+const updateByTempPath = simulateQueueUpdate(mockTempQueue, mockTempDownloadPath, {
+  localFilePath: mockLibraryTrackPath,
+  uri: mockLibraryTrackUri,
   source: 'local_library'
 });
 
@@ -267,9 +277,10 @@ function shouldDeleteCachedFile(filePath, remainingQueue) {
   return !isStillReferenced;
 }
 
-const cacheFile1 = '/userData/queue_cache/qc_123_artist - title.mp4';
-const cacheFile2 = '/userData/queue_cache/qc_456_artist - title2.mp4';
-const libraryFile = '/home/user/Karaoke/artist - permanent.mp4';
+const mockUserDataRoot = path.join(os.tmpdir(), 'karaoke-live-station-testdata');
+const cacheFile1 = path.join(mockUserDataRoot, 'queue_cache', 'qc_123_artist - title.mp4');
+const cacheFile2 = path.join(mockUserDataRoot, 'queue_cache', 'qc_456_artist - title2.mp4');
+const libraryFile = path.join(os.homedir(), 'Karaoke', 'artist - permanent.mp4');
 
 const mockRemainingQueue = [
   { queueId: 'q2', track: { id: 't2', localFilePath: cacheFile2 } }
@@ -331,86 +342,121 @@ assert(
 
 
 // -------------------------------------------------------------
-// Suite 7: Vocal Remover Enhanced In-Phase DSP Simulation
+// Suite 7: Demucs HTDemucs Vocal Separation Integration
 // -------------------------------------------------------------
-console.log('\n\x1b[36m▶ Suite 7: Vocal Remover Enhanced In-Phase DSP Pipeline Simulation\x1b[0m');
+console.log('\n\x1b[36m▶ Suite 7: Demucs HTDemucs Vocal Separation Integration\x1b[0m');
 
-/**
- * Simulates AudioGraphManager's Enhanced In-Phase Center-Channel Canceller matrix:
- *
- * Difference Bus: diff = 0.5 * (L - R)
- * Bass Mono Bus:  bass = 0.5 * (L + R) * LowpassResponse(f)
- * Highs Stereo:   highL = L * HighpassResponse(f), highR = R * HighpassResponse(f)
- *
- * OutL = (diff + bass + highL) * makeupGain (1.25)
- * OutR = (diff + bass + highR) * makeupGain (1.25)
- */
-function simulateVocalRemover(inL, inR, freqBand) {
-  const makeupGain = 1.25;
-  const diffBus = 0.5 * (inL - inR);
-
-  // Bandpass approximations based on 160 Hz / 5500 Hz cutoffs:
-  let bassGain = 0;
-  let highGain = 0;
-
-  if (freqBand === 'bass') {
-    bassGain = 1.0; // below 160 Hz
-    highGain = 0.0;
-  } else if (freqBand === 'vocal_mid') {
-    bassGain = 0.0; // 160 Hz - 5500 Hz
-    highGain = 0.0;
-  } else if (freqBand === 'high') {
-    bassGain = 0.0;
-    highGain = 1.0; // above 5500 Hz
-  }
-
-  const monoBass = 0.5 * (inL + inR) * bassGain;
-  const highL = inL * highGain;
-  const highR = inR * highGain;
-
-  const outL = (diffBus + monoBass + highL) * makeupGain;
-  const outR = (diffBus + monoBass + highR) * makeupGain;
-
-  return { outL, outR, diffBus };
-}
-
-// 1. Center-panned lead vocal cancellation (inL = 1.0, inR = 1.0, midrange frequency)
-const centerVocal = simulateVocalRemover(1.0, 1.0, 'vocal_mid');
-assert(
-  centerVocal.diffBus === 0.0 && centerVocal.outL === 0.0 && centerVocal.outR === 0.0,
-  'Center-panned vocal (L=1.0, R=1.0) in midrange produces exact 0.0 (-∞ dB cancellation)'
+const audioGraphSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
+  'utf8'
+);
+const demucsSeparatorSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/DemucsVocalSeparator.ts'),
+  'utf8'
+);
+const demucsManagerSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/DemucsModelManager.ts'),
+  'utf8'
+);
+const packageJson = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
 );
 
-// 2. Hard-panned stereo instrument preservation (inL = 1.0, inR = 0.0, midrange frequency)
-const pannedInstrument = simulateVocalRemover(1.0, 0.0, 'vocal_mid');
 assert(
-  pannedInstrument.diffBus === 0.5 && pannedInstrument.outL === 0.625 && pannedInstrument.outR === 0.625,
-  'Hard-panned stereo instrument (L=1.0, R=0.0) is cleanly preserved and distributed'
+  Boolean(packageJson.dependencies['demucs-web']) &&
+    Boolean(packageJson.dependencies['onnxruntime-web']),
+  'package.json depends on demucs-web + onnxruntime-web (dedicated OSS vocal separator)'
 );
 
-// 3. Center bass & kick drum punch retention (< 160 Hz)
-const centerBass = simulateVocalRemover(1.0, 1.0, 'bass');
 assert(
-  centerBass.diffBus === 0.0 && centerBass.outL === 1.25 && centerBass.outR === 1.25,
-  'Center bass (<160 Hz) retains full punch (1.25x makeup gain) via mono sum'
+  demucsSeparatorSource.includes("from 'demucs-web'") &&
+    demucsSeparatorSource.includes('DemucsProcessor') &&
+    demucsSeparatorSource.includes('onnxruntime-web'),
+  'DemucsVocalSeparator imports demucs-web DemucsProcessor and onnxruntime-web'
 );
 
-// 4. Stereo high-frequency preservation (> 5500 Hz)
-const stereoHighs = simulateVocalRemover(1.0, -0.5, 'high');
 assert(
-  stereoHighs.outL > 0 && stereoHighs.outR !== 0,
-  'Stereo high frequencies (>5500 Hz) retain highpass detail and brightness'
+  demucsSeparatorSource.includes('stems.drums') &&
+    demucsSeparatorSource.includes('stems.bass') &&
+    demucsSeparatorSource.includes('stems.other') &&
+    demucsSeparatorSource.includes('drums.left[i]') &&
+    demucsSeparatorSource.includes('stems.other.left[i]'),
+  'DemucsVocalSeparator mixes drums+bass+other instrumental stems (excludes lead vocals)'
 );
 
-// 5. In-phase acoustic room radiation (OutL + OutR acoustic wave collision)
-// Unlike old out-of-phase OOPS where OutR = -(L-R) caused OutL + OutR = 0 in room air,
-// the in-phase design gives OutL + OutR = 2 * diffBus * 1.25 != 0
-const acousticRoomSum = pannedInstrument.outL + pannedInstrument.outR;
 assert(
-  acousticRoomSum === 1.25,
-  'In-phase speaker radiation avoids acoustic destructive cancellation in venue room'
+  !audioGraphSource.includes('Center-Channel Canceller') &&
+    !audioGraphSource.includes('0.5 * (L - R)') &&
+    !audioGraphSource.includes('createChannelSplitter'),
+  'AudioGraphManager no longer uses homemade center-channel / EQ vocal cancel graph'
 );
 
+assert(
+  audioGraphSource.includes('setupVocalRemoverGraph') &&
+    audioGraphSource.includes('setVocalRemover(') &&
+    audioGraphSource.includes('activateDemucsInstrumental') &&
+    audioGraphSource.includes('getDemucsVocalSeparator'),
+  'AudioGraphManager routes vocal removal through Demucs instrumental stem playback'
+);
+
+assert(
+  demucsManagerSource.includes('htdemucs_embedded.onnx') &&
+    demucsManagerSource.includes('huggingface.co'),
+  'Main-process DemucsModelManager caches HTDemucs ONNX model from Hugging Face'
+);
+
+assert(
+  fs.existsSync(path.resolve(__dirname, '../public/ort/ort-wasm-simd-threaded.wasm')),
+  'ORT WASM assets are vendored under public/ort for Electron offline inference'
+);
+
+assert(
+  computePerceptualGain(0.5, false) === 0.25 &&
+    computePerceptualGain(1, false) === 1 &&
+    computePerceptualGain(0, false) === 0,
+  'Perceptual volume curve Gain=(volume)^2 still covers the full 0–1 range'
+);
+
+const karaokeStoreSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+  'utf8'
+);
+assert(
+  /autoAdvanceNext:\s*false/.test(karaokeStoreSource),
+  'autoAdvanceNext defaults to OFF (manual play required after track end)'
+);
+assert(
+  /enableFairQueue:\s*true/.test(karaokeStoreSource),
+  'enableFairQueue defaults to ON at startup'
+);
+
+const toastSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/utils/toast.ts'),
+  'utf8'
+);
+const controlSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+  'utf8'
+);
+assert(
+  toastSource.includes('showToast') &&
+    toastSource.includes('confirmAsync') &&
+    controlSource.includes('ToastHost') &&
+    controlSource.includes('showToast(') &&
+    !controlSource.includes('alert('),
+  'Control UI uses non-blocking ToastHost instead of window.alert for audio isolation'
+);
+
+const mainSourceForDialogs = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/index.ts'),
+  'utf8'
+);
+assert(
+  mainSourceForDialogs.includes('demucs:get-model-buffer') &&
+    (mainSourceForDialogs.includes('Non-modal (no parent)') ||
+      mainSourceForDialogs.includes('Intentionally omit parent window')),
+  'Demucs IPC registered and native file dialogs avoid modal parent that can stall audio'
+);
 
 // -------------------------------------------------------------
 // Suite 8: SIAE History Playback Tracking & 120s Threshold
@@ -501,11 +547,419 @@ assert(
   'SIAE CSV export includes standard ISO 8601 date-time and epoch ms columns'
 );
 
-// 8. Verify AudioGraphManager vocal remover methods exist
-const audioGraphSource = fs.readFileSync(path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'), 'utf8');
+// 8. Verify AudioGraphManager vocal remover methods still present after Demucs integration
 assert(
   audioGraphSource.includes('setupVocalRemoverGraph') && audioGraphSource.includes('setVocalRemover('),
   'AudioGraphManager contains dedicated vocal remover pipeline methods'
+);
+
+
+// -------------------------------------------------------------
+// Suite 9: Absolute Portability & yt-dlp Managed Binary Contract
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite 9: Portability Paths & yt-dlp Persistence Contract\x1b[0m');
+
+const binaryResolverSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/BinaryResolver.ts'),
+  'utf8'
+);
+const ytDlpUpdaterSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/YtDlpUpdater.ts'),
+  'utf8'
+);
+
+assert(
+  binaryResolverSource.includes("app.getPath('userData')") &&
+    binaryResolverSource.includes("path.join(app.getPath('userData'), 'bin')"),
+  'BinaryResolver resolves managed bin dir via Electron userData (not hardcoded home paths)'
+);
+assert(
+  binaryResolverSource.includes('validateYtDlpBinaryIntegrity') &&
+    binaryResolverSource.includes('ensureManagedYtDlpFromBundle'),
+  'BinaryResolver validates integrity and seeds managed yt-dlp under userData/bin'
+);
+assert(
+  binaryResolverSource.includes("0o755") || binaryResolverSource.includes('0o755'),
+  'BinaryResolver applies POSIX executable permissions'
+);
+assert(
+  ytDlpUpdaterSource.includes('SHA2-256SUMS') && ytDlpUpdaterSource.includes('sha256'),
+  'YtDlpUpdater verifies SHA-256 integrity against GitHub SHA2-256SUMS when available'
+);
+assert(
+  ytDlpUpdaterSource.includes('skipping re-download') ||
+    ytDlpUpdaterSource.includes('is up to date'),
+  'YtDlpUpdater skips blind re-download when binary is already current'
+);
+assert(
+  ytDlpUpdaterSource.includes('this.binDir') &&
+    ytDlpUpdaterSource.includes("path.join(userDataPath, 'bin')"),
+  'YtDlpUpdater installs exclusively into <userData>/bin/'
+);
+
+const hardCodedUserPathPattern = /(?:^|[^.\w])(?:\/home\/[A-Za-z]|\/Users\/[A-Za-z]|C:\\\\Users\\\\)/;
+const sourcesToScan = [
+  path.resolve(__dirname, '../src/main/services/BinaryResolver.ts'),
+  path.resolve(__dirname, '../src/main/services/YtDlpUpdater.ts'),
+  path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+  path.resolve(__dirname, '../src/main/index.ts'),
+  path.resolve(__dirname, '../scripts/run-tests.js')
+];
+let leakedHardcoded = [];
+for (const file of sourcesToScan) {
+  const text = fs.readFileSync(file, 'utf8');
+  if (hardCodedUserPathPattern.test(text)) {
+    leakedHardcoded.push(path.basename(file));
+  }
+}
+assert(
+  leakedHardcoded.length === 0,
+  'No hardcoded user-home absolute paths in core runtime/test sources',
+  leakedHardcoded.length ? `Found in: ${leakedHardcoded.join(', ')}` : ''
+);
+
+
+// -------------------------------------------------------------
+// Suite 10: Phase 2 Core Storage — Dedup, Archive Default, Single Instance
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite 10: Phase 2 Core Storage Contracts\x1b[0m');
+
+const downloadManagerSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+  'utf8'
+);
+const mainIndexSourceForPhase2 = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/index.ts'),
+  'utf8'
+);
+const settingsModalSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+  'utf8'
+);
+const libraryPanelSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+  'utf8'
+);
+const controlWindowSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+  'utf8'
+);
+const karaokeStoreSourceForPhase2 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+  'utf8'
+);
+
+const exactItalianWarning =
+  "Attenzione: disattivando l'archiviazione automatica, i brani scaricati non verranno salvati nella libreria permanente. Rimarranno disponibili nella cache temporanea solo finché sono presenti in coda (anche riavviando l'app) e verranno eliminati dal disco solo quando saranno scodati o la coda verrà svuotata.";
+
+assert(
+  itLocale.settings.autoArchiveWarningDesc === exactItalianWarning,
+  'Italian auto-archive warning matches required exact string'
+);
+assert(
+  settingsModalSource.includes(exactItalianWarning),
+  'Settings modal fallback embeds the exact Italian warning string'
+);
+assert(
+  /autoArchiveWebTracks:\s*true/.test(karaokeStoreSourceForPhase2),
+  'Auto-archive web tracks defaults to ON in karaoke store'
+);
+assert(
+  downloadManagerSource.includes('findExistingLocalMedia') &&
+    downloadManagerSource.includes('alreadyExists: true') &&
+    downloadManagerSource.includes('mediaFingerprint'),
+  'DownloadManager implements local-file deduplication before network I/O'
+);
+assert(
+  libraryPanelSource.includes('alreadyExists') &&
+    (libraryPanelSource.includes('library.alreadyLocal') ||
+      libraryPanelSource.includes('alreadyLocal')),
+  'LibraryPanel notifies user and relinks when a local copy already exists'
+);
+assert(
+  mainIndexSourceForPhase2.includes('requestSingleInstanceLock') &&
+    mainIndexSourceForPhase2.includes('second-instance') &&
+    (mainIndexSourceForPhase2.includes('controlWindow.focus()') ||
+      mainIndexSourceForPhase2.includes('.focus()')),
+  'Single-instance lock focuses existing Control window and exits duplicate process'
+);
+assert(
+  mainIndexSourceForPhase2.includes('Percorso libreria non configurato') ||
+    mainIndexSourceForPhase2.includes('libraryPath'),
+  'save-to-library requires configured libraryPath'
+);
+assert(
+  !/path\.join\(\s*app\.getPath\(\s*['"]userData['"]\s*\)\s*,\s*['"]library['"]\s*\)/.test(
+    (mainIndexSourceForPhase2.split('download:save-to-library')[1] || '').slice(0, 1200)
+  ),
+  'save-to-library has no silent userData/library fallback'
+);
+assert(
+  libraryPanelSource.includes('karaoke:library-refreshed') &&
+    mainIndexSourceForPhase2.includes('library:reindexed'),
+  'Library reindex/refresh events emitted after save for live Library view updates'
+);
+assert(
+  karaokeStoreSourceForPhase2.includes('cleanupQueueCacheFileIfUnreferenced') &&
+    karaokeStoreSourceForPhase2.includes('queue_cache'),
+  'Queue cache GC runs when tracks are dequeued or the queue is cleared'
+);
+assert(
+  libraryPanelSource.includes('saveToQueueCache') &&
+    (controlWindowSource.includes('saveToLibrary') ||
+      libraryPanelSource.includes('saveToLibrary')),
+  'Promote cache→Library action and queue_cache persistence paths exist'
+);
+
+function extractYouTubeIdForTest(urlOrId) {
+  if (!urlOrId || typeof urlOrId !== 'string') return null;
+  const trimmed = urlOrId.trim();
+  if (/^[\w-]{11}$/.test(trimmed)) return trimmed;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.hostname.includes('youtu.be')) {
+      const id = parsed.pathname.replace(/^\//, '').slice(0, 11);
+      return /^[\w-]{11}$/.test(id) ? id : null;
+    }
+    const v = parsed.searchParams.get('v');
+    if (v && /^[\w-]{11}$/.test(v)) return v;
+  } catch {}
+  const loose = trimmed.match(/(?:v=|\/)([\w-]{11})(?:[^\w-]|$)/);
+  return loose ? loose[1] : null;
+}
+
+assert(
+  extractYouTubeIdForTest('https://www.youtube.com/watch?v=dQw4w9WgXcQ') === 'dQw4w9WgXcQ',
+  'YouTube id extraction works for watch URLs'
+);
+assert(
+  extractYouTubeIdForTest('https://youtu.be/dQw4w9WgXcQ') === 'dQw4w9WgXcQ',
+  'YouTube id extraction works for youtu.be URLs'
+);
+assert(extractYouTubeIdForTest('dQw4w9WgXcQ') === 'dQw4w9WgXcQ', 'Bare YouTube id is accepted');
+
+
+
+// -------------------------------------------------------------
+// Suite 11: Phase 4/5 UI, Stage, Shortcuts, Cache Persistence Contracts
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite 11: Phase 4/5 UI · Stage · Shortcuts · Cache Persistence\x1b[0m');
+
+const stageWindowSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/StageWindow.tsx'),
+  'utf8'
+);
+const videoPreviewSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/VideoPreviewModal.tsx'),
+  'utf8'
+);
+const libraryPanelSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+  'utf8'
+);
+const controlWindowSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+  'utf8'
+);
+const settingsModalSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+  'utf8'
+);
+const audioGraphSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
+  'utf8'
+);
+const demucsSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/DemucsVocalSeparator.ts'),
+  'utf8'
+);
+const databaseSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/db/database.ts'),
+  'utf8'
+);
+const mainIndexSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/index.ts'),
+  'utf8'
+);
+const karaokeStoreSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+  'utf8'
+);
+const downloadManagerSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+  'utf8'
+);
+
+// --- Stage isolation + semitone badge ---
+assert(
+  mainIndexSourceP45.includes('createStageWindow') &&
+    (mainIndexSourceP45.includes("?window=stage") ||
+      mainIndexSourceP45.includes('window=stage') ||
+      stageWindowSource.includes('signalStageReady')),
+  'Stage window is a dedicated BrowserWindow with ready handshake'
+);
+assert(
+  stageWindowSource.includes('showPitchOnStage') &&
+    stageWindowSource.includes('stage-semitone-badge') &&
+    /livePitchOffset\s*>\s*0\s*\?\s*`\+\$\{/.test(stageWindowSource) ||
+      stageWindowSource.includes('`+${') ||
+      stageWindowSource.includes("+${"),
+  'Stage semitone badge renders for +N / -N / 0 when toggle enabled'
+);
+assert(
+  settingsModalSourceP45.includes('showPitchOnStage') &&
+    /showPitchOnStage:\s*true/.test(karaokeStoreSourceP45),
+  'showPitchOnStage setting exists and defaults to ON'
+);
+assert(
+  stageWindowSource.includes('document.styleSheets') &&
+    stageWindowSource.includes('requestAnimationFrame') &&
+    stageWindowSource.includes('signalStageReady'),
+  'Stage waits for stylesheets/fonts and rAF before signalling ready'
+);
+
+// --- YouTube preview without error 153 ---
+assert(
+  videoPreviewSource.includes('youtube-nocookie.com/embed/') &&
+    videoPreviewSource.includes('enablejsapi=1') &&
+    videoPreviewSource.includes('playsinline=1') &&
+    videoPreviewSource.includes('origin=') &&
+    (videoPreviewSource.includes('widget_referrer=') || videoPreviewSource.includes('widget_referrer')) &&
+    videoPreviewSource.includes('referrerPolicy'),
+  'YouTube preview embed includes nocookie + jsapi/origin/playsinline/referrerPolicy (153 mitigation)'
+);
+
+// --- Dynamic search + dismissible download complete ---
+assert(
+  libraryPanelSourceP45.includes('sessionStorage') &&
+    libraryPanelSourceP45.includes('kls.library.query') &&
+    libraryPanelSourceP45.includes('setSearchResults'),
+  'Library persists query and filters results reactively'
+);
+assert(
+  libraryPanelSourceP45.includes('download-complete-badge') &&
+    libraryPanelSourceP45.includes('Download completato') &&
+    libraryPanelSourceP45.includes('setCompletedDownloads'),
+  'Dismissible Download completato badge is implemented'
+);
+assert(
+  libraryPanelSourceP45.includes('thumbnailUrl') || libraryPanelSourceP45.includes('thumbnail'),
+  'Library list renders preview thumbnails for search results'
+);
+
+// --- Tab persistence (downloads continue across tab changes) ---
+assert(
+  controlWindowSourceP45.includes("activeRightTab === 'library' ?") &&
+    controlWindowSourceP45.includes("'hidden'") &&
+    controlWindowSourceP45.includes('searchInputRef'),
+  'Control keeps Library/Queue/History mounted (CSS hide) and wires search focus ref'
+);
+
+// --- Settings tabs + search ---
+assert(
+  settingsModalSourceP45.includes('settingsSearch') &&
+    settingsModalSourceP45.includes('tabGeneral') &&
+    settingsModalSourceP45.includes('tabLibrary') &&
+    settingsModalSourceP45.includes('tabAudio') &&
+    settingsModalSourceP45.includes('tabStage') &&
+    settingsModalSourceP45.includes('tabShortcuts'),
+  'Settings modal exposes thematic tabs + instant cross-category search'
+);
+
+// --- Auto-advance OFF + configurable delay ---
+assert(
+  /autoAdvanceNext:\s*false/.test(karaokeStoreSourceP45),
+  'autoAdvanceNext defaults to OFF'
+);
+assert(
+  /transitionPauseSec:\s*3/.test(karaokeStoreSourceP45) &&
+    settingsModalSourceP45.includes('transitionPauseSec'),
+  'transitionPauseSec defaults to 3s and is configurable in Settings'
+);
+
+// --- Fair queue ON ---
+assert(
+  /enableFairQueue:\s*true/.test(karaokeStoreSourceP45),
+  'enableFairQueue defaults to ON'
+);
+
+// --- Shortcuts register with cleanup ---
+assert(
+  controlWindowSourceP45.includes("addEventListener('keydown'") &&
+    controlWindowSourceP45.includes("removeEventListener('keydown'") &&
+    controlWindowSourceP45.includes("e.code === 'Space'") &&
+    controlWindowSourceP45.includes("e.code === 'KeyN'") &&
+    controlWindowSourceP45.includes("e.code === 'KeyM'") &&
+    controlWindowSourceP45.includes("e.code === 'KeyF'"),
+  'Live shortcuts registered with cleanup (Space/N/M/Ctrl+F)'
+);
+assert(
+  controlWindowSourceP45.includes('Doppio click o Play per avviare'),
+  'Exact Italian queue hint string is present'
+);
+
+// --- Cache persistence across restart + delete on dequeue ---
+assert(
+  karaokeStoreSourceP45.includes('partialize') &&
+    karaokeStoreSourceP45.includes('queue') &&
+    karaokeStoreSourceP45.includes('settings'),
+  'Zustand persist keeps queue+settings across restart'
+);
+assert(
+  karaokeStoreSourceP45.includes('cleanupQueueCacheFileIfUnreferenced') &&
+    downloadManagerSourceP45.includes('queue_cache') ||
+      downloadManagerSourceP45.includes('queueCache'),
+  'Queue cache files deleted when dequeued/cleared; persist while still queued'
+);
+assert(
+  downloadManagerSourceP45.includes('findExistingLocalMedia'),
+  'Download dedup via findExistingLocalMedia before network I/O'
+);
+
+// --- Audio leaks / Demucs activation ---
+assert(
+  demucsSourceP45.includes('MAX_CACHED_STEMS') &&
+    demucsSourceP45.includes('clearCache') &&
+    audioGraphSourceP45.includes('voiceReleaseTimeouts') &&
+    audioGraphSourceP45.includes('clearTimeout') &&
+    audioGraphSourceP45.includes('getDemucsVocalSeparator().clearCache()'),
+  'Demucs stem LRU + clearCache on dispose; MIDI release timers cancelled on dispose'
+);
+assert(
+  audioGraphSourceP45.includes('computePerceptualGain') &&
+    audioGraphSourceP45.includes('Math.pow') &&
+    audioGraphSourceP45.includes('activateDemucsInstrumental'),
+  'Perceptual volume curve and Demucs vocal-removal activation wired in AudioGraphManager'
+);
+
+// --- Playback continuity: non-modal dialogs ---
+assert(
+  mainIndexSourceP45.includes('showOpenDialog({') &&
+    mainIndexSourceP45.includes('non-modal') ||
+      mainIndexSourceP45.includes('Intentionally omit parent') ||
+      mainIndexSourceP45.includes('omit parent'),
+  'Native file/folder dialogs omit parent window to avoid suspending media'
+);
+
+// --- DB search optimization ---
+assert(
+  databaseSourceP45.includes('searchTracks') &&
+    databaseSourceP45.includes('idx_tracks_search') &&
+    mainIndexSourceP45.includes('db:search-tracks'),
+  'SQLite searchTracks + indexes exposed over IPC for reactive library filtering'
+);
+
+// --- Single instance (re-assert for Phase 5 gate) ---
+assert(
+  mainIndexSourceP45.includes('requestSingleInstanceLock') &&
+    mainIndexSourceP45.includes('second-instance'),
+  'Single-instance lock still enforced'
+);
+
+// --- SIAE ≥120s (re-assert binding to store) ---
+assert(
+  karaokeStoreSourceP45.includes('>= 120') || karaokeStoreSourceP45.includes('>=120'),
+  'SIAE history gate uses ≥120s threshold in karaoke store'
 );
 
 

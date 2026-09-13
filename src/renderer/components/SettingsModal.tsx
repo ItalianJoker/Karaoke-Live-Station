@@ -1,6 +1,32 @@
 import React, { useState, useEffect } from 'react';
+import { showToast, confirmAsync } from '../utils/toast';
 import { useTranslation } from 'react-i18next';
-import { X, Folder, FolderOpen, Download, Settings, Volume2, Globe, Clock, ShieldCheck, Headphones, FileText, Terminal, Trash2, RefreshCw, CheckCircle2, AlertCircle, AlertTriangle, Heart, Coffee, ExternalLink } from 'lucide-react';
+import {
+  X,
+  Folder,
+  FolderOpen,
+  Download,
+  Settings,
+  Volume2,
+  Globe,
+  ShieldCheck,
+  Headphones,
+  FileText,
+  Terminal,
+  Trash2,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  Heart,
+  Coffee,
+  ExternalLink,
+  Search,
+  Keyboard,
+  Monitor,
+  Music2,
+  Library,
+} from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AppTheme, YtDlpStatus } from '../../shared/types';
 import { FirewallGuideCard } from './FirewallGuideCard';
@@ -18,6 +44,8 @@ const THEME_OPTIONS: { id: AppTheme; label: string }[] = [
   { id: 'light', label: 'Light Studio (Clean)' },
 ];
 
+type SettingsTab = 'general' | 'library' | 'audio' | 'stage' | 'shortcuts';
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -27,27 +55,7 @@ interface SettingsModalProps {
  * SettingsModal
  *
  * Comprehensive Preferences and Hardware Configuration Modal.
- * Sections:
- * 1. Audio Routing:
- *    - Master Output Device selection.
- *    - CUE Headphone Output Device selection for DJ monitoring.
- * 2. SoundFont & Synthesis:
- *    - Custom SoundFont (.sf2 / .sf3 / .dls) file selector.
- *    - Automatic fallback detection to OS-installed General MIDI SoundFonts.
- * 3. Playback & Timing:
- *    - Audio-video sync latency calibration offset (milliseconds).
- *    - Auto-advance next song toggle and crossfade duration.
- *    - Banner timers (intro, outro, transition pause, and video song title overlay duration).
- * 4. Venue & Legal:
- *    - SIAE borderò automated song tracking toggle and CSV export.
- * 5. Network Guest Portal:
- *    - Enable/disable local mobile audience request server.
- * 6. UI & Localization:
- *    - Multi-language switcher (Italian, English, Spanish, French, Auto-detect).
- *    - Visual theme selection for Host and Stage screens (9 distinct palettes).
- * 7. Diagnostic Logging:
- *    - Configurable log level ('debug' | 'info' | 'warn' | 'error' | 'off')
- *    - Log file inspection, opening folder/file, and log clearing.
+ * Organized in thematic tabs with instant cross-category search.
  */
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { t, i18n } = useTranslation();
@@ -61,8 +69,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [isCheckingYtdlp, setIsCheckingYtdlp] = useState(false);
   const [ytdlpMessage, setYtdlpMessage] = useState<string | null>(null);
   const [showAutoArchiveConfirm, setShowAutoArchiveConfirm] = useState(false);
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [settingsSearch, setSettingsSearch] = useState('');
+
+  const isSearching = settingsSearch.trim().length > 0;
+
+  const matchesSearch = (...parts: string[]) => {
+    if (!isSearching) return true;
+    const q = settingsSearch.trim().toLowerCase();
+    return parts.some((p) => (p || '').toLowerCase().includes(q));
+  };
 
   useEffect(() => {
+    if (!isOpen) {
+      setSettingsSearch('');
+      return;
+    }
+
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
       navigator.mediaDevices.enumerateDevices().then((devices) => {
         const audioOutputs = devices.filter((d) => d.kind === 'audiooutput');
@@ -124,7 +147,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     if (!window.karaokeApi) return;
     const res = await window.karaokeApi.siae.exportCsv();
     if (res.success && res.filePath) {
-      alert(t('settings.siaeExportSuccess', { path: res.filePath }));
+      showToast(t('settings.siaeExportSuccess', { path: res.filePath }));
     }
   };
 
@@ -142,9 +165,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const handleClearLogs = async () => {
     if (window.karaokeApi?.logger?.clearLogs) {
-      if (confirm(t('settings.confirmClearLogs'))) {
+      if (await confirmAsync(t('settings.confirmClearLogs'))) {
         await window.karaokeApi.logger.clearLogs();
-        alert(t('settings.logsCleared'));
+        showToast(t('settings.logsCleared'));
       }
     }
   };
@@ -168,9 +191,194 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     }
   };
 
+  const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
+    {
+      id: 'general',
+      label: t('settings.tabGeneral', 'Generale'),
+      icon: <Settings className="w-3.5 h-3.5" />,
+    },
+    {
+      id: 'library',
+      label: t('settings.tabLibrary', 'Libreria & Download'),
+      icon: <Library className="w-3.5 h-3.5" />,
+    },
+    {
+      id: 'audio',
+      label: t('settings.tabAudio', 'Audio & Riproduzione'),
+      icon: <Music2 className="w-3.5 h-3.5" />,
+    },
+    {
+      id: 'stage',
+      label: t('settings.tabStage', 'Schermo Stage'),
+      icon: <Monitor className="w-3.5 h-3.5" />,
+    },
+    {
+      id: 'shortcuts',
+      label: t('settings.tabShortcuts', 'Scorciatoie'),
+      icon: <Keyboard className="w-3.5 h-3.5" />,
+    },
+  ];
+
+  // --- Search match flags per setting block ---
+  const matchSupport = matchesSearch(
+    t('settings.supportTitle'),
+    t('settings.supportDescription'),
+    t('settings.donateButton'),
+    'PayPal',
+    'donazione',
+    'donation'
+  );
+  const matchThemeLang = matchesSearch(
+    t('settings.theme'),
+    t('settings.stageTheme'),
+    t('settings.language'),
+    'tema',
+    'theme',
+    'lingua',
+    'language',
+    ...THEME_OPTIONS.map((th) => th.label)
+  );
+  const matchFairQueue = matchesSearch(t('settings.fairQueue'), 'fair queue', 'coda');
+  const matchGuestPortal = matchesSearch(
+    t('settings.guestPortal'),
+    'guest portal',
+    'firewall',
+    'LAN',
+    'smartphone',
+    t('firewall.title')
+  );
+  const matchSiae = matchesSearch(
+    t('settings.siaeReporting'),
+    t('settings.exportSiae'),
+    'SIAE',
+    'borderò'
+  );
+  const matchLogs = matchesSearch(
+    t('settings.logsTitle'),
+    t('settings.logLevel'),
+    t('settings.logLevelHelp'),
+    t('settings.logFilePath'),
+    t('settings.openLogFolder'),
+    t('settings.openLogFile'),
+    t('settings.clearLogs'),
+    'log',
+    'diagnostica',
+    'debug'
+  );
+
+  const matchLibraryPath = matchesSearch(
+    t('settings.libraryPath'),
+    t('settings.noLibraryPathSelected'),
+    'libreria',
+    'library',
+    'cartella'
+  );
+  const matchAutoArchive = matchesSearch(
+    t('settings.autoArchive'),
+    'archivia',
+    'archive',
+    'download'
+  );
+  const matchYtdlp = matchesSearch(
+    t('settings.ytdlpTitle'),
+    t('settings.ytdlpStatus'),
+    t('settings.ytdlpPath'),
+    t('settings.ytdlpCheckUpdate'),
+    'yt-dlp',
+    'ytdlp',
+    'download'
+  );
+
+  const matchSoundfont = matchesSearch(
+    t('settings.soundfont'),
+    'soundfont',
+    'sf2',
+    'midi',
+    'Default di Sistema',
+    'Usa soundfont di sistema'
+  );
+  const matchDevices = matchesSearch(
+    t('settings.cueDevice'),
+    t('settings.masterDevice'),
+    'CUE',
+    'master',
+    'cuffie',
+    'headphones',
+    'dispositivo'
+  );
+  const matchAvSync = matchesSearch(
+    t('settings.audioVideoSync'),
+    'sync',
+    'latency',
+    'offset',
+    'ms'
+  );
+  const matchNormalization = matchesSearch(
+    t('settings.audioNormalization'),
+    t('settings.audioNormalizationDesc'),
+    'normalizzazione',
+    'volume'
+  );
+  const matchAutoAdvance = matchesSearch(
+    t('settings.autoAdvance'),
+    t('settings.transitionPause'),
+    'auto-advance',
+    'transizione',
+    'pausa'
+  );
+
+  const matchBannerIntro = matchesSearch(t('settings.bannerIntro'), 'banner', 'intro');
+  const matchBannerOutro = matchesSearch(t('settings.bannerOutro'), 'banner', 'outro', 'preparati');
+  const matchTitleOverlay = matchesSearch(t('settings.titleOverlayDuration'), 'titolo', 'overlay', 'title');
+  const matchNextSinger = matchesSearch(
+    t('settings.showNextSingerAtIntro'),
+    t('settings.showNextSingerAtIntroDesc'),
+    'prossimo',
+    'cantante',
+    'singer'
+  );
+  const matchPitchStage = matchesSearch(
+    t('settings.showPitchOnStage'),
+    t('settings.showPitchOnStageDesc'),
+    'pitch',
+    'tonalità',
+    'semitoni'
+  );
+
+  const liveShortcuts = [
+    { keys: ['Spazio'], label: t('shortcuts.playPause', 'Play / Pausa') },
+    { keys: ['N'], label: t('shortcuts.next', 'Passa al brano successivo') },
+    { keys: ['↑'], label: t('shortcuts.volumeUp', 'Aumenta volume master (+5%)') },
+    { keys: ['↓'], label: t('shortcuts.volumeDown', 'Diminuisci volume master (-5%)') },
+    { keys: ['+', '-'], label: t('shortcuts.pitchUpDown', 'Tonalità / Pitch (+1 / -1 semitono)') },
+    { keys: ['M'], label: t('shortcuts.mute', 'Attiva / Disattiva muto master') },
+    { keys: ['Ctrl', 'F'], label: t('shortcuts.searchFocus', 'Cerca brano (focus su campo di ricerca)') },
+  ];
+
+  const matchingShortcuts = liveShortcuts.filter((item) =>
+    matchesSearch(item.label, item.keys.join(' '), t('settings.tabShortcuts', 'Scorciatoie'), 'scorciatoie', 'shortcuts')
+  );
+
+  const showCategory = (tab: SettingsTab, hasMatches: boolean) => {
+    if (isSearching) return hasMatches;
+    return activeTab === tab;
+  };
+
+  const generalHasMatches =
+    matchSupport || matchThemeLang || matchFairQueue || matchGuestPortal || matchSiae || matchLogs;
+  const libraryHasMatches = matchLibraryPath || matchAutoArchive || matchYtdlp;
+  const audioHasMatches =
+    matchSoundfont || matchDevices || matchAvSync || matchNormalization || matchAutoAdvance;
+  const stageHasMatches =
+    matchBannerIntro || matchBannerOutro || matchTitleOverlay || matchNextSinger || matchPitchStage;
+  const shortcutsHasMatches = matchingShortcuts.length > 0;
+
+  const anySearchResults =
+    generalHasMatches || libraryHasMatches || audioHasMatches || stageHasMatches || shortcutsHasMatches;
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-800">
           <div className="flex items-center gap-2">
@@ -186,549 +394,730 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           </button>
         </div>
 
+        {/* Instant search */}
+        <div className="pt-4 pb-3 shrink-0">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={settingsSearch}
+              onChange={(e) => setSettingsSearch(e.target.value)}
+              placeholder={t('settings.searchPlaceholder', 'Cerca impostazioni...')}
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 transition-all"
+            />
+          </div>
+        </div>
+
+        {/* Tabs — hidden restriction when searching */}
+        {!isSearching && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-3 shrink-0 border-b border-slate-800/80 mb-1">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-3 py-2 rounded-xl text-[11px] font-semibold whitespace-nowrap flex items-center gap-1.5 transition-all border shrink-0 ${
+                    isActive
+                      ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Form Body */}
         <div className="flex-1 overflow-y-auto py-4 space-y-6 text-xs pr-4 md:pr-5">
-          {/* Support & Donations Banner (Top Highlight) */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/40 border border-indigo-500/30 p-4 shadow-lg shadow-indigo-950/20">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0 text-indigo-400">
-                  <Heart className="w-5 h-5 text-rose-400 animate-pulse" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span>{t('settings.supportTitle')}</span>
-                    <span className="text-[10px] font-semibold bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30">
-                      PayPal
-                    </span>
-                  </h4>
-                  <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
-                    {t('settings.supportDescription')}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleOpenDonation}
-                className="px-4 py-2.5 bg-[#0070BA] hover:bg-[#005ea6] active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-blue-900/30 border border-blue-400/30 transition-all shrink-0 cursor-pointer"
-              >
-                <Coffee className="w-4 h-4 text-amber-200" />
-                <span>{t('settings.donateButton')}</span>
-                <ExternalLink className="w-3.5 h-3.5 opacity-70" />
-              </button>
+          {isSearching && !anySearchResults && (
+            <div className="text-center py-10 text-slate-500 text-xs">
+              {t('library.noResults', 'Nessun risultato')}
             </div>
-          </div>
+          )}
 
-          {/* Section 1: Themes & Localization */}
-          <div className="space-y-3">
-            <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Globe className="w-4 h-4 text-indigo-400" /> {t('settings.theme')} & {t('settings.language')}
-            </h3>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-slate-400 mb-1">{t('settings.theme')}</label>
-                <select
-                  value={settings.themeHost}
-                  onChange={(e) => updateSettings({ themeHost: e.target.value as any })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
-                >
-                  {THEME_OPTIONS.map((th) => (
-                    <option key={th.id} value={th.id}>
-                      {th.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* ===== GENERALE ===== */}
+          {showCategory('general', generalHasMatches) && (
+            <div className="space-y-4">
+              {isSearching && (
+                <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Settings className="w-4 h-4 text-indigo-400" />
+                  {t('settings.tabGeneral', 'Generale')}
+                </h3>
+              )}
 
-              <div>
-                <label className="block text-slate-400 mb-1">{t('settings.stageTheme')}</label>
-                <select
-                  value={settings.themeStage}
-                  onChange={(e) => updateSettings({ themeStage: e.target.value as any })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
-                >
-                  {THEME_OPTIONS.map((th) => (
-                    <option key={th.id} value={th.id}>
-                      {th.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Support & Donations Banner */}
+              {(!isSearching || matchSupport) && (
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/40 border border-indigo-500/30 p-4 shadow-lg shadow-indigo-950/20">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0 text-indigo-400">
+                        <Heart className="w-5 h-5 text-rose-400 animate-pulse" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                          <span>{t('settings.supportTitle')}</span>
+                          <span className="text-[10px] font-semibold bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30">
+                            PayPal
+                          </span>
+                        </h4>
+                        <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
+                          {t('settings.supportDescription')}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleOpenDonation}
+                      className="px-4 py-2.5 bg-[#0070BA] hover:bg-[#005ea6] active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-blue-900/30 border border-blue-400/30 transition-all shrink-0 cursor-pointer"
+                    >
+                      <Coffee className="w-4 h-4 text-amber-200" />
+                      <span>{t('settings.donateButton')}</span>
+                      <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                    </button>
+                  </div>
+                </div>
+              )}
 
-              <div>
-                <label className="block text-slate-400 mb-1">{t('settings.language')}</label>
-                <select
-                  value={settings.language}
-                  onChange={(e) => {
-                    const lang = e.target.value as any;
-                    updateSettings({ language: lang });
-                    i18n.changeLanguage(lang === 'autodetect' ? 'it' : lang);
-                  }}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
-                >
-                  <option value="autodetect">Auto Detect</option>
-                  <option value="it">Italiano (IT)</option>
-                  <option value="en">English (EN)</option>
-                  <option value="es">Español (ES)</option>
-                  <option value="fr">Français (FR)</option>
-                </select>
-              </div>
-            </div>
-          </div>
+              {/* Themes & Localization */}
+              {(!isSearching || matchThemeLang) && (
+                <div className="space-y-3">
+                  <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Globe className="w-4 h-4 text-indigo-400" /> {t('settings.theme')} & {t('settings.language')}
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">{t('settings.theme')}</label>
+                      <select
+                        value={settings.themeHost}
+                        onChange={(e) => updateSettings({ themeHost: e.target.value as any })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
+                      >
+                        {THEME_OPTIONS.map((th) => (
+                          <option key={th.id} value={th.id}>
+                            {th.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-          {/* Section 2: Audio, Routing & SoundFont */}
-          <div className="space-y-3">
-            <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Volume2 className="w-4 h-4 text-emerald-400" /> Audio DSP, Routing & SoundFont
-            </h3>
+                    <div>
+                      <label className="block text-slate-400 mb-1">{t('settings.stageTheme')}</label>
+                      <select
+                        value={settings.themeStage}
+                        onChange={(e) => updateSettings({ themeStage: e.target.value as any })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
+                      >
+                        {THEME_OPTIONS.map((th) => (
+                          <option key={th.id} value={th.id}>
+                            {th.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-            {/* SoundFont Path */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <label className="text-slate-400 font-medium">{t('settings.soundfont')}</label>
-                  {settings.midiSoundFontPath && defaultSystemSf && settings.midiSoundFontPath === defaultSystemSf && (
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 text-[10px] font-semibold">
-                      Default di Sistema
-                    </span>
+                    <div>
+                      <label className="block text-slate-400 mb-1">{t('settings.language')}</label>
+                      <select
+                        value={settings.language}
+                        onChange={(e) => {
+                          const lang = e.target.value as any;
+                          updateSettings({ language: lang });
+                          i18n.changeLanguage(lang === 'autodetect' ? 'it' : lang);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
+                      >
+                        <option value="autodetect">Auto Detect</option>
+                        <option value="it">Italiano (IT)</option>
+                        <option value="en">English (EN)</option>
+                        <option value="es">Español (ES)</option>
+                        <option value="fr">Français (FR)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Fair Queue, Guest Portal, SIAE */}
+              {(
+                !isSearching ||
+                matchFairQueue ||
+                matchGuestPortal ||
+                matchSiae
+              ) && (
+                <div className="space-y-3">
+                  {(!isSearching || matchFairQueue || matchGuestPortal || matchSiae) && (
+                    <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-rose-400" /> {t('settings.title')}
+                    </h3>
+                  )}
+                  <div className="space-y-2">
+                    {(!isSearching || matchFairQueue) && (
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settings.enableFairQueue}
+                          onChange={(e) => updateSettings({ enableFairQueue: e.target.checked })}
+                          className="w-4 h-4 accent-indigo-600 rounded"
+                        />
+                        <span>{t('settings.fairQueue')}</span>
+                      </label>
+                    )}
+
+                    {(!isSearching || matchGuestPortal) && (
+                      <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-2">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={settings.enableGuestPortal}
+                            onChange={(e) => updateSettings({ enableGuestPortal: e.target.checked })}
+                            className="w-4 h-4 accent-indigo-600 rounded"
+                          />
+                          <span className="font-semibold text-white">{t('settings.guestPortal')}</span>
+                        </label>
+
+                        {portalInfo && settings.enableGuestPortal && (
+                          <div className="pl-7 space-y-1.5 text-slate-400 text-[11px]">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span>URL Smartphone:</span>
+                              <code className="font-mono text-indigo-400 font-semibold select-all bg-black/50 px-2 py-0.5 rounded border border-slate-800">
+                                {portalInfo.url || `http://${portalInfo.ip || '127.0.0.1'}:${portalInfo.port || settings.guestPortalPort}`}
+                              </code>
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              Porta attiva: <span className="text-white font-mono">{portalInfo.port || settings.guestPortalPort}</span> | IP LAN: <span className="text-white font-mono">{portalInfo.ip || '127.0.0.1'}</span>
+                            </div>
+                            <div className="pt-2">
+                              <FirewallGuideCard />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {(!isSearching || matchSiae) && (
+                      <>
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={settings.enableSiaeReporting}
+                            onChange={(e) => updateSettings({ enableSiaeReporting: e.target.checked })}
+                            className="w-4 h-4 accent-indigo-600 rounded"
+                          />
+                          <span>{t('settings.siaeReporting')}</span>
+                        </label>
+
+                        {settings.enableSiaeReporting && (
+                          <div className="pt-2">
+                            <button
+                              type="button"
+                              onClick={handleExportSiae}
+                              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg flex items-center gap-2 font-semibold border border-slate-700"
+                            >
+                              <Download className="w-4 h-4 text-emerald-400" />
+                              {t('settings.exportSiae')}
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Logs & Diagnostics */}
+              {(!isSearching || matchLogs) && (
+                <div className="space-y-3 pt-2 border-t border-slate-800/80">
+                  <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Terminal className="w-4 h-4 text-amber-400" /> {t('settings.logsTitle')}
+                  </h3>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1.5 font-medium">{t('settings.logLevel')}</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      {(['debug', 'info', 'warn', 'error', 'off'] as const).map((level) => {
+                        const isSelected = (settings.logLevel || 'info') === level;
+                        return (
+                          <button
+                            key={level}
+                            type="button"
+                            onClick={() => updateSettings({ logLevel: level })}
+                            className={`px-3 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all border ${
+                              isSelected
+                                ? 'bg-amber-500/20 border-amber-500/60 text-amber-300 shadow-md shadow-amber-950/30'
+                                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60'
+                            }`}
+                          >
+                            {level}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                      {t('settings.logLevelHelp')}
+                    </p>
+                  </div>
+
+                  {logFilePath && (
+                    <div className="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-3 space-y-2">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <span className="text-slate-400 font-medium">{t('settings.logFilePath')}:</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleOpenLogFolder}
+                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg flex items-center gap-1.5 font-medium border border-slate-700 hover:border-slate-600 transition-colors"
+                            title={t('settings.openLogFolder')}
+                          >
+                            <FolderOpen className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>{t('settings.openLogFolder')}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleOpenLogFile}
+                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg flex items-center gap-1.5 font-medium border border-slate-700 hover:border-slate-600 transition-colors"
+                            title={t('settings.openLogFile')}
+                          >
+                            <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>{t('settings.openLogFile')}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleClearLogs}
+                            className="px-2 py-1 bg-rose-950/30 hover:bg-rose-900/50 text-rose-300 rounded-lg flex items-center gap-1 font-medium border border-rose-800/40 transition-colors"
+                            title={t('settings.clearLogs')}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="font-mono text-[11px] text-slate-400 bg-slate-900/90 rounded-lg p-2 overflow-x-auto select-all border border-slate-800">
+                        {logFilePath}
+                      </div>
+                    </div>
                   )}
                 </div>
-                {defaultSystemSf && settings.midiSoundFontPath !== defaultSystemSf && (
-                  <button
-                    type="button"
-                    onClick={handleResetDefaultSoundFont}
-                    className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-medium cursor-pointer"
-                  >
-                    Usa soundfont di sistema
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={settings.midiSoundFontPath || ''}
-                  placeholder={t('midi.noSoundfontSelected')}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white text-xs font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={handleSelectSoundFont}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center gap-1.5 font-semibold transition-colors"
-                >
-                  <FolderOpen className="w-4 h-4 text-amber-400" />
-                  {t('settings.browse')}
-                </button>
-              </div>
+              )}
             </div>
+          )}
 
-            {/* Karaoke Media Library Folder */}
-            <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80">
-              <label className="block text-slate-400 mb-1.5 flex items-center gap-1.5 font-medium text-xs">
-                <Folder className="w-4 h-4 text-emerald-400" />
-                {t('settings.libraryPath')}
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={settings.libraryPath || ''}
-                  placeholder={t('settings.noLibraryPathSelected')}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white text-xs font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={handleSelectLibraryPath}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center gap-1.5 font-semibold transition-colors"
-                >
-                  <FolderOpen className="w-4 h-4 text-emerald-400" />
-                  {t('settings.browse')}
-                </button>
-              </div>
-            </div>
+          {/* ===== LIBRERIA & DOWNLOAD ===== */}
+          {showCategory('library', libraryHasMatches) && (
+            <div className="space-y-4">
+              <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Library className="w-4 h-4 text-emerald-400" />
+                {t('settings.tabLibrary', 'Libreria & Download')}
+              </h3>
 
-            {/* CUE and Master Audio Devices */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-400 mb-1 flex items-center gap-1">
-                  <Headphones className="w-3.5 h-3.5 text-amber-400" />
-                  {t('settings.cueDevice')}
-                </label>
-                <select
-                  value={settings.cueAudioDeviceId}
-                  onChange={(e) => updateSettings({ cueAudioDeviceId: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
-                >
-                  <option value="default">Default Device</option>
-                  {audioDevices.map((dev) => (
-                    <option key={dev.deviceId} value={dev.deviceId}>
-                      {dev.label || `Device ${dev.deviceId.slice(0, 8)}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-slate-400 mb-1">{t('settings.masterDevice')}</label>
-                <select
-                  value={settings.masterAudioDeviceId}
-                  onChange={(e) => updateSettings({ masterAudioDeviceId: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
-                >
-                  <option value="default">Default Device</option>
-                  {audioDevices.map((dev) => (
-                    <option key={dev.deviceId} value={dev.deviceId}>
-                      {dev.label || `Device ${dev.deviceId.slice(0, 8)}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Sync Latency Offset */}
-            <div>
-              <div className="flex justify-between text-slate-400 mb-1">
-                <span>{t('settings.audioVideoSync')}</span>
-                <span className="font-mono text-indigo-400">{settings.audioVideoSyncOffsetMs} ms</span>
-              </div>
-              <input
-                type="range"
-                min="-500"
-                max="500"
-                step="10"
-                value={settings.audioVideoSyncOffsetMs}
-                onChange={(e) => updateSettings({ audioVideoSyncOffsetMs: parseInt(e.target.value, 10) })}
-                className="w-full accent-indigo-600"
-              />
-            </div>
-
-            {/* Audio Volume Normalization (Auto-Leveling) */}
-            <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.enableAudioNormalization ?? true}
-                  onChange={(e) => updateSettings({ enableAudioNormalization: e.target.checked })}
-                  className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
-                />
-                <div>
-                  <span className="font-semibold text-white text-xs flex items-center gap-1.5">
-                    <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
-                    {t('settings.audioNormalization')}
-                  </span>
-                  <span className="text-[11px] text-slate-400 leading-relaxed block mt-0.5">
-                    {t('settings.audioNormalizationDesc')}
-                  </span>
+              {(!isSearching || matchLibraryPath) && (
+                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80">
+                  <label className="block text-slate-400 mb-1.5 flex items-center gap-1.5 font-medium text-xs">
+                    <Folder className="w-4 h-4 text-emerald-400" />
+                    {t('settings.libraryPath')}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={settings.libraryPath || ''}
+                      placeholder={t('settings.noLibraryPathSelected')}
+                      className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white text-xs font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSelectLibraryPath}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center gap-1.5 font-semibold transition-colors"
+                    >
+                      <FolderOpen className="w-4 h-4 text-emerald-400" />
+                      {t('settings.browse')}
+                    </button>
+                  </div>
                 </div>
-              </label>
-            </div>
-          </div>
+              )}
 
-          {/* Section 3: Timers e Banner */}
-          <div className="space-y-3">
-            <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-amber-400" /> Timers & Banner
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-slate-400 mb-1">{t('settings.bannerIntro')}</label>
-                <input
-                  type="number"
-                  min="2"
-                  max="15"
-                  value={settings.bannerIntroDurationSec}
-                  onChange={(e) => updateSettings({ bannerIntroDurationSec: parseInt(e.target.value, 10) || 6 })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 mb-1">{t('settings.bannerOutro')}</label>
-                <input
-                  type="number"
-                  min="10"
-                  max="45"
-                  value={settings.bannerOutroTriggerSec}
-                  onChange={(e) => updateSettings({ bannerOutroTriggerSec: parseInt(e.target.value, 10) || 20 })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 mb-1">{t('settings.transitionPause')}</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="15"
-                  value={settings.transitionPauseSec}
-                  onChange={(e) => updateSettings({ transitionPauseSec: parseInt(e.target.value, 10) || 3 })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 mb-1">{t('settings.titleOverlayDuration')}</label>
-                <input
-                  type="number"
-                  min="2"
-                  max="30"
-                  value={settings.titleOverlayDurationSec ?? 8}
-                  onChange={(e) => updateSettings({ titleOverlayDurationSec: parseInt(e.target.value, 10) || 8 })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
-                />
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-slate-800/80 space-y-3">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.showNextSingerAtIntro ?? true}
-                  onChange={(e) => updateSettings({ showNextSingerAtIntro: e.target.checked })}
-                  className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
-                />
-                <div>
-                  <span className="text-sm font-medium text-slate-200 block">{t('settings.showNextSingerAtIntro')}</span>
-                  <span className="text-xs text-slate-400 block mt-0.5">{t('settings.showNextSingerAtIntroDesc')}</span>
-                </div>
-              </label>
-
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.showPitchOnStage ?? true}
-                  onChange={(e) => updateSettings({ showPitchOnStage: e.target.checked })}
-                  className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
-                />
-                <div>
-                  <span className="text-sm font-medium text-slate-200 block">{t('settings.showPitchOnStage')}</span>
-                  <span className="text-xs text-slate-400 block mt-0.5">{t('settings.showPitchOnStageDesc')}</span>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          {/* Section 4: Moduli Live & SIAE */}
-          <div className="space-y-3">
-            <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-rose-400" /> {t('settings.title')}
-            </h3>
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.enableFairQueue}
-                  onChange={(e) => updateSettings({ enableFairQueue: e.target.checked })}
-                  className="w-4 h-4 accent-indigo-600 rounded"
-                />
-                <span>{t('settings.fairQueue')}</span>
-              </label>
-
-              <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-2">
+              {(!isSearching || matchAutoArchive) && (
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={settings.enableGuestPortal}
-                    onChange={(e) => updateSettings({ enableGuestPortal: e.target.checked })}
+                    checked={settings.autoArchiveWebTracks}
+                    onChange={(e) => {
+                      if (!e.target.checked) {
+                        setShowAutoArchiveConfirm(true);
+                      } else {
+                        updateSettings({ autoArchiveWebTracks: true });
+                      }
+                    }}
                     className="w-4 h-4 accent-indigo-600 rounded"
                   />
-                  <span className="font-semibold text-white">{t('settings.guestPortal')}</span>
+                  <span>{t('settings.autoArchive')}</span>
                 </label>
+              )}
 
-                {portalInfo && settings.enableGuestPortal && (
-                  <div className="pl-7 space-y-1.5 text-slate-400 text-[11px]">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span>URL Smartphone:</span>
-                      <code className="font-mono text-indigo-400 font-semibold select-all bg-black/50 px-2 py-0.5 rounded border border-slate-800">
-                        {portalInfo.url || `http://${portalInfo.ip || '127.0.0.1'}:${portalInfo.port || settings.guestPortalPort}`}
-                      </code>
-                    </div>
-                    <div className="text-[10px] text-slate-400">
-                      Porta attiva: <span className="text-white font-mono">{portalInfo.port || settings.guestPortalPort}</span> | IP LAN: <span className="text-white font-mono">{portalInfo.ip || '127.0.0.1'}</span>
-                    </div>
-                    <div className="pt-2">
-                      <FirewallGuideCard />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.autoAdvanceNext}
-                  onChange={(e) => updateSettings({ autoAdvanceNext: e.target.checked })}
-                  className="w-4 h-4 accent-indigo-600 rounded"
-                />
-                <span>{t('settings.autoAdvance')}</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.autoArchiveWebTracks}
-                  onChange={(e) => {
-                    if (!e.target.checked) {
-                      setShowAutoArchiveConfirm(true);
-                    } else {
-                      updateSettings({ autoArchiveWebTracks: true });
-                    }
-                  }}
-                  className="w-4 h-4 accent-indigo-600 rounded"
-                />
-                <span>{t('settings.autoArchive')}</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.enableSiaeReporting}
-                  onChange={(e) => updateSettings({ enableSiaeReporting: e.target.checked })}
-                  className="w-4 h-4 accent-indigo-600 rounded"
-                />
-                <span>{t('settings.siaeReporting')}</span>
-              </label>
-            </div>
-
-            {settings.enableSiaeReporting && (
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={handleExportSiae}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg flex items-center gap-2 font-semibold border border-slate-700"
-                >
-                  <Download className="w-4 h-4 text-emerald-400" />
-                  {t('settings.exportSiae')}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Section 5: Diagnostica & File di Log */}
-          <div className="space-y-3 pt-2 border-t border-slate-800/80">
-            <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Terminal className="w-4 h-4 text-amber-400" /> {t('settings.logsTitle')}
-            </h3>
-
-            <div>
-              <label className="block text-slate-400 mb-1.5 font-medium">{t('settings.logLevel')}</label>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {(['debug', 'info', 'warn', 'error', 'off'] as const).map((level) => {
-                  const isSelected = (settings.logLevel || 'info') === level;
-                  return (
-                    <button
-                      key={level}
-                      type="button"
-                      onClick={() => updateSettings({ logLevel: level })}
-                      className={`px-3 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all border ${
-                        isSelected
-                          ? 'bg-amber-500/20 border-amber-500/60 text-amber-300 shadow-md shadow-amber-950/30'
-                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60'
-                      }`}
-                    >
-                      {level}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-                {t('settings.logLevelHelp')}
-              </p>
-            </div>
-
-            {logFilePath && (
-              <div className="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-3 space-y-2">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="text-slate-400 font-medium">{t('settings.logFilePath')}:</span>
-                  <div className="flex items-center gap-2">
+              {(!isSearching || matchYtdlp) && (
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <Download className="w-4 h-4 text-cyan-400" /> {t('settings.ytdlpTitle')}
+                    </h3>
                     <button
                       type="button"
-                      onClick={handleOpenLogFolder}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg flex items-center gap-1.5 font-medium border border-slate-700 hover:border-slate-600 transition-colors"
-                      title={t('settings.openLogFolder')}
+                      onClick={handleCheckYtDlpUpdate}
+                      disabled={isCheckingYtdlp}
+                      className="px-3 py-1.5 bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 rounded-xl flex items-center gap-1.5 font-semibold border border-cyan-800/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <FolderOpen className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>{t('settings.openLogFolder')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleOpenLogFile}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg flex items-center gap-1.5 font-medium border border-slate-700 hover:border-slate-600 transition-colors"
-                      title={t('settings.openLogFile')}
-                    >
-                      <FileText className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>{t('settings.openLogFile')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleClearLogs}
-                      className="px-2 py-1 bg-rose-950/30 hover:bg-rose-900/50 text-rose-300 rounded-lg flex items-center gap-1 font-medium border border-rose-800/40 transition-colors"
-                      title={t('settings.clearLogs')}
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                      <RefreshCw className={`w-3.5 h-3.5 ${isCheckingYtdlp ? 'animate-spin' : ''}`} />
+                      <span>{isCheckingYtdlp ? t('settings.ytdlpChecking') : t('settings.ytdlpCheckUpdate')}</span>
                     </button>
                   </div>
-                </div>
-                <div className="font-mono text-[11px] text-slate-400 bg-slate-900/90 rounded-lg p-2 overflow-x-auto select-all border border-slate-800">
-                  {logFilePath}
-                </div>
-              </div>
-            )}
-          </div>
 
-          {/* Section 8: Web Download Engine (yt-dlp) */}
-          <div className="space-y-3 pt-3 border-t border-slate-800">
-            <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-3 space-y-2">
+                    <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                      <span className="text-slate-400 font-medium">{t('settings.ytdlpStatus')}:</span>
+                      {ytdlpStatus?.available ? (
+                        <span className="text-emerald-400 font-semibold flex items-center gap-1 bg-emerald-950/30 px-2 py-0.5 rounded-lg border border-emerald-800/40">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          {t('settings.ytdlpInstalled', { version: ytdlpStatus.version || 'OK' })}
+                        </span>
+                      ) : (
+                        <span className="text-amber-400 font-semibold flex items-center gap-1 bg-amber-950/30 px-2 py-0.5 rounded-lg border border-amber-800/40">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          {t('settings.ytdlpNotInstalled')}
+                        </span>
+                      )}
+                    </div>
+
+                    {ytdlpStatus?.path && (
+                      <div className="space-y-1">
+                        <span className="text-slate-500 text-[11px] block">{t('settings.ytdlpPath')}:</span>
+                        <div className="font-mono text-[11px] text-slate-400 bg-slate-900/90 rounded-lg p-2 overflow-x-auto select-all border border-slate-800 break-all">
+                          {ytdlpStatus.path}
+                        </div>
+                      </div>
+                    )}
+
+                    {ytdlpMessage && (
+                      <div className={`text-[11px] p-2 rounded-lg border leading-relaxed ${
+                        ytdlpStatus?.error
+                          ? 'bg-rose-950/30 border-rose-800/40 text-rose-300'
+                          : 'bg-emerald-950/30 border-emerald-800/40 text-emerald-300'
+                      }`}>
+                        {ytdlpMessage}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ===== AUDIO & RIPRODUZIONE ===== */}
+          {showCategory('audio', audioHasMatches) && (
+            <div className="space-y-4">
               <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Download className="w-4 h-4 text-cyan-400" /> {t('settings.ytdlpTitle')}
+                <Volume2 className="w-4 h-4 text-emerald-400" />
+                {t('settings.tabAudio', 'Audio & Riproduzione')}
               </h3>
-              <button
-                type="button"
-                onClick={handleCheckYtDlpUpdate}
-                disabled={isCheckingYtdlp}
-                className="px-3 py-1.5 bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 rounded-xl flex items-center gap-1.5 font-semibold border border-cyan-800/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isCheckingYtdlp ? 'animate-spin' : ''}`} />
-                <span>{isCheckingYtdlp ? t('settings.ytdlpChecking') : t('settings.ytdlpCheckUpdate')}</span>
-              </button>
-            </div>
 
-            <div className="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-3 space-y-2">
-              <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
-                <span className="text-slate-400 font-medium">{t('settings.ytdlpStatus')}:</span>
-                {ytdlpStatus?.available ? (
-                  <span className="text-emerald-400 font-semibold flex items-center gap-1 bg-emerald-950/30 px-2 py-0.5 rounded-lg border border-emerald-800/40">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    {t('settings.ytdlpInstalled', { version: ytdlpStatus.version || 'OK' })}
-                  </span>
-                ) : (
-                  <span className="text-amber-400 font-semibold flex items-center gap-1 bg-amber-950/30 px-2 py-0.5 rounded-lg border border-amber-800/40">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    {t('settings.ytdlpNotInstalled')}
-                  </span>
-                )}
-              </div>
-
-              {ytdlpStatus?.path && (
-                <div className="space-y-1">
-                  <span className="text-slate-500 text-[11px] block">{t('settings.ytdlpPath')}:</span>
-                  <div className="font-mono text-[11px] text-slate-400 bg-slate-900/90 rounded-lg p-2 overflow-x-auto select-all border border-slate-800 break-all">
-                    {ytdlpStatus.path}
+              {(!isSearching || matchSoundfont) && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <label className="text-slate-400 font-medium">{t('settings.soundfont')}</label>
+                      {settings.midiSoundFontPath && defaultSystemSf && settings.midiSoundFontPath === defaultSystemSf && (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 text-[10px] font-semibold">
+                          Default di Sistema
+                        </span>
+                      )}
+                    </div>
+                    {defaultSystemSf && settings.midiSoundFontPath !== defaultSystemSf && (
+                      <button
+                        type="button"
+                        onClick={handleResetDefaultSoundFont}
+                        className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-medium cursor-pointer"
+                      >
+                        Usa soundfont di sistema
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={settings.midiSoundFontPath || ''}
+                      placeholder={t('midi.noSoundfontSelected')}
+                      className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white text-xs font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSelectSoundFont}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center gap-1.5 font-semibold transition-colors"
+                    >
+                      <FolderOpen className="w-4 h-4 text-amber-400" />
+                      {t('settings.browse')}
+                    </button>
                   </div>
                 </div>
               )}
 
-              {ytdlpMessage && (
-                <div className={`text-[11px] p-2 rounded-lg border leading-relaxed ${
-                  ytdlpStatus?.error
-                    ? 'bg-rose-950/30 border-rose-800/40 text-rose-300'
-                    : 'bg-emerald-950/30 border-emerald-800/40 text-emerald-300'
-                }`}>
-                  {ytdlpMessage}
+              {(!isSearching || matchDevices) && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1 flex items-center gap-1">
+                      <Headphones className="w-3.5 h-3.5 text-amber-400" />
+                      {t('settings.cueDevice')}
+                    </label>
+                    <select
+                      value={settings.cueAudioDeviceId}
+                      onChange={(e) => updateSettings({ cueAudioDeviceId: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
+                    >
+                      <option value="default">Default Device</option>
+                      {audioDevices.map((dev) => (
+                        <option key={dev.deviceId} value={dev.deviceId}>
+                          {dev.label || `Device ${dev.deviceId.slice(0, 8)}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">{t('settings.masterDevice')}</label>
+                    <select
+                      value={settings.masterAudioDeviceId}
+                      onChange={(e) => updateSettings({ masterAudioDeviceId: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
+                    >
+                      <option value="default">Default Device</option>
+                      {audioDevices.map((dev) => (
+                        <option key={dev.deviceId} value={dev.deviceId}>
+                          {dev.label || `Device ${dev.deviceId.slice(0, 8)}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {(!isSearching || matchAvSync) && (
+                <div>
+                  <div className="flex justify-between text-slate-400 mb-1">
+                    <span>{t('settings.audioVideoSync')}</span>
+                    <span className="font-mono text-indigo-400">{settings.audioVideoSyncOffsetMs} ms</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="-500"
+                    max="500"
+                    step="10"
+                    value={settings.audioVideoSyncOffsetMs}
+                    onChange={(e) => updateSettings({ audioVideoSyncOffsetMs: parseInt(e.target.value, 10) })}
+                    className="w-full accent-indigo-600"
+                  />
+                </div>
+              )}
+
+              {(!isSearching || matchNormalization) && (
+                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.enableAudioNormalization ?? true}
+                      onChange={(e) => updateSettings({ enableAudioNormalization: e.target.checked })}
+                      className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
+                    />
+                    <div>
+                      <span className="font-semibold text-white text-xs flex items-center gap-1.5">
+                        <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
+                        {t('settings.audioNormalization')}
+                      </span>
+                      <span className="text-[11px] text-slate-400 leading-relaxed block mt-0.5">
+                        {t('settings.audioNormalizationDesc')}
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              {(!isSearching || matchAutoAdvance) && (
+                <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-3">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.autoAdvanceNext}
+                      onChange={(e) => updateSettings({ autoAdvanceNext: e.target.checked })}
+                      className="w-4 h-4 accent-indigo-600 rounded"
+                    />
+                    <span className="font-semibold text-white">{t('settings.autoAdvance')}</span>
+                  </label>
+                  <div className={settings.autoAdvanceNext ? 'opacity-100' : 'opacity-50 pointer-events-none'}>
+                    <label className="block text-slate-400 mb-1 text-xs">
+                      {t('settings.transitionPause')}
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min="0"
+                        max="15"
+                        step="1"
+                        value={settings.transitionPauseSec}
+                        onChange={(e) =>
+                          updateSettings({ transitionPauseSec: parseInt(e.target.value, 10) || 0 })
+                        }
+                        className="flex-1 accent-indigo-600"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        max="15"
+                        value={settings.transitionPauseSec}
+                        onChange={(e) =>
+                          updateSettings({ transitionPauseSec: parseInt(e.target.value, 10) || 0 })
+                        }
+                        className="w-16 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-white text-center"
+                      />
+                      <span className="text-xs text-slate-500">sec</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
-          </div>
+          )}
+
+          {/* ===== SCHERMO STAGE ===== */}
+          {showCategory('stage', stageHasMatches) && (
+            <div className="space-y-4">
+              <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Monitor className="w-4 h-4 text-amber-400" />
+                {t('settings.tabStage', 'Schermo Stage')}
+              </h3>
+
+              {(
+                !isSearching ||
+                matchBannerIntro ||
+                matchBannerOutro ||
+                matchTitleOverlay
+              ) && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {(!isSearching || matchBannerIntro) && (
+                    <div>
+                      <label className="block text-slate-400 mb-1">{t('settings.bannerIntro')}</label>
+                      <input
+                        type="number"
+                        min="2"
+                        max="15"
+                        value={settings.bannerIntroDurationSec}
+                        onChange={(e) => updateSettings({ bannerIntroDurationSec: parseInt(e.target.value, 10) || 6 })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
+                      />
+                    </div>
+                  )}
+
+                  {(!isSearching || matchBannerOutro) && (
+                    <div>
+                      <label className="block text-slate-400 mb-1">{t('settings.bannerOutro')}</label>
+                      <input
+                        type="number"
+                        min="10"
+                        max="45"
+                        value={settings.bannerOutroTriggerSec}
+                        onChange={(e) => updateSettings({ bannerOutroTriggerSec: parseInt(e.target.value, 10) || 20 })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
+                      />
+                    </div>
+                  )}
+
+                  {(!isSearching || matchTitleOverlay) && (
+                    <div>
+                      <label className="block text-slate-400 mb-1">{t('settings.titleOverlayDuration')}</label>
+                      <input
+                        type="number"
+                        min="2"
+                        max="30"
+                        value={settings.titleOverlayDurationSec ?? 8}
+                        onChange={(e) => updateSettings({ titleOverlayDurationSec: parseInt(e.target.value, 10) || 8 })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(
+                !isSearching ||
+                matchNextSinger ||
+                matchPitchStage
+              ) && (
+                <div className="pt-2 border-t border-slate-800/80 space-y-3">
+                  {(!isSearching || matchNextSinger) && (
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.showNextSingerAtIntro ?? true}
+                        onChange={(e) => updateSettings({ showNextSingerAtIntro: e.target.checked })}
+                        className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-slate-200 block">{t('settings.showNextSingerAtIntro')}</span>
+                        <span className="text-xs text-slate-400 block mt-0.5">{t('settings.showNextSingerAtIntroDesc')}</span>
+                      </div>
+                    </label>
+                  )}
+
+                  {(!isSearching || matchPitchStage) && (
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.showPitchOnStage ?? true}
+                        onChange={(e) => updateSettings({ showPitchOnStage: e.target.checked })}
+                        className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-slate-200 block">{t('settings.showPitchOnStage')}</span>
+                        <span className="text-xs text-slate-400 block mt-0.5">{t('settings.showPitchOnStageDesc')}</span>
+                      </div>
+                    </label>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ===== SCORCIATOIE ===== */}
+          {showCategory('shortcuts', shortcutsHasMatches) && (
+            <div className="space-y-3">
+              <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Keyboard className="w-4 h-4 text-indigo-400" />
+                {t('settings.tabShortcuts', 'Scorciatoie')}
+              </h3>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                {t('shortcuts.subtitle', 'Riferimento rapido alle scorciatoie live della Control Window')}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {(isSearching ? matchingShortcuts : liveShortcuts).map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80"
+                  >
+                    <span className="text-xs text-slate-300 font-medium pr-2">{item.label}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {item.keys.map((k, kIdx) => (
+                        <kbd
+                          key={kIdx}
+                          className="px-2 py-1 text-[11px] font-mono font-bold text-indigo-300 bg-slate-800 border border-slate-700 rounded-md shadow-sm"
+                        >
+                          {k}
+                        </kbd>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer & Branding */}

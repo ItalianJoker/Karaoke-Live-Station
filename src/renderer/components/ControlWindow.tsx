@@ -37,6 +37,8 @@ import { MidiChannelMixer } from './MidiChannelMixer';
 import { LibraryPanel } from './LibraryPanel';
 import { HistoryPanel } from './HistoryPanel';
 import { SettingsModal } from './SettingsModal';
+import { ToastHost } from './ToastHost';
+import { showToast, confirmAsync } from '../utils/toast';
 import { SingersModal } from './SingersModal';
 import { GuestRequestsModal } from './GuestRequestsModal';
 import { FirewallGuideCard } from './FirewallGuideCard';
@@ -82,7 +84,15 @@ export const ControlWindow: React.FC = () => {
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
 
   // View tabs on right panel: 'queue' | 'library' | 'history'
-  const [activeRightTab, setActiveRightTab] = useState<'queue' | 'library' | 'history'>('queue');
+  const [activeRightTab, setActiveRightTab] = useState<'queue' | 'library' | 'history'>(() => {
+    try {
+      const saved = sessionStorage.getItem('kls.control.activeRightTab');
+      if (saved === 'library' || saved === 'history' || saved === 'queue') return saved;
+    } catch {
+      // ignore
+    }
+    return 'queue';
+  });
 
   const [portalInfo, setPortalInfo] = useState<{ enabled: boolean; url: string; qrCode: string; port?: number; ip?: string }>({
     enabled: false,
@@ -265,7 +275,7 @@ export const ControlWindow: React.FC = () => {
   const handleSaveToPermanentLibrary = async (track: any) => {
     if (!window.karaokeApi?.downloads?.saveToLibrary) return;
     if (!track.localFilePath) {
-      alert(t('library.missingFile'));
+      showToast(t('library.missingFile'));
       return;
     }
 
@@ -276,7 +286,8 @@ export const ControlWindow: React.FC = () => {
         title: track.title,
         artist: track.artist,
         durationSec: track.durationSec,
-        targetDirectory: settings.libraryPath || undefined
+        targetDirectory: settings.libraryPath || undefined,
+        trackId: track.id
       });
 
       updateTrackInQueue(track.id, {
@@ -300,7 +311,7 @@ export const ControlWindow: React.FC = () => {
       window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
     } catch (err: any) {
       console.error('Failed to save track to library:', err);
-      alert(t('errors.downloadFailed', { error: err?.message || String(err) }));
+      showToast(t('errors.downloadFailed', { error: err?.message || String(err) }));
     } finally {
       setSavingTrackIds((prev) => {
         const next = new Set(prev);
@@ -451,6 +462,12 @@ export const ControlWindow: React.FC = () => {
     };
   }, []);
 
+  
+  // Re-run Demucs separation when the active track media changes while remover is on
+  useEffect(() => {
+    audioGraphRef.current?.refreshVocalRemoverForCurrentMedia();
+  }, [playback.currentTrackId]);
+
   // Update Audio Graph on DSP state change (decoupled from currentTime tracking to eliminate stutter)
   const mutedMidiChannelsKey = playback.mutedMidiChannels.slice().sort().join(',');
 
@@ -520,14 +537,35 @@ export const ControlWindow: React.FC = () => {
       return;
     }
 
-    // If it's a YouTube track and has no local file, initiate download
+    // If it's a YouTube track and has no local file, initiate download (with local dedup)
     if (currentTrack.source === 'youtube' && !currentTrack.localFilePath) {
       if (!downloadProgress && window.karaokeApi) {
         setDownloadProgress({ percent: 0, speed: '0 KiB/s' });
-        window.karaokeApi.downloads.start({ url: currentTrack.uri }).catch((err) => {
-          console.error('Failed to auto-download YouTube track:', err);
-          setDownloadProgress(null);
-        });
+        const settingsSnapshot = useKaraokeStore.getState().settings;
+        window.karaokeApi.downloads
+          .start({
+            url: currentTrack.uri,
+            titleHint: currentTrack.title,
+            artistHint: currentTrack.artist,
+            trackId: currentTrack.id,
+            libraryPath: settingsSnapshot.libraryPath || undefined
+          })
+          .then((result) => {
+            if (result.alreadyExists && result.localFilePath) {
+              setDownloadProgress(null);
+              const localUri =
+                result.uri || `karaoke://local/${encodeURIComponent(result.localFilePath)}`;
+              updateTrackInQueue(currentTrack.id, {
+                localFilePath: result.localFilePath,
+                uri: localUri,
+                source: result.location === 'library' ? 'local_library' : currentTrack.source
+              });
+            }
+          })
+          .catch((err) => {
+            console.error('Failed to auto-download YouTube track:', err);
+            setDownloadProgress(null);
+          });
       }
       return;
     }
@@ -729,6 +767,15 @@ export const ControlWindow: React.FC = () => {
       handleSeek
     ]
   );
+
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('kls.control.activeRightTab', activeRightTab);
+    } catch {
+      // ignore
+    }
+  }, [activeRightTab]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -987,13 +1034,13 @@ export const ControlWindow: React.FC = () => {
             </div>
 
             {/* Transport & DSP Controls Bar - Material Design 3 Floating Dock */}
-            <div className="mt-4 p-3 bg-slate-950/60 border border-slate-800/80 rounded-2xl flex flex-wrap items-center justify-between gap-2.5 shadow-inner">
-              <div className="flex items-center gap-1.5">
+            <div className="mt-4 p-3.5 bg-slate-950/60 border border-slate-800/80 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-inner">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handlePlayPause}
                   className="w-11 h-11 bg-gradient-to-tr from-indigo-600 to-violet-500 hover:from-indigo-500 hover:to-violet-400 rounded-full text-white shadow-lg shadow-indigo-600/30 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center shrink-0"
-                  title={playback.isPlaying ? t('player.pause') : t('player.play')}
+                  title={(playback.isPlaying ? t('player.pause') : t('player.play')) + ' (Spazio)'}
                 >
                   {playback.isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
                 </button>
@@ -1001,7 +1048,7 @@ export const ControlWindow: React.FC = () => {
                   type="button"
                   onClick={handleStop}
                   className="w-9 h-9 bg-slate-800/90 hover:bg-slate-700/90 rounded-full text-slate-300 border border-slate-700/60 shadow-sm flex items-center justify-center transition-all active:scale-95 shrink-0"
-                  title={t('player.stop')}
+                  title={t('player.stop') + ' (S)'}
                 >
                   <Square className="w-4 h-4 fill-current" />
                 </button>
@@ -1009,7 +1056,7 @@ export const ControlWindow: React.FC = () => {
                   type="button"
                   onClick={handleRestart}
                   className="w-9 h-9 bg-slate-800/90 hover:bg-slate-700/90 rounded-full text-slate-300 border border-slate-700/60 shadow-sm flex items-center justify-center transition-all active:scale-95 shrink-0"
-                  title={t('player.restart')}
+                  title={t('player.restart') + ' (R)'}
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
@@ -1017,7 +1064,7 @@ export const ControlWindow: React.FC = () => {
                   type="button"
                   onClick={() => advanceToNextTrack()}
                   className="w-9 h-9 bg-slate-800/90 hover:bg-slate-700/90 rounded-full text-slate-300 border border-slate-700/60 shadow-sm flex items-center justify-center transition-all active:scale-95 shrink-0"
-                  title={t('player.next')}
+                  title={t('player.next') + ' (N)'}
                 >
                   <SkipForward className="w-4 h-4" />
                 </button>
@@ -1181,7 +1228,8 @@ export const ControlWindow: React.FC = () => {
           </div>
 
           {/* Tab 1: Queue (Fair Queue) */}
-          {activeRightTab === 'queue' && (
+          {/* Tabs stay mounted so search/scroll/downloads persist across navigation */}
+          <div className={activeRightTab === 'queue' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
             <div className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 shadow-xl backdrop-blur-sm flex-1 min-h-0 flex flex-col overflow-hidden">
               {/* Queue Header info */}
               <div className="mb-3 shrink-0 flex items-center justify-between px-3.5 py-2 bg-slate-950/70 rounded-full border border-slate-800/80">
@@ -1203,14 +1251,14 @@ export const ControlWindow: React.FC = () => {
                   )}
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm(t('queue.confirmClear', "Sei sicuro di voler svuotare l'intera coda dei brani?"))) {
+                    onClick={async () => {
+                      if (await confirmAsync(t('queue.confirmClear', "Sei sicuro di voler svuotare l'intera coda dei brani?"))) {
                         handleStop();
                         clearQueue();
                       }
                     }}
                     disabled={queue.length === 0}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-800/90 hover:bg-rose-600/30 text-slate-300 hover:text-rose-300 border border-slate-700/60 hover:border-rose-500/50 text-[10px] font-semibold transition-all disabled:opacity-40 disabled:pointer-events-none active:scale-95 shadow-sm"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-800/90 hover:bg-rose-600/30 text-slate-300 hover:text-rose-300 border border-slate-700/60 hover:border-rose-500/50 text-[10px] font-semibold transition-all disabled:opacity-40 active:scale-95 shadow-sm"
                     title={t('queue.clear', 'Svuota coda')}
                   >
                     <Trash2 className="w-3 h-3 text-rose-400" />
@@ -1406,8 +1454,13 @@ export const ControlWindow: React.FC = () => {
                         )}
                         <button
                           type="button"
-                          onClick={() => removeFromQueue(item.queueId)}
-                          className="p-1 hover:bg-slate-800 rounded text-slate-500 hover:text-red-400 transition-colors ml-1"
+                          onClick={async () => {
+                            if (await confirmAsync(t('queue.confirmRemove', 'Rimuovere questo brano dalla coda?'))) {
+                              removeFromQueue(item.queueId);
+                            }
+                          }}
+                          className="p-1.5 hover:bg-slate-800 rounded-full text-slate-500 hover:text-red-400 transition-colors ml-1.5"
+                          title={t('queue.remove', 'Rimuovi dalla coda')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1418,24 +1471,28 @@ export const ControlWindow: React.FC = () => {
               )}
               </div>
             </div>
-          )}
+          </div>
 
-          {/* Tab 2: Library Panel */}
-          {activeRightTab === 'library' && (
+          {/* Tab 2: Library Panel — kept mounted so downloads/search persist */}
+          <div className={activeRightTab === 'library' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
             <LibraryPanel
               onPlayCue={handlePlayCue}
               onStopCue={handleStopCue}
               activeCueUri={activeCueUri}
+              searchInputRef={searchInputRef}
             />
-          )}
+          </div>
 
           {/* Tab 3: Execution History & Royalty/SIAE Logging */}
-          {activeRightTab === 'history' && <HistoryPanel />}
+          <div className={activeRightTab === 'history' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
+            <HistoryPanel />
+          </div>
         </section>
       </main>
 
       {/* Modals */}
       <SettingsModal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
+      <ToastHost />
       <SingersModal
         isOpen={showSingersModal}
         onClose={() => {

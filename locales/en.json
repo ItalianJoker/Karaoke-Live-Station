@@ -57,7 +57,8 @@
     "clear": "Clear Queue",
     "confirmClear": "Are you sure you want to clear the entire playback queue?",
     "cleared": "Queue cleared successfully",
-    "hintPlayOrDoubleClick": "Double-click or Play to start"
+    "hintPlayOrDoubleClick": "Double-click or Play to start",
+    "confirmRemove": "Remove this track from the queue?"
   },
   "singers": {
     "title": "Singers Management",
@@ -111,10 +112,21 @@
     "previewVideo": "Video Preview",
     "previewTitle": "Video Preview & Version Check",
     "previewSafeAudioNotice": "Preview audio at controlled volume to prevent venue PA disturbance",
-    "versionDetected": "Detected version"
+    "versionDetected": "Detected version",
+    "alreadyLocal": "Track already available locally. Linked existing file without re-downloading:\n{{path}}",
+    "downloadComplete": "Download complete",
+    "emptyWeb": "No web results. Type and press Enter to search YouTube.",
+    "emptyFilter": "No tracks match your local search.",
+    "emptyLocal": "Library empty. Scan a folder or search the web."
   },
   "settings": {
     "title": "System Settings",
+    "tabGeneral": "General",
+    "tabLibrary": "Library & Download",
+    "tabAudio": "Audio & Playback",
+    "tabStage": "Stage Screen",
+    "tabShortcuts": "Shortcuts",
+    "searchPlaceholder": "Search settings...",
     "theme": "Control Room Theme",
     "stageTheme": "Stage Screen Theme",
     "language": "Interface Language",
@@ -191,7 +203,8 @@
     "missingFileDesc": "The specified file is no longer accessible at: {{path}}",
     "removeFromQueue": "Remove from Queue",
     "dismiss": "Dismiss",
-    "downloadFailed": "Download failed: {{error}}"
+    "downloadFailed": "Download failed: {{error}}",
+    "libraryPathRequired": "Set the library folder in settings before downloading."
   },
   "firewall": {
     "title": "Firewall & LAN Connection Assistant",
@@ -242,6 +255,7 @@
     "close": "Close"
   },
   "common": {
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "close": "Close"
   }
 }

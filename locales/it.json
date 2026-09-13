@@ -57,7 +57,8 @@
     "clear": "Svuota coda",
     "confirmClear": "Sei sicuro di voler svuotare l'intera scaletta della coda?",
     "cleared": "Coda svuotata con successo",
-    "hintPlayOrDoubleClick": "Doppio click o Play per avviare"
+    "hintPlayOrDoubleClick": "Doppio click o Play per avviare",
+    "confirmRemove": "Rimuovere questo brano dalla coda?"
   },
   "singers": {
     "title": "Gestione Cantanti",
@@ -111,10 +112,21 @@
     "previewVideo": "Anteprima Video",
     "previewTitle": "Anteprima e Controllo Versione",
     "previewSafeAudioNotice": "Audio anteprima a volume controllato per non disturbare la sala",
-    "versionDetected": "Versione rilevata"
+    "versionDetected": "Versione rilevata",
+    "alreadyLocal": "Brano già presente in locale. Collegato il file esistente senza riscaricare:\n{{path}}",
+    "downloadComplete": "Download completato",
+    "emptyWeb": "Nessun risultato web. Digita e premi Invio per cercare su YouTube.",
+    "emptyFilter": "Nessun brano corrisponde alla ricerca locale.",
+    "emptyLocal": "Libreria vuota. Scansiona una cartella o cerca sul web."
   },
   "settings": {
     "title": "Impostazioni di Sistema",
+    "tabGeneral": "Generale",
+    "tabLibrary": "Libreria & Download",
+    "tabAudio": "Audio & Riproduzione",
+    "tabStage": "Schermo Stage",
+    "tabShortcuts": "Scorciatoie",
+    "searchPlaceholder": "Cerca impostazioni...",
     "theme": "Tema Grafico Regia",
     "stageTheme": "Tema Schermo Palco",
     "language": "Lingua Interfaccia",
@@ -191,7 +203,8 @@
     "missingFileDesc": "Il file specificato non è più accessibile al percorso indicato: {{path}}",
     "removeFromQueue": "Rimuovi dalla Coda",
     "dismiss": "Ignora",
-    "downloadFailed": "Download fallito: {{error}}"
+    "downloadFailed": "Download fallito: {{error}}",
+    "libraryPathRequired": "Imposta la cartella libreria nelle impostazioni prima di scaricare."
   },
   "firewall": {
     "title": "Assistente Firewall & Connessione LAN",
@@ -242,6 +255,7 @@
     "close": "Chiudi"
   },
   "common": {
-    "cancel": "Annulla"
+    "cancel": "Annulla",
+    "close": "Chiudi"
   }
 }

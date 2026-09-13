@@ -240,6 +240,31 @@ export interface DownloadProgressPayload {
   errorMessage?: string;
   /** Destination file path when download completes */
   outputFilePath?: string;
+  /** True when an existing library/cache file was reused (no network I/O) */
+  alreadyExists?: boolean;
+  /** Where the reused file was found */
+  existingLocation?: 'library' | 'queue_cache' | 'database';
+}
+
+/**
+ * Result of starting a download, including optional local-file reuse (deduplication).
+ */
+export interface StartDownloadResult {
+  downloadId: string;
+  alreadyExists: boolean;
+  localFilePath?: string;
+  uri?: string;
+  location?: 'library' | 'queue_cache' | 'database';
+}
+
+/**
+ * Descriptor for an already-present local media file matching a remote/web track.
+ */
+export interface ExistingLocalMedia {
+  localFilePath: string;
+  uri: string;
+  location: 'library' | 'queue_cache' | 'database';
+  matchedBy: 'id' | 'hash' | 'filename';
 }
 
 /**

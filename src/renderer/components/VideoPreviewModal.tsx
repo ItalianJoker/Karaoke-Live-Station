@@ -216,10 +216,11 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
               />
             ) : isYouTube ? (
               <iframe
-                src={`https://www.youtube-nocookie.com/embed/${track.id}?autoplay=1&mute=1&enablejsapi=1`}
+                src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(track.id)}?autoplay=1&mute=1&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : 'https://localhost')}&widget_referrer=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : 'https://localhost')}&rel=0&modestbranding=1`}
                 title={track.title}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
                 className="w-full h-full border-0"
               />
             ) : isMidi ? (
