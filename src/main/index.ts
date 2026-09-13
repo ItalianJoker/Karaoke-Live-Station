@@ -10,7 +10,6 @@ import { DownloadManager } from './services/DownloadManager';
 import { Logger } from './services/Logger';
 import { resolveFfmpegPath, resolveYtDlpPath } from './services/BinaryResolver';
 import { YtDlpUpdater } from './services/YtDlpUpdater';
-import { DemucsModelManager } from './services/DemucsModelManager';
 import { FirewallHelper } from './services/FirewallHelper';
 import {
   ActivePlaybackState,
@@ -147,7 +146,6 @@ class KaraokeMainProcess {
   private db: DatabaseManager;
   private downloadManager: DownloadManager;
   private ytDlpUpdater: YtDlpUpdater;
-  private demucsModelManager: DemucsModelManager;
   private guestServer: GuestPortalServer | null = null;
   private currentMasterState: ActivePlaybackState | null = null;
   private currentQueue: QueueItem[] = [];
@@ -164,7 +162,6 @@ class KaraokeMainProcess {
     this.db = new DatabaseManager(userDataPath);
     this.downloadManager = new DownloadManager(tempDownloadDir, queueCacheDir);
     this.ytDlpUpdater = new YtDlpUpdater(userDataPath, this.logger);
-    this.demucsModelManager = new DemucsModelManager(this.logger);
 
     this.setupAppLifecycle();
     this.setupCustomProtocol();
@@ -826,6 +823,54 @@ class KaraokeMainProcess {
       return { success: true };
     });
 
+    ipcMain.handle('db:delete-track', async (_event, trackId: string) => {
+      try {
+        const track = this.db.getTrackById(trackId);
+        if (!track) {
+          return { success: false, error: 'Track not found' };
+        }
+        const libraryPath = (this.currentSettings?.libraryPath || '').trim();
+        let deletedFile = false;
+        const filePath = track.localFilePath?.trim();
+        if (filePath && libraryPath) {
+          const resolvedFile = path.resolve(filePath);
+          const resolvedLib = path.resolve(libraryPath);
+          const underLibrary =
+            resolvedFile === resolvedLib ||
+            resolvedFile.startsWith(resolvedLib + path.sep);
+          const lower = resolvedFile.toLowerCase();
+          const isCacheOrTemp =
+            lower.includes(`${path.sep}queue_cache${path.sep}`) ||
+            lower.includes(`${path.sep}temp${path.sep}`) ||
+            lower.includes(`${path.sep}incomplete`) ||
+            lower.includes(`${path.sep}yt-dlp`);
+          if (underLibrary && !isCacheOrTemp && fs.existsSync(resolvedFile)) {
+            try {
+              fs.unlinkSync(resolvedFile);
+              deletedFile = true;
+              // Companion karaoke graphics / stems next to the audio
+              for (const ext of ['.cdg', '.CDG']) {
+                if (resolvedFile.toLowerCase().endsWith('.mp3')) {
+                  const companion = resolvedFile.slice(0, -4) + ext;
+                  if (fs.existsSync(companion)) {
+                    try { fs.unlinkSync(companion); } catch { /* ignore */ }
+                  }
+                }
+              }
+            } catch (err) {
+              this.logger.warn('LibraryDelete', `Could not delete file ${resolvedFile}`, err);
+            }
+          }
+        }
+        this.db.deleteTrackById(trackId);
+        return { success: true, deletedFile };
+      } catch (err) {
+        this.logger.error('LibraryDelete', 'db:delete-track failed', err);
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    });
+
+
     ipcMain.handle('db:get-singers', () => {
       return this.db.getAllSingers();
     });
@@ -1023,14 +1068,6 @@ class KaraokeMainProcess {
 
     ipcMain.handle('logger:get-recent', async (_event, lines?: number) => {
       return await this.logger.getRecentLogs(lines);
-    });
-
-    ipcMain.handle('demucs:is-model-cached', () => {
-      return this.demucsModelManager.isModelCached();
-    });
-
-    ipcMain.handle('demucs:get-model-buffer', async () => {
-      return this.demucsModelManager.readModelBuffer();
     });
 
     ipcMain.handle('ytdlp:get-status', () => {

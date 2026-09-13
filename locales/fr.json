@@ -18,7 +18,7 @@
     "mute": "Muet",
     "cue": "Pré-écoute Casque (CUE)",
     "stopCue": "Arrêter CUE",
-    "vocalRemover": "Suppression Voix Guide",
+    "vocalRemover": "Suppression Voix Guide (Expérimental)",
     "bgmDucking": "Auto-Ducking BGM",
     "nowPlaying": "En Lecture",
     "noTrackLoaded": "Aucun morceau chargé",
@@ -121,7 +121,14 @@
     "previewUnmuteSameDeviceTitle": "Attention : même périphérique audio",
     "previewUnmuteSameDeviceMessage": "Pré-écoute (CUE) et Sortie Principale sont sur le même périphérique. En réactivant le son, l'audio d'aperçu risque de se mélanger au master de salle. Continuer ?",
     "previewUnmuteSameDeviceConfirm": "Oui, réactiver le son",
-    "previewUnmuteSameDeviceCancel": "Annuler"
+    "previewUnmuteSameDeviceCancel": "Annuler",
+    "deleteTrack": "Supprimer de la bibliothèque",
+    "confirmDeleteTitle": "Supprimer le titre ?",
+    "confirmDeleteMessage": "Retirer « {{title}} » de {{artist}} du catalogue ? Les fichiers permanents du dossier bibliothèque seront aussi effacés du disque.",
+    "confirmDeleteConfirm": "Supprimer",
+    "confirmDeleteCancel": "Annuler",
+    "deleteSuccess": "Titre supprimé de la bibliothèque",
+    "deleteFailed": "Impossible de supprimer le titre"
   },
   "settings": {
     "title": "Paramètres Système",
@@ -211,7 +218,12 @@
     "stageMessageBackgroundImage": "Image",
     "stageMessageBackgroundImagePlaceholder": "Aucune image sélectionnée",
     "stageMessageBackgroundBrowse": "Parcourir…",
-    "stageMessageBackgroundClear": "Effacer"
+    "stageMessageBackgroundClear": "Effacer",
+    "vocalRemoverAlgorithm": "Algorithme de suppression vocale (Expérimental)",
+    "vocalRemoverAlgorithmDesc": "Méthodes DSP classiques mid/side en temps réel (pas d’IA). Choisit l’algorithme du bouton Régie.",
+    "vocalAlgoCenterBass": "Annuler le centre (garder les basses) — recommandé",
+    "vocalAlgoCenter": "Annulation totale du centre (L−R classique)",
+    "vocalAlgoSoftMid": "Atténuation mid douce (moins d’artefacts)"
   },
   "history": {
     "title": "Historique de Lecture",
@@ -273,7 +285,7 @@
     "pitchUpDown": "Tonalité / Clé (+1 / -1 demi-ton)",
     "pitchCtrl": "Tonalité / Clé (+1 / -1 demi-ton)",
     "speedCtrl": "Vitesse de lecture (+5% / -5%)",
-    "vocalRemover": "Activer / Désactiver la suppression vocale",
+    "vocalRemover": "Activer / désactiver la suppression vocale (expérimental)",
     "ducking": "Activer / Désactiver l'auto-ducking micro",
     "tabQueue": "Aller à l'onglet File des chanteurs",
     "tabLibrary": "Aller à l'onglet Recherche & Bibliothèque",

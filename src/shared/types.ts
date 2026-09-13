@@ -105,6 +105,8 @@ export interface AppSettings {
   enableFairQueue: boolean;
   /** Enable DSP center-channel vocal attenuation */
   enableVocalRemover: boolean;
+  /** Classical mid/side vocal-remover algorithm (Settings) */
+  vocalRemoverAlgorithm: 'centerCancelBassKeep' | 'centerCancel' | 'softMid';
   /** Enable microphone-triggered background music ducking */
   enableAutoDuckingBGM: boolean;
   /** Enable automatic dynamic audio volume normalization (leveling) */

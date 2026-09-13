@@ -20,7 +20,8 @@ import {
   Film,
   Play,
   Sparkles,
-  ArrowDownToLine
+  ArrowDownToLine,
+  Trash2
 } from 'lucide-react';
 import { KaraokeMediaTrack, DownloadProgressPayload } from '../../shared/types';
 import { useKaraokeStore } from '../store/karaokeStore';
@@ -51,7 +52,7 @@ interface LibraryPanelProps {
  * 4. Folder Importer:
  *    - Triggers directory picker and background scanner to index new media into the local SQLite database.
  */
-export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue, activeCueUri, searchInputRef }) => {
+export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCue, onStopCue: _onStopCue, activeCueUri: _activeCueUri, searchInputRef }) => {
   const { t } = useTranslation();
   const {
     searchMode,
@@ -95,6 +96,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
   const [activeDownloads, setActiveDownloads] = useState<Record<string, DownloadProgressPayload>>({});
   const [trackMap, setTrackMap] = useState<Record<string, KaraokeMediaTrack>>({});
   const [previewTrack, setPreviewTrack] = useState<KaraokeMediaTrack | null>(null);
+  const [trackPendingDelete, setTrackPendingDelete] = useState<KaraokeMediaTrack | null>(null);
+  const [isDeletingTrack, setIsDeletingTrack] = useState(false);
 
   const settings = useKaraokeStore((state) => state.settings);
   const updateSettings = useKaraokeStore((state) => state.updateSettings);
@@ -747,7 +750,6 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
           </div>
         ) : (
           displayedTracks.map((track) => {
-            const isCueActive = activeCueUri === track.uri;
             const versionTags = extractVersionTags(track);
 
             return (
@@ -830,28 +832,15 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
                     <Eye className="w-3.5 h-3.5" />
                   </button>
 
-                  {/* CUE / Pre-Ascolto — opens the same video preview modal as Eye, then routes audio */}
-                  {onPlayCue && onStopCue && track.uri && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPreviewTrack(track);
-                        if (isCueActive) {
-                          onStopCue();
-                        } else {
-                          onPlayCue(track.uri);
-                        }
-                      }}
-                      className={`p-2 rounded-full text-xs flex items-center gap-1 border transition-all ${
-                        isCueActive
-                          ? 'bg-amber-950/70 border-amber-600 text-amber-300 shadow-md shadow-amber-900/30'
-                          : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700/80'
-                      }`}
-                      title={isCueActive ? t('player.stopCue') : t('player.cue')}
-                    >
-                      <Headphones className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  {/* Pre-Ascolto — opens themed preview modal only (CUE routing inside modal) */}
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTrack(track)}
+                    className="p-2 bg-slate-800/80 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
+                    title={t('player.cue')}
+                  >
+                    <Headphones className="w-3.5 h-3.5" />
+                  </button>
 
                   {track.source === 'youtube' && (
                     <button
@@ -861,6 +850,18 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
                       title={t('library.downloading')}
                     >
                       <Download className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
+
+                  {(track.source === 'local_library' || track.source === 'midi') && track.localFilePath && (
+                    <button
+                      type="button"
+                      onClick={() => setTrackPendingDelete(track)}
+                      className="p-2 bg-slate-800/80 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 border border-slate-700/80 hover:border-rose-700/60 rounded-full text-xs flex items-center gap-1 transition-all"
+                      title={t('library.deleteTrack')}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}
 
@@ -1044,12 +1045,67 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue, onStopCue
         enableFairQueue={settings.enableFairQueue}
         cueAudioDeviceId={settings.cueAudioDeviceId}
         masterAudioDeviceId={settings.masterAudioDeviceId}
+        midiSoundFontPath={settings.midiSoundFontPath}
         onClose={() => setPreviewTrack(null)}
         onAddToQueue={(trk, sName, placement) => executeAddToQueue(trk, sName, placement)}
-        onPlayCue={onPlayCue}
-        onStopCue={onStopCue}
-        isCueActive={previewTrack ? activeCueUri === previewTrack.uri : false}
       />
+
+      {trackPendingDelete && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-5 space-y-4">
+            <h3 className="text-white font-semibold text-sm">{t('library.confirmDeleteTitle')}</h3>
+            <p className="text-slate-300 text-xs leading-relaxed">
+              {t('library.confirmDeleteMessage', {
+                title: trackPendingDelete.title,
+                artist: trackPendingDelete.artist
+              })}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={isDeletingTrack}
+                onClick={() => setTrackPendingDelete(null)}
+                className="px-4 py-2 rounded-full text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 transition-all"
+              >
+                {t('library.confirmDeleteCancel')}
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingTrack}
+                onClick={async () => {
+                  if (!trackPendingDelete || !window.karaokeApi?.db?.deleteTrack) return;
+                  setIsDeletingTrack(true);
+                  try {
+                    const res = await window.karaokeApi.db.deleteTrack(trackPendingDelete.id);
+                    if (res?.success) {
+                      showToast(t('library.deleteSuccess'));
+                      const deletedId = trackPendingDelete.id;
+                      setLocalTracks((prev) => prev.filter((x) => x.id !== deletedId));
+                      setTrackMap((prev) => {
+                        const next = { ...prev };
+                        delete next[deletedId];
+                        return next;
+                      });
+                      setLocalResults((prev) => prev.filter((x) => x.id !== deletedId));
+                      if (previewTrack?.id === deletedId) setPreviewTrack(null);
+                    } else {
+                      showToast(t('library.deleteFailed'));
+                    }
+                  } catch {
+                    showToast(t('library.deleteFailed'));
+                  } finally {
+                    setIsDeletingTrack(false);
+                    setTrackPendingDelete(null);
+                  }
+                }}
+                className="px-4 py-2 rounded-full text-xs font-semibold text-white bg-rose-700 hover:bg-rose-600 transition-all"
+              >
+                {t('library.confirmDeleteConfirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

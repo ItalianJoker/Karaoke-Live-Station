@@ -37,7 +37,7 @@ Console opérateur complète :
 - Transport (Play / Pause / Stop / Recommencer / Suivant)
 - Volume master avec courbe perceptive
 - Pitch en demi-tons et vitesse (time-stretch)
-- Suppression de la voix guide via **Demucs** (HTDemucs)
+- Suppression de la voix guide **(Expérimental)** via DSP classique mid/side (algorithmique, temps réel)
 - Auto-ducking BGM au micro
 - Mixeur MIDI/KAR à 16 canaux
 - Préécoute CUE sur un périphérique secondaire
@@ -53,6 +53,7 @@ Console opérateur complète :
 - Synchronisation via IPC avec la Régie
 - Bannières «Ora Canta», «Preparati», «Prossima Esibizione» (textes d’UI en italien)
 - Badge de demi-tons configurable (`showPitchOnStage`)
+- Badge de vitesse configurable (`showSpeedOnStage`)
 - Plein écran (F11 / Esc / double-clic)
 
 ### 1.3 Guest Portal LAN
@@ -67,7 +68,7 @@ L’application n’autorise **qu’une seule instance** en cours d’exécution
 
 1. La Régie possède le transport et le graphe Web Audio.
 2. Les médias locaux passent par le protocole `karaoke://local/` avec streaming par plages d’octets (HTTP 206), ainsi la Stage peut s’ouvrir/se fermer en cours de morceau sans désynchroniser.
-3. Pitch, vitesse, Demucs, ducking, normalisation et routage CUE vivent dans le graphe audio de la Régie.
+3. Pitch, vitesse, suppression vocale DSP (expérimentale), ducking, normalisation et routage CUE vivent dans le graphe audio de la Régie.
 4. MIDI/KAR : parsing → SpessaSynth + SoundFont → mixeur à 16 canaux.
 5. L’avancement de file et le registre SIAE sont gérés dans le store ; la Stage reçoit l’état via IPC.
 
@@ -103,7 +104,6 @@ Contenus pertinents :
 | `queue_cache/` | Fichiers web non archivés en bibliothèque, persistants tant qu’ils sont en file |
 | `thumbnails/` | Miniatures générées |
 | `logs/` | Journaux de diagnostic |
-| `models/` | Modèle ONNX HTDemucs (~172 Mo) pour la suppression de voix |
 
 ### 2.3 Binaires gérés dans `<userData>/bin/`
 
@@ -230,19 +230,19 @@ Exemples : 100 % → gain plein ; 50 % → gain 0,25 (−12 dB environ, moitié 
 - **Vitesse :** de **0,50× à 1,50×** sans altérer le pitch (WSOLA / SoundTouch). `Ctrl+←` / `Ctrl+→` règlent de ±5 %. Un clic sur l’indicateur numérique restaure souvent 1,00×.
 - MIDI : la transposition agit sur les numéros de note en temps réel.
 
-### 4.4 Suppression de la voix guide (Demucs)
+### 4.4 Suppression de la voix guide (DSP expérimental)
 
-La touche **`V`** / la commande **Supprimer la voix guide** (`Rimuovi Voce Guida`) active la séparation de stems avec **Meta HTDemucs** (`demucs-web` + `onnxruntime-web`), pas un simple annulateur L−R.
+La touche **`V`** / la commande **Suppression Voix Guide (Expérimental)** (`Rimuovi Voce Guida (Sperimentale)`) active une réduction vocale **algorithmique classique mid/side** (canal central / style karaoké L−R) en **temps réel** : légère, sans modèles AI/ML, sans téléchargement et sans séparation hors ligne.
 
-Flux opérationnel :
+Dans **Paramètres → Audio & Lecture**, choisissez l’algorithme du bouton Régie :
 
-1. À la première activation, peut télécharger/charger le modèle ONNX dans `<userData>/models/` (~172 Mo).
-2. La lecture « dry » continue pendant que Demucs traite en arrière-plan.
-3. Une fois la séparation terminée, crossfade vers le mix instrumental (drums + bass + other, sans vocals).
-4. Play / pause / seek restent synchronisés ; le changement de morceau invalide le stem précédent.
-5. Cache LRU des stems instrumentaux (maximum environ 4 buffers) pour ne pas saturer la RAM lors des longues soirées.
+| Algorithme (`vocalRemoverAlgorithm`) | Libellé UI |
+| :--- | :--- |
+| **`centerCancelBassKeep`** (défaut) | Annuler le centre (garder les basses) — recommandé |
+| **`centerCancel`** | Annulation totale du centre (L−R classique) |
+| **`softMid`** | Atténuation mid douce (moins d’artefacts) |
 
-Si la séparation échoue, le mix original demeure.
+L’activation est instantanée sur le mix en lecture ; le résultat dépend du stéréo (voix très latérales peuvent rester audibles).
 
 ### 4.5 Auto-ducking BGM
 
@@ -258,7 +258,9 @@ Avec des fichiers `.mid` / `.kar` apparaît le **Mixeur de canaux MIDI** (`Mixer
 
 ### 4.7 Préécoute CUE
 
-Utilisez **Préécoute casque (CUE)** (`Pre-ascolto Cuffie (CUE)`) pour écouter au casque pendant que la salle entend le Master. Configurez le périphérique CUE dans les Réglages. Les aperçus vidéo en Bibliothèque utilisent un volume contrôlé pour ne pas déranger la salle (**«Audio anteprima a volume controllato per non disturbare la sala»** — texte d’UI en italien).
+Utilisez **Préécoute casque (CUE)** (`Pre-ascolto Cuffie (CUE)`) pour écouter au casque pendant que la salle entend le Master. Configurez le périphérique CUE dans les Réglages.
+
+Dans **Bibliothèque**, le bouton Préécoute ouvre le **modal d’aperçu** (même style que les Paramètres) et route l’audio vers le périphérique CUE. Pas de barre de volume séparée : mute/volume restent sur les contrôles du lecteur intégré (ou transport MIDI). Si CUE et Sortie Principale coïncident, le démutage affiche un avertissement de confirmation pour éviter de mélanger l’aperçu sur le PA de salle.
 
 ### 4.8 Persistance de la file et anti-crash
 
@@ -325,18 +327,18 @@ Onglet **Bibliothèque & Recherche** (`Libreria & Ricerca`) (`2` ou `Ctrl+F`).
 
 ### 6.1 Recherche locale en direct
 
-- Mode **Local** (`Locale`)
-- Filtre **continu** pendant la saisie (`onChange`) sur titre, artiste, code
+- Mode **Locale** (périmètre indépendant de la recherche Web)
+- Filtre **continu** pendant la frappe (`onChange`) sur titre, artiste, code
 - États vides distincts :
   - **«Libreria vuota. Scansiona una cartella o cerca sul web.»** (texte d’UI en italien)
   - **«Nessun brano corrisponde alla ricerca locale.»** (texte d’UI en italien)
 - **Mettre à jour la bibliothèque** (`Aggiorna Libreria`) rescane `libraryPath` et met à jour le catalogue SQLite
-- Requête et mode de recherche restent dans `sessionStorage` pendant la session ; les onglets de droite restent montés (masqués) pour que filtres et téléchargements ne se perdent pas en changeant d’onglet
+- Requête, résultats, chargement et scroll de **Locale** et **Web** sont **séparés** (périmètres indépendants) : changer d’onglet ne perd pas l’état et ne lance pas de recherches YouTube indésirables ; persistance dans `sessionStorage` pendant la session ; les onglets de droite restent montés (masqués)
 
 ### 6.2 Recherche web (YouTube)
 
-- Mode **Web / YouTube**
-- Saisissez et appuyez sur **Entrée** (`Invio`) (ne recherche pas à chaque touche)
+- Mode **Web / YouTube** (périmètre indépendant de la recherche Locale)
+- Tapez et appuyez sur **Entrée** (pas de recherche à chaque touche)
 - Moteur : **yt-dlp** depuis `<userData>/bin/`
 - Placeholder : **«Cerca brano su YouTube Karaoke...»** (texte d’UI en italien)
 - Vide : **«Nessun risultato web. Digita e premi Invio per cercare su YouTube.»** (texte d’UI en italien)
@@ -377,6 +379,16 @@ Pochettes/miniatures et aperçus locaux se mettent à jour sans redémarrer (ffm
 - Chip de version (ex. KaraFun, Sing King, Avec chœurs, Instrumental…)
 - Clic sur miniature / icône d’aperçu → **Aperçu et contrôle de version** (`Anteprima e Controllo Versione`) avec scrubber, chemin de fichier, ajout en file et attribution de chanteur
 - Avec Fair Queue actif, choix de position Fair vs en fin de file aussi depuis l’aperçu
+- Le bouton **Préécoute** ouvre le même modal thématique avec audio sur le périphérique CUE (voir §4.7)
+
+### 6.6 Supprimer de la bibliothèque
+
+Sur les titres du catalogue local : **Supprimer de la bibliothèque** (`Elimina dalla libreria`), avec confirmation (**«Eliminare il brano?»**). L’action :
+
+1. Retire l’entrée du catalogue SQLite.
+2. Efface du disque **uniquement** les fichiers permanents sous le dossier bibliothèque (`libraryPath`) ; ne supprime pas `queue_cache` / `temp` / téléchargements incomplets.
+
+Un toast de résultat suit la confirmation.
 
 ---
 
@@ -403,6 +415,13 @@ Réglage **Afficher la variation de tonalité sur l’écran de scène** (`Mostr
 ### 7.2a Fonds personnalisés des messages scène
 
 Dans **Paramètres → Écran scène**, chaque message superposé peut définir texte/style/activation et un **fond scène (couleur ou image) uniquement pendant l’affichage du message**. À la disparition (ou si désactivé), le fond thème/vidéo normal est rétabli sans redémarrage.
+
+### 7.2b Badge de vitesse et `showSpeedOnStage`
+
+Réglage **Afficher la vitesse de lecture sur l’écran de scène** (`Mostra velocità di riproduzione sullo schermo del palco`) (`showSpeedOnStage`, typiquement ON par défaut) :
+
+- Affiche le badge de vitesse (ex. **`1.00x`**, **`1.25x`**)
+- Description UI : «Visualizza il badge della velocità di riproduzione (es. 1.00x, 1.25x) sullo schermo del palco per il cantante.» (texte d’UI en italien)
 
 ### 7.3 Plein écran et layout
 
@@ -447,11 +466,11 @@ Ouvrez **Réglages système** (`Impostazioni di Sistema`) (engrenage). En haut :
 | :--- | :--- |
 | **Général** (`Generale`) | Thèmes Régie/Scène, langue, Fair Queue, Guest Portal, SIAE, support du projet |
 | **Bibliothèque & Téléchargement** (`Libreria & Download`) | `libraryPath`, archivage automatique (+ avertissement), état/mise à jour yt-dlp |
-| **Audio & Lecture** (`Audio & Riproduzione`) | SoundFont, Master/CUE, sync A/V, normalisation, vocal remover/ducking par défaut, auto-avance, `transitionPauseSec` |
-| **Écran Stage** (`Schermo Stage`) | Bannières intro/outro, overlay titre, prochain chanteur en intro, **`showPitchOnStage`** |
-| **Raccourcis** (`Scorciatoie`) | Référence des raccourcis (aussi ouvrable avec F1 / ?) |
+| **Audio & Lecture** (`Audio & Riproduzione`) | SoundFont, Master/CUE, sync A/V, normalisation, **algorithme de suppression vocale (expérimental)**, vocal remover/ducking par défaut, auto-avance, `transitionPauseSec` |
+| **Écran Stage** (`Schermo Stage`) | Bannières intro/outro, overlay titre, prochain chanteur en intro, **`showPitchOnStage`**, **`showSpeedOnStage`**, **fonds personnalisés des messages scène** |
+| **Raccourcis** (`Scorciatoie`) | Inventaire complet des raccourcis live (même liste que le panneau **?** / F1), searchable |
 
-La recherche filtre libellés/descriptions **parmi toutes les catégories** ; en vidant le champ vous revenez à la navigation par onglets. Aucun réglage n’est retiré par la réorganisation en onglets.
+La recherche filtre libellés/descriptions **parmi toutes les catégories** (y compris Raccourcis en **parité** avec le guide **?**) ; en vidant le champ vous revenez à la navigation par onglets. Aucun réglage n’est retiré par la réorganisation en onglets.
 
 ### 9.2 Autres options utiles
 
@@ -489,7 +508,7 @@ Ouvrez le guide à tout moment avec **`F1`** ou **`?`**. Les raccourcis live son
 | `+` / `-` | Pitch ±1 demi-ton |
 | `Ctrl+↑` / `Ctrl+↓` | Pitch ±1 demi-ton |
 | `Ctrl+←` / `Ctrl+→` | Vitesse ±5 % |
-| `V` | Suppression de la voix guide (Demucs) |
+| `V` | Suppression de la voix guide DSP (expérimental) |
 | `D` | Auto-ducking BGM |
 
 ### 10.3 Navigation et écrans
@@ -510,7 +529,8 @@ Les info-bulles des commandes en Régie affichent les mêmes combinaisons pour u
 ---
 
 
-Aussi dans Paramètres → Raccourcis et le panneau **?** / F1 : Stop (`S`), Restart (`R`), flèches seek, Ctrl+flèches pour pitch/vitesse, Vocal remover (`V`), Ducking (`D`), onglets `1`/`2`/`3`, Stage (`P`), aide (`F1`/`?`). Plein écran Stage : `F11`/`Esc` sur la fenêtre Stage.
+Aussi dans Paramètres → Raccourcis et le panneau **?** / F1 (même inventaire) : Stop (`S`), Restart (`R`), flèches seek, Ctrl+flèches pour pitch/vitesse, Vocal remover expérimental (`V`), Ducking (`D`), onglets `1`/`2`/`3`, Stage (`P`), aide (`F1`/`?`). Plein écran Stage : `F11`/`Esc` sur la fenêtre Stage.
+
 ## 11. Guest Portal LAN
 
 ### 11.1 Activation
@@ -639,12 +659,13 @@ Solution : Réglages → **Cartella Libreria Karaoke** → Parcourir → dossier
 - Vérifiez **Master** et **CUE** dans les Réglages.
 - Contrôlez le muet (`M`) et le volume (courbe quadratique : sous 50 % c’est déjà très bas).
 - MIDI : confirmez SoundFont chargé.
-- Demucs en cours : l’audio dry continue ; si quelque chose tourne mal, le mix original demeure.
+- Suppression vocale DSP : effet immédiat et léger ; si le mix stéréo a peu de voix au centre, le résultat peut être minime — essayez un autre algorithme dans Paramètres → Audio.
 
-### 14.6 Pitch / badge sur la scène
+### 14.6 Pitch / badge de vitesse sur la scène
 
 - Si le chanteur ne voit pas les demi-tons : activez **Mostra variazione tonalità sullo schermo del palco**.
-- Attendu : `+2`, `-1`, `0`, etc. selon la file.
+- S’il ne voit pas la vitesse : activez **Mostra velocità di riproduzione sullo schermo del palco**.
+- Attendu : `+2`, `-1`, `0`, et p.ex. `1.00x` / `1.25x` selon la file.
 
 ### 14.7 Aperçu YouTube erreur 153
 
@@ -685,6 +706,7 @@ Réglages → Diagnostic & fichiers de log : niveau, ouvrir dossier/fichier, eff
 | Auto-avance au morceau suivant | OFF |
 | Pause de transition | 3 s |
 | showPitchOnStage | ON |
+| showSpeedOnStage | ON |
 | Port Guest Portal | 3000 |
 | Seuil journal SIAE | ≥ 120 s ou fin naturelle |
 | Plage pitch Régie | −8 … +8 ST |

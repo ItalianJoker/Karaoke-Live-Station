@@ -18,7 +18,7 @@
     "mute": "Silenciar",
     "cue": "Preescucha Auriculares (CUE)",
     "stopCue": "Detener CUE",
-    "vocalRemover": "Eliminar Voz Guía",
+    "vocalRemover": "Eliminar Voz Guía (Experimental)",
     "bgmDucking": "Atenuación Automática BGM",
     "nowPlaying": "En Reproducción",
     "noTrackLoaded": "Ninguna pista cargada",
@@ -121,7 +121,14 @@
     "previewUnmuteSameDeviceTitle": "Atención: mismo dispositivo de audio",
     "previewUnmuteSameDeviceMessage": "Preescucha (CUE) y Salida Principal usan el mismo dispositivo. Al quitar el silencio, el audio de vista previa podría mezclarse con el master de sala. ¿Continuar?",
     "previewUnmuteSameDeviceConfirm": "Sí, quitar silencio",
-    "previewUnmuteSameDeviceCancel": "Cancelar"
+    "previewUnmuteSameDeviceCancel": "Cancelar",
+    "deleteTrack": "Eliminar de la biblioteca",
+    "confirmDeleteTitle": "¿Eliminar la pista?",
+    "confirmDeleteMessage": "¿Quitar «{{title}}» de {{artist}} del catálogo? Los archivos permanentes en la carpeta de biblioteca también se borrarán del disco.",
+    "confirmDeleteConfirm": "Eliminar",
+    "confirmDeleteCancel": "Cancelar",
+    "deleteSuccess": "Pista eliminada de la biblioteca",
+    "deleteFailed": "No se pudo eliminar la pista"
   },
   "settings": {
     "title": "Ajustes del Sistema",
@@ -211,7 +218,12 @@
     "stageMessageBackgroundImage": "Imagen",
     "stageMessageBackgroundImagePlaceholder": "Ninguna imagen seleccionada",
     "stageMessageBackgroundBrowse": "Examinar…",
-    "stageMessageBackgroundClear": "Borrar"
+    "stageMessageBackgroundClear": "Borrar",
+    "vocalRemoverAlgorithm": "Algoritmo de eliminación de voz (Experimental)",
+    "vocalRemoverAlgorithmDesc": "Métodos DSP clásicos mid/side en tiempo real (sin IA). Elige el algoritmo del botón de Regia.",
+    "vocalAlgoCenterBass": "Cancelar centro (mantener graves) — recomendado",
+    "vocalAlgoCenter": "Cancelación total del centro (L−R clásico)",
+    "vocalAlgoSoftMid": "Atenuación mid suave (menos artefactos)"
   },
   "history": {
     "title": "Historial de Reproducción",
@@ -273,7 +285,7 @@
     "pitchUpDown": "Tono / Clave (+1 / -1 semitono)",
     "pitchCtrl": "Tono / Clave (+1 / -1 semitono)",
     "speedCtrl": "Velocidad de reproducción (+5% / -5%)",
-    "vocalRemover": "Activar / Desactivar eliminador de voz",
+    "vocalRemover": "Activar / desactivar eliminador de voz (experimental)",
     "ducking": "Activar / Desactivar auto-ducking de micrófono",
     "tabQueue": "Ir a pestaña Cola de cantantes",
     "tabLibrary": "Ir a pestaña Búsqueda y Librería",

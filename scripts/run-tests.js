@@ -8,7 +8,7 @@
  * 4. i18n Localization Parity across it, en, es, fr
  * 5. Queue Cache Garbage Collection & Protection
  * 6. Default Settings & Feature Flags
- * 7. Vocal Remover Enhanced DSP Simulation (Center Cancellation, Bass & Highs Preservation, In-Phase Matrix)
+ * 7. Algorithmic Mid/Side Vocal Remover (center cancel / soft mid, no ML)
  * 8. SIAE History Tracking & Duplicate Protection (120s Threshold, Natural End, ISO 8601 Timestamps)
  */
 
@@ -342,20 +342,16 @@ assert(
 
 
 // -------------------------------------------------------------
-// Suite 7: Demucs HTDemucs Vocal Separation Integration
+// Suite 7: Algorithmic Mid/Side Vocal Remover (no ML)
 // -------------------------------------------------------------
-console.log('\n\x1b[36m▶ Suite 7: Demucs HTDemucs Vocal Separation Integration\x1b[0m');
+console.log('\n\x1b[36m▶ Suite 7: Algorithmic Mid/Side Vocal Remover\x1b[0m');
 
 const audioGraphSource = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
   'utf8'
 );
-const demucsSeparatorSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/core/DemucsVocalSeparator.ts'),
-  'utf8'
-);
-const demucsManagerSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/main/services/DemucsModelManager.ts'),
+const algorithmicRemoverSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/AlgorithmicVocalRemoverNode.ts'),
   'utf8'
 );
 const packageJson = JSON.parse(
@@ -363,51 +359,46 @@ const packageJson = JSON.parse(
 );
 
 assert(
-  Boolean(packageJson.dependencies['demucs-web']) &&
-    Boolean(packageJson.dependencies['onnxruntime-web']),
-  'package.json depends on demucs-web + onnxruntime-web (dedicated OSS vocal separator)'
+  !packageJson.dependencies?.['demucs-web'] &&
+    !packageJson.dependencies?.['onnxruntime-web'],
+  'package.json does not depend on demucs-web / onnxruntime-web'
 );
 
 assert(
-  demucsSeparatorSource.includes("from 'demucs-web'") &&
-    demucsSeparatorSource.includes('DemucsProcessor') &&
-    demucsSeparatorSource.includes('onnxruntime-web'),
-  'DemucsVocalSeparator imports demucs-web DemucsProcessor and onnxruntime-web'
+  algorithmicRemoverSource.includes('createChannelSplitter') &&
+    algorithmicRemoverSource.includes('centerCancelBassKeep') &&
+    algorithmicRemoverSource.includes('centerCancel') &&
+    algorithmicRemoverSource.includes('softMid') &&
+    !algorithmicRemoverSource.includes('onnxruntime') &&
+    !algorithmicRemoverSource.includes('DemucsProcessor'),
+  'AlgorithmicVocalRemoverNode is classic mid/side Web Audio DSP (no ONNX/Demucs)'
 );
 
 assert(
-  demucsSeparatorSource.includes('stems.drums') &&
-    demucsSeparatorSource.includes('stems.bass') &&
-    demucsSeparatorSource.includes('stems.other') &&
-    demucsSeparatorSource.includes('drums.left[i]') &&
-    demucsSeparatorSource.includes('stems.other.left[i]'),
-  'DemucsVocalSeparator mixes drums+bass+other instrumental stems (excludes lead vocals)'
-);
-
-assert(
-  !audioGraphSource.includes('Center-Channel Canceller') &&
-    !audioGraphSource.includes('0.5 * (L - R)') &&
-    !audioGraphSource.includes('createChannelSplitter'),
-  'AudioGraphManager no longer uses homemade center-channel / EQ vocal cancel graph'
+  audioGraphSource.includes('createChannelSplitter') ||
+    algorithmicRemoverSource.includes('createChannelSplitter'),
+  'Vocal remover uses Web Audio ChannelSplitter for mid/side matrix'
 );
 
 assert(
   audioGraphSource.includes('setupVocalRemoverGraph') &&
     audioGraphSource.includes('setVocalRemover(') &&
-    audioGraphSource.includes('activateDemucsInstrumental') &&
-    audioGraphSource.includes('getDemucsVocalSeparator'),
-  'AudioGraphManager routes vocal removal through Demucs instrumental stem playback'
+    audioGraphSource.includes('setVocalRemoverAlgorithm') &&
+    audioGraphSource.includes('AlgorithmicVocalRemoverNode') &&
+    !audioGraphSource.includes('activateDemucsInstrumental') &&
+    !audioGraphSource.includes('getDemucsVocalSeparator'),
+  'AudioGraphManager routes vocal removal through AlgorithmicVocalRemoverNode'
 );
 
 assert(
-  demucsManagerSource.includes('htdemucs_embedded.onnx') &&
-    demucsManagerSource.includes('huggingface.co'),
-  'Main-process DemucsModelManager caches HTDemucs ONNX model from Hugging Face'
+  !fs.existsSync(path.resolve(__dirname, '../src/renderer/core/DemucsVocalSeparator.ts')) &&
+    !fs.existsSync(path.resolve(__dirname, '../src/main/services/DemucsModelManager.ts')),
+  'DemucsVocalSeparator and DemucsModelManager files are removed'
 );
 
 assert(
-  fs.existsSync(path.resolve(__dirname, '../public/ort/ort-wasm-simd-threaded.wasm')),
-  'ORT WASM assets are vendored under public/ort for Electron offline inference'
+  true,
+  'ORT WASM assets no longer required for vocal remover (algorithmic path)'
 );
 
 assert(
@@ -452,10 +443,12 @@ const mainSourceForDialogs = fs.readFileSync(
   'utf8'
 );
 assert(
-  mainSourceForDialogs.includes('demucs:get-model-buffer') &&
+  !mainSourceForDialogs.includes('demucs:get-model-buffer') &&
+    !mainSourceForDialogs.includes('DemucsModelManager') &&
     (mainSourceForDialogs.includes('Non-modal (no parent)') ||
-      mainSourceForDialogs.includes('Intentionally omit parent window')),
-  'Demucs IPC registered and native file dialogs avoid modal parent that can stall audio'
+      mainSourceForDialogs.includes('Intentionally omit parent window') ||
+      mainSourceForDialogs.includes('omit parent')),
+  'Demucs IPC removed; native file dialogs avoid modal parent that can stall audio'
 );
 
 // -------------------------------------------------------------
@@ -547,7 +540,7 @@ assert(
   'SIAE CSV export includes standard ISO 8601 date-time and epoch ms columns'
 );
 
-// 8. Verify AudioGraphManager vocal remover methods still present after Demucs integration
+// 8. Verify AudioGraphManager vocal remover methods still present after algorithmic migration
 assert(
   audioGraphSource.includes('setupVocalRemoverGraph') && audioGraphSource.includes('setVocalRemover('),
   'AudioGraphManager contains dedicated vocal remover pipeline methods'
@@ -769,8 +762,8 @@ const audioGraphSourceP45 = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
   'utf8'
 );
-const demucsSourceP45 = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/core/DemucsVocalSeparator.ts'),
+const algorithmicSourceP45 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/AlgorithmicVocalRemoverNode.ts'),
   'utf8'
 );
 const databaseSourceP45 = fs.readFileSync(
@@ -979,20 +972,20 @@ assert(
   'Download dedup via findExistingLocalMedia before network I/O'
 );
 
-// --- Audio leaks / Demucs activation ---
+// --- Audio leaks / algorithmic vocal remover ---
 assert(
-  demucsSourceP45.includes('MAX_CACHED_STEMS') &&
-    demucsSourceP45.includes('clearCache') &&
+  algorithmicSourceP45.includes('createChannelSplitter') &&
+    algorithmicSourceP45.includes('setEnabled') &&
     audioGraphSourceP45.includes('voiceReleaseTimeouts') &&
     audioGraphSourceP45.includes('clearTimeout') &&
-    audioGraphSourceP45.includes('getDemucsVocalSeparator().clearCache()'),
-  'Demucs stem LRU + clearCache on dispose; MIDI release timers cancelled on dispose'
+    audioGraphSourceP45.includes('AlgorithmicVocalRemoverNode'),
+  'Algorithmic vocal remover + MIDI release timers present; no Demucs cache path'
 );
 assert(
   audioGraphSourceP45.includes('computePerceptualGain') &&
     audioGraphSourceP45.includes('Math.pow') &&
-    audioGraphSourceP45.includes('activateDemucsInstrumental'),
-  'Perceptual volume curve and Demucs vocal-removal activation wired in AudioGraphManager'
+    audioGraphSourceP45.includes('setVocalRemoverAlgorithm'),
+  'Perceptual volume curve and algorithmic vocal-removal activation wired in AudioGraphManager'
 );
 
 // --- Playback continuity: non-modal dialogs ---

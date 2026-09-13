@@ -258,6 +258,39 @@ export class DatabaseManager {
     return Number(result.changes || 0);
   }
 
+  /** Returns one catalog track by id, or null if missing. */
+  public getTrackById(id: string): KaraokeMediaTrack | null {
+    const row = this.db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as
+      | {
+          id: string;
+          source: string;
+          title: string;
+          artist: string;
+          durationSec: number;
+          uri: string;
+          localFilePath: string | null;
+          thumbnailUrl: string | null;
+          hasEmbeddedLyrics: number;
+          isMultiplex: number;
+          isEmbeddable: number;
+        }
+      | undefined;
+    if (!row) return null;
+    return {
+      id: row.id,
+      source: row.source as KaraokeMediaTrack['source'],
+      title: row.title,
+      artist: row.artist,
+      durationSec: row.durationSec,
+      uri: row.uri,
+      localFilePath: row.localFilePath ?? undefined,
+      thumbnailUrl: row.thumbnailUrl ?? undefined,
+      hasEmbeddedLyrics: Boolean(row.hasEmbeddedLyrics),
+      isMultiplex: Boolean(row.isMultiplex),
+      isEmbeddable: Boolean(row.isEmbeddable)
+    };
+  }
+
   /** Deletes a single track by primary key. */
   public deleteTrackById(id: string): void {
     this.db.prepare(`DELETE FROM tracks WHERE id = ?`).run(id);

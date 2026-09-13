@@ -29,6 +29,9 @@ export class PitchShifterNode {
   private readPosFrac: number = 0.0;
   private primed: boolean = false;
 
+  /** When true, ScriptProcessor is out of the graph (zero-CPU pass-through). */
+  private bypassActive = true;
+
   constructor(audioCtx: AudioContext) {
     this._input = audioCtx.createGain();
     this._output = audioCtx.createGain();
@@ -39,12 +42,14 @@ export class PitchShifterNode {
     this.fifo = new Float32Array(this.fifoCapacity * 2);
     this.targetFifo = Math.floor(this.bufferSize * 2.5); // 5120 frames
 
-    // Use stereo 2-channel ScriptProcessor
+    // Use stereo 2-channel ScriptProcessor (only connected when pitch ≠ 0)
     this.processor = audioCtx.createScriptProcessor(this.bufferSize, 2, 2);
     this.processor.onaudioprocess = this.onAudioProcess.bind(this);
 
-    this._input.connect(this.processor);
-    this.processor.connect(this._output);
+    // Default: true bypass — ScriptProcessor must not sit on the realtime path
+    // while idle. Leaving it connected causes audible underruns/chop whenever the
+    // main thread is busy with UI or heavy work.
+    this.applyBypassRouting(true);
   }
 
   public get input(): GainNode {
@@ -55,12 +60,42 @@ export class PitchShifterNode {
     return this._output;
   }
 
+  /**
+   * Connects either input→output (bypass) or input→ScriptProcessor→output.
+   * Disconnecting ScriptProcessor when unused keeps UI work from starving audio.
+   */
+  private applyBypassRouting(bypass: boolean): void {
+    try {
+      this._input.disconnect();
+    } catch {
+      /* ignore */
+    }
+    try {
+      this.processor.disconnect();
+    } catch {
+      /* ignore */
+    }
+
+    this.bypassActive = bypass;
+    if (bypass) {
+      this._input.connect(this._output);
+    } else {
+      this._input.connect(this.processor);
+      this.processor.connect(this._output);
+    }
+  }
+
   public setPitchOffset(semitones: number): void {
     const clamped = Math.max(-8, Math.min(8, Math.round(semitones)));
-    if (this.semitones === clamped) return;
+    if (clamped === this.semitones) return;
 
     this.semitones = clamped;
     this.resetBuffers();
+
+    const needsProcessor = clamped !== 0;
+    if (needsProcessor !== !this.bypassActive) {
+      this.applyBypassRouting(!needsProcessor);
+    }
 
     if (clamped !== 0) {
       this.st.pitchSemitones = clamped;

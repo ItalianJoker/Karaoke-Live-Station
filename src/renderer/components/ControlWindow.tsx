@@ -463,7 +463,7 @@ export const ControlWindow: React.FC = () => {
   }, []);
 
   
-  // Re-run Demucs separation when the active track media changes while remover is on
+  // Keep algorithmic vocal remover in sync when the active track changes
   useEffect(() => {
     audioGraphRef.current?.refreshVocalRemoverForCurrentMedia();
   }, [playback.currentTrackId]);
@@ -477,6 +477,9 @@ export const ControlWindow: React.FC = () => {
     audioGraphRef.current.setPlaybackSpeed(playback.playbackSpeed);
     audioGraphRef.current.setMutedMidiChannels(playback.mutedMidiChannels);
     audioGraphRef.current.setVocalRemover(playback.isVocalRemoverActive);
+    audioGraphRef.current.setVocalRemoverAlgorithm(
+      settings.vocalRemoverAlgorithm || 'centerCancelBassKeep'
+    );
     audioGraphRef.current.setDucking(playback.isDuckingActive);
     audioGraphRef.current.setMasterVolume(playback.masterVolume, playback.isMuted);
     audioGraphRef.current.setAudioVideoSyncOffsetMs(settings.audioVideoSyncOffsetMs);
