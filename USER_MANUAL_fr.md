@@ -260,7 +260,7 @@ Avec des fichiers `.mid` / `.kar` apparaît le **Mixeur de canaux MIDI** (`Mixer
 
 Utilisez **Préécoute casque (CUE)** (`Pre-ascolto Cuffie (CUE)`) pour écouter au casque pendant que la salle entend le Master. Configurez le périphérique CUE dans les Réglages.
 
-Dans **Bibliothèque**, le bouton Préécoute ouvre le **modal d’aperçu** (même style que les Paramètres) et route l’audio vers le périphérique CUE. Pas de barre de volume séparée : mute/volume restent sur les contrôles du lecteur intégré (ou transport MIDI). Si CUE et Sortie Principale coïncident, le démutage affiche un avertissement de confirmation pour éviter de mélanger l’aperçu sur le PA de salle.
+Dans **Bibliothèque**, le bouton Préécoute ouvre le **modal d’aperçu** (même style que les Paramètres) et route l’audio vers le périphérique CUE. Pas de barre de volume séparée : mute/volume restent sur les contrôles du lecteur intégré (ou transport MIDI). Si CUE et Sortie Principale coïncident, le démutage affiche un avertissement de confirmation pour éviter de mélanger l’aperçu sur le PA de salle — y compris l’**embed YouTube de la recherche Web**, qui utilise le même modal thématique que vidéo/audio/MIDI locaux.
 
 ### 4.8 Persistance de la file et anti-crash
 
@@ -354,8 +354,11 @@ La modale d’aperçu intègre la vidéo depuis `youtube-nocookie.com` avec des 
 - `modestbranding=1`
 - `referrerPolicy="strict-origin-when-cross-origin"`
 - autoplay muet en aperçu
+- confirmation de démutage même périphérique (CUE === Sortie Principale) via YouTube IFrame API + modal thématique
 
 Cela réduit l’erreur d’embed **153** typique des iframes YouTube restrictifs.
+
+Avec **archivage automatique** ON, **Mettre en file** depuis YouTube attend le téléchargement + sauvegarde bibliothèque, puis exécute une **réindexation Local complète** (miniature ffmpeg incluse) **avant** d’enfiler le fichier local — le titre apparaît donc en Local avec la bonne couverture sans « Actualiser la bibliothèque » manuelle.
 
 ### 6.4 Téléchargement et badge «Download completato»
 

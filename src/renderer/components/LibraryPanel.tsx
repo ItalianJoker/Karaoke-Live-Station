@@ -139,6 +139,22 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     }
   };
 
+  /**
+   * Full Local reindex (scanFolder + catalog reload) so newly archived YouTube files
+   * appear with correct ffmpeg thumbnails before enqueue — same effect as “Aggiorna libreria”.
+   */
+  const refreshLocalLibraryFully = async () => {
+    if (window.karaokeApi && settings.libraryPath?.trim()) {
+      try {
+        await window.karaokeApi.library.scanFolder(settings.libraryPath.trim());
+      } catch (err) {
+        console.error('Library reindex after archive failed:', err);
+      }
+    }
+    await loadLocalCatalog();
+    window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+  };
+
   useEffect(() => {
     loadLocalCatalog();
 
@@ -284,8 +300,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                     localFilePath: payload.outputFilePath,
                     uri: localUri
                   };
-                  await loadLocalCatalog();
-                  window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+                  await refreshLocalLibraryFully();
                   addToQueue(
                     localTrack,
                     pendingEnqueue.singerName?.trim() || undefined,
@@ -312,8 +327,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                 { touchLibraryList: false }
               );
               if (asLibrary) {
-                await loadLocalCatalog();
-                window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+                await refreshLocalLibraryFully();
               }
               return;
             }
@@ -362,8 +376,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                   uri: saved.uri,
                   source: 'local_library'
                 });
-                await loadLocalCatalog();
-                window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+                await refreshLocalLibraryFully();
                 addToQueue(
                   localTrack,
                   pendingEnqueue.singerName?.trim() || undefined,
@@ -409,9 +422,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                     source: 'local_library'
                   });
                 }
-                // Single authoritative refresh after upsert — drops any temp/path-hash ghosts
-                await loadLocalCatalog();
-                window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+                // Full reindex so Local shows the new file with thumbnail (no manual Aggiorna libreria)
+                await refreshLocalLibraryFully();
               } catch (err) {
                 console.error('Auto-archive failed:', err);
                 showToast(t('errors.downloadFailed', { error: String(err) }), 'error', 0);
@@ -724,8 +736,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
               localFilePath: result.localFilePath,
               uri: localUri
             };
-            await loadLocalCatalog();
-            window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+            await refreshLocalLibraryFully();
             addToQueue(localTrack, singerName?.trim() || undefined, false, 0, placement);
             showToast(t('library.queueArchiveReady', { title: localTrack.title }));
           } else {
@@ -743,8 +754,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
               ...saved,
               source: 'local_library'
             };
-            await loadLocalCatalog();
-            window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+            await refreshLocalLibraryFully();
             addToQueue(localTrack, singerName?.trim() || undefined, false, 0, placement);
             showToast(t('library.queueArchiveReady', { title: localTrack.title }));
           }

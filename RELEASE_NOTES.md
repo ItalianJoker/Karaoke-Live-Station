@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub) con icona ufficiale packaging + fix coda YouTube/archiviazione automatica.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): conferma unmute anteprima YouTube (stesso dispositivo) + reindex Local con thumbnail prima della coda dopo archiviazione automatica.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,12 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub) con icona ufficiale pa
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### 🔇 Conferma unmute anteprima YouTube (stesso dispositivo)
+- Anche sull’embed YouTube della ricerca Web / Pre-Ascolto: se CUE e Uscita Principale coincidono, togliere il muto apre lo **stesso modale tematico** già usato per video/audio/MIDI locali (niente `alert` nativo).
+
+### 🖼️ Archiviazione automatica → thumbnail Local
+- Dopo download YouTube + salvataggio in libreria: **reindex completo** della Local (scan + cover ffmpeg) **prima** di accodare il file locale, così la miniatura compare subito senza “Aggiorna libreria” manuale.
 
 ### 🖼️ Icona ufficiale ovunque
 - Packaging Windows (`.ico` / exe), Linux (`.desktop` + PNG multi-size) e macOS usano il logo ufficiale `public/logo.png` (niente icone Electron di default).
@@ -37,7 +43,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub) con icona ufficiale pa
 
 ### 🎧 Pre-Ascolto tematico (CUE)
 - Dalla Libreria apre il **modale anteprima** (tema Impostazioni), audio sul dispositivo CUE.
-- Volume/muto solo dal player incorporato; avviso se CUE = Master all’unmute.
+- Volume/muto solo dal player incorporato; avviso se CUE = Master all’unmute (video/audio/MIDI **e** YouTube Web).
 - Supporto video, audio-only e MIDI.
 
 ### 🗑️ Elimina dalla libreria
@@ -54,7 +60,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub) con icona ufficiale pa
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: official packaging icons + YouTube auto-archive queue fix.
+GitHub Release **v1.1.0** overwrite: YouTube web-preview same-device unmute confirm + auto-archive Local thumbnail reindex before enqueue.
 
 ## 📦 Installers
 
@@ -67,6 +73,12 @@ GitHub Release **v1.1.0** overwrite: official packaging icons + YouTube auto-arc
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### 🔇 YouTube preview unmute confirm (same device)
+- On the Web-search / Pre-Listen YouTube embed: if CUE and Main Output are the same device, unmuting opens the **same themed confirm modal** already used for local video/audio/MIDI (no native `alert`).
+
+### 🖼️ Auto-archive → Local thumbnails
+- After YouTube download + save to library: a **full Local reindex** (scan + ffmpeg cover) runs **before** enqueueing the local file, so the thumbnail appears immediately without a manual “Refresh Library”.
 
 ### 🖼️ Official logo as app icon everywhere
 - Windows (`.ico` / exe), Linux (`.desktop` + multi-size PNGs), and macOS packaging use the official `public/logo.png` (no default Electron icons).
@@ -82,7 +94,7 @@ GitHub Release **v1.1.0** overwrite: official packaging icons + YouTube auto-arc
 
 ### 🎧 Themed Pre-Ascolto (CUE)
 - Library opens the **preview modal** (Settings theme) with audio on the CUE device.
-- Mute/volume via embedded player only; same-device unmute warning.
+- Mute/volume via embedded player only; same-device unmute warning (local video/audio/MIDI **and** YouTube Web).
 - Video, audio-only, and MIDI supported.
 
 ### 🗑️ Delete from library

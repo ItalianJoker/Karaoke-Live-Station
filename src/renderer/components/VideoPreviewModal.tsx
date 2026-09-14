@@ -24,6 +24,10 @@ import {
   classifyPreviewMedia,
   type PreviewMediaKind
 } from '../utils/previewMedia';
+import {
+  attachYouTubePreviewPlayer,
+  type YouTubePreviewPlayer
+} from '../utils/youtubePreviewPlayer';
 
 interface VideoPreviewModalProps {
   isOpen: boolean;
@@ -83,7 +87,8 @@ export function extractVersionTags(track: KaraokeMediaTrack): string[] {
  * Themed library preview dialog for video / audio / MIDI / YouTube.
  * Preview audio defaults to the CUE (Pre-Ascolto) device via setSinkId.
  * Volume and mute are owned only by the embedded player / MIDI transport — no separate volume bar.
- * Same-device warning fires when the user unmutes from those controls.
+ * Same-device warning fires when the user unmutes from those controls
+ * (HTML media volumechange, MIDI transport, or YouTube IFrame API unmute poll).
  */
 export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
   isOpen,
@@ -98,6 +103,8 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
+  const youtubeIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const ytPlayerRef = useRef<YouTubePreviewPlayer | null>(null);
   const midiGraphRef = useRef<AudioGraphManager | null>(null);
   const unmuteAllowedRef = useRef(false);
   const suppressingUnmuteRef = useRef(false);
@@ -197,6 +204,79 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
     return () => el.removeEventListener('volumechange', onVolumeChange);
   }, [isOpen, track?.id, mediaKind, cueAudioDeviceId, masterAudioDeviceId]);
 
+  // YouTube (web-search) embed: poll IFrame API mute state for the same-device confirm
+  useEffect(() => {
+    if (!isOpen || !track || mediaKind !== 'youtube') {
+      try {
+        ytPlayerRef.current?.destroy();
+      } catch {
+        // ignore
+      }
+      ytPlayerRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    let pollId: number | undefined;
+
+    const run = async () => {
+      const iframe = youtubeIframeRef.current;
+      if (!iframe) return;
+      try {
+        const player = await attachYouTubePreviewPlayer(iframe);
+        if (cancelled) {
+          try {
+            player.destroy();
+          } catch {
+            // ignore
+          }
+          return;
+        }
+        ytPlayerRef.current = player;
+        try {
+          player.mute();
+        } catch {
+          // ignore
+        }
+        pollId = window.setInterval(() => {
+          if (cancelled || suppressingUnmuteRef.current) return;
+          try {
+            if (typeof player.isMuted !== 'function') return;
+            if (player.isMuted()) return;
+            if (unmuteAllowedRef.current) return;
+            if (!isSameCueAndMasterDevice(cueAudioDeviceId, masterAudioDeviceId)) {
+              unmuteAllowedRef.current = true;
+              return;
+            }
+            suppressingUnmuteRef.current = true;
+            player.mute();
+            setPendingUnmuteConfirm(true);
+            queueMicrotask(() => {
+              suppressingUnmuteRef.current = false;
+            });
+          } catch {
+            // Player may be torn down mid-poll
+          }
+        }, 250);
+      } catch (err) {
+        console.warn('YouTube preview mute watch unavailable:', err);
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+      if (pollId !== undefined) window.clearInterval(pollId);
+      try {
+        ytPlayerRef.current?.destroy();
+      } catch {
+        // ignore
+      }
+      ytPlayerRef.current = null;
+    };
+  }, [isOpen, track?.id, mediaKind, cueAudioDeviceId, masterAudioDeviceId]);
+
   // MIDI Pre-Ascolto on a dedicated graph routed to the CUE sink
   useEffect(() => {
     if (!isOpen || !track || mediaKind !== 'midi') {
@@ -256,6 +336,21 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
   const applyEmbeddedUnmute = () => {
     unmuteAllowedRef.current = true;
     setPendingUnmuteConfirm(false);
+    if (mediaKind === 'youtube') {
+      const yt = ytPlayerRef.current;
+      if (yt) {
+        suppressingUnmuteRef.current = true;
+        try {
+          yt.unMute();
+        } catch {
+          // ignore
+        }
+        queueMicrotask(() => {
+          suppressingUnmuteRef.current = false;
+        });
+      }
+      return;
+    }
     const el = mediaRef.current;
     if (el) {
       suppressingUnmuteRef.current = true;
@@ -269,6 +364,21 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
 
   const cancelEmbeddedUnmute = () => {
     setPendingUnmuteConfirm(false);
+    if (mediaKind === 'youtube') {
+      const yt = ytPlayerRef.current;
+      if (yt) {
+        suppressingUnmuteRef.current = true;
+        try {
+          yt.mute();
+        } catch {
+          // ignore
+        }
+        queueMicrotask(() => {
+          suppressingUnmuteRef.current = false;
+        });
+      }
+      return;
+    }
     const el = mediaRef.current;
     if (el) {
       suppressingUnmuteRef.current = true;
@@ -423,6 +533,8 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
           ) : mediaKind === 'youtube' ? (
             <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-xl">
               <iframe
+                ref={youtubeIframeRef}
+                id={`yt-preview-${track.id}`}
                 src={buildYouTubeEmbedSrc({
                   videoId: track.id,
                   windowOrigin: typeof window !== 'undefined' ? window.location.origin : undefined
@@ -432,6 +544,7 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
                 allowFullScreen
                 referrerPolicy={YOUTUBE_EMBED_REFERRER_POLICY}
                 className="w-full h-full border-0"
+                data-testid="preview-youtube-iframe"
               />
             </div>
           ) : mediaKind === 'midi' ? (

@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ---
 
+## [1.1.0] — Web preview unmute + archive thumbs (refresh) — 2026-09-14
+
+Overwrite of GitHub Release `v1.1.0` after web-search YouTube unmute confirm + auto-archive thumbnail reindex.
+
+### Added
+- **Same-device unmute confirm on YouTube web preview** — embedded YouTube / Web-search Pre-Ascolto uses the same themed confirm modal as local video/audio/MIDI when CUE === Main Output
+
+### Fixed
+- **Auto-archive → Local thumbnail** — after YouTube download + save to library, full Local reindex (`scanFolder` + ffmpeg cover) runs **before** enqueue so the new track shows the correct thumbnail without manual “Aggiorna libreria”; `save-to-library` also generates the thumb on upsert
+
+---
+
 ## [1.1.0] — Icons + YouTube auto-archive queue (refresh) — 2026-09-13
 
 Overwrite of GitHub Release `v1.1.0` after packaging icon + YouTube queue/archive fix.
