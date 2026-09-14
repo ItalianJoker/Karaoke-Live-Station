@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub) con le novità della PR #3 e follow-up Cycle 2.
+Aggiornamento della release **v1.1.0** (overwrite GitHub) con icona ufficiale packaging + fix coda YouTube/archiviazione automatica.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,13 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub) con le novità della P
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### 🖼️ Icona ufficiale ovunque
+- Packaging Windows (`.ico` / exe), Linux (`.desktop` + PNG multi-size) e macOS usano il logo ufficiale `public/logo.png` (niente icone Electron di default).
+
+### 📥 YouTube → coda con archiviazione automatica
+- Con archiviazione ON, **Metti in coda** da YouTube attende download **e** archivio riusciti, aggiorna Locale, poi accoda il **file locale della libreria**.
+- Se il download fallisce: toast di errore e nessun elemento non riproducibile in coda.
 
 ### 🎙️ Rimuovi Voce Guida (Sperimentale) — DSP algoritmico
 - **Niente AI / Demucs / ONNX**: riduzione voce **classica mid/side** in tempo reale, leggera e adatta al live.
@@ -47,7 +54,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub) con le novità della P
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite with PR #3 / Cycle 2 features.
+GitHub Release **v1.1.0** overwrite: official packaging icons + YouTube auto-archive queue fix.
 
 ## 📦 Installers
 
@@ -60,6 +67,13 @@ GitHub Release **v1.1.0** overwrite with PR #3 / Cycle 2 features.
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### 🖼️ Official logo as app icon everywhere
+- Windows (`.ico` / exe), Linux (`.desktop` + multi-size PNGs), and macOS packaging use the official `public/logo.png` (no default Electron icons).
+
+### 📥 YouTube → queue with auto-archive
+- With auto-archive ON, **Add to queue** from YouTube waits for successful download **and** archive, refreshes Local, then enqueues the **local library file**.
+- On download failure: clear error toast and no non-playable queue item.
 
 ### 🎙️ Vocal Remover (Experimental) — algorithmic DSP
 - **No AI / Demucs / ONNX**: classical real-time mid/side vocal reduction.

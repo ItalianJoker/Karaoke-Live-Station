@@ -128,7 +128,10 @@
     "confirmDeleteConfirm": "Elimina",
     "confirmDeleteCancel": "Annulla",
     "deleteSuccess": "Brano eliminato dalla libreria",
-    "deleteFailed": "Impossibile eliminare il brano"
+    "deleteFailed": "Impossibile eliminare il brano",
+    "queueArchivePending": "Download e archiviazione di “{{title}}” in corso prima di metterlo in coda…",
+    "queueArchiveReady": "Archiviato e messo in coda: {{title}}",
+    "queueArchiveCancelled": "Download annullato — il brano non è stato aggiunto alla coda."
   },
   "settings": {
     "title": "Impostazioni di Sistema",

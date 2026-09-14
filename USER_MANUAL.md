@@ -370,6 +370,7 @@ Chiudilo con la **X** manuale.
 4. Se auto-archive è ON e `libraryPath` è valido → file in libreria + reindicizzazione immediata.  
 5. Se auto-archive è OFF → file in `queue_cache` (promuovibile con **Salva in Libreria**).  
 6. Errori: toast persistente **«Download fallito: …»**.
+7. **Metti in coda da YouTube con archiviazione automatica ON**: l’app attende il successo di download **e** archiviazione, aggiorna Locale, poi mette in coda il **file locale della libreria** (non un puntatore remoto/temp). In caso di errore, toast chiaro e **nessun** elemento non riproducibile in coda.
 
 Copertine/miniature e anteprime locali si aggiornano senza riavviare (ffmpeg estrae frame ~al secondo 4 per i file locali; YouTube fornisce thumb web).
 

@@ -118,6 +118,8 @@ export const ControlWindow: React.FC = () => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const loadedTrackQueueIdRef = useRef<string | null>(null);
+  /** Media identity for the currently loaded element (queueId + local path/uri). */
+  const loadedTrackMediaKeyRef = useRef<string | null>(null);
 
   // Store hooks
   const settings = useKaraokeStore((state) => state.settings);
@@ -437,7 +439,10 @@ export const ControlWindow: React.FC = () => {
         } else if (payload.status === 'completed' && payload.outputFilePath) {
           setDownloadProgress(null);
           const cur = useKaraokeStore.getState().queue[0]?.track;
-          if (cur && cur.source === 'youtube' && !cur.localFilePath) {
+          const autoArchive = useKaraokeStore.getState().settings.autoArchiveWebTracks;
+          // When auto-archive is on, LibraryPanel promotes temp → permanent library and
+          // updates the queue. Do not bind playback to a temp path that will be moved/deleted.
+          if (cur && cur.source === 'youtube' && !cur.localFilePath && !autoArchive) {
             const localUri = `karaoke://local/${encodeURIComponent(payload.outputFilePath)}`;
             updateTrackInQueue(cur.id, {
               localFilePath: payload.outputFilePath,
@@ -537,6 +542,7 @@ export const ControlWindow: React.FC = () => {
       audioGraphRef.current?.stopMidiPlayback();
       setPlaybackState({ activeLyricsText: undefined });
       loadedTrackQueueIdRef.current = null;
+      loadedTrackMediaKeyRef.current = null;
       return;
     }
 
@@ -573,12 +579,14 @@ export const ControlWindow: React.FC = () => {
       return;
     }
 
-    const isNewTrackLoaded = loadedTrackQueueIdRef.current !== currentQueueItem.queueId;
+    const mediaKey = `${currentQueueItem.queueId}::${currentTrack.localFilePath || currentTrack.uri}`;
+    const isNewTrackLoaded = loadedTrackMediaKeyRef.current !== mediaKey;
 
     // If track is MIDI/KAR
     if (isMidiTrack) {
       if (isNewTrackLoaded) {
         loadedTrackQueueIdRef.current = currentQueueItem.queueId;
+        loadedTrackMediaKeyRef.current = mediaKey;
         // Instantly stop previous MIDI playback BEFORE starting fetch
         audioGraphRef.current?.stopMidiPlayback();
         // Unload any existing video playback
@@ -589,15 +597,15 @@ export const ControlWindow: React.FC = () => {
         }
         setPlaybackState({ activeLyricsText: undefined, currentTime: 0 });
 
-        const queueIdToLoad = currentQueueItem.queueId;
+        const mediaKeyToLoad = mediaKey;
         fetch(currentTrack.uri)
           .then((res) => res.arrayBuffer())
           .then(async (buffer) => {
             // Guard against race conditions when skipping tracks rapidly
-            if (loadedTrackQueueIdRef.current !== queueIdToLoad) return;
+            if (loadedTrackMediaKeyRef.current !== mediaKeyToLoad) return;
             await audioGraphRef.current?.initContext();
             const song = await audioGraphRef.current?.loadMidiSong(buffer);
-            if (song && loadedTrackQueueIdRef.current === queueIdToLoad) {
+            if (song && loadedTrackMediaKeyRef.current === mediaKeyToLoad) {
               setPlaybackState({ duration: song.durationMs / 1000, currentTime: 0 });
               if (useKaraokeStore.getState().playback.isPlaying) {
                 audioGraphRef.current?.playMidi();
@@ -617,6 +625,7 @@ export const ControlWindow: React.FC = () => {
       if (videoRef.current) {
         if (isNewTrackLoaded) {
           loadedTrackQueueIdRef.current = currentQueueItem.queueId;
+          loadedTrackMediaKeyRef.current = mediaKey;
           // Stop MIDI voices and clear lyric text
           audioGraphRef.current?.stopMidiPlayback();
           setPlaybackState({ activeLyricsText: undefined, currentTime: 0 });

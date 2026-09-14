@@ -128,7 +128,10 @@
     "confirmDeleteConfirm": "Supprimer",
     "confirmDeleteCancel": "Annuler",
     "deleteSuccess": "Titre supprimé de la bibliothèque",
-    "deleteFailed": "Impossible de supprimer le titre"
+    "deleteFailed": "Impossible de supprimer le titre",
+    "queueArchivePending": "Téléchargement et archivage de « {{title}} » avant ajout à la file…",
+    "queueArchiveReady": "Archivé et mis en file : {{title}}",
+    "queueArchiveCancelled": "Téléchargement annulé — le titre n’a pas été ajouté à la file."
   },
   "settings": {
     "title": "Paramètres Système",

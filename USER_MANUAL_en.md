@@ -370,6 +370,7 @@ Close it with the manual **X**.
 4. If auto-archive is ON and `libraryPath` is valid → file in library + immediate reindex.  
 5. If auto-archive is OFF → file in `queue_cache` (promotable with **Salva in Libreria**).  
 6. Errors: persistent toast **«Download fallito: …»** (Italian UI).
+7. **Add to queue from YouTube with auto-archive ON**: the app waits until download **and** archive succeed, refreshes Local, then enqueues the **local library file** (not a remote/temp pointer). On failure, an error toast is shown and **no** non-playable queue item is left.
 
 Covers/thumbnails and local previews update without restart (ffmpeg extracts a frame ~at second 4 for local files; YouTube provides web thumbs).
 

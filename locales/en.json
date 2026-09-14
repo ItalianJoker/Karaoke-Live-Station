@@ -128,7 +128,10 @@
     "confirmDeleteConfirm": "Delete",
     "confirmDeleteCancel": "Cancel",
     "deleteSuccess": "Track removed from library",
-    "deleteFailed": "Could not delete track"
+    "deleteFailed": "Could not delete track",
+    "queueArchivePending": "Downloading and archiving “{{title}}” before adding to the queue…",
+    "queueArchiveReady": "Archived and queued: {{title}}",
+    "queueArchiveCancelled": "Download cancelled — track was not added to the queue."
   },
   "settings": {
     "title": "System Settings",

@@ -128,7 +128,10 @@
     "confirmDeleteConfirm": "Eliminar",
     "confirmDeleteCancel": "Cancelar",
     "deleteSuccess": "Pista eliminada de la biblioteca",
-    "deleteFailed": "No se pudo eliminar la pista"
+    "deleteFailed": "No se pudo eliminar la pista",
+    "queueArchivePending": "Descargando y archivando “{{title}}” antes de añadirlo a la cola…",
+    "queueArchiveReady": "Archivado y en cola: {{title}}",
+    "queueArchiveCancelled": "Descarga cancelada — la pista no se añadió a la cola."
   },
   "settings": {
     "title": "Ajustes del Sistema",

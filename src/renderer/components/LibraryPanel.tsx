@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { showToast } from '../utils/toast';
 import { useTranslation } from 'react-i18next';
 import {
@@ -27,6 +27,13 @@ import { KaraokeMediaTrack, DownloadProgressPayload } from '../../shared/types';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { useScopedLibrarySearch } from '../hooks/useScopedLibrarySearch';
 import { VideoPreviewModal, extractVersionTags } from './VideoPreviewModal';
+
+/** Intent to enqueue only after YouTube download + auto-archive succeed. */
+type PendingArchiveEnqueue = {
+  track: KaraokeMediaTrack;
+  singerName?: string;
+  placement: 'auto' | 'end';
+};
 
 interface LibraryPanelProps {
   onPlayCue?: (uri: string) => void;
@@ -98,11 +105,14 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   const [previewTrack, setPreviewTrack] = useState<KaraokeMediaTrack | null>(null);
   const [trackPendingDelete, setTrackPendingDelete] = useState<KaraokeMediaTrack | null>(null);
   const [isDeletingTrack, setIsDeletingTrack] = useState(false);
+  // When auto-archive is on, YouTube→queue waits for library file before enqueue (no remote/temp pointer).
+  const pendingArchiveEnqueueRef = useRef<Record<string, PendingArchiveEnqueue>>({});
 
   const settings = useKaraokeStore((state) => state.settings);
   const updateSettings = useKaraokeStore((state) => state.updateSettings);
   const addToQueue = useKaraokeStore((state) => state.addToQueue);
   const updateTrackInQueue = useKaraokeStore((state) => state.updateTrackInQueue);
+  const removeFromQueue = useKaraokeStore((state) => state.removeFromQueue);
 
   const loadLocalCatalog = async () => {
     if (window.karaokeApi) {
@@ -163,11 +173,37 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         }
 
         if (payload.status === 'error') {
+          const pending = pendingArchiveEnqueueRef.current[payload.downloadId];
+          if (pending) {
+            delete pendingArchiveEnqueueRef.current[payload.downloadId];
+          }
           showToast(
             t('errors.downloadFailed', { error: payload.errorMessage || 'Unknown error' }),
             'error',
             0
           );
+          // Drop non-playable YouTube queue items that never got a local file
+          const queue = useKaraokeStore.getState().queue;
+          for (const item of queue) {
+            if (
+              item.track.source === 'youtube' &&
+              !item.track.localFilePath &&
+              (item.track.id === pending?.track.id || item.track.uri === pending?.track.uri)
+            ) {
+              removeFromQueue(item.queueId);
+            }
+          }
+        }
+
+        if (payload.status === 'cancelled') {
+          const pending = pendingArchiveEnqueueRef.current[payload.downloadId];
+          if (pending) {
+            delete pendingArchiveEnqueueRef.current[payload.downloadId];
+            showToast(
+              t('library.queueArchiveCancelled', 'Download cancelled — track was not added to the queue.'),
+              'error'
+            );
+          }
         }
 
         if (payload.status === 'completed') {
@@ -233,18 +269,113 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
               });
             };
 
+            const pendingEnqueue = pendingArchiveEnqueueRef.current[payload.downloadId];
+
             // Dedup reuse: progress already points at the permanent/cache file — just relink
             if (payload.alreadyExists) {
               const localUri = `karaoke://local/${encodeURIComponent(payload.outputFilePath)}`;
+              const asLibrary = payload.existingLocation === 'library';
+              if (pendingEnqueue) {
+                delete pendingArchiveEnqueueRef.current[payload.downloadId];
+                if (asLibrary) {
+                  const localTrack: KaraokeMediaTrack = {
+                    ...pendingEnqueue.track,
+                    source: 'local_library',
+                    localFilePath: payload.outputFilePath,
+                    uri: localUri
+                  };
+                  await loadLocalCatalog();
+                  window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+                  addToQueue(
+                    localTrack,
+                    pendingEnqueue.singerName?.trim() || undefined,
+                    false,
+                    0,
+                    pendingEnqueue.placement
+                  );
+                  showToast(t('library.queueArchiveReady', { title: localTrack.title }));
+                } else {
+                  showToast(
+                    t('errors.downloadFailed', {
+                      error: 'Existing file is not in the permanent library'
+                    }),
+                    'error',
+                    0
+                  );
+                }
+                return;
+              }
               applyLocalPreview(
                 payload.outputFilePath,
                 localUri,
-                payload.existingLocation === 'library' ? 'local_library' : associatedTrack.source,
+                asLibrary ? 'local_library' : associatedTrack.source,
                 { touchLibraryList: false }
               );
-              if (payload.existingLocation === 'library') {
+              if (asLibrary) {
                 await loadLocalCatalog();
                 window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+              }
+              return;
+            }
+
+            // Pending YouTube→queue with auto-archive: archive first, then enqueue LOCAL only
+            if (pendingEnqueue && settings.autoArchiveWebTracks) {
+              if (!settings.libraryPath?.trim()) {
+                delete pendingArchiveEnqueueRef.current[payload.downloadId];
+                showToast(
+                  t(
+                    'errors.libraryPathRequired',
+                    'Imposta la cartella libreria nelle impostazioni prima di scaricare.'
+                  ),
+                  'error',
+                  0
+                );
+                return;
+              }
+              try {
+                const saved = await window.karaokeApi.downloads.saveToLibrary({
+                  tempFilePath: payload.outputFilePath,
+                  title: pendingEnqueue.track.title,
+                  artist: pendingEnqueue.track.artist,
+                  durationSec: pendingEnqueue.track.durationSec,
+                  targetDirectory: settings.libraryPath,
+                  trackId: pendingEnqueue.track.id
+                });
+                delete pendingArchiveEnqueueRef.current[payload.downloadId];
+                if (!saved.localFilePath || !saved.uri) {
+                  showToast(
+                    t('errors.downloadFailed', { error: 'Archive produced no local file' }),
+                    'error',
+                    0
+                  );
+                  return;
+                }
+                const localTrack: KaraokeMediaTrack = {
+                  ...pendingEnqueue.track,
+                  ...saved,
+                  source: 'local_library',
+                  localFilePath: saved.localFilePath,
+                  uri: saved.uri
+                };
+                patchTrackInAllResults(pendingEnqueue.track.id, pendingEnqueue.track.uri, {
+                  localFilePath: saved.localFilePath,
+                  uri: saved.uri,
+                  source: 'local_library'
+                });
+                await loadLocalCatalog();
+                window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+                addToQueue(
+                  localTrack,
+                  pendingEnqueue.singerName?.trim() || undefined,
+                  false,
+                  0,
+                  pendingEnqueue.placement
+                );
+                showToast(t('library.queueArchiveReady', { title: saved.title || localTrack.title }));
+              } catch (err) {
+                delete pendingArchiveEnqueueRef.current[payload.downloadId];
+                console.error('Auto-archive before queue failed:', err);
+                showToast(t('errors.downloadFailed', { error: String(err) }), 'error', 0);
               }
               return;
             }
@@ -253,7 +384,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
             // Relink queue/search only — never index temp/partial output as a library row
             applyLocalPreview(payload.outputFilePath, localUri, undefined, { touchLibraryList: false });
 
-            // Auto-archive web tracks if enabled in settings
+            // Auto-archive web tracks if enabled (track already in queue, e.g. guest request)
             if (settings.autoArchiveWebTracks) {
               if (!settings.libraryPath?.trim()) {
                 console.error('Auto-archive skipped: libraryPath is not configured');
@@ -283,6 +414,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                 window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
               } catch (err) {
                 console.error('Auto-archive failed:', err);
+                showToast(t('errors.downloadFailed', { error: String(err) }), 'error', 0);
               }
             } else {
               // Auto-archive disabled: persist downloaded media into dedicated queue cache directory
@@ -310,7 +442,15 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       });
       return () => unSub();
     }
-  }, [settings.autoArchiveWebTracks, settings.libraryPath, trackMap, updateTrackInQueue, t]);
+  }, [
+    settings.autoArchiveWebTracks,
+    settings.libraryPath,
+    trackMap,
+    updateTrackInQueue,
+    removeFromQueue,
+    addToQueue,
+    t
+  ]);
 
 
 
@@ -526,7 +666,102 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     }
   };
 
-  const executeAddToQueue = (track: KaraokeMediaTrack, singerName?: string, placement: 'auto' | 'end' = 'auto') => {
+  const executeAddToQueue = async (
+    track: KaraokeMediaTrack,
+    singerName?: string,
+    placement: 'auto' | 'end' = 'auto'
+  ) => {
+    // Auto-archive ON: wait for download + library archive, then enqueue the LOCAL file only.
+    // Avoids non-playable YouTube/temp queue pointers that need a manual “Refresh Library”.
+    if (track.source === 'youtube' && !track.localFilePath && settings.autoArchiveWebTracks) {
+      if (!window.karaokeApi) return;
+      if (!settings.libraryPath?.trim()) {
+        showToast(
+          t('errors.libraryPathRequired', 'Imposta la cartella libreria nelle impostazioni prima di scaricare.'),
+          'error'
+        );
+        return;
+      }
+
+      const isAlreadyDownloading = Object.keys(activeDownloads).some(
+        (id) => trackMap[id]?.uri === track.uri || trackMap[id]?.id === track.id
+      );
+      if (isAlreadyDownloading) {
+        // Attach enqueue intent to the in-flight download if missing
+        for (const [downloadId, mapped] of Object.entries(trackMap)) {
+          if (mapped.uri === track.uri || mapped.id === track.id) {
+            if (!pendingArchiveEnqueueRef.current[downloadId]) {
+              pendingArchiveEnqueueRef.current[downloadId] = {
+                track,
+                singerName: singerName?.trim() || undefined,
+                placement
+              };
+            }
+            showToast(t('library.queueArchivePending', { title: track.title }));
+            return;
+          }
+        }
+      }
+
+      try {
+        showToast(t('library.queueArchivePending', { title: track.title }));
+        const result = await window.karaokeApi.downloads.start({
+          url: track.uri,
+          titleHint: track.title,
+          artistHint: track.artist,
+          trackId: track.id,
+          libraryPath: settings.libraryPath || undefined
+        });
+
+        setTrackMap((prev) => ({ ...prev, [result.downloadId]: track }));
+
+        if (result.alreadyExists && result.localFilePath) {
+          const localUri = result.uri || `karaoke://local/${encodeURIComponent(result.localFilePath)}`;
+          if (result.location === 'library') {
+            const localTrack: KaraokeMediaTrack = {
+              ...track,
+              source: 'local_library',
+              localFilePath: result.localFilePath,
+              uri: localUri
+            };
+            await loadLocalCatalog();
+            window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+            addToQueue(localTrack, singerName?.trim() || undefined, false, 0, placement);
+            showToast(t('library.queueArchiveReady', { title: localTrack.title }));
+          } else {
+            // Rare: file exists only in cache — promote to library before enqueue
+            const saved = await window.karaokeApi.downloads.saveToLibrary({
+              tempFilePath: result.localFilePath,
+              title: track.title,
+              artist: track.artist,
+              durationSec: track.durationSec,
+              targetDirectory: settings.libraryPath,
+              trackId: track.id
+            });
+            const localTrack: KaraokeMediaTrack = {
+              ...track,
+              ...saved,
+              source: 'local_library'
+            };
+            await loadLocalCatalog();
+            window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
+            addToQueue(localTrack, singerName?.trim() || undefined, false, 0, placement);
+            showToast(t('library.queueArchiveReady', { title: localTrack.title }));
+          }
+          return;
+        }
+
+        pendingArchiveEnqueueRef.current[result.downloadId] = {
+          track,
+          singerName: singerName?.trim() || undefined,
+          placement
+        };
+      } catch (err) {
+        showToast(t('errors.downloadFailed', { error: String(err) }), 'error', 0);
+      }
+      return;
+    }
+
     addToQueue(track, singerName?.trim() || undefined, false, 0, placement);
     if (track.source === 'youtube' && !track.localFilePath) {
       const isAlreadyDownloading = Object.keys(activeDownloads).some(

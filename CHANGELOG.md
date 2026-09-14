@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ---
 
+## [1.1.0] — Icons + YouTube auto-archive queue (refresh) — 2026-09-13
+
+Overwrite of GitHub Release `v1.1.0` after packaging icon + YouTube queue/archive fix.
+
+### Fixed
+- **YouTube → queue with auto-archive** — waits for successful download + library archive, refreshes/reindexes Local, then enqueues the **local library file** (no broken remote/temp pointer; failure shows an error and does not leave a non-playable queue item)
+- Playback reloads when a queued track’s local path is promoted (temp/cache → permanent library)
+
+### Changed
+- **Official logo as app icon** everywhere in packaging: `build/icon.png`, Windows `build/icon.ico`, Linux `build/icons/{size}x{size}.png`, macOS `build/icon.png` (electron-builder → `.icns`); favicons refreshed from `public/logo.png`
+- Regenerator: `npm run generate-icons` (`scripts/generate-icons.js`)
+
+---
+
 ## [1.1.0] — Refresh (PR #3) — 2026-09-13
 
 Overwrite of GitHub Release `v1.1.0` after merge of `cursor/preascolto-preview-fix-855c`.

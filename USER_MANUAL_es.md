@@ -370,6 +370,7 @@ Ciérralo con la **X** manual.
 4. Si auto-archive está ON y `libraryPath` es válido → archivo en biblioteca + reindexación inmediata.  
 5. Si auto-archive está OFF → archivo en `queue_cache` (promovible con **Salva in Libreria**).  
 6. Errores: toast persistente **«Download fallito: …»** (texto de UI en italiano).
+7. **Añadir a la cola desde YouTube con archivado automático ON**: la app espera a que el download **y** el archivo tengan éxito, actualiza Local y luego encola el **archivo local de la biblioteca** (no un puntero remoto/temp). Si falla, toast de error y **ningún** elemento no reproducible en cola.
 
 Portadas/miniaturas y vistas previas locales se actualizan sin reiniciar (ffmpeg extrae un fotograma ~al segundo 4 para archivos locales; YouTube proporciona thumbs web).
 
