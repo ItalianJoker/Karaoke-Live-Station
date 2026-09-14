@@ -212,6 +212,7 @@ function simulateAutoArchiveEnqueueFlow(opts) {
     return events;
   }
   if (alreadyInLibrary) {
+    events.push('full_library_reindex');
     events.push('library_refresh');
     events.push('enqueue_local_library');
     return events;
@@ -222,6 +223,7 @@ function simulateAutoArchiveEnqueueFlow(opts) {
     return events;
   }
   events.push('save_to_library');
+  events.push('full_library_reindex');
   events.push('library_refresh');
   events.push('enqueue_local_library');
   return events;
@@ -236,6 +238,7 @@ const autoArchiveHappy = simulateAutoArchiveEnqueueFlow({
 assert(
   autoArchiveHappy[0] === 'start_download_without_enqueue' &&
     autoArchiveHappy.includes('enqueue_local_library') &&
+    autoArchiveHappy.includes('full_library_reindex') &&
     !autoArchiveHappy.includes('enqueue_youtube_remote'),
   'Auto-archive queue waits for archive then enqueues local library file'
 );
@@ -258,7 +261,9 @@ const autoArchiveDedup = simulateAutoArchiveEnqueueFlow({
   alreadyInLibrary: true
 });
 assert(
-  autoArchiveDedup.includes('enqueue_local_library') && autoArchiveDedup.includes('library_refresh'),
+  autoArchiveDedup.includes('enqueue_local_library') &&
+    autoArchiveDedup.includes('full_library_reindex') &&
+    autoArchiveDedup.includes('library_refresh'),
   'Auto-archive queue reuses existing library file and refreshes catalog'
 );
 
@@ -285,8 +290,21 @@ const libraryPanelSourceForArchive = fs.readFileSync(
 assert(
   libraryPanelSourceForArchive.includes('pendingArchiveEnqueueRef') &&
     libraryPanelSourceForArchive.includes('queueArchivePending') &&
-    libraryPanelSourceForArchive.includes('queueArchiveReady'),
+    libraryPanelSourceForArchive.includes('queueArchiveReady') &&
+    libraryPanelSourceForArchive.includes('refreshLocalLibraryFully') &&
+    libraryPanelSourceForArchive.includes('scanFolder'),
   'LibraryPanel implements wait-then-enqueue-local auto-archive queue flow'
+);
+
+const mainProcessSourceForArchiveThumb = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/index.ts'),
+  'utf8'
+);
+assert(
+  /download:save-to-library[\s\S]*getOrGenerateThumbnail[\s\S]*upsertTrack/.test(
+    mainProcessSourceForArchiveThumb
+  ),
+  'save-to-library generates thumbnail before catalog upsert'
 );
 
 
@@ -1226,10 +1244,23 @@ assert(
   videoPreviewScopedSource.includes('isSameCueAndMasterDevice') &&
     videoPreviewScopedSource.includes('data-testid="preview-unmute-same-device-dialog"') &&
     videoPreviewScopedSource.includes('data-testid="preview-unmute-same-device-confirm"') &&
+    videoPreviewScopedSource.includes('attachYouTubePreviewPlayer') &&
+    videoPreviewScopedSource.includes('data-testid="preview-youtube-iframe"') &&
     libraryPanelScopedSource.includes('setPreviewTrack(track)') &&
     libraryPanelScopedSource.includes('cueAudioDeviceId') &&
     libraryPanelScopedSource.includes('masterAudioDeviceId'),
   'Pre-Ascolto opens video preview; same-device unmute confirm is wired'
+);
+
+const youtubePreviewPlayerSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/utils/youtubePreviewPlayer.ts'),
+  'utf8'
+);
+assert(
+  youtubePreviewPlayerSource.includes('loadYouTubeIframeApi') &&
+    youtubePreviewPlayerSource.includes('attachYouTubePreviewPlayer') &&
+    youtubePreviewPlayerSource.includes('YOUTUBE_IFRAME_API_SRC'),
+  'YouTube preview player helper loads IFrame API for unmute watch'
 );
 
 assert(

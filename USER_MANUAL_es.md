@@ -260,7 +260,7 @@ Con archivos `.mid` / `.kar` aparece el **Mezclador de canales MIDI** (`Mixer Ca
 
 Usa **Preescucha en auriculares (CUE)** (`Pre-ascolto Cuffie (CUE)`) para escuchar en auriculares mientras la sala oye el Master. Configura el dispositivo CUE en Ajustes.
 
-En **Biblioteca**, el botón Preescucha abre el **modal de vista previa** (mismo estilo que Ajustes) y enruta el audio al dispositivo CUE. No hay barra de volumen aparte: silencio/volumen quedan en los controles del reproductor embebido (o transporte MIDI). Si CUE y Salida Principal coinciden, al quitar el silencio aparece un aviso de confirmación para no mezclar la previa en el PA de sala.
+En **Biblioteca**, el botón Preescucha abre el **modal de vista previa** (mismo estilo que Ajustes) y enruta el audio al dispositivo CUE. No hay barra de volumen aparte: silencio/volumen quedan en los controles del reproductor embebido (o transporte MIDI). Si CUE y Salida Principal coinciden, al quitar el silencio aparece un aviso de confirmación para no mezclar la previa en el PA de sala — incluido el **embed de YouTube de la búsqueda Web**, que usa el mismo modal temático que vídeo/audio/MIDI locales.
 
 ### 4.8 Persistencia de cola y anti-crash
 
@@ -354,8 +354,11 @@ El modal de vista previa incrusta el vídeo desde `youtube-nocookie.com` con par
 - `modestbranding=1`
 - `referrerPolicy="strict-origin-when-cross-origin"`
 - autoplay silenciado en vista previa
+- confirmación de unmute mismo dispositivo (CUE === Salida Principal) vía YouTube IFrame API + modal temático
 
 Esto reduce el error de embed **153** típico de los iframes restrictivos de YouTube.
+
+Con **archivado automático** ON, **Añadir a cola** desde YouTube espera descarga + guardado en biblioteca, luego ejecuta una **reindexación Local completa** (miniatura ffmpeg incluida) **antes** de encolar el archivo local — así el tema aparece en Local con la portada correcta sin «Actualizar biblioteca» manual.
 
 ### 6.4 Descarga y badge «Download completato»
 

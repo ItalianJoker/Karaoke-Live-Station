@@ -1013,6 +1013,11 @@ class KaraokeMainProcess {
         durationSec: payload.durationSec,
         trackId: payload.trackId
       });
+      // Generate cover/thumb before upsert so Local library shows it without a manual refresh
+      if (track.localFilePath && !track.thumbnailUrl) {
+        const thumb = this.getOrGenerateThumbnail(track.localFilePath);
+        if (thumb) track.thumbnailUrl = thumb;
+      }
       this.db.upsertTrack(track);
       // Notify renderer windows to reindex/refresh library immediately
       if (this.controlWindow && !this.controlWindow.isDestroyed()) {

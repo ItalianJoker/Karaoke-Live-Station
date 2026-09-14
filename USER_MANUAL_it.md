@@ -260,7 +260,7 @@ Con file `.mid` / `.kar` compare il **Mixer Canali MIDI**:
 
 Usa **Pre-ascolto Cuffie (CUE)** per ascoltare in cuffia mentre la sala sente il Master. Configura il dispositivo CUE nelle Impostazioni.
 
-In **Libreria**, il pulsante Pre-ascolto apre il **modale anteprima** (stesso tema delle Impostazioni) e indirizza l’audio al dispositivo CUE. Non c’è una barra volume dedicata: volume e muto restano sui controlli del player incorporato (o del trasporto MIDI). Se CUE e Uscita Principale coincidono, togliendo il muto compare un avviso di conferma per evitare di mescolare l’anteprima sul PA di sala.
+In **Libreria**, il pulsante Pre-ascolto apre il **modale anteprima** (stesso tema delle Impostazioni) e indirizza l’audio al dispositivo CUE. Non c’è una barra volume dedicata: volume e muto restano sui controlli del player incorporato (o del trasporto MIDI). Se CUE e Uscita Principale coincidono, togliendo il muto compare un avviso di conferma per evitare di mescolare l’anteprima sul PA di sala — incluso l’**embed YouTube della ricerca Web**, che usa lo stesso modale tematico di video/audio/MIDI locali.
 
 ### 4.8 Persistenza coda e anti-crash
 
@@ -354,8 +354,11 @@ Il modale anteprima incorpora il video da `youtube-nocookie.com` con parametri a
 - `modestbranding=1`
 - `referrerPolicy="strict-origin-when-cross-origin"`
 - autoplay mutato in anteprima
+- conferma unmute stesso-dispositivo (CUE === Uscita Principale) via YouTube IFrame API + modale tematico
 
 Questo riduce l’errore embed **153** tipico degli iframe YouTube restrittivi.
+
+Con **archiviazione automatica** ON, **Metti in coda** da YouTube attende download + salvataggio in libreria, poi esegue un **reindicizzazione completa Local** (inclusa thumbnail ffmpeg) **prima** di accodare il file locale — così il brano compare in Locale con la copertina corretta senza «Aggiorna libreria» manuale.
 
 ### 6.4 Download e badge «Download completato»
 

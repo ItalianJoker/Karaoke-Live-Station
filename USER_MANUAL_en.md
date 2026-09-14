@@ -260,7 +260,7 @@ With `.mid` / `.kar` files the **MIDI Channel Mixer** (`Mixer Canali MIDI`) appe
 
 Use **Headphone Pre-listen (CUE)** (`Pre-ascolto Cuffie (CUE)`) to listen on headphones while the room hears Master. Configure the CUE device in Settings.
 
-In **Library**, the Pre-Listen button opens the **themed preview modal** (same look as Settings) and routes audio to the CUE device. There is no separate volume bar: mute/volume stay on the embedded player controls (or MIDI transport). If CUE and Main Output are the same device, unmuting shows a confirmation warning so preview audio is not mixed onto the room PA by mistake.
+In **Library**, the Pre-Listen button opens the **themed preview modal** (same look as Settings) and routes audio to the CUE device. There is no separate volume bar: mute/volume stay on the embedded player controls (or MIDI transport). If CUE and Main Output are the same device, unmuting shows a confirmation warning so preview audio is not mixed onto the room PA by mistake — including the **Web-search YouTube embed**, which uses the same themed confirm modal as local video/audio/MIDI.
 
 ### 4.8 Queue persistence and crash recovery
 
@@ -354,8 +354,11 @@ The preview modal embeds video from `youtube-nocookie.com` with anti-block param
 - `modestbranding=1`
 - `referrerPolicy="strict-origin-when-cross-origin"`
 - muted autoplay in preview
+- same-device unmute confirm (CUE === Main Output) via YouTube IFrame API + themed modal
 
 This reduces the embed **153** error typical of restrictive YouTube iframes.
+
+With **auto-archive** ON, **Add to queue** from YouTube waits for download + library save, then runs a **full Local reindex** (including ffmpeg thumbnail) **before** enqueueing the local file — so the track appears in Local with the correct cover without a manual “Refresh Library”.
 
 ### 6.4 Download and «Download completato» badge
 
