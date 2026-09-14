@@ -724,4 +724,10 @@ Settings → Diagnostics & Log Files: level, open folder/file, clear logs. Usefu
 
 ---
 
+## License
+
+Karaoke Live Station is released under the **GNU Affero General Public License v3 (AGPLv3) or any later version**. Full text: [`LICENSE`](./LICENSE).
+
+---
+
 *End of User Manual — Karaoke Live Station (Phase 6, EN documentation).*

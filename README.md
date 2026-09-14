@@ -17,6 +17,7 @@
   <a href="https://deepmind.google/"><img src="https://img.shields.io/badge/Developed%20with-Google%20Antigravity-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google Antigravity" /></a>
   <a href="https://cursor.com/"><img src="https://img.shields.io/badge/Developed%20with-Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white" alt="Cursor" /></a>
   <a href="https://www.paypal.com/paypalme/LucaAbagnale"><img src="https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Donate with PayPal" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL%20v3-blue?style=for-the-badge" alt="License: AGPL v3" /></a>
   <a href="#-italiano"><img src="https://img.shields.io/badge/Languages-IT%20%7C%20EN%20%7C%20ES%20%7C%20FR-blue?style=for-the-badge&logo=translate" alt="Languages: IT, EN, ES, FR" /></a>
 </p>
 
@@ -31,8 +32,8 @@
 - 🧰 Managed binaries (`yt-dlp`, helpers): `<app_userData>/bin/` (Electron `userData`) — portable across updates
 
 ### 🌐 Lingua / Language
-- [🇮🇹 **Italiano**](#-italiano) • [☕ *Supporta il Progetto*](#-supporta-il-progetto) • [⚖️ *Disclaimer Legale & Copyright*](#️-disclaimer-legale-copyright--marchi-registrati) • [📚 *Fonti & Licenze Terze*](#-attribuzioni-fonti--licenze-librerie-terze)
-- [🇬🇧 **English**](#-english) • [☕ *Support the Project*](#-support-the-project) • [⚖️ *Legal Disclaimer & Trademarks*](#️-legal-disclaimer-copyright--trademarks) • [📚 *Third-Party Sources & Licenses*](#-third-party-libraries-citations--licenses)
+- [🇮🇹 **Italiano**](#-italiano) • [☕ *Supporta il Progetto*](#-supporta-il-progetto) • [⚖️ *Disclaimer Legale & Copyright*](#️-disclaimer-legale-copyright--marchi-registrati) • [📚 *Fonti & Licenze Terze*](#-attribuzioni-fonti--licenze-librerie-terze) • [📄 *Licenza*](#-licenza)
+- [🇬🇧 **English**](#-english) • [☕ *Support the Project*](#-support-the-project) • [⚖️ *Legal Disclaimer & Trademarks*](#️-legal-disclaimer-copyright--trademarks) • [📚 *Third-Party Sources & Licenses*](#-third-party-libraries-citations--licenses) • [📄 *License*](#-license)
 
 ---
 
@@ -308,6 +309,14 @@ Karaoke Live Station è realizzato grazie a eccezionali librerie open source, st
 | **Lucide Icons** | Lucide Contributors | ISC | [lucide.dev](https://lucide.dev/) | Iconografia vettoriale moderna ed uniforme dell'interfaccia |
 | **Zustand** | Paul Henschel & Zustand contributors | MIT | [github.com/pmndrs/zustand](https://github.com/pmndrs/zustand) | Gestione centralizzata e reattiva dello stato globale dell'applicazione |
 | **i18next & react-i18next** | i18next Community | MIT | [i18next.com](https://www.i18next.com/) | Internazionalizzazione completa (Italiano, Inglese, Spagnolo, Francese) |
+
+---
+
+## 📄 Licenza
+
+**Karaoke Live Station** è rilasciato sotto la [GNU Affero General Public License v3 (AGPLv3)](https://www.gnu.org/licenses/agpl-3.0.html) o versione successiva (`AGPL-3.0-or-later`).
+
+Il testo completo della licenza è disponibile nel file [`LICENSE`](./LICENSE) alla radice del repository. Le librerie e dipendenze di terze parti restano proprietà intellettuale dei rispettivi autori sotto le rispettive licenze open source indicate sopra.
 
 ---
 
@@ -642,5 +651,6 @@ Karaoke Live Station is powered by open-source libraries, open standards, and co
 
 ## 📄 License
 
-This software is released for live entertainment, professional hosting, and private karaoke use.
-All third-party libraries and dependencies remain the intellectual property of their respective authors under their original open-source licenses as cited above.
+**Karaoke Live Station** is released under the [GNU Affero General Public License v3 (AGPLv3)](https://www.gnu.org/licenses/agpl-3.0.html) or any later version (`AGPL-3.0-or-later`).
+
+The full license text is available in the [`LICENSE`](./LICENSE) file at the repository root. All third-party libraries and dependencies remain the intellectual property of their respective authors under their original open-source licenses as cited above.
