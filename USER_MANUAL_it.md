@@ -719,4 +719,10 @@ Impostazioni → Diagnostica & File di Log: livello, apri cartella/file, cancell
 
 ---
 
+## Licenza
+
+Karaoke Live Station è rilasciato sotto la **GNU Affero General Public License v3 (AGPLv3) o versione successiva**. Testo completo: [`LICENSE`](./LICENSE).
+
+---
+
 *Fine del Manuale Utente — Karaoke Live Station (Phase 6, documentazione IT).*

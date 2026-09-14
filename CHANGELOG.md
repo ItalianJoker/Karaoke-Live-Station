@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ---
 
+## [Unreleased]
+
+### Changed
+- **Project license** — Karaoke Live Station is now licensed under **GNU AGPLv3 or later** (`AGPL-3.0-or-later`): added root `LICENSE`, `package.json` / electron-builder Linux metadata, and README (IT/EN) + user-manual license notes
+
+---
+
 ## [1.1.0] — Web preview unmute + archive thumbs (refresh) — 2026-09-14
 
 Overwrite of GitHub Release `v1.1.0` after web-search YouTube unmute confirm + auto-archive thumbnail reindex.
