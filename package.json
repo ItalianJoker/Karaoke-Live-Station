@@ -56,7 +56,6 @@
       ],
       "icon": "build/icons",
       "category": "AudioVideo",
-      "license": "AGPL-3.0-or-later",
       "maintainer": "Karaoke Live Station Team <dev@karaokelivestation.local>",
       "extraResources": [
         {

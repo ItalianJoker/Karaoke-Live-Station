@@ -9,7 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Changed
-- **Project license** — Karaoke Live Station is now licensed under **GNU AGPLv3 or later** (`AGPL-3.0-or-later`): added root `LICENSE`, `package.json` / electron-builder Linux metadata, and README (IT/EN) + user-manual license notes
+- **Project license** — Karaoke Live Station is now licensed under **GNU AGPLv3 or later** (`AGPL-3.0-or-later`): added root `LICENSE`, `package.json` license metadata, and README (IT/EN) + user-manual license notes
 
 ---
 
