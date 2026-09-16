@@ -43,6 +43,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "public/ort",
+        "to": "ort",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "asarUnpack": [
@@ -108,10 +115,13 @@
   "dependencies": {
     "better-sqlite3": "^11.8.1",
     "clsx": "^2.1.1",
+    "demucs-web": "^1.0.2",
     "express": "^4.21.2",
     "ffmpeg-static": "^5.2.0",
+    "fft.js": "^4.0.4",
     "i18next": "^24.2.2",
     "lucide-react": "^0.475.0",
+    "onnxruntime-web": "^1.30.0",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

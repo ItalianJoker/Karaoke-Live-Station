@@ -1,6 +1,8 @@
 /**
- * Vocal remover method catalog shared by Settings and AudioGraph.
- * Algorithmic methods are realtime Web Audio mid/side DSP (no ML / ONNX).
+ * Vocal remover method catalog shared by Settings, Download Instrumental, and AudioGraph.
+ *
+ * Algorithmic methods are realtime Web Audio mid/side DSP (live Rimozione Vocale).
+ * AI methods are offline ONNX models used by Download Instrumental (not live dual-stem).
  */
 
 /** Classical realtime DSP algorithms (no download). */
@@ -9,8 +11,10 @@ export type AlgorithmicVocalRemoverMethod =
   | 'centerCancel'
   | 'softMid';
 
-/** @deprecated Alias — only algorithmic methods remain. */
-export type VocalRemoverMethod = AlgorithmicVocalRemoverMethod;
+/** Offline on-device AI models (download once into userData/models, then fully offline). */
+export type AiVocalRemoverMethod = 'aiMdxKaraoke2' | 'aiHtDemucs' | 'aiBsRoformer';
+
+export type VocalRemoverMethod = AlgorithmicVocalRemoverMethod | AiVocalRemoverMethod;
 
 export const ALGORITHMIC_VOCAL_REMOVER_METHODS: AlgorithmicVocalRemoverMethod[] = [
   'centerCancelBassKeep',
@@ -18,9 +22,20 @@ export const ALGORITHMIC_VOCAL_REMOVER_METHODS: AlgorithmicVocalRemoverMethod[] 
   'softMid'
 ];
 
-export const ALL_VOCAL_REMOVER_METHODS: VocalRemoverMethod[] = [
-  ...ALGORITHMIC_VOCAL_REMOVER_METHODS
+export const AI_VOCAL_REMOVER_METHODS: AiVocalRemoverMethod[] = [
+  'aiMdxKaraoke2',
+  'aiHtDemucs',
+  'aiBsRoformer'
 ];
+
+export const ALL_VOCAL_REMOVER_METHODS: VocalRemoverMethod[] = [
+  ...ALGORITHMIC_VOCAL_REMOVER_METHODS,
+  ...AI_VOCAL_REMOVER_METHODS
+];
+
+export function isAiVocalRemoverMethod(method: string): method is AiVocalRemoverMethod {
+  return (AI_VOCAL_REMOVER_METHODS as string[]).includes(method);
+}
 
 export function isAlgorithmicVocalRemoverMethod(
   method: string
@@ -32,11 +47,103 @@ export function isVocalRemoverMethod(method: string): method is VocalRemoverMeth
   return (ALL_VOCAL_REMOVER_METHODS as string[]).includes(method);
 }
 
-/** Normalize persisted settings that may still hold removed AI method ids. */
+/** Persist Settings values; accepts algorithmic + AI ids. */
 export function coerceVocalRemoverMethod(method: string | undefined | null): VocalRemoverMethod {
   if (method && isVocalRemoverMethod(method)) return method;
   return 'centerCancelBassKeep';
 }
+
+/**
+ * Live Rimozione Vocale stays algorithmic-only (no Separazione / dual-stem).
+ * When Settings selects an AI method, live DSP uses the default algorithmic path.
+ */
+export function coerceAlgorithmicVocalRemoverMethod(
+  method: string | undefined | null
+): AlgorithmicVocalRemoverMethod {
+  if (method && isAlgorithmicVocalRemoverMethod(method)) return method;
+  return 'centerCancelBassKeep';
+}
+
+/** Stable model ids used for on-disk filenames and IPC. */
+export type OfflineVocalModelId = 'mdxKaraoke2' | 'htDemucs' | 'bsRoformer';
+
+export function methodToModelId(method: AiVocalRemoverMethod): OfflineVocalModelId {
+  switch (method) {
+    case 'aiMdxKaraoke2':
+      return 'mdxKaraoke2';
+    case 'aiHtDemucs':
+      return 'htDemucs';
+    case 'aiBsRoformer':
+      return 'bsRoformer';
+  }
+}
+
+export type OfflineVocalModelMeta = {
+  id: OfflineVocalModelId;
+  /** Approximate download size shown in Settings (MB). */
+  approxSizeMb: number;
+  /** Minimum accepted file size for integrity check (bytes). */
+  minBytes: number;
+  /** Expected SHA-256 when known (empty = size-only check). */
+  sha256?: string;
+  filename: string;
+  url: string;
+  /**
+   * Catalog revision string. When changed, ensureModel treats the remote as newer
+   * and re-downloads even if URL/SHA are unchanged. Prefer bumping URL/SHA when the
+   * bytes change; bump version for metadata-only catalog refreshes.
+   */
+  version: string;
+  /** Human label for logs / progress. */
+  label: string;
+};
+
+/**
+ * Catalog of downloadable ONNX weights for Download Instrumental.
+ * URLs point at public Hugging Face / demucs-web mirrors — first use only; then offline.
+ * Update only when missing, corrupt, or catalog URL/SHA/version is newer than local meta.
+ */
+export const OFFLINE_VOCAL_MODELS: Record<OfflineVocalModelId, OfflineVocalModelMeta> = {
+  mdxKaraoke2: {
+    id: 'mdxKaraoke2',
+    approxSizeMb: 53,
+    minBytes: 40 * 1024 * 1024,
+    // Tha456/uvr5-models mirror of UVR_MDXNET_KARA_2.onnx (same SHA as Politrees historical upload).
+    sha256: 'bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4',
+    filename: 'UVR_MDXNET_KARA_2.onnx',
+    url: 'https://huggingface.co/Tha456/uvr5-models/resolve/main/UVR_MDXNET_KARA_2.onnx',
+    version: '1',
+    label: 'UVR-MDX-NET Karaoke 2'
+  },
+  htDemucs: {
+    id: 'htDemucs',
+    approxSizeMb: 172,
+    minBytes: 100 * 1024 * 1024,
+    filename: 'htdemucs_embedded.onnx',
+    // Must match demucs-web CONSTANTS.DEFAULT_MODEL_URL
+    url: 'https://huggingface.co/timcsy/demucs-web-onnx/resolve/main/htdemucs_embedded.onnx',
+    version: '1',
+    label: 'HTDemucs v4'
+  },
+  bsRoformer: {
+    id: 'bsRoformer',
+    approxSizeMb: 158,
+    minBytes: 100 * 1024 * 1024,
+    filename: 'bs_roformer_ep317_sdr12.9755_quantized_uint8.onnx',
+    // ViperX BS-RoFormer quantized uint8 — lighter Electron-friendly export
+    url: 'https://huggingface.co/xycld/BS-RoFormer-ONNX/resolve/main/bs_roformer_ep317_sdr12.9755_quantized_uint8.onnx',
+    version: '1',
+    label: 'BS-Roformer (ViperX)'
+  }
+};
+
+export type VocalModelDownloadProgress = {
+  modelId: OfflineVocalModelId;
+  phase: 'download' | 'verify' | 'ready' | 'error';
+  loaded: number;
+  total: number;
+  message: string;
+};
 
 /**
  * YouTube results whose titles already say Karaoke / instrumental should not

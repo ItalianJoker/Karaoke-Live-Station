@@ -10,11 +10,10 @@
  * Config matches UVR_MDXNET_KARA_2.yaml (dim_f=2048, dim_t=256, n_fft=5120, hop=1024).
  *
  * Heavy work yields to the event loop between frames/chunks (and prefers a Web Worker
- * via MdxVocalWorkerClient) so toggling AI during playback never freezes the UI.
+ * in a utility worker for Download Instrumental).
  */
 import * as ort from 'onnxruntime-web';
 import { hannWindow, realFftFrame, realIfftFrame } from './audioFft';
-import { configureOrtWasmFromUserData } from './ortWasmConfig';
 import { yieldToMainThread } from './yieldToMain';
 
 export type MdxProgress = {
@@ -57,21 +56,17 @@ export class MdxNetSeparator {
     }
   }
 
-  /**
-   * Apply ORT WASM paths. When `wasmPaths` is provided (worker), skip window IPC.
-   * Otherwise configure from durable userData/ort (karaoke://ort/), not Temp.
-   */
+  /** Apply ORT WASM paths (file:// or karaoke://). Required in main/utility workers. */
   private async configureOrt(
     wasmPaths?: string | { wasm: string; mjs: string }
   ): Promise<void> {
-    if (wasmPaths) {
-      ort.env.wasm.numThreads = 1;
-      ort.env.wasm.simd = true;
-      ort.env.wasm.proxy = false;
-      ort.env.wasm.wasmPaths = wasmPaths;
-      return;
+    if (!wasmPaths) {
+      throw new Error('ORT WASM paths required for instrumental AI separation');
     }
-    await configureOrtWasmFromUserData();
+    ort.env.wasm.numThreads = 1;
+    ort.env.wasm.simd = true;
+    ort.env.wasm.proxy = false;
+    ort.env.wasm.wasmPaths = wasmPaths;
   }
 
   public async loadModel(

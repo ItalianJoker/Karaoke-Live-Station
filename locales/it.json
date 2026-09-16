@@ -135,7 +135,12 @@
     "download": "Scarica",
     "downloadInstrumental": "Scarica strumentale",
     "removingVocals": "Rimozione voce…",
-    "remuxingInstrumental": "Creazione video strumentale…"
+    "remuxingInstrumental": "Creazione video strumentale…",
+    "instrumentalDownloadWarning": "Il Download Strumentale richiede più tempo di un download normale e può usare più CPU/RAM durante la separazione della voce.",
+    "downloadsMenu": "Download",
+    "downloadsEmpty": "Nessun download attivo",
+    "downloadingModel": "Download modello…",
+    "queued": "In coda"
   },
   "settings": {
     "title": "Impostazioni di Sistema",
@@ -227,12 +232,17 @@
     "stageMessageBackgroundBrowse": "Sfoglia…",
     "stageMessageBackgroundClear": "Cancella",
     "vocalRemoverAlgorithm": "Metodo Rimozione Voce (Sperimentale)",
-    "vocalRemoverAlgorithmDesc": "DSP mid/side classico in tempo reale usato dal pulsante Rimozione Vocale in Regia (niente AI / niente download modelli).",
+    "vocalRemoverAlgorithmDesc": "Il DSP algoritmico è usato dalla Rimozione Vocale live. I metodi AI offline valgono per Download Strumentale (i modelli si scaricano una volta in userData/models, poi restano offline).",
     "vocalAlgoCenterBass": "Cancel mid (mantieni bassi)",
     "vocalAlgoCenter": "Cancel mid completo (classico L−R)",
     "vocalAlgoSoftMid": "Attenuazione mid soft (meno artefatti)",
     "vocalGroupAlgorithmic": "DSP in tempo reale",
-    "vocalGroupAi": "AI offline (Sperimentale)"
+    "vocalGroupAi": "AI offline — Download Strumentale",
+    "vocalAiMdxKaraoke2": "UVR-MDX-NET Karaoke 2 — ~53 MB — AI consigliata",
+    "vocalAiHtDemucs": "HTDemucs v4 — ~172 MB (Sperimentale)",
+    "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 MB — avanzato (Sperimentale)",
+    "maxSimultaneousDownloads": "Download simultanei massimi",
+    "maxSimultaneousDownloadsDesc": "Limite condiviso tra Download normale e Download Strumentale. I job in eccesso restano in coda nel menu Download."
   },
   "history": {
     "title": "Storico Esecuzioni",

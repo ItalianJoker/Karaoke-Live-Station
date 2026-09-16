@@ -84,6 +84,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   enableFairQueue: true,
   enableVocalRemover: false,
   vocalRemoverAlgorithm: 'centerCancelBassKeep',
+  maxSimultaneousDownloads: 2,
   enableAutoDuckingBGM: false,
   enableAudioNormalization: true,
   enableGuestPortal: true,
@@ -884,6 +885,9 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         mergedSettings.vocalRemoverAlgorithm = coerceVocalRemoverMethod(
           mergedSettings.vocalRemoverAlgorithm
         );
+        const maxDl = Number(mergedSettings.maxSimultaneousDownloads);
+        mergedSettings.maxSimultaneousDownloads =
+          Number.isFinite(maxDl) && maxDl >= 1 ? Math.min(8, Math.floor(maxDl)) : 2;
         return {
           ...current,
           ...p,

@@ -9,8 +9,6 @@ import {
   Download,
   Plus,
   Loader2,
-  XCircle,
-  Save,
   Music,
   Headphones,
   UserPlus,
@@ -594,6 +592,10 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       return;
     }
     const instrumental = opts?.instrumental === true;
+    if (instrumental) {
+      // Non-blocking warning — instrumental AI/algo post-process is heavier than a normal download
+      showToast(t('library.instrumentalDownloadWarning'), 'warning', 7000);
+    }
     const titleHint = instrumental
       ? /instrumental/i.test(track.title || '')
         ? track.title
@@ -641,52 +643,6 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
           window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
         }
       }
-    } catch (err) {
-      showToast(t('errors.downloadFailed', { error: String(err) }));
-    }
-  };
-
-  const handleSaveToLibrary = async (downloadId: string) => {
-    const dl = activeDownloads[downloadId];
-    const track = trackMap[downloadId];
-    if (!dl || !dl.outputFilePath || !track || !window.karaokeApi) return;
-
-    try {
-      const saved = await window.karaokeApi.downloads.saveToLibrary({
-        tempFilePath: dl.outputFilePath,
-        title: track.title,
-        artist: track.artist,
-        durationSec: track.durationSec,
-        targetDirectory: settings.libraryPath || undefined,
-        trackId: track.id
-      });
-      // Switch queue pointer to the permanent library file
-      updateTrackInQueue(track.id, {
-        localFilePath: saved.localFilePath,
-        uri: saved.uri,
-        source: 'local_library'
-      });
-      updateTrackInQueue(track.uri, {
-        localFilePath: saved.localFilePath,
-        uri: saved.uri,
-        source: 'local_library'
-      });
-      if (track.localFilePath) {
-        updateTrackInQueue(track.localFilePath, {
-          localFilePath: saved.localFilePath,
-          uri: saved.uri,
-          source: 'local_library'
-        });
-      }
-      if (dl.outputFilePath) {
-        updateTrackInQueue(dl.outputFilePath, {
-          localFilePath: saved.localFilePath,
-          uri: saved.uri,
-          source: 'local_library'
-        });
-      }
-      await loadLocalCatalog();
-      showToast(t('library.savedSuccess', { title: saved.title }));
     } catch (err) {
       showToast(t('errors.downloadFailed', { error: String(err) }));
     }
@@ -910,58 +866,6 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         </div>
       </div>
 
-      {/* Active Downloads List */}
-      {Object.keys(activeDownloads).length > 0 && (
-        <div className="mb-4 bg-slate-950/80 border border-slate-800/80 rounded-2xl p-3.5 space-y-2.5 shadow-inner">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-            <Download className="w-3.5 h-3.5" /> {t('library.downloadsActive')}
-          </div>
-          {Object.values(activeDownloads).map((dl) => (
-            <div key={dl.downloadId} className="flex items-center justify-between text-xs gap-3">
-              <div className="flex-1">
-                <div className="flex justify-between text-[10px] text-slate-400 mb-1 font-mono">
-                  <span>{dl.status.toUpperCase()} • {dl.speed}</span>
-                  <span>{dl.percent.toFixed(1)}% (ETA {dl.eta})</span>
-                </div>
-                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-300 ${dl.status === 'completed' ? 'bg-emerald-500' : 'bg-indigo-500'}`}
-                    style={{ width: `${dl.percent}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1">
-                {dl.status === 'completed' && dl.outputFilePath && !settings.autoArchiveWebTracks && (
-                  <button
-                    type="button"
-                    onClick={() => handleSaveToLibrary(dl.downloadId)}
-                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full text-[10px] font-semibold flex items-center gap-1 shadow-sm transition-all"
-                  >
-                    <Save className="w-3 h-3" /> {t('library.saveToLibrary')}
-                  </button>
-                )}
-
-                {(dl.status === 'downloading' ||
-                  dl.status === 'converting' ||
-                  dl.status === 'processing' ||
-                  dl.status === 'removing_vocals' ||
-                  dl.status === 'remuxing') && (
-                  <button
-                    type="button"
-                    onClick={() => window.karaokeApi?.downloads.cancel(dl.downloadId)}
-                    className="text-slate-500 hover:text-red-400 p-1.5 rounded-full hover:bg-slate-800 transition-all"
-                  >
-                    <XCircle className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      
       {/* Completed download badges (dismissible) */}
       {completedDownloads.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">

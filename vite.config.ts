@@ -17,7 +17,32 @@ export default defineConfig({
           build: {
             outDir: path.resolve(__dirname, 'dist-electron/main'),
             rollupOptions: {
-              external: ['better-sqlite3', 'ffmpeg-static', 'express', 'socket.io', 'qrcode']
+              external: [
+                'better-sqlite3',
+                'ffmpeg-static',
+                'express',
+                'socket.io',
+                'qrcode',
+                'onnxruntime-web',
+                'demucs-web',
+                'fft.js'
+              ]
+            }
+          }
+        }
+      },
+      {
+        // Utility-process entry for Download Instrumental AI (ORT off Control UI)
+        entry: path.resolve(__dirname, 'src/main/workers/instrumentalAiWorker.ts'),
+        vite: {
+          build: {
+            outDir: path.resolve(__dirname, 'dist-electron/main'),
+            emptyOutDir: false,
+            rollupOptions: {
+              output: {
+                entryFileNames: 'instrumentalAiWorker.js'
+              },
+              external: ['onnxruntime-web', 'demucs-web', 'fft.js', 'electron']
             }
           }
         }

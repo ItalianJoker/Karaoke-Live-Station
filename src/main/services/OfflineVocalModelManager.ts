@@ -13,6 +13,8 @@ type ModelInstallMeta = {
   id: OfflineVocalModelId;
   url: string;
   sha256?: string;
+  /** Catalog revision when installed; missing means pre-version sidecar. */
+  version?: string;
   size: number;
   installedAt: string;
 };
@@ -63,6 +65,7 @@ export class OfflineVocalModelManager {
       id: modelId,
       url: catalog.url,
       sha256: catalog.sha256,
+      version: catalog.version,
       size,
       installedAt: new Date().toISOString()
     };
@@ -70,11 +73,11 @@ export class OfflineVocalModelManager {
   }
 
   /**
-   * True when the on-disk file passes integrity and matches the current catalog URL/SHA.
-   * Catalog URL or SHA changes count as "newer remote" and force a re-download.
+   * True when the on-disk file passes integrity and matches the current catalog URL/SHA/version.
+   * Catalog URL, SHA, or version changes count as "newer remote" and force a re-download.
+   * If the local model is already current, ensureModel skips download entirely.
    *
-   * Async (streaming hash) so large ONNX files never block the Electron main process /
-   * freeze the UI when the user toggles AI vocal remover during playback.
+   * Async (streaming hash) so large ONNX files never block the Electron main process.
    */
   public async isModelCached(modelId: OfflineVocalModelId): Promise<boolean> {
     const meta = OFFLINE_VOCAL_MODELS[modelId];
@@ -91,6 +94,7 @@ export class OfflineVocalModelManager {
       if (install) {
         if (install.url !== meta.url) return false;
         if ((install.sha256 || '') !== (meta.sha256 || '')) return false;
+        if ((install.version || '') !== (meta.version || '')) return false;
       }
       return true;
     } catch {

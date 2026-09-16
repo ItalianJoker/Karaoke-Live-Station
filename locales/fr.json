@@ -135,7 +135,12 @@
     "download": "Télécharger",
     "downloadInstrumental": "Télécharger instrumental",
     "removingVocals": "Suppression de la voix…",
-    "remuxingInstrumental": "Création de la vidéo instrumentale…"
+    "remuxingInstrumental": "Création de la vidéo instrumentale…",
+    "instrumentalDownloadWarning": "Télécharger Instrumental prend plus de temps qu’un téléchargement normal et peut utiliser plus de CPU/RAM pendant la séparation vocale.",
+    "downloadsMenu": "Téléchargements",
+    "downloadsEmpty": "Aucun téléchargement actif",
+    "downloadingModel": "Téléchargement du modèle…",
+    "queued": "En file"
   },
   "settings": {
     "title": "Paramètres Système",
@@ -227,12 +232,17 @@
     "stageMessageBackgroundBrowse": "Parcourir…",
     "stageMessageBackgroundClear": "Effacer",
     "vocalRemoverAlgorithm": "Méthode de suppression vocale (Expérimental)",
-    "vocalRemoverAlgorithmDesc": "DSP mid/side classique en temps réel utilisé par le bouton de suppression vocale en Régie (pas d’IA / pas de téléchargement de modèles).",
+    "vocalRemoverAlgorithmDesc": "Le DSP algorithmique sert à la suppression vocale en direct. Les méthodes IA hors ligne s’appliquent à Télécharger Instrumental (modèles téléchargés une fois dans userData/models).",
     "vocalAlgoCenterBass": "Annulation mid (garder les basses)",
     "vocalAlgoCenter": "Annulation mid complète (classique L−R)",
     "vocalAlgoSoftMid": "Atténuation mid douce (moins d’artefacts)",
     "vocalGroupAlgorithmic": "DSP temps réel",
-    "vocalGroupAi": "IA hors ligne (Expérimental)"
+    "vocalGroupAi": "IA hors ligne — Télécharger Instrumental",
+    "vocalAiMdxKaraoke2": "UVR-MDX-NET Karaoke 2 — ~53 Mo — IA recommandée",
+    "vocalAiHtDemucs": "HTDemucs v4 — ~172 Mo (Expérimental)",
+    "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 Mo — avancé (Expérimental)",
+    "maxSimultaneousDownloads": "Téléchargements simultanés max.",
+    "maxSimultaneousDownloadsDesc": "Limite partagée entre Téléchargement normal et Télécharger Instrumental. Les tâches en trop attendent dans le menu Téléchargements."
   },
   "history": {
     "title": "Historique de Lecture",
