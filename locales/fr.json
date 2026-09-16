@@ -19,9 +19,6 @@
     "cue": "Pré-écoute Casque (CUE)",
     "stopCue": "Arrêter CUE",
     "vocalRemover": "Suppression Voix Guide (Expérimental)",
-    "vocalSeparating": "Séparation vocale en cours…",
-    "vocalSeparatingShort": "Séparation…",
-    "vocalGuideFader": "Niveau voix guide (100% = guide complète, 0% = instrumental)",
     "bgmDucking": "Auto-Ducking BGM",
     "nowPlaying": "En Lecture",
     "noTrackLoaded": "Aucun morceau chargé",
@@ -134,7 +131,11 @@
     "deleteFailed": "Impossible de supprimer le titre",
     "queueArchivePending": "Téléchargement et archivage de « {{title}} » avant ajout à la file…",
     "queueArchiveReady": "Archivé et mis en file : {{title}}",
-    "queueArchiveCancelled": "Téléchargement annulé — le titre n’a pas été ajouté à la file."
+    "queueArchiveCancelled": "Téléchargement annulé — le titre n’a pas été ajouté à la file.",
+    "download": "Télécharger",
+    "downloadInstrumental": "Télécharger instrumental",
+    "removingVocals": "Suppression de la voix…",
+    "remuxingInstrumental": "Création de la vidéo instrumentale…"
   },
   "settings": {
     "title": "Paramètres Système",
@@ -226,18 +227,12 @@
     "stageMessageBackgroundBrowse": "Parcourir…",
     "stageMessageBackgroundClear": "Effacer",
     "vocalRemoverAlgorithm": "Méthode de suppression vocale (Expérimental)",
-    "vocalRemoverAlgorithmDesc": "DSP mid/side classique en temps réel, ou IA locale hors ligne (modèles téléchargés une fois dans les données app). Choisit la méthode du bouton Régie.",
+    "vocalRemoverAlgorithmDesc": "DSP mid/side classique en temps réel utilisé par le bouton de suppression vocale en Régie (pas d’IA / pas de téléchargement de modèles).",
     "vocalAlgoCenterBass": "Annulation mid (garder les basses)",
     "vocalAlgoCenter": "Annulation mid complète (classique L−R)",
     "vocalAlgoSoftMid": "Atténuation mid douce (moins d’artefacts)",
     "vocalGroupAlgorithmic": "DSP temps réel",
-    "vocalGroupAi": "IA hors ligne (Expérimental)",
-    "vocalAiMdxKaraoke2": "UVR-MDX-NET Karaoke 2 — ~53 Mo — IA recommandée",
-    "vocalAiHtDemucs": "HTDemucs v4 — ~172 Mo (Expérimental)",
-    "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 Mo — avancé (Expérimental)",
-    "aiVocalHwWarningTitle": "Suppression vocale IA hors ligne — matériel",
-    "aiVocalHwWarningBody": "Les méthodes IA s’exécutent sur l’appareil (pas de cloud). CPU moderne recommandé ; GPU/ONNX aident si disponibles. BS-Roformer est plus lourd et peut utiliser beaucoup de RAM/CPU. Au premier usage, téléchargement des modèles (~50–300 Mo selon le choix). Fonction Expérimentale.",
-    "aiVocalHwWarningDontShow": "Ne plus afficher cet avertissement"
+    "vocalGroupAi": "IA hors ligne (Expérimental)"
   },
   "history": {
     "title": "Historique de Lecture",

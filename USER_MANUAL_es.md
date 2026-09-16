@@ -237,11 +237,7 @@ La tecla **`V`** / el control **Eliminar Voz Guía (Experimental)** activa el m�
 | Método | Notas |
 | --- | --- |
 | `centerCancelBassKeep` / `centerCancel` / `softMid` | DSP mid/side **en tiempo real** — ligero, sin descarga |
-| **UVR-MDX-NET Karaoke 2** (~53 MB) | IA offline — **recomendada** entre las opciones IA; ONNX WASM |
-| **HTDemucs v4** (~172 MB) | IA offline (Experimental) vía demucs-web + ONNX |
-| **BS-Roformer (ViperX)** (~158 MB cuantizado) | Avanzado/más pesado; modelo en caché local; STFT band-split aún no fiable en Electron WASM — toast + DSP disponible |
 
-Los métodos IA se descargan una vez en `userData/models/` y luego funcionan offline. Separación async con crossfade. En el primer uso IA aparece un **aviso de hardware**. Los métodos algorítmicos no muestran el aviso. Si el modelo falla: toast; el DSP sigue disponible.
 
 ### 4.5 Auto-ducking BGM
 

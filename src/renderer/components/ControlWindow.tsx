@@ -29,8 +29,7 @@ import {
   History,
   GripVertical,
   HelpCircle,
-  Download,
-  Loader2
+  Download
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AudioGraphManager } from '../core/AudioGraphManager';
@@ -40,8 +39,6 @@ import { HistoryPanel } from './HistoryPanel';
 import { SettingsModal } from './SettingsModal';
 import { ToastHost } from './ToastHost';
 import { showToast, confirmAsync } from '../utils/toast';
-import { warnAiVocalRemoverIfNeeded } from '../utils/aiVocalHwWarning';
-import { isAiVocalRemoverMethod } from '../../shared/vocalRemover';
 import { SingersModal } from './SingersModal';
 import { GuestRequestsModal } from './GuestRequestsModal';
 import { FirewallGuideCard } from './FirewallGuideCard';
@@ -109,24 +106,6 @@ export const ControlWindow: React.FC = () => {
     }
   }, [showPortalQrModal]);
 
-  // Toast progress while offline AI models download into userData/models
-  useEffect(() => {
-    if (!window.karaokeApi?.vocalModels?.onDownloadProgress) return;
-    return window.karaokeApi.vocalModels.onDownloadProgress((progress) => {
-      if (progress.phase === 'error') {
-        showToast(progress.message, 'error', 7000);
-        return;
-      }
-      if (progress.phase === 'ready') {
-        showToast(progress.message, 'success', 3500);
-        return;
-      }
-      if (progress.phase === 'download' || progress.phase === 'verify') {
-        showToast(progress.message, 'info', 2200);
-      }
-    });
-  }, []);
-
   const [editingSingerItem, setEditingSingerItem] = useState<import('../../shared/types').QueueItem | null>(null);
   const [editingSingerText, setEditingSingerText] = useState<string>('');
   const [isSingerDropdownOpen, setIsSingerDropdownOpen] = useState<boolean>(false);
@@ -151,46 +130,8 @@ export const ControlWindow: React.FC = () => {
   const setPlaybackSpeed = useKaraokeStore((state) => state.setPlaybackSpeed);
   const toggleMidiChannelMute = useKaraokeStore((state) => state.toggleMidiChannelMute);
   const setVocalRemover = useKaraokeStore((state) => state.setVocalRemover);
-  const setVocalGuideLevel = useKaraokeStore((state) => state.setVocalGuideLevel);
   const setDucking = useKaraokeStore((state) => state.setDucking);
 
-  /** Enable/disable vocal remover; AI methods show hardware warning on first enable. */
-  const toggleVocalRemoverWithWarning = React.useCallback(
-    async (nextState: boolean) => {
-      if (nextState) {
-        const method = settings.vocalRemoverAlgorithm || 'centerCancelBassKeep';
-        if (isAiVocalRemoverMethod(method)) {
-          const ok = await warnAiVocalRemoverIfNeeded(method, t);
-          if (!ok) return;
-        }
-      }
-      setVocalRemover(nextState);
-      if (window.karaokeApi?.logger?.log) {
-        window.karaokeApi.logger.log(
-          'info',
-          'ControlWindow',
-          `Vocal Remover ${nextState ? 'enabled' : 'disabled'} (method=${settings.vocalRemoverAlgorithm || 'centerCancelBassKeep'})`
-        );
-      }
-    },
-    [settings.vocalRemoverAlgorithm, setVocalRemover, t]
-  );
-
-  const onVocalGuideFaderChange = React.useCallback(
-    async (level: number) => {
-      const prev = playback.vocalGuideLevel ?? 1;
-      // First move below 100% with an AI method → same hardware warning as toggle
-      if (prev >= 0.999 && level < 0.999) {
-        const method = settings.vocalRemoverAlgorithm || 'centerCancelBassKeep';
-        if (isAiVocalRemoverMethod(method)) {
-          const ok = await warnAiVocalRemoverIfNeeded(method, t);
-          if (!ok) return;
-        }
-      }
-      setVocalGuideLevel(level);
-    },
-    [playback.vocalGuideLevel, settings.vocalRemoverAlgorithm, setVocalGuideLevel, t]
-  );
   const queue = useKaraokeStore((state) => state.queue);
   const reorderQueue = useKaraokeStore((state) => state.reorderQueue);
   const restoreFairQueueOrder = useKaraokeStore((state) => state.restoreFairQueueOrder);
@@ -388,9 +329,6 @@ export const ControlWindow: React.FC = () => {
     const manager = new AudioGraphManager();
     audioGraphRef.current = manager;
     manager.setAudioNormalization(useKaraokeStore.getState().settings.enableAudioNormalization ?? true);
-    manager.setDualStemStateListener((state) => {
-      useKaraokeStore.getState().setPlaybackState({ dualStemState: state });
-    });
 
     if (videoRef.current) {
       manager.bindMediaElement(videoRef.current);
@@ -544,11 +482,10 @@ export const ControlWindow: React.FC = () => {
     audioGraphRef.current.setPitchOffset(playback.livePitchOffset);
     audioGraphRef.current.setPlaybackSpeed(playback.playbackSpeed);
     audioGraphRef.current.setMutedMidiChannels(playback.mutedMidiChannels);
-    // Method first so guide-level engage builds the correct graph (algorithmic vs AI)
     audioGraphRef.current.setVocalRemoverAlgorithm(
       settings.vocalRemoverAlgorithm || 'centerCancelBassKeep'
     );
-    audioGraphRef.current.setVocalGuideLevel(playback.vocalGuideLevel ?? (playback.isVocalRemoverActive ? 0 : 1));
+    audioGraphRef.current.setVocalRemover(playback.isVocalRemoverActive);
     audioGraphRef.current.setDucking(playback.isDuckingActive);
     audioGraphRef.current.setMasterVolume(playback.masterVolume, playback.isMuted);
     audioGraphRef.current.setAudioVideoSyncOffsetMs(settings.audioVideoSyncOffsetMs);
@@ -565,7 +502,6 @@ export const ControlWindow: React.FC = () => {
     playback.playbackSpeed,
     mutedMidiChannelsKey,
     playback.isVocalRemoverActive,
-    playback.vocalGuideLevel,
     playback.isDuckingActive,
     playback.masterVolume,
     playback.isMuted,
@@ -771,7 +707,7 @@ export const ControlWindow: React.FC = () => {
         setPlaybackState({ isMuted: !playback.isMuted });
       } else if (e.code === 'KeyV') {
         e.preventDefault();
-        void toggleVocalRemoverWithWarning(!playback.isVocalRemoverActive);
+        setVocalRemover(!playback.isVocalRemoverActive);
       } else if (e.code === 'KeyD') {
         e.preventDefault();
         setDucking(!playback.isDuckingActive);
@@ -838,7 +774,6 @@ export const ControlWindow: React.FC = () => {
       setPlaybackSpeed,
       setPlaybackState,
       setVocalRemover,
-      toggleVocalRemoverWithWarning,
       setDucking,
       closeMissingFileModal,
       handleSeek
@@ -1230,46 +1165,18 @@ export const ControlWindow: React.FC = () => {
 
               {/* DSP Toggles: Vocal Remover & Ducking */}
               <div className="flex items-center gap-1.5">
-                <div className="flex items-center gap-1.5 bg-slate-800/80 px-2 py-1 rounded-full border border-slate-700/60 shadow-sm">
-                  <button
-                    type="button"
-                    onClick={() => void toggleVocalRemoverWithWarning(!playback.isVocalRemoverActive)}
-                    disabled={playback.dualStemState === 'EXTRACTING_AND_SEPARATING'}
-                    title={
-                      playback.dualStemState === 'EXTRACTING_AND_SEPARATING'
-                        ? t('player.vocalSeparating')
-                        : t('player.vocalRemover')
-                    }
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all duration-150 active:scale-95 disabled:opacity-60 disabled:cursor-wait ${
-                      playback.isVocalRemoverActive
-                        ? 'bg-rose-950/60 border-rose-700/80 text-rose-300 shadow-rose-950/30'
-                        : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {playback.dualStemState === 'EXTRACTING_AND_SEPARATING' ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        {t('player.vocalSeparatingShort')}
-                      </span>
-                    ) : (
-                      t('player.vocalRemover')
-                    )}
-                  </button>
-                  {isAiVocalRemoverMethod(settings.vocalRemoverAlgorithm || '') && (
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={playback.vocalGuideLevel ?? (playback.isVocalRemoverActive ? 0 : 1)}
-                      disabled={playback.dualStemState === 'EXTRACTING_AND_SEPARATING'}
-                      onChange={(e) => void onVocalGuideFaderChange(parseFloat(e.target.value))}
-                      title={t('player.vocalGuideFader')}
-                      aria-label={t('player.vocalGuideFader')}
-                      className="w-16 h-1 accent-rose-500 cursor-pointer disabled:opacity-50"
-                    />
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setVocalRemover(!playback.isVocalRemoverActive)}
+                  title={t('player.vocalRemover')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border shadow-sm transition-all duration-150 active:scale-95 ${
+                    playback.isVocalRemoverActive
+                      ? 'bg-rose-950/60 border-rose-700/80 text-rose-300 shadow-rose-950/30'
+                      : 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {t('player.vocalRemover')}
+                </button>
                 <button
                   type="button"
                   onClick={() => setDucking(!playback.isDuckingActive)}

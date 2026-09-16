@@ -19,9 +19,6 @@
     "cue": "Headphone CUE Preview",
     "stopCue": "Stop CUE",
     "vocalRemover": "Vocal Remover (Experimental)",
-    "vocalSeparating": "Vocal separation in progress…",
-    "vocalSeparatingShort": "Separating…",
-    "vocalGuideFader": "Guide vocal level (100% = full guide, 0% = instrumental)",
     "bgmDucking": "Auto-Ducking BGM",
     "nowPlaying": "Now Playing",
     "noTrackLoaded": "No track loaded",
@@ -134,7 +131,11 @@
     "deleteFailed": "Could not delete track",
     "queueArchivePending": "Downloading and archiving “{{title}}” before adding to the queue…",
     "queueArchiveReady": "Archived and queued: {{title}}",
-    "queueArchiveCancelled": "Download cancelled — track was not added to the queue."
+    "queueArchiveCancelled": "Download cancelled — track was not added to the queue.",
+    "download": "Download",
+    "downloadInstrumental": "Download Instrumental",
+    "removingVocals": "Removing vocals…",
+    "remuxingInstrumental": "Building instrumental video…"
   },
   "settings": {
     "title": "System Settings",
@@ -226,18 +227,12 @@
     "stageMessageBackgroundBrowse": "Browse…",
     "stageMessageBackgroundClear": "Clear",
     "vocalRemoverAlgorithm": "Vocal Remover Method (Experimental)",
-    "vocalRemoverAlgorithmDesc": "Realtime classical mid/side DSP, or offline on-device AI (models download once into app data). Chooses the method used by the Control button.",
+    "vocalRemoverAlgorithmDesc": "Realtime classical mid/side DSP used by the Control vocal-remover button (no AI / no model download).",
     "vocalGroupAlgorithmic": "Realtime DSP",
     "vocalGroupAi": "Offline AI (Experimental)",
     "vocalAlgoCenterBass": "Center cancel (keep bass)",
     "vocalAlgoCenter": "Full center cancel (classic L−R)",
-    "vocalAlgoSoftMid": "Soft mid attenuation (fewer artifacts)",
-    "vocalAiMdxKaraoke2": "UVR-MDX-NET Karaoke 2 — ~53 MB — recommended AI",
-    "vocalAiHtDemucs": "HTDemucs v4 — ~172 MB (Experimental)",
-    "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 MB — advanced (Experimental)",
-    "aiVocalHwWarningTitle": "Offline AI vocal remover — hardware note",
-    "aiVocalHwWarningBody": "AI methods run on-device (no cloud). A modern CPU is recommended; GPU/ONNX helps when available. BS-Roformer is heavier and may use significant RAM/CPU. First use downloads models (~50–300 MB depending on choice). This feature is Experimental.",
-    "aiVocalHwWarningDontShow": "Don't show this warning again"
+    "vocalAlgoSoftMid": "Soft mid attenuation (fewer artifacts)"
   },
   "history": {
     "title": "Playback History",

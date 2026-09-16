@@ -19,9 +19,6 @@
     "cue": "Preescucha Auriculares (CUE)",
     "stopCue": "Detener CUE",
     "vocalRemover": "Eliminar Voz Guía (Experimental)",
-    "vocalSeparating": "Separación vocal en curso…",
-    "vocalSeparatingShort": "Separando…",
-    "vocalGuideFader": "Nivel de voz guía (100% = guía completa, 0% = instrumental)",
     "bgmDucking": "Atenuación Automática BGM",
     "nowPlaying": "En Reproducción",
     "noTrackLoaded": "Ninguna pista cargada",
@@ -134,7 +131,11 @@
     "deleteFailed": "No se pudo eliminar la pista",
     "queueArchivePending": "Descargando y archivando “{{title}}” antes de añadirlo a la cola…",
     "queueArchiveReady": "Archivado y en cola: {{title}}",
-    "queueArchiveCancelled": "Descarga cancelada — la pista no se añadió a la cola."
+    "queueArchiveCancelled": "Descarga cancelada — la pista no se añadió a la cola.",
+    "download": "Descargar",
+    "downloadInstrumental": "Descargar instrumental",
+    "removingVocals": "Eliminando voz…",
+    "remuxingInstrumental": "Creando vídeo instrumental…"
   },
   "settings": {
     "title": "Ajustes del Sistema",
@@ -226,18 +227,12 @@
     "stageMessageBackgroundBrowse": "Examinar…",
     "stageMessageBackgroundClear": "Borrar",
     "vocalRemoverAlgorithm": "Método de eliminación de voz (Experimental)",
-    "vocalRemoverAlgorithmDesc": "DSP mid/side clásico en tiempo real, o IA local offline (los modelos se descargan una vez en los datos de la app). Elige el método del botón de Regia.",
+    "vocalRemoverAlgorithmDesc": "DSP mid/side clásico en tiempo real usado por el botón de eliminación de voz en Regia (sin IA / sin descarga de modelos).",
     "vocalAlgoCenterBass": "Cancelación mid (mantener bajos)",
     "vocalAlgoCenter": "Cancelación mid completa (clásico L−R)",
     "vocalAlgoSoftMid": "Atenuación mid suave (menos artefactos)",
     "vocalGroupAlgorithmic": "DSP en tiempo real",
-    "vocalGroupAi": "IA offline (Experimental)",
-    "vocalAiMdxKaraoke2": "UVR-MDX-NET Karaoke 2 — ~53 MB — IA recomendada",
-    "vocalAiHtDemucs": "HTDemucs v4 — ~172 MB (Experimental)",
-    "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 MB — avanzado (Experimental)",
-    "aiVocalHwWarningTitle": "Eliminación de voz IA offline — requisitos de hardware",
-    "aiVocalHwWarningBody": "Los métodos IA se ejecutan en el dispositivo (sin nube). Se recomienda CPU moderna; GPU/ONNX ayudan si están disponibles. BS-Roformer es más pesado y puede usar mucha RAM/CPU. En el primer uso descarga modelos (~50–300 MB según la opción). Función Experimental.",
-    "aiVocalHwWarningDontShow": "No volver a mostrar este aviso"
+    "vocalGroupAi": "IA offline (Experimental)"
   },
   "history": {
     "title": "Historial de Reproducción",

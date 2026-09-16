@@ -40,8 +40,8 @@ function cleanDirectory(dirPath, isRoot = false) {
   const entries = fs.readdirSync(dirPath, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
-    // Preserve managed durable assets (yt-dlp, ORT WASM, offline vocal models)
-    if (entry.name === 'bin' || entry.name === 'ort' || entry.name === 'models') {
+    // Preserve managed durable assets (yt-dlp under bin/)
+    if (entry.name === 'bin') {
       continue;
     }
 
