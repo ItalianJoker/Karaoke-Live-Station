@@ -14,6 +14,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ### Fixed
 - **CI macOS `npm ci`** — retry with backoff when `ffmpeg-static` postinstall hits transient GitHub Releases HTTP 500 (darwin-arm64)
+- **CI Windows `npm ci` retry** — run the retry loop under `shell: bash` (windows-latest defaults to PowerShell and rejected the bash `for` syntax)
 
 ### Changed
 - **Project license** — Karaoke Live Station is now licensed under **GNU AGPLv3 or later** (`AGPL-3.0-or-later`): added root `LICENSE`, `package.json` license metadata, and README (IT/EN) + user-manual license notes

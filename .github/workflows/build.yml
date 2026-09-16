@@ -25,6 +25,8 @@ jobs:
       - name: Install dependencies
         # ffmpeg-static postinstall downloads platform binaries from GitHub Releases;
         # macos-latest (darwin-arm64) occasionally gets HTTP 500 from the CDN.
+        # Explicit bash so the retry loop also works on windows-latest (pwsh default).
+        shell: bash
         run: |
           set -euo pipefail
           for attempt in 1 2 3 4 5; do
@@ -70,6 +72,8 @@ jobs:
 
       - name: Install dependencies
         # Same ffmpeg-static CDN flakiness as typecheck job (esp. darwin-arm64).
+        # Explicit bash so the retry loop also works on windows-latest (pwsh default).
+        shell: bash
         run: |
           set -euo pipefail
           for attempt in 1 2 3 4 5; do
