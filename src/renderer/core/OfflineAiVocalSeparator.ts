@@ -271,6 +271,86 @@ export class OfflineAiVocalSeparator {
     }
   }
 
+  /**
+   * True when the URL/path looks like a muxed video container (karaoke tracks are often mp4/webm).
+   * decodeAudioData frequently fails or skips the audio track on these — prefer ffmpeg extract.
+   */
+  private isLikelyVideoContainer(mediaUrl: string): boolean {
+    const cleaned = mediaUrl.split('?')[0].split('#')[0];
+    let decoded = cleaned;
+    try {
+      decoded = decodeURIComponent(cleaned);
+    } catch {
+      /* keep cleaned */
+    }
+    return /\.(mp4|webm|mkv|mov|avi|m4v)(?:$|[?#])/i.test(decoded);
+  }
+
+  /**
+   * Decode media for AI separation. Pure audio files use decodeAudioData; video / muxed A/V
+   * (and any decode failure) go through main-process ffmpeg → PCM WAV under userData cache.
+   */
+  private async decodeMediaForSeparation(
+    mediaUrl: string,
+    audioContext: AudioContext
+  ): Promise<AudioBuffer> {
+    const tryDecodeUrl = async (url: string): Promise<AudioBuffer> => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch media for separation (HTTP ${response.status})`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      await yieldToMainThread();
+      return audioContext.decodeAudioData(arrayBuffer.slice(0));
+    };
+
+    const extractViaFfmpeg = async (): Promise<AudioBuffer> => {
+      const api =
+        typeof window !== 'undefined' ? window.karaokeApi?.media?.extractAudioForSeparation : undefined;
+      if (!api) {
+        throw new Error(
+          'Video/muxed media needs ffmpeg audio extract, but media IPC is unavailable'
+        );
+      }
+      this.emit({
+        phase: 'decode',
+        progress: 0.15,
+        message: 'Extracting audio track from video…'
+      });
+      await yieldToMainThread();
+      const extracted = await api(mediaUrl);
+      if (!extracted?.success || !extracted.audioUrl) {
+        throw new Error(extracted?.error || 'ffmpeg audio extract failed');
+      }
+      this.emit({
+        phase: 'decode',
+        progress: 0.35,
+        message: extracted.fromCache
+          ? 'Using cached extracted audio…'
+          : 'Decoding extracted audio…'
+      });
+      await yieldToMainThread();
+      return tryDecodeUrl(extracted.audioUrl);
+    };
+
+    if (this.isLikelyVideoContainer(mediaUrl)) {
+      return extractViaFfmpeg();
+    }
+
+    try {
+      return await tryDecodeUrl(mediaUrl);
+    } catch (directErr) {
+      // Audio-looking URLs can still be muxed or unsupported — fall back to demux.
+      try {
+        return await extractViaFfmpeg();
+      } catch {
+        throw directErr instanceof Error
+          ? directErr
+          : new Error(String(directErr));
+      }
+    }
+  }
+
   private async runSeparation(
     method: AiVocalRemoverMethod,
     mediaUrl: string,
@@ -281,13 +361,7 @@ export class OfflineAiVocalSeparator {
 
     this.emit({ phase: 'decode', progress: 0.05, message: 'Decoding audio…' });
     await yieldToMainThread();
-    const response = await fetch(mediaUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch media for separation (HTTP ${response.status})`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    await yieldToMainThread();
-    const decoded = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+    const decoded = await this.decodeMediaForSeparation(mediaUrl, audioContext);
 
     let instrumental: AudioBuffer;
     switch (method) {

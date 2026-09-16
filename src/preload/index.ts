@@ -247,6 +247,17 @@ export interface KaraokeAPI {
       error?: string;
     }>;
   };
+
+  // 14. Extract PCM audio from local media (incl. video A/V) for AI vocal separation
+  media: {
+    extractAudioForSeparation: (mediaUrl: string) => Promise<{
+      success: boolean;
+      audioUrl?: string;
+      wavPath?: string;
+      fromCache?: boolean;
+      error?: string;
+    }>;
+  };
 }
 
 const karaokeApi: KaraokeAPI = {
@@ -430,6 +441,11 @@ const karaokeApi: KaraokeAPI = {
   ortWasm: {
     ensure: () => ipcRenderer.invoke('ort-wasm:ensure'),
     getPaths: () => ipcRenderer.invoke('ort-wasm:get-paths')
+  },
+
+  media: {
+    extractAudioForSeparation: (mediaUrl: string) =>
+      ipcRenderer.invoke('media:extract-audio-for-separation', mediaUrl)
   }
 };
 

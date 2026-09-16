@@ -10,6 +10,7 @@
  * - centerCancel: full mid mute (classic L−R karaoke)
  * - softMid: partial mid attenuation (gentler, fewer artifacts)
  */
+import { rampAudioParam } from './audioGainRamp';
 
 export type VocalRemoverAlgorithm = 'centerCancelBassKeep' | 'centerCancel' | 'softMid';
 
@@ -167,16 +168,13 @@ export class AlgorithmicVocalRemoverNode {
   public setEnabled(enabled: boolean): void {
     if (this.enabled === enabled) return;
     this.enabled = enabled;
-    const now = this.ctx.currentTime;
-    this.bypassGain.gain.cancelScheduledValues(now);
-    this.effectGain.gain.cancelScheduledValues(now);
-    // Short crossfade avoids clicks; keeps the realtime path continuous.
+    // Short crossfade avoids clicks; setValueAtTime+ramp so Chromium actually applies it.
     if (enabled) {
-      this.bypassGain.gain.linearRampToValueAtTime(0, now + 0.05);
-      this.effectGain.gain.linearRampToValueAtTime(1, now + 0.05);
+      rampAudioParam(this.bypassGain.gain, 0, 0.05, this.ctx);
+      rampAudioParam(this.effectGain.gain, 1, 0.05, this.ctx);
     } else {
-      this.bypassGain.gain.linearRampToValueAtTime(1, now + 0.05);
-      this.effectGain.gain.linearRampToValueAtTime(0, now + 0.05);
+      rampAudioParam(this.bypassGain.gain, 1, 0.05, this.ctx);
+      rampAudioParam(this.effectGain.gain, 0, 0.05, this.ctx);
     }
   }
 

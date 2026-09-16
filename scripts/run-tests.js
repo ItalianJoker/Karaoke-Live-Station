@@ -579,8 +579,36 @@ assert(
     audioGraphSource.includes('crossfadeToInstrumental') &&
     audioGraphSource.includes('getOfflineAiVocalSeparator') &&
     audioGraphSource.includes('applyAlgorithmicFallbackAfterAiFailure') &&
-    audioGraphSource.includes('aiUsingAlgorithmicFallback'),
+    audioGraphSource.includes('aiUsingAlgorithmicFallback') &&
+    audioGraphSource.includes('rampAudioParam') &&
+    audioGraphSource.includes('vocalRemoverPassThroughGain') &&
+    audioGraphSource.includes('vocalRemoverEffectGain'),
   'AudioGraphManager supports algorithmic DSP, AI async separate→crossfade, and AI→algorithmic fallback'
+);
+
+assert(
+  fs.existsSync(path.resolve(__dirname, '../src/renderer/core/audioGainRamp.ts')) &&
+    fs
+      .readFileSync(path.resolve(__dirname, '../src/renderer/core/audioGainRamp.ts'), 'utf8')
+      .includes('setValueAtTime') &&
+    algorithmicRemoverSource.includes('rampAudioParam'),
+  'Vocal-remover GainNode enable/crossfade uses setValueAtTime+linearRamp (not bare ramp no-op)'
+);
+
+const mediaExtractorSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/MediaAudioExtractor.ts'),
+  'utf8'
+);
+assert(
+  offlineAiSource.includes('decodeMediaForSeparation') &&
+    offlineAiSource.includes('isLikelyVideoContainer') &&
+    offlineAiSource.includes('extractAudioForSeparation') &&
+    mediaExtractorSource.includes('extractAudioWavForSeparation') &&
+    mediaExtractorSource.includes('vocal-audio-cache') &&
+    mediaExtractorSource.includes('-vn') &&
+    mainSourceOrt.includes('media:extract-audio-for-separation') &&
+    preloadSourceOrt.includes('extractAudioForSeparation'),
+  'Video/muxed karaoke audio is demuxed via ffmpeg to PCM WAV before AI separation'
 );
 
 const mdxWorkerClientSource = fs.readFileSync(

@@ -13,6 +13,7 @@ import { YtDlpUpdater } from './services/YtDlpUpdater';
 import { FirewallHelper } from './services/FirewallHelper';
 import { OfflineVocalModelManager } from './services/OfflineVocalModelManager';
 import { OrtWasmManager } from './services/OrtWasmManager';
+import { extractAudioWavForSeparation } from './services/MediaAudioExtractor';
 import {
   ActivePlaybackState,
   AppSettings,
@@ -1221,6 +1222,25 @@ class KaraokeMainProcess {
         return { success: true, ...paths };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        return { success: false, error: message };
+      }
+    });
+
+    // Demux video/muxed A/V → PCM WAV for offline AI vocal separation (decodeAudioData-safe)
+    ipcMain.handle('media:extract-audio-for-separation', async (_event, mediaUrl: string) => {
+      try {
+        const result = await extractAudioWavForSeparation(mediaUrl || '');
+        if (!result.success) {
+          this.logger.warn('App', `media:extract-audio-for-separation failed: ${result.error}`);
+        } else if (!result.fromCache) {
+          this.logger.info('App', 'Extracted audio track for vocal separation', {
+            wavPath: result.wavPath
+          });
+        }
+        return result;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error('App', `media:extract-audio-for-separation error: ${message}`);
         return { success: false, error: message };
       }
     });

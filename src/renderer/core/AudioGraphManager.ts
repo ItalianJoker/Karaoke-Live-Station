@@ -14,6 +14,7 @@ import {
   type AiVocalRemoverMethod
 } from '../../shared/vocalRemover';
 import { getOfflineAiVocalSeparator } from './OfflineAiVocalSeparator';
+import { rampAudioParam } from './audioGainRamp';
 import { formatOrtBackendError } from './ortWasmConfig';
 import { showToast } from '../utils/toast';
 
@@ -428,15 +429,13 @@ export class AudioGraphManager {
     if (!this.audioCtx || !this.vocalRemoverPassThroughGain || !this.vocalRemoverEffectGain) {
       return;
     }
-    const now = this.audioCtx.currentTime;
-    this.vocalRemoverPassThroughGain.gain.cancelScheduledValues(now);
-    this.vocalRemoverEffectGain.gain.cancelScheduledValues(now);
+    // Anchor with setValueAtTime after cancel — bare linearRamp is a Chromium no-op.
     if (enabled) {
-      this.vocalRemoverPassThroughGain.gain.linearRampToValueAtTime(0, now + 0.08);
-      this.vocalRemoverEffectGain.gain.linearRampToValueAtTime(1, now + 0.08);
+      rampAudioParam(this.vocalRemoverPassThroughGain.gain, 0, 0.08, this.audioCtx);
+      rampAudioParam(this.vocalRemoverEffectGain.gain, 1, 0.08, this.audioCtx);
     } else {
-      this.vocalRemoverPassThroughGain.gain.linearRampToValueAtTime(1, now + 0.08);
-      this.vocalRemoverEffectGain.gain.linearRampToValueAtTime(0, now + 0.08);
+      rampAudioParam(this.vocalRemoverPassThroughGain.gain, 1, 0.08, this.audioCtx);
+      rampAudioParam(this.vocalRemoverEffectGain.gain, 0, 0.08, this.audioCtx);
     }
   }
 
