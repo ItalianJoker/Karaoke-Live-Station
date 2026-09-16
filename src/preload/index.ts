@@ -6,6 +6,7 @@ import {
   SingerProfile,
   DownloadProgressPayload,
   ExistingLocalMedia,
+  StartDownloadOptions,
   StartDownloadResult,
   GuestSongRequest,
   AppSettings,
@@ -14,7 +15,6 @@ import {
   FirewallCheckResult,
   SiaeLogEntry
 } from '../shared/types';
-import type { OfflineVocalModelId, VocalModelDownloadProgress } from '../shared/vocalRemover';
 
 /**
  * Secure IPC Bridge contract exposed to the renderer window via contextBridge.
@@ -95,14 +95,7 @@ export interface KaraokeAPI {
   // 6. Download Engine Bridge
   downloads: {
     /** Starts downloading a video or audio stream via yt-dlp (or reuses a local copy) */
-    start: (options: {
-      url: string;
-      isAudioOnly?: boolean;
-      titleHint?: string;
-      artistHint?: string;
-      trackId?: string;
-      libraryPath?: string;
-    }) => Promise<StartDownloadResult>;
+    start: (options: StartDownloadOptions) => Promise<StartDownloadResult>;
     /** Cancels an ongoing download process */
     cancel: (downloadId: string) => Promise<boolean>;
     /** Looks up an existing local library/cache copy before downloading */
@@ -200,75 +193,6 @@ export interface KaraokeAPI {
     getStatus: () => Promise<YtDlpStatus>;
     /** Checks GitHub releases for updates and performs immediate download/update if available */
     checkUpdate: () => Promise<YtDlpStatus>;
-  };
-
-  // 12. Offline AI vocal-remover models (cached under userData/models)
-  vocalModels: {
-    isModelCached: (modelId: OfflineVocalModelId) => Promise<boolean>;
-    ensureModel: (
-      modelId: OfflineVocalModelId
-    ) => Promise<{
-      success: boolean;
-      modelPath?: string;
-      /** karaoke://models/… URL for streaming fetch (preferred over getModelBuffer). */
-      modelUrl?: string;
-      error?: string;
-    }>;
-    /** Structured result — never rejects on download/read failure (avoids cryptic IPC toasts). */
-    getModelBuffer: (
-      modelId: OfflineVocalModelId
-    ) => Promise<{ success: boolean; buffer?: ArrayBuffer; error?: string }>;
-    listModels: () => Promise<
-      Array<{
-        id: OfflineVocalModelId;
-        label: string;
-        approxSizeMb: number;
-        filename: string;
-        cached: boolean;
-      }>
-    >;
-    onDownloadProgress: (callback: (progress: VocalModelDownloadProgress) => void) => () => void;
-  };
-
-  // 13. ORT WASM assets seeded under userData/ort (karaoke://ort/…)
-  ortWasm: {
-    ensure: () => Promise<{
-      success: boolean;
-      wasmPathsPrefix?: string;
-      wasmFilePaths?: { wasm: string; mjs: string };
-      ortDir?: string;
-      error?: string;
-    }>;
-    getPaths: () => Promise<{
-      success: boolean;
-      wasmPathsPrefix?: string;
-      wasmFilePaths?: { wasm: string; mjs: string };
-      ortDir?: string;
-      error?: string;
-    }>;
-  };
-
-  // 14. Extract PCM audio from local media (incl. video A/V) for AI vocal separation
-  media: {
-    extractAudioForSeparation: (mediaUrl: string) => Promise<{
-      success: boolean;
-      audioUrl?: string;
-      wavPath?: string;
-      fromCache?: boolean;
-      error?: string;
-    }>;
-  };
-
-  // 15. Dual-stem disk cache (SHA-256 keyed instrumental + vocals WAVs)
-  dualStem: {
-    lookup: (mediaUrl: string) => Promise<import('../shared/dualStem').DualStemLookupResult>;
-    save: (payload: {
-      mediaUrlOrPath: string;
-      method: string;
-      sampleRate: number;
-      instrumentalWav: ArrayBuffer;
-      vocalsWav: ArrayBuffer;
-    }) => Promise<import('../shared/dualStem').DualStemSaveResult>;
   };
 }
 
@@ -430,45 +354,6 @@ const karaokeApi: KaraokeAPI = {
   ytdlp: {
     getStatus: () => ipcRenderer.invoke('ytdlp:get-status'),
     checkUpdate: () => ipcRenderer.invoke('ytdlp:check-update')
-  },
-
-  vocalModels: {
-    isModelCached: (modelId: OfflineVocalModelId) =>
-      ipcRenderer.invoke('vocal-model:is-cached', modelId),
-    ensureModel: (modelId: OfflineVocalModelId) =>
-      ipcRenderer.invoke('vocal-model:ensure', modelId),
-    getModelBuffer: (modelId: OfflineVocalModelId) =>
-      ipcRenderer.invoke('vocal-model:get-buffer', modelId),
-    listModels: () => ipcRenderer.invoke('vocal-model:list'),
-    onDownloadProgress: (callback: (progress: VocalModelDownloadProgress) => void) => {
-      const handler = (_event: IpcRendererEvent, progress: VocalModelDownloadProgress) =>
-        callback(progress);
-      ipcRenderer.on('vocal-model:download-progress', handler);
-      return () => {
-        ipcRenderer.removeListener('vocal-model:download-progress', handler);
-      };
-    }
-  },
-
-  ortWasm: {
-    ensure: () => ipcRenderer.invoke('ort-wasm:ensure'),
-    getPaths: () => ipcRenderer.invoke('ort-wasm:get-paths')
-  },
-
-  media: {
-    extractAudioForSeparation: (mediaUrl: string) =>
-      ipcRenderer.invoke('media:extract-audio-for-separation', mediaUrl)
-  },
-
-  dualStem: {
-    lookup: (mediaUrl: string) => ipcRenderer.invoke('dual-stem:lookup', mediaUrl),
-    save: (payload: {
-      mediaUrlOrPath: string;
-      method: string;
-      sampleRate: number;
-      instrumentalWav: ArrayBuffer;
-      vocalsWav: ArrayBuffer;
-    }) => ipcRenderer.invoke('dual-stem:save', payload)
   }
 };
 

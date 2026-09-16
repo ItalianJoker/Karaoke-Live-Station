@@ -103,19 +103,13 @@ export interface AppSettings {
 
   /** Enable anti-monopoly fair queue rotation algorithm */
   enableFairQueue: boolean;
-  /** Enable DSP / offline-AI guide-vocal attenuation */
+  /** Enable DSP mid/side guide-vocal attenuation (algorithmic only) */
   enableVocalRemover: boolean;
   /**
-   * Vocal remover method selected in Settings (algorithmic DSP or offline AI).
-   * See `src/shared/vocalRemover.ts` for the full catalog.
+   * Vocal remover method selected in Settings (realtime Web Audio DSP only).
+   * See `src/shared/vocalRemover.ts` for the catalog.
    */
-  vocalRemoverAlgorithm:
-    | 'centerCancelBassKeep'
-    | 'centerCancel'
-    | 'softMid'
-    | 'aiMdxKaraoke2'
-    | 'aiHtDemucs'
-    | 'aiBsRoformer';
+  vocalRemoverAlgorithm: 'centerCancelBassKeep' | 'centerCancel' | 'softMid';
   /** Enable microphone-triggered background music ducking */
   enableAutoDuckingBGM: boolean;
   /** Enable automatic dynamic audio volume normalization (leveling) */
@@ -248,13 +242,6 @@ export interface ActivePlaybackState {
   currentTrackId?: string;
   /** Center-channel vocal remover active status */
   isVocalRemoverActive: boolean;
-  /**
-   * Guide-vocal fader 0..1 (1 = full guide / native-equivalent, 0 = instrumental only).
-   * Engaging AI dual-stem means level &lt; 1.
-   */
-  vocalGuideLevel?: number;
-  /** On-demand dual-stem pipeline state (AI methods) */
-  dualStemState?: 'NATIVE_AUDIO' | 'EXTRACTING_AND_SEPARATING' | 'DUAL_STEM_ACTIVE';
   /** Auto-ducking BGM attenuation active status */
   isDuckingActive: boolean;
   /** Master volume gain multiplier (0.0 to 1.0) */
@@ -300,7 +287,15 @@ export interface DownloadProgressPayload {
   /** Total expected file size in bytes */
   totalBytes: number;
   /** Current download phase */
-  status: 'downloading' | 'converting' | 'completed' | 'error' | 'cancelled';
+  status:
+    | 'downloading'
+    | 'converting'
+    | 'processing'
+    | 'removing_vocals'
+    | 'remuxing'
+    | 'completed'
+    | 'error'
+    | 'cancelled';
   /** Error details if status is 'error' */
   errorMessage?: string;
   /** Destination file path when download completes */
@@ -309,6 +304,21 @@ export interface DownloadProgressPayload {
   alreadyExists?: boolean;
   /** Where the reused file was found */
   existingLocation?: 'library' | 'queue_cache' | 'database';
+}
+
+/**
+ * Options for starting a yt-dlp download (optional instrumental post-process).
+ */
+export interface StartDownloadOptions {
+  url: string;
+  isAudioOnly?: boolean;
+  preferredQuality?: string;
+  titleHint?: string;
+  artistHint?: string;
+  trackId?: string;
+  libraryPath?: string;
+  /** When true, apply algorithmic vocal removal and remux instrumental A/V after download */
+  instrumental?: boolean;
 }
 
 /**
