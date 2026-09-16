@@ -7,20 +7,10 @@ import {
   type VocalRemoverAlgorithm
 } from './AlgorithmicVocalRemoverNode';
 import {
-  isAiVocalRemoverMethod,
   isAlgorithmicVocalRemoverMethod,
   isVocalRemoverMethod,
-  type VocalRemoverMethod,
-  type AiVocalRemoverMethod
+  type VocalRemoverMethod
 } from '../../shared/vocalRemover';
-import {
-  isDualStemEngaged,
-  type DualStemPlaybackState
-} from '../../shared/dualStem';
-import { getOfflineAiVocalSeparator } from './OfflineAiVocalSeparator';
-import { rampAudioParam } from './audioGainRamp';
-import { formatOrtBackendError } from './ortWasmConfig';
-import { showToast } from '../utils/toast';
 
 /**
  * Callback receiving updated synchronized MIDI/KAR lyrics.
@@ -46,8 +36,7 @@ interface ActiveMidiVoice {
 /**
  * - Media element audio routing with stereo phase vocoder pitch shifting (-8 to +8 semitones)
  * - Independent tempo scaling (0.50x to 1.50x)
- * - Guide-vocal removal: realtime algorithmic mid/side DSP **or** on-demand AI
- *   dual-stem mixer (instrumental + vocals; UVR-MDX / HTDemucs) with video clock master
+ * - Guide-vocal removal: realtime algorithmic mid/side DSP only
  * - Auto-ducking BGM attenuation when microphone input or host talks
  * - AudioWorklet-based General MIDI / SoundFont 2 synthesis via SpessaSynth
  * - Real-time channel muting (channels 0-15) without desynchronizing lyrics
@@ -60,7 +49,7 @@ export class AudioGraphManager {
   private sourceNode: MediaElementAudioSourceNode | null = null;
   private pitchShifterNode: PitchShifterNode | null = null;
 
-  // Vocal Remover — algorithmic DSP node and/or on-demand AI dual-stem mixer
+  // Vocal Remover — algorithmic mid/side DSP
   private vocalRemoverNode: AlgorithmicVocalRemoverNode | null = null;
   private vocalRemoverMethod: VocalRemoverMethod = 'centerCancelBassKeep';
   /** @deprecated alias kept for call sites that still say "algorithm" */
@@ -69,40 +58,6 @@ export class AudioGraphManager {
       ? this.vocalRemoverMethod
       : 'centerCancelBassKeep';
   }
-
-  /**
-   * Guide-vocal fader: 1 = full guide vocal / native-equivalent; 0 = instrumental only.
-   * AI path engages dual-stem when level &lt; 1; algorithmic path maps to DSP enable.
-   */
-  private vocalGuideLevel = 1;
-  private dualStemState: DualStemPlaybackState = 'NATIVE_AUDIO';
-  private dualStemStateListener: ((state: DualStemPlaybackState) => void) | null = null;
-
-  // AI dual-stem: instrumental + vocals buffers (video clock is master)
-  private vocalRemoverPassThroughGain: GainNode | null = null;
-  private instrumentalGain: GainNode | null = null;
-  private vocalsGain: GainNode | null = null;
-  private instrumentalBuffer: AudioBuffer | null = null;
-  private vocalsBuffer: AudioBuffer | null = null;
-  private instrumentalSourceNode: AudioBufferSourceNode | null = null;
-  private vocalsSourceNode: AudioBufferSourceNode | null = null;
-  private stemsPlaying = false;
-  private stemStartMediaTime = 0;
-  private stemStartCtxTime = 0;
-  private driftCheckTimer: number | null = null;
-  private mediaMutedByDualStem = false;
-  private vocalSeparationToken = 0;
-  private lastAiMediaUrl: string | null = null;
-  private mediaSyncHandlersBound = false;
-  private onMediaPlaySync: (() => void) | null = null;
-  private onMediaPauseSync: (() => void) | null = null;
-  private onMediaSeekSync: (() => void) | null = null;
-  private aiProgressUnsub: (() => void) | null = null;
-  /**
-   * When AI separation fails (model missing/corrupt/ORT error), keep the vocal-remover
-   * toggle useful by routing through realtime algorithmic DSP until AI succeeds again.
-   */
-  private aiUsingAlgorithmicFallback = false;
 
   // Ducking, Delay Sync & Master Gain
   private duckingGainNode: GainNode | null = null;
@@ -274,14 +229,10 @@ export class AudioGraphManager {
   }
 
   /**
-   * Builds vocal-remover routing for the active method:
-   * - Algorithmic: MediaElementSource → AlgorithmicVocalRemoverNode → PitchShifter
-   * - AI: NATIVE_AUDIO keeps MediaElement → passThroughGain → PitchShifter.
-   *   On engage: EXTRACTING (native continues) → DUAL_STEM_ACTIVE (mute video;
-   *   instrumental + vocals buffers synced to video.currentTime; fader = vocals gain).
-   * @param options.skipAiActivate - rebuild AI graph without starting a new separation
+   * Builds vocal-remover routing:
+   * MediaElementSource → AlgorithmicVocalRemoverNode → PitchShifter
    */
-  private setupVocalRemoverGraph(options?: { skipAiActivate?: boolean }): void {
+  private setupVocalRemoverGraph(): void {
     if (!this.audioCtx || !this.sourceNode || !this.duckingGainNode) return;
 
     if (!this.pitchShifterNode) {
@@ -298,18 +249,10 @@ export class AudioGraphManager {
       /* ignore */
     }
 
-    if (isAiVocalRemoverMethod(this.vocalRemoverMethod) && !this.aiUsingAlgorithmicFallback) {
-      this.setupAiVocalRemoverGraph(options?.skipAiActivate === true);
-    } else {
-      this.setupAlgorithmicVocalRemoverGraph();
-    }
+    this.setupAlgorithmicVocalRemoverGraph();
   }
 
   private teardownVocalRemoverNodes(): void {
-    this.stopStemSources();
-    this.stopDriftWatch();
-    this.instrumentalBuffer = null;
-    this.vocalsBuffer = null;
     if (this.vocalRemoverNode) {
       try {
         this.vocalRemoverNode.dispose();
@@ -318,36 +261,10 @@ export class AudioGraphManager {
       }
       this.vocalRemoverNode = null;
     }
-    if (this.vocalRemoverPassThroughGain) {
-      try {
-        this.vocalRemoverPassThroughGain.disconnect();
-      } catch {
-        /* ignore */
-      }
-      this.vocalRemoverPassThroughGain = null;
-    }
-    if (this.instrumentalGain) {
-      try {
-        this.instrumentalGain.disconnect();
-      } catch {
-        /* ignore */
-      }
-      this.instrumentalGain = null;
-    }
-    if (this.vocalsGain) {
-      try {
-        this.vocalsGain.disconnect();
-      } catch {
-        /* ignore */
-      }
-      this.vocalsGain = null;
-    }
   }
 
   private setupAlgorithmicVocalRemoverGraph(): void {
     if (!this.audioCtx || !this.sourceNode || !this.pitchShifterNode) return;
-    this.setDualStemState('NATIVE_AUDIO');
-    this.restoreMediaElementMute();
     this.vocalRemoverNode = new AlgorithmicVocalRemoverNode(this.audioCtx);
     this.vocalRemoverNode.setAlgorithm(this.vocalRemoverAlgorithm);
     this.sourceNode.connect(this.vocalRemoverNode.input);
@@ -355,393 +272,28 @@ export class AudioGraphManager {
     this.vocalRemoverNode.setEnabled(this.isVocalRemoverEnabled);
   }
 
-  private setupAiVocalRemoverGraph(skipActivate = false): void {
-    if (!this.audioCtx || !this.sourceNode || !this.pitchShifterNode) return;
-
-    const targetInputNode = this.pitchShifterNode.input;
-    this.vocalRemoverPassThroughGain = this.audioCtx.createGain();
-    this.vocalRemoverPassThroughGain.gain.setValueAtTime(1, this.audioCtx.currentTime);
-    this.instrumentalGain = this.audioCtx.createGain();
-    this.instrumentalGain.gain.setValueAtTime(0, this.audioCtx.currentTime);
-    this.vocalsGain = this.audioCtx.createGain();
-    this.vocalsGain.gain.setValueAtTime(0, this.audioCtx.currentTime);
-
-    this.sourceNode.connect(this.vocalRemoverPassThroughGain);
-    this.vocalRemoverPassThroughGain.connect(targetInputNode);
-    this.instrumentalGain.connect(targetInputNode);
-    this.vocalsGain.connect(targetInputNode);
-
-    this.bindMediaSyncHandlers();
-    this.setDualStemState('NATIVE_AUDIO');
-
-    if (this.isVocalRemoverEnabled && !skipActivate) {
-      void this.activateDualStemPipeline();
-    }
-  }
-
-  private setDualStemState(state: DualStemPlaybackState): void {
-    if (this.dualStemState === state) return;
-    this.dualStemState = state;
-    try {
-      this.dualStemStateListener?.(state);
-    } catch {
-      /* ignore */
-    }
-  }
-
-  public getDualStemState(): DualStemPlaybackState {
-    return this.dualStemState;
-  }
-
-  public setDualStemStateListener(
-    listener: ((state: DualStemPlaybackState) => void) | null
-  ): void {
-    this.dualStemStateListener = listener;
-  }
-
-  public getVocalGuideLevel(): number {
-    return this.vocalGuideLevel;
-  }
-
   /**
-   * Guide-vocal fader (AI dual-stem) or DSP enable mapping (algorithmic).
-   * 1 = native / full guide vocal; 0 = instrumental only / full DSP remove.
-   */
-  public setVocalGuideLevel(level: number): void {
-    const clamped = Math.max(0, Math.min(1, level));
-    this.vocalGuideLevel = clamped;
-    const engaged = isDualStemEngaged(clamped);
-    this.isVocalRemoverEnabled = engaged;
-
-    if (isAiVocalRemoverMethod(this.vocalRemoverMethod) && !this.aiUsingAlgorithmicFallback) {
-      if (this.dualStemState === 'DUAL_STEM_ACTIVE' && this.vocalsGain && this.audioCtx) {
-        rampAudioParam(this.vocalsGain.gain, clamped, 0.05, this.audioCtx);
-        return;
-      }
-      if (engaged) {
-        if (
-          this.aiUsingAlgorithmicFallback ||
-          !this.vocalRemoverPassThroughGain ||
-          this.vocalRemoverNode
-        ) {
-          this.aiUsingAlgorithmicFallback = false;
-          this.setupVocalRemoverGraph();
-          return;
-        }
-        void this.activateDualStemPipeline();
-        return;
-      }
-      // Deactivate → restore native audio (prefer clean native over keeping stems at gain 1)
-      this.vocalSeparationToken++;
-      this.teardownDualStemToNative();
-      return;
-    }
-
-    // Algorithmic: level &lt; 1 enables mid/side DSP
-    this.aiUsingAlgorithmicFallback = false;
-    this.vocalRemoverNode?.setEnabled(engaged);
-  }
-
-  private bindMediaSyncHandlers(): void {
-    if (!this.mediaElement || this.mediaSyncHandlersBound) return;
-
-    this.onMediaPlaySync = () => {
-      if (this.dualStemState === 'DUAL_STEM_ACTIVE' && this.instrumentalBuffer && this.vocalsBuffer) {
-        this.startDualStemsAt(this.mediaElement?.currentTime || 0);
-      }
-    };
-    this.onMediaPauseSync = () => {
-      this.stopStemSources(true);
-    };
-    this.onMediaSeekSync = () => {
-      if (
-        this.dualStemState === 'DUAL_STEM_ACTIVE' &&
-        this.instrumentalBuffer &&
-        this.vocalsBuffer &&
-        this.mediaElement &&
-        !this.mediaElement.paused
-      ) {
-        this.startDualStemsAt(this.mediaElement.currentTime);
-      }
-    };
-
-    this.mediaElement.addEventListener('play', this.onMediaPlaySync);
-    this.mediaElement.addEventListener('pause', this.onMediaPauseSync);
-    this.mediaElement.addEventListener('seeked', this.onMediaSeekSync);
-    this.mediaSyncHandlersBound = true;
-  }
-
-  private unbindMediaSyncHandlers(): void {
-    if (!this.mediaElement || !this.mediaSyncHandlersBound) return;
-    if (this.onMediaPlaySync) this.mediaElement.removeEventListener('play', this.onMediaPlaySync);
-    if (this.onMediaPauseSync) this.mediaElement.removeEventListener('pause', this.onMediaPauseSync);
-    if (this.onMediaSeekSync) this.mediaElement.removeEventListener('seeked', this.onMediaSeekSync);
-    this.mediaSyncHandlersBound = false;
-  }
-
-  private stopStemSources(_preserveBuffer = false): void {
-    for (const node of [this.instrumentalSourceNode, this.vocalsSourceNode]) {
-      if (!node) continue;
-      try {
-        node.onended = null;
-        node.stop();
-      } catch {
-        /* already stopped */
-      }
-      try {
-        node.disconnect();
-      } catch {
-        /* ignore */
-      }
-    }
-    this.instrumentalSourceNode = null;
-    this.vocalsSourceNode = null;
-    this.stemsPlaying = false;
-  }
-
-  private startDualStemsAt(offsetSec: number): void {
-    if (
-      !this.audioCtx ||
-      !this.instrumentalGain ||
-      !this.vocalsGain ||
-      !this.instrumentalBuffer ||
-      !this.vocalsBuffer
-    ) {
-      return;
-    }
-
-    this.stopStemSources(true);
-
-    const maxDur = Math.min(this.instrumentalBuffer.duration, this.vocalsBuffer.duration);
-    const safeOffset = Math.max(0, Math.min(offsetSec, Math.max(0, maxDur - 0.05)));
-
-    const startOne = (buffer: AudioBuffer, dest: GainNode): AudioBufferSourceNode => {
-      const source = this.audioCtx!.createBufferSource();
-      source.buffer = buffer;
-      source.playbackRate.value = this.currentPlaybackSpeed;
-      source.connect(dest);
-      source.start(0, safeOffset);
-      return source;
-    };
-
-    try {
-      this.instrumentalSourceNode = startOne(this.instrumentalBuffer, this.instrumentalGain);
-      this.vocalsSourceNode = startOne(this.vocalsBuffer, this.vocalsGain);
-    } catch (err) {
-      this.log('warn', 'Failed to start dual-stem buffers', err);
-      this.stopStemSources();
-      return;
-    }
-
-    this.stemStartMediaTime = safeOffset;
-    this.stemStartCtxTime = this.audioCtx.currentTime;
-    this.stemsPlaying = true;
-    this.startDriftWatch();
-  }
-
-  /** Video element is clock master — correct stem drift vs currentTime. */
-  private startDriftWatch(): void {
-    this.stopDriftWatch();
-    this.driftCheckTimer = window.setInterval(() => {
-      if (
-        this.dualStemState !== 'DUAL_STEM_ACTIVE' ||
-        !this.stemsPlaying ||
-        !this.mediaElement ||
-        !this.audioCtx ||
-        this.mediaElement.paused
-      ) {
-        return;
-      }
-      const stemPos =
-        this.stemStartMediaTime +
-        (this.audioCtx.currentTime - this.stemStartCtxTime) * this.currentPlaybackSpeed;
-      const drift = Math.abs(stemPos - this.mediaElement.currentTime);
-      if (drift > 0.08) {
-        this.startDualStemsAt(this.mediaElement.currentTime);
-      }
-    }, 500);
-  }
-
-  private stopDriftWatch(): void {
-    if (this.driftCheckTimer !== null) {
-      clearInterval(this.driftCheckTimer);
-      this.driftCheckTimer = null;
-    }
-  }
-
-  private muteMediaElementForDualStem(): void {
-    if (!this.mediaElement || this.mediaMutedByDualStem) return;
-    this.mediaElement.muted = true;
-    this.mediaMutedByDualStem = true;
-  }
-
-  private restoreMediaElementMute(): void {
-    if (!this.mediaElement || !this.mediaMutedByDualStem) return;
-    this.mediaElement.muted = false;
-    this.mediaMutedByDualStem = false;
-  }
-
-  private hotSwapToDualStem(): void {
-    if (!this.audioCtx || !this.vocalRemoverPassThroughGain || !this.instrumentalGain || !this.vocalsGain) {
-      return;
-    }
-    // Instrumental always full; vocals follow fader
-    rampAudioParam(this.instrumentalGain.gain, 1, 0.08, this.audioCtx);
-    rampAudioParam(this.vocalsGain.gain, this.vocalGuideLevel, 0.08, this.audioCtx);
-    rampAudioParam(this.vocalRemoverPassThroughGain.gain, 0, 0.08, this.audioCtx);
-    this.muteMediaElementForDualStem();
-
-    if (this.mediaElement && !this.mediaElement.paused) {
-      this.startDualStemsAt(this.mediaElement.currentTime);
-    }
-    this.setDualStemState('DUAL_STEM_ACTIVE');
-  }
-
-  private teardownDualStemToNative(): void {
-    this.stopStemSources();
-    this.stopDriftWatch();
-    this.restoreMediaElementMute();
-    if (this.audioCtx && this.vocalRemoverPassThroughGain) {
-      rampAudioParam(this.vocalRemoverPassThroughGain.gain, 1, 0.08, this.audioCtx);
-    }
-    if (this.audioCtx && this.instrumentalGain) {
-      rampAudioParam(this.instrumentalGain.gain, 0, 0.08, this.audioCtx);
-    }
-    if (this.audioCtx && this.vocalsGain) {
-      rampAudioParam(this.vocalsGain.gain, 0, 0.08, this.audioCtx);
-    }
-    this.setDualStemState('NATIVE_AUDIO');
-    this.aiUsingAlgorithmicFallback = false;
-  }
-
-  private async activateDualStemPipeline(): Promise<void> {
-    if (!this.audioCtx || !this.mediaElement) return;
-    if (!isAiVocalRemoverMethod(this.vocalRemoverMethod)) return;
-    if (!isDualStemEngaged(this.vocalGuideLevel)) return;
-
-    const mediaUrl = this.mediaElement.currentSrc || this.mediaElement.src;
-    if (!mediaUrl) {
-      this.log('warn', 'Dual-stem requested but media element has no src');
-      return;
-    }
-
-    if (this.lastAiMediaUrl && this.lastAiMediaUrl !== mediaUrl) {
-      this.instrumentalBuffer = null;
-      this.vocalsBuffer = null;
-      this.stopStemSources();
-    }
-    this.lastAiMediaUrl = mediaUrl;
-
-    const token = ++this.vocalSeparationToken;
-    const method = this.vocalRemoverMethod as AiVocalRemoverMethod;
-    const separator = getOfflineAiVocalSeparator();
-
-    if (!this.aiProgressUnsub) {
-      this.aiProgressUnsub = separator.onProgress((info) => {
-        if (info.phase === 'model' || info.phase === 'separate' || info.phase === 'decode') {
-          if (info.progress === 0 || info.progress >= 0.99 || Math.round(info.progress * 20) % 5 === 0) {
-            showToast(info.message, 'info', 2500);
-          }
-        }
-      });
-    }
-
-    try {
-      this.aiUsingAlgorithmicFallback = false;
-
-      // Cache hit path — no FFmpeg/AI if stems already on disk / memory
-      const cached = separator.getCachedDualStems(method, mediaUrl);
-      if (!cached) {
-        this.setDualStemState('EXTRACTING_AND_SEPARATING');
-      }
-
-      const stems =
-        cached || (await separator.separateDualStemsFromUrl(method, mediaUrl, this.audioCtx));
-
-      if (token !== this.vocalSeparationToken || !isDualStemEngaged(this.vocalGuideLevel)) {
-        // Cancelled — stems may still be written to disk cache by separator
-        if (this.dualStemState === 'EXTRACTING_AND_SEPARATING') {
-          this.setDualStemState('NATIVE_AUDIO');
-        }
-        return;
-      }
-
-      if (!this.vocalRemoverPassThroughGain || this.vocalRemoverNode) {
-        this.setupVocalRemoverGraph({ skipAiActivate: true });
-      }
-
-      this.instrumentalBuffer = stems.instrumental;
-      this.vocalsBuffer = stems.vocals;
-      this.hotSwapToDualStem();
-      this.log('info', `Dual-stem mixer engaged (${method})`);
-    } catch (err) {
-      if (token !== this.vocalSeparationToken) return;
-      const message = formatOrtBackendError(err);
-      this.log('error', 'Dual-stem separation failed; falling back to algorithmic DSP', err);
-      const alreadyToasted =
-        err instanceof Error &&
-        (err as Error & { code?: string }).code === 'VOCAL_MODEL_DOWNLOAD';
-      if (!alreadyToasted) {
-        showToast(
-          `${message || 'AI vocal remover failed'} — using algorithmic fallback`,
-          'error',
-          10000
-        );
-      } else {
-        showToast('AI model unavailable — using algorithmic vocal remover', 'warning', 8000);
-      }
-      this.teardownDualStemToNative();
-      this.applyAlgorithmicFallbackAfterAiFailure();
-    }
-  }
-
-  /**
-   * Rebuilds the live graph with realtime mid/side DSP so the vocal-remover toggle
-   * still attenuates guide vocals when offline AI cannot produce a stem.
-   */
-  private applyAlgorithmicFallbackAfterAiFailure(): void {
-    if (!this.isVocalRemoverEnabled) return;
-    this.aiUsingAlgorithmicFallback = true;
-    this.setupVocalRemoverGraph();
-  }
-
-  /**
-   * Toggles guide-vocal removal for the selected Settings method.
-   * Algorithmic: instant GainNode crossfade.
-   * AI: on-demand dual-stem (instrumental + vocals) with fader; native until ready.
+   * Toggles guide-vocal removal for the selected Settings method (algorithmic mid/side DSP).
    */
   public setVocalRemover(enabled: boolean): void {
-    // Toggle maps to fader extremes: ON → 0 (no guide), OFF → 1 (native / full guide)
-    this.setVocalGuideLevel(enabled ? 0 : 1);
+    this.isVocalRemoverEnabled = enabled;
+    this.vocalRemoverNode?.setEnabled(enabled);
   }
 
   /**
-   * Selects the vocal-remover method (algorithmic DSP or offline AI). Persisted in settings.
+   * Selects the vocal-remover algorithm. Persisted in settings.
+   * Unknown or legacy AI method ids fall back to centerCancelBassKeep.
    */
   public setVocalRemoverAlgorithm(algorithm: VocalRemoverMethod | string): void {
     const next: VocalRemoverMethod = isVocalRemoverMethod(algorithm)
       ? algorithm
       : 'centerCancelBassKeep';
-    const prev = this.vocalRemoverMethod;
-    const modeChanged =
-      isAiVocalRemoverMethod(prev) !== isAiVocalRemoverMethod(next) ||
-      (isAiVocalRemoverMethod(prev) && isAiVocalRemoverMethod(next) && prev !== next);
-
     this.vocalRemoverMethod = next;
-    if (modeChanged) {
-      this.aiUsingAlgorithmicFallback = false;
-    }
 
-    if (modeChanged && this.sourceNode) {
-      // Switching algorithmic ↔ AI (or between AI models) needs a graph rebuild.
-      this.vocalSeparationToken++;
-      this.teardownDualStemToNative();
+    if (this.vocalRemoverNode) {
+      this.vocalRemoverNode.setAlgorithm(next);
+    } else if (this.sourceNode) {
       this.setupVocalRemoverGraph();
-      return;
-    }
-
-    if (isAlgorithmicVocalRemoverMethod(next)) {
-      this.vocalRemoverNode?.setAlgorithm(next);
     }
   }
 
@@ -805,15 +357,6 @@ export class AudioGraphManager {
 
     if (this.mediaElement && !this.isMidiMode) {
       this.mediaElement.playbackRate = this.currentPlaybackSpeed;
-    }
-    if (this.instrumentalSourceNode) {
-      this.instrumentalSourceNode.playbackRate.value = this.currentPlaybackSpeed;
-    }
-    if (this.vocalsSourceNode) {
-      this.vocalsSourceNode.playbackRate.value = this.currentPlaybackSpeed;
-    }
-    if (this.dualStemState === 'DUAL_STEM_ACTIVE' && this.mediaElement && !this.mediaElement.paused) {
-      this.startDualStemsAt(this.mediaElement.currentTime);
     }
   }
 
@@ -1529,18 +1072,8 @@ export class AudioGraphManager {
 
   /**
    * Re-applies vocal remover state after the media element changes.
-   * Algorithmic: re-enable node. AI: re-run on-demand dual-stem for the new media URL.
    */
   public refreshVocalRemoverForCurrentMedia(): void {
-    if (isAiVocalRemoverMethod(this.vocalRemoverMethod)) {
-      this.teardownDualStemToNative();
-      this.instrumentalBuffer = null;
-      this.vocalsBuffer = null;
-      if (this.isVocalRemoverEnabled) {
-        void this.activateDualStemPipeline();
-      }
-      return;
-    }
     this.vocalRemoverNode?.setEnabled(this.isVocalRemoverEnabled);
   }
 
@@ -1552,23 +1085,6 @@ export class AudioGraphManager {
     }
     this.voiceReleaseTimeouts = [];
     this.activeVoices = [];
-    this.vocalSeparationToken++;
-    this.unbindMediaSyncHandlers();
-    this.stopDriftWatch();
-    this.stopStemSources();
-    this.restoreMediaElementMute();
-    this.dualStemStateListener = null;
-    this.instrumentalBuffer = null;
-    this.vocalsBuffer = null;
-    if (this.aiProgressUnsub) {
-      this.aiProgressUnsub();
-      this.aiProgressUnsub = null;
-    }
-    try {
-      getOfflineAiVocalSeparator().clearCache();
-    } catch {
-      /* ignore */
-    }
     this.teardownVocalRemoverNodes();
     this.stopMidiPlayback();
     if (this.workletSynth) {
