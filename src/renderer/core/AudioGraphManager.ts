@@ -482,7 +482,13 @@ export class AudioGraphManager {
       if (token !== this.vocalSeparationToken) return;
       const message = err instanceof Error ? err.message : String(err);
       this.log('error', 'AI vocal separation failed; keeping original mix', err);
-      showToast(message || 'AI vocal remover failed', 'error', 8000);
+      // Download failures already toast via vocal-model:download-progress — avoid a second toast.
+      const alreadyToasted =
+        err instanceof Error &&
+        (err as Error & { code?: string }).code === 'VOCAL_MODEL_DOWNLOAD';
+      if (!alreadyToasted) {
+        showToast(message || 'AI vocal remover failed', 'error', 8000);
+      }
       this.crossfadeToInstrumental(false);
       this.stopInstrumentalSource(true);
     }
