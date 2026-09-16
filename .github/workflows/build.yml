@@ -23,7 +23,19 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        # ffmpeg-static postinstall downloads platform binaries from GitHub Releases;
+        # macos-latest (darwin-arm64) occasionally gets HTTP 500 from the CDN.
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if npm ci; then
+              exit 0
+            fi
+            echo "::warning::npm ci failed (attempt ${attempt}/5) — retrying after backoff"
+            sleep $((attempt * 8))
+          done
+          echo "::error::npm ci failed after 5 attempts"
+          exit 1
 
       - name: TypeScript typecheck
         run: npm run typecheck
@@ -57,7 +69,18 @@ jobs:
           sudo apt-get install -y libasound2-dev libpulse-dev
 
       - name: Install dependencies
-        run: npm ci
+        # Same ffmpeg-static CDN flakiness as typecheck job (esp. darwin-arm64).
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if npm ci; then
+              exit 0
+            fi
+            echo "::warning::npm ci failed (attempt ${attempt}/5) — retrying after backoff"
+            sleep $((attempt * 8))
+          done
+          echo "::error::npm ci failed after 5 attempts"
+          exit 1
 
       - name: Build Vite bundles
         run: npm run build

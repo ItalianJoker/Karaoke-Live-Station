@@ -198,14 +198,29 @@ async function prepareFfmpeg(platformKey) {
     }
   }
 
-  // Check if we can copy from node_modules for linux
-  if (cfg.folder === 'linux') {
-    const nodeModulesFfmpeg = path.join(ROOT_DIR, 'node_modules', 'ffmpeg-static', 'ffmpeg');
-    if (fs.existsSync(nodeModulesFfmpeg)) {
-      console.log(`[prepare-binaries] Copying ffmpeg for linux from node_modules/ffmpeg-static...`);
-      fs.copyFileSync(nodeModulesFfmpeg, destFile);
-      fs.chmodSync(destFile, 0o755);
-      return;
+  // Prefer copying the binary already fetched by ffmpeg-static's postinstall
+  // (avoids a second GitHub Releases download that can 500 on CI).
+  const nodeModulesFfmpeg = path.join(
+    ROOT_DIR,
+    'node_modules',
+    'ffmpeg-static',
+    cfg.isPosix ? 'ffmpeg' : 'ffmpeg.exe'
+  );
+  if (fs.existsSync(nodeModulesFfmpeg)) {
+    try {
+      const nmStat = fs.statSync(nodeModulesFfmpeg);
+      if (nmStat.size > 10 * 1024 * 1024) {
+        console.log(
+          `[prepare-binaries] Copying ffmpeg for ${cfg.folder} from node_modules/ffmpeg-static...`
+        );
+        fs.copyFileSync(nodeModulesFfmpeg, destFile);
+        if (cfg.isPosix && process.platform !== 'win32') {
+          fs.chmodSync(destFile, 0o755);
+        }
+        return;
+      }
+    } catch {
+      // Fall through to download
     }
   }
 
@@ -213,31 +228,55 @@ async function prepareFfmpeg(platformKey) {
   const downloadUrl = `https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/${cfg.ffmpegAsset}`;
   const tempFile = path.join(targetDir, `${cfg.ffmpegName}.tmp.${Date.now()}`);
 
-  const res = await fetch(downloadUrl, {
-    headers: { 'User-Agent': 'KaraokeLiveStation-Packager/1.0' },
-    redirect: 'follow',
-    signal: AbortSignal.timeout(180000)
-  });
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      const res = await fetch(downloadUrl, {
+        headers: { 'User-Agent': 'KaraokeLiveStation-Packager/1.0' },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(180000)
+      });
 
-  if (!res.ok || !res.body) {
-    throw new Error(`Failed to download ffmpeg asset: HTTP ${res.status}`);
+      if (!res.ok || !res.body) {
+        throw new Error(`Failed to download ffmpeg asset: HTTP ${res.status}`);
+      }
+
+      const gunzip = zlib.createGunzip();
+      const outStream = fs.createWriteStream(tempFile);
+      await pipeline(Readable.fromWeb(res.body), gunzip, outStream);
+
+      if (fs.existsSync(destFile)) {
+        try {
+          fs.unlinkSync(destFile);
+        } catch {
+          /* ignore */
+        }
+      }
+      fs.renameSync(tempFile, destFile);
+
+      if (cfg.isPosix && process.platform !== 'win32') {
+        fs.chmodSync(destFile, 0o755);
+      }
+
+      const finalStat = fs.statSync(destFile);
+      console.log(
+        `[prepare-binaries] Downloaded ffmpeg for ${cfg.folder} (${(finalStat.size / 1024 / 1024).toFixed(2)} MB)`
+      );
+      return;
+    } catch (err) {
+      lastErr = err;
+      try {
+        if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+      } catch {
+        /* ignore */
+      }
+      console.warn(
+        `[prepare-binaries] ffmpeg download attempt ${attempt}/5 failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+      await new Promise((r) => setTimeout(r, attempt * 8000));
+    }
   }
-
-  const gunzip = zlib.createGunzip();
-  const outStream = fs.createWriteStream(tempFile);
-  await pipeline(Readable.fromWeb(res.body), gunzip, outStream);
-
-  if (fs.existsSync(destFile)) {
-    try { fs.unlinkSync(destFile); } catch {}
-  }
-  fs.renameSync(tempFile, destFile);
-
-  if (cfg.isPosix && process.platform !== 'win32') {
-    fs.chmodSync(destFile, 0o755);
-  }
-
-  const finalStat = fs.statSync(destFile);
-  console.log(`[prepare-binaries] Downloaded ffmpeg for ${cfg.folder} (${(finalStat.size / 1024 / 1024).toFixed(2)} MB)`);
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 function prepareSqlite(platformKey) {
