@@ -14,6 +14,7 @@ import {
   type AiVocalRemoverMethod
 } from '../../shared/vocalRemover';
 import { getOfflineAiVocalSeparator } from './OfflineAiVocalSeparator';
+import { formatOrtBackendError } from './ortWasmConfig';
 import { showToast } from '../utils/toast';
 
 /**
@@ -480,14 +481,14 @@ export class AudioGraphManager {
       this.log('info', `AI instrumental stem engaged (${method})`);
     } catch (err) {
       if (token !== this.vocalSeparationToken) return;
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatOrtBackendError(err);
       this.log('error', 'AI vocal separation failed; keeping original mix', err);
       // Download failures already toast via vocal-model:download-progress — avoid a second toast.
       const alreadyToasted =
         err instanceof Error &&
         (err as Error & { code?: string }).code === 'VOCAL_MODEL_DOWNLOAD';
       if (!alreadyToasted) {
-        showToast(message || 'AI vocal remover failed', 'error', 8000);
+        showToast(message || 'AI vocal remover failed', 'error', 10000);
       }
       this.crossfadeToInstrumental(false);
       this.stopInstrumentalSource(true);

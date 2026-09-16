@@ -12,6 +12,7 @@ import { resolveFfmpegPath, resolveYtDlpPath } from './services/BinaryResolver';
 import { YtDlpUpdater } from './services/YtDlpUpdater';
 import { FirewallHelper } from './services/FirewallHelper';
 import { OfflineVocalModelManager } from './services/OfflineVocalModelManager';
+import { OrtWasmManager } from './services/OrtWasmManager';
 import {
   ActivePlaybackState,
   AppSettings,
@@ -22,6 +23,7 @@ import {
 } from '../shared/types';
 import type { OfflineVocalModelId } from '../shared/vocalRemover';
 import { OFFLINE_VOCAL_MODELS } from '../shared/vocalRemover';
+import { ORT_WASM_ASSET_FILES } from '../shared/ortWasm';
 
 /**
  * Returns the corresponding MIME content-type for audio/video media files.
@@ -53,6 +55,13 @@ function getMediaMimeType(filePath: string): string {
       return 'application/octet-stream';
     case '.cdg':
       return 'application/octet-stream';
+    case '.wasm':
+      return 'application/wasm';
+    case '.mjs':
+    case '.js':
+      return 'text/javascript';
+    case '.json':
+      return 'application/json';
     case '.jpg':
     case '.jpeg':
       return 'image/jpeg';
@@ -150,6 +159,7 @@ class KaraokeMainProcess {
   private downloadManager: DownloadManager;
   private ytDlpUpdater: YtDlpUpdater;
   private vocalModelManager: OfflineVocalModelManager;
+  private ortWasmManager: OrtWasmManager;
   private guestServer: GuestPortalServer | null = null;
   private currentMasterState: ActivePlaybackState | null = null;
   private currentQueue: QueueItem[] = [];
@@ -167,6 +177,7 @@ class KaraokeMainProcess {
     this.downloadManager = new DownloadManager(tempDownloadDir, queueCacheDir);
     this.ytDlpUpdater = new YtDlpUpdater(userDataPath, this.logger);
     this.vocalModelManager = new OfflineVocalModelManager(this.logger);
+    this.ortWasmManager = new OrtWasmManager(this.logger);
 
     this.setupAppLifecycle();
     this.setupCustomProtocol();
@@ -225,6 +236,27 @@ class KaraokeMainProcess {
       protocol.handle('karaoke', async (request) => {
         try {
           const url = new URL(request.url);
+          // Durable ORT WASM/MJS under userData/ort — never OS Temp
+          if (url.hostname === 'ort') {
+            const rawName = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+            const filePath = this.ortWasmManager.resolveServableAsset(rawName);
+            if (!filePath) {
+              this.logger.warn('Protocol', 'ORT asset not found', { rawName });
+              return new Response('ORT asset not found', { status: 404 });
+            }
+            const stat = await fs.promises.stat(filePath);
+            const stream = fs.createReadStream(filePath);
+            return new Response(Readable.toWeb(stream) as any, {
+              status: 200,
+              headers: {
+                'Content-Length': String(stat.size),
+                'Content-Type': getMediaMimeType(filePath),
+                'Cache-Control': 'public, max-age=31536000, immutable',
+                'Cross-Origin-Resource-Policy': 'cross-origin'
+              }
+            });
+          }
+
           // Format expected: karaoke://local/path/to/media.mp4
           if (url.hostname === 'local') {
             const rawPath = decodeURIComponent(url.pathname);
@@ -328,6 +360,15 @@ class KaraokeMainProcess {
     app.whenReady().then(async () => {
       Menu.setApplicationMenu(null);
       this.setupYouTubeEmbedReferer();
+      // Seed ORT WASM into userData/ort before any AI vocal session can start
+      try {
+        await this.ortWasmManager.ensureOrtWasm();
+      } catch (err) {
+        this.logger.error(
+          'OrtWasmManager',
+          `Failed to seed ORT WASM under userData/ort: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
       await this.initWindows();
       this.initGuestServer();
       setTimeout(() => {
@@ -1132,6 +1173,28 @@ class KaraokeMainProcess {
         filename: m.filename,
         cached: this.vocalModelManager.isModelCached(m.id)
       }));
+    });
+
+    // ORT WASM under userData/ort — durable paths for onnxruntime-web (not OS Temp)
+    ipcMain.handle('ort-wasm:ensure', async () => {
+      try {
+        const paths = await this.ortWasmManager.ensureOrtWasm();
+        return { success: true, ...paths, assets: ORT_WASM_ASSET_FILES };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error('App', `ort-wasm:ensure failed: ${message}`);
+        return { success: false, error: message };
+      }
+    });
+
+    ipcMain.handle('ort-wasm:get-paths', async () => {
+      try {
+        const paths = await this.ortWasmManager.ensureOrtWasm();
+        return { success: true, ...paths };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { success: false, error: message };
+      }
     });
   }
 

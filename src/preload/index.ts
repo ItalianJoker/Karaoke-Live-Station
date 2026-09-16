@@ -223,6 +223,24 @@ export interface KaraokeAPI {
     >;
     onDownloadProgress: (callback: (progress: VocalModelDownloadProgress) => void) => () => void;
   };
+
+  // 13. ORT WASM assets seeded under userData/ort (karaoke://ort/…)
+  ortWasm: {
+    ensure: () => Promise<{
+      success: boolean;
+      wasmPathsPrefix?: string;
+      wasmFilePaths?: { wasm: string; mjs: string };
+      ortDir?: string;
+      error?: string;
+    }>;
+    getPaths: () => Promise<{
+      success: boolean;
+      wasmPathsPrefix?: string;
+      wasmFilePaths?: { wasm: string; mjs: string };
+      ortDir?: string;
+      error?: string;
+    }>;
+  };
 }
 
 const karaokeApi: KaraokeAPI = {
@@ -401,6 +419,11 @@ const karaokeApi: KaraokeAPI = {
         ipcRenderer.removeListener('vocal-model:download-progress', handler);
       };
     }
+  },
+
+  ortWasm: {
+    ensure: () => ipcRenderer.invoke('ort-wasm:ensure'),
+    getPaths: () => ipcRenderer.invoke('ort-wasm:get-paths')
   }
 };
 
