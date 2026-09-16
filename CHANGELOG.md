@@ -6,7 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ---
 
-## [Unreleased] — Algorithmic vocal remover + Download Instrumental
+## [1.1.0] — Algorithmic vocal remover + Download Instrumental (refresh) — 2026-09-16
+
+Overwrite of GitHub Release `v1.1.0` after removing the AI vocal path and adding YouTube Download Instrumental.
 
 ### Removed
 - Offline AI vocal remover stack (ONNX Runtime / MDX / HTDemucs / BS-Roformer, `karaoke://models` & `karaoke://ort`, dual-stem on-demand mixer, model manager, related settings and caches).

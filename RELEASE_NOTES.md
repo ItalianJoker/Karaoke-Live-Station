@@ -6,15 +6,10 @@
 
 ---
 
-> **Next (unreleased on this branch):** rimozione completa del percorso AI vocal remover (ONNX/ORT/MDX/dual-stem); **Rimozione Vocale** solo algoritmica; nuovo pulsante YouTube **Scarica strumentale** / **Download Instrumental**.  
-> **Next (unreleased on this branch):** full removal of the AI vocal-remover path (ONNX/ORT/MDX/dual-stem); algorithmic-only vocal remover; new YouTube **Download Instrumental** button.
-
----
-
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **mixer dual-stem on-demand** (MP4 A/V) + fix no-op vocal remover + freeze UI AI + ORT WASM senza Temp OS + modelli MDX/ONNX in `userData` + fix URL UVR-MDX 404 + avviso hardware + retry CI.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **Rimozione Vocale solo algoritmica** (DSP mid/side) + **Scarica strumentale** YouTube + rimozione completa del percorso AI (ONNX/ORT/MDX/dual-stem) + fix storici UI/archivio/Stage.
 
 ## 📦 File di Installazione
 
@@ -28,45 +23,18 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **mixer dual-stem on-
 
 ## 🌟 Novità di questa refresh
 
-### 🎛️ Mixer dual-stem on-demand (MP4 con audio mux)
-- A riposo: solo audio nativo del video — **nessun** FFmpeg/ONNX finché non si attiva.
-- Attivazione (toggle ON o fader &lt; 100%): cache SHA-256 → stem pronti **oppure** estrazione + separazione in background con spinner («Separazione…») mentre il video continua.
-- Attivo: `video.muted`; stem strumentale + vocale sincronizzati a `currentTime` (video = clock master); fader = livello voce guida.
-- Disattivazione: ripristino audio nativo; cancellazione a metà estrazione torna a nativo (la cache può comunque popolarsi).
-
-### 🔇 Fix no-op — la voce restava dopo «model ready»
-- Ramp GainNode con `setValueAtTime` + `linearRamp` (Chromium altrimenti lascia il dry a 1).
-- Tracce video/mux: demux ffmpeg → PCM WAV prima di `decodeAudioData`.
-
-### 🧊 Fix freeze UI — AI vocal remover in riproduzione
-- Attivare l’AI durante la riproduzione **non blocca più** la Regia (niente ORT/MDX sync sul thread UI).
-- MDX: separazione in **Web Worker** + yield tra chunk; modelli via **`karaoke://models/`** da `<userData>/models/` (I/O async; mai Temp OS).
-- Se il modello/backend AI non è pronto: **toast** + **fallback DSP algoritmico**.
-
-### 🧩 Fix ORT WASM — niente Temp OS (Windows Electron)
-- Errore tipico: `no available backend found` / `…/AppData/Local/Temp/…/wasm-simd-threaded.jsep.mjs` quando onnxruntime-web caricava `.mjs`/`.wasm` da percorsi effimeri.
-- Runtime WASM seedati in **`<userData>/ort/`** (come yt-dlp in `bin/`), serviti via **`karaoke://ort/`**; aggiornamento solo se mancanti, size diversa o source packaged più recente.
-- Modelli ONNX (MDX / HTDemucs / BS-Roformer) restano in **`<userData>/models/`** con staging sibling e sidecar `.meta.json` — ridownload solo se mancanti, corrotti o catalogo più recente.
-- Toast più chiaro se il backend WASM fallisce ancora.
-
-### 🔗 Fix download UVR-MDX-NET Karaoke 2 (HTTP 404)
-- URL catalogo aggiornato al mirror pubblico **Tha456/uvr5-models** (stesso SHA-256 / ~53 MB).
-- IPC `vocal-model:ensure` / `get-buffer`: risposta strutturata `{ success, error }`.
-
-### 🎙️ Rimuovi Voce Guida (Sperimentale) — DSP + AI offline
-- Tendina **Impostazioni → Audio**: metodi **DSP mid/side in tempo reale** (`centerCancelBassKeep`, `centerCancel`, `softMid`) **e** opzioni **AI locale** (nessuna API cloud).
-- **UVR-MDX-NET Karaoke 2** (~53 MB) — AI consigliata; ONNX Runtime Web (WASM).
-- **HTDemucs v4** (~172 MB) — Experimental (`demucs-web` + ONNX).
-- **BS-Roformer (ViperX)** quantizzato (~158 MB) — avanzato; modello in cache locale; STFT band-split non ancora affidabile in Electron WASM (toast + DSP/MDX/HTDemucs restano usabili).
-- Percorso AI: dual-stem on-demand (vedi sopra); DSP algoritmico resta mid/side realtime.
+### 🎙️ Rimozione Vocale (Sperimentale) — solo DSP algoritmico
+- Tendina **Impostazioni → Audio**: `centerCancelBassKeep`, `centerCancel`, `softMid` (mid/side in tempo reale).
+- **Nessuna** AI / ONNX / ORT / download modelli; niente spinner «Separazione…» né fader dual-stem.
 - Pulsante Regia etichettato **(Sperimentale)**; scorciatoia `V`.
 
-### ⚠️ Avviso requisiti hardware (AI)
-- Al primo utilizzo di un metodo AI: **modale tematico** + testo guida in Impostazioni (IT/EN/ES/FR).
-- Opzione **Non mostrare più**; i metodi algoritmici **non** mostrano l’avviso.
+### 📥 Scarica strumentale (ricerca YouTube)
+- Pulsante accanto a Scarica quando il titolo **non** contiene già `Karaoke` o `instrumental` (case-insensitive).
+- Pipeline: download → demux audio → rimozione voce algoritmica (ffmpeg) → remux MP4 strumentale → libreria (`… (Instrumental)`).
+- Sottotitoli auto bruciati sul video se disponibili; altrimenti remux senza burn-in.
 
-### 🛠️ CI — retry install
-- Retry `npm ci` con backoff (bash su tutte le piattaforme) per download intermittenti di `ffmpeg-static`.
+### 🧹 Rimozione percorso AI
+- Eliminati ONNX Runtime, MDX/HTDemucs/BS-Roformer, `karaoke://models` / `karaoke://ort`, model manager, cache dual-stem e dipendenze correlate.
 
 ### 🔇 Conferma unmute anteprima YouTube (stesso dispositivo)
 - Embed YouTube ricerca Web / Pre-Ascolto: stesso modale tematico se CUE === Uscita Principale.
@@ -89,6 +57,9 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **mixer dual-stem on-
 ### 🎭 Stage & ricerca
 - Sfondi per-messaggio; scorciatoie allineate a **?** / F1; ricerca Local/Web separata; badge velocità Stage.
 
+### 🛠️ CI — retry install
+- Retry `npm ci` con backoff (bash su tutte le piattaforme) per download intermittenti di `ffmpeg-static`.
+
 ### 📜 Licenza
 - Progetto sotto **GNU AGPLv3 or later** (`AGPL-3.0-or-later`).
 
@@ -97,7 +68,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **mixer dual-stem on-
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **on-demand dual-stem mixer** (muxed MP4) + vocal-remover no-op fix + AI UI freeze fix + ORT WASM (no OS Temp) + durable MDX/ONNX under `userData` + UVR-MDX 404 fix + hardware warning + CI retries.
+GitHub Release **v1.1.0** overwrite: **algorithmic-only vocal remover** (mid/side DSP) + YouTube **Download Instrumental** + full removal of the AI path (ONNX/ORT/MDX/dual-stem) + retained UI/archive/Stage fixes.
 
 ## 📦 Installers
 
@@ -111,45 +82,18 @@ GitHub Release **v1.1.0** overwrite: **on-demand dual-stem mixer** (muxed MP4) +
 
 ## 🌟 What’s new in this refresh
 
-### 🎛️ On-demand dual-stem mixer (muxed MP4 audio)
-- At rest: native video audio only — **no** FFmpeg/ONNX until engaged.
-- Engage (toggle ON or fader &lt; 100%): SHA-256 cache hit **or** background extract+separate with spinner while video keeps playing.
-- Active: `video.muted`; instrumental + vocals stems synced to `currentTime` (video = clock master); fader = guide-vocal level.
-- Deactivate: restore native audio; cancel mid-extract returns to native (cache may still populate).
-
-### 🔇 No-op fix — voice stayed after “model ready”
-- GainNode ramps use `setValueAtTime` + `linearRamp` (Chromium otherwise leaves dry at 1).
-- Video/muxed tracks: ffmpeg demux → PCM WAV before `decodeAudioData`.
-
-### 🧊 UI freeze fix — AI vocal remover during playback
-- Enabling AI while a track is playing **no longer freezes** the Control UI (no sync ORT/MDX on the UI thread).
-- MDX: separation in a **Web Worker** + yields between chunks; models via **`karaoke://models/`** from `<userData>/models/` (async I/O; never OS Temp).
-- If the AI model/backend is not ready: **toast** + **algorithmic DSP fallback**.
-
-### 🧩 ORT WASM fix — no OS Temp (Windows Electron)
-- Typical error: `no available backend found` / `…/AppData/Local/Temp/…/wasm-simd-threaded.jsep.mjs` when onnxruntime-web loaded `.mjs`/`.wasm` from ephemeral paths.
-- WASM runtimes seeded into **`<userData>/ort/`** (same durability as yt-dlp under `bin/`), served via **`karaoke://ort/`**; refresh only when missing, size-mismatched, or packaged source newer.
-- ONNX models (MDX / HTDemucs / BS-Roformer) stay under **`<userData>/models/`** with sibling staging + `.meta.json` — re-download only if missing, corrupt, or catalog newer.
-- Clearer toast if the WASM backend still fails.
-
-### 🔗 UVR-MDX-NET Karaoke 2 download fix (HTTP 404)
-- Catalog URL updated to the public **Tha456/uvr5-models** mirror (same SHA-256 / ~53 MB).
-- IPC `vocal-model:ensure` / `get-buffer`: structured `{ success, error }`.
-
-### 🎙️ Vocal Remover (Experimental) — DSP + offline AI
-- **Settings → Audio** dropdown: realtime **mid/side DSP** (`centerCancelBassKeep`, `centerCancel`, `softMid`) **and** **local AI** options (no cloud APIs).
-- **UVR-MDX-NET Karaoke 2** (~53 MB) — recommended AI; ONNX Runtime Web (WASM).
-- **HTDemucs v4** (~172 MB) — Experimental (`demucs-web` + ONNX).
-- **BS-Roformer (ViperX)** quantized (~158 MB) — advanced; model cached offline; band-split STFT not yet reliable in Electron WASM (toast + DSP/MDX/HTDemucs remain usable).
-- AI path: on-demand dual-stem (above); algorithmic path stays realtime mid/side DSP.
+### 🎙️ Vocal Remover (Experimental) — algorithmic DSP only
+- **Settings → Audio**: `centerCancelBassKeep`, `centerCancel`, `softMid` (realtime mid/side).
+- **No** AI / ONNX / ORT / model download; no “Separating…” spinner or dual-stem fader.
 - Control button labeled **(Experimental)**; shortcut `V`.
 
-### ⚠️ Hardware requirements warning (AI)
-- On first AI method select or first AI toggle-on: **themed modal** + Settings helper text (IT/EN/ES/FR).
-- Optional **Don’t show again**; algorithmic methods **never** show this warning.
+### 📥 Download Instrumental (YouTube search)
+- Button next to Download when the title does **not** already contain `Karaoke` or `instrumental` (case-insensitive).
+- Pipeline: download → demux audio → algorithmic vocal removal (ffmpeg) → remux instrumental MP4 → library (`… (Instrumental)`).
+- Auto-subs burned onto the video when available; otherwise remux without burn-in.
 
-### 🛠️ CI — install retries
-- `npm ci` retry with backoff (`shell: bash` on all platforms) for flaky `ffmpeg-static` downloads.
+### 🧹 AI path removed
+- Removed ONNX Runtime, MDX/HTDemucs/BS-Roformer, `karaoke://models` / `karaoke://ort`, model manager, dual-stem caches, and related dependencies.
 
 ### 🔇 YouTube preview unmute confirm (same device)
 - Web-search / Pre-Listen YouTube embed: same themed confirm when CUE === Main Output.
@@ -171,6 +115,9 @@ GitHub Release **v1.1.0** overwrite: **on-demand dual-stem mixer** (muxed MP4) +
 
 ### 🎭 Stage & search
 - Per-message backgrounds; shortcuts aligned with **?** / F1; scoped Local/Web search; Stage speed badge.
+
+### 🛠️ CI — install retries
+- `npm ci` retry with backoff (`shell: bash` on all platforms) for flaky `ffmpeg-static` downloads.
 
 ### 📜 License
 - Project licensed under **GNU AGPLv3 or later** (`AGPL-3.0-or-later`).
