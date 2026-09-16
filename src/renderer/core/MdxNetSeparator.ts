@@ -8,10 +8,14 @@
  *
  * Pipeline: decode → resample 44.1 kHz → chunked STFT → ORT → iSTFT → AudioBuffer
  * Config matches UVR_MDXNET_KARA_2.yaml (dim_f=2048, dim_t=256, n_fft=5120, hop=1024).
+ *
+ * Heavy work yields to the event loop between frames/chunks (and prefers a Web Worker
+ * via MdxVocalWorkerClient) so toggling AI during playback never freezes the UI.
  */
 import * as ort from 'onnxruntime-web';
 import { hannWindow, realFftFrame, realIfftFrame } from './audioFft';
 import { configureOrtWasmFromUserData } from './ortWasmConfig';
+import { yieldToMainThread } from './yieldToMain';
 
 export type MdxProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
@@ -53,18 +57,35 @@ export class MdxNetSeparator {
     }
   }
 
-  /** Configure ORT WASM from durable userData/ort (karaoke://ort/), not Temp. */
-  private async configureOrt(): Promise<void> {
+  /**
+   * Apply ORT WASM paths. When `wasmPaths` is provided (worker), skip window IPC.
+   * Otherwise configure from durable userData/ort (karaoke://ort/), not Temp.
+   */
+  private async configureOrt(
+    wasmPaths?: string | { wasm: string; mjs: string }
+  ): Promise<void> {
+    if (wasmPaths) {
+      ort.env.wasm.numThreads = 1;
+      ort.env.wasm.simd = true;
+      ort.env.wasm.proxy = false;
+      ort.env.wasm.wasmPaths = wasmPaths;
+      return;
+    }
     await configureOrtWasmFromUserData();
   }
 
-  public async loadModel(modelBuffer: ArrayBuffer): Promise<void> {
+  public async loadModel(
+    modelBuffer: ArrayBuffer,
+    wasmPaths?: string | { wasm: string; mjs: string }
+  ): Promise<void> {
     if (this.modelReady && this.session) return;
     if (this.loadPromise) return this.loadPromise;
 
     this.loadPromise = (async () => {
       this.emit({ phase: 'model', progress: 0.05, message: 'Loading UVR-MDX-NET Karaoke 2…' });
-      await this.configureOrt();
+      await this.configureOrt(wasmPaths);
+      // Yield so Control UI can paint before the heavy session create.
+      await yieldToMainThread();
       this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
         executionProviders: ['wasm'],
         graphOptimizationLevel: 'basic'
@@ -125,6 +146,8 @@ export class MdxNetSeparator {
         progress: chunkIndex / totalChunks,
         message: `MDX separating… ${Math.round((chunkIndex / totalChunks) * 100)}%`
       });
+      // Keep renderer/worker responsive between heavy STFT+ORT chunks.
+      await yieldToMainThread();
     }
 
     // Tail if last partial chunk
@@ -186,6 +209,10 @@ export class MdxNetSeparator {
         input[base(2)] = specR.re[f];
         input[base(3)] = specR.im[f];
       }
+      // Yield every 32 STFT frames so long chunk builds cannot freeze the UI thread.
+      if ((t & 31) === 31) {
+        await yieldToMainThread();
+      }
     }
 
     const tensor = new ort.Tensor('float32', input, [1, 4, DIM_F, DIM_T]);
@@ -224,6 +251,9 @@ export class MdxNetSeparator {
         accL[idx] += frameL[i] * this.window[i];
         accR[idx] += frameR[i] * this.window[i];
         winAcc[idx] += this.window[i] * this.window[i];
+      }
+      if ((t & 31) === 31) {
+        await yieldToMainThread();
       }
     }
 

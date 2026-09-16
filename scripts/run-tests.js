@@ -554,6 +554,7 @@ assert(
   ortWasmConfigSource.includes('karaoke://ort/') &&
     ortWasmConfigSource.includes('configureOrtWasmFromUserData') &&
     ortWasmConfigSource.includes('proxy = false') &&
+    ortWasmConfigSource.includes('getConfiguredOrtWasmPaths') &&
     offlineAiSource.includes('configureOrtWasmFromUserData') &&
     mdxSource.includes('configureOrtWasmFromUserData') &&
     !offlineAiSource.includes("wasmPaths = './ort/'"),
@@ -562,10 +563,11 @@ assert(
 
 assert(
   mainSourceOrt.includes("hostname === 'ort'") &&
+    mainSourceOrt.includes("hostname === 'models'") &&
     mainSourceOrt.includes('ort-wasm:ensure') &&
     preloadSourceOrt.includes('ortWasm') &&
     ortWasmSharedSource.includes('ort-wasm-simd-threaded.wasm'),
-  'karaoke://ort protocol + IPC expose seeded ORT WASM assets'
+  'karaoke://ort + karaoke://models protocols + IPC expose seeded ORT/model assets'
 );
 
 assert(
@@ -575,8 +577,38 @@ assert(
     audioGraphSource.includes('AlgorithmicVocalRemoverNode') &&
     audioGraphSource.includes('activateAiInstrumental') &&
     audioGraphSource.includes('crossfadeToInstrumental') &&
-    audioGraphSource.includes('getOfflineAiVocalSeparator'),
-  'AudioGraphManager supports algorithmic DSP and AI async separate→crossfade'
+    audioGraphSource.includes('getOfflineAiVocalSeparator') &&
+    audioGraphSource.includes('applyAlgorithmicFallbackAfterAiFailure') &&
+    audioGraphSource.includes('aiUsingAlgorithmicFallback'),
+  'AudioGraphManager supports algorithmic DSP, AI async separate→crossfade, and AI→algorithmic fallback'
+);
+
+const mdxWorkerClientSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/MdxVocalWorkerClient.ts'),
+  'utf8'
+);
+const mdxWorkerSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/workers/mdxVocalWorker.ts'),
+  'utf8'
+);
+const yieldToMainSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/yieldToMain.ts'),
+  'utf8'
+);
+
+assert(
+  mdxSource.includes('yieldToMainThread') &&
+    yieldToMainSource.includes('yieldToMainThread') &&
+    mdxWorkerClientSource.includes('new Worker') &&
+    mdxWorkerSource.includes('MdxNetSeparator') &&
+    offlineAiSource.includes('MdxVocalWorkerClient') &&
+    offlineAiSource.includes('karaoke://models/') &&
+    modelManagerSource.includes('resolveServableModel') &&
+    modelManagerSource.includes('createReadStream') &&
+    modelManagerSource.includes('fs.promises.readFile') &&
+    !modelManagerSource.includes('hashFileSync') &&
+    !modelManagerSource.includes('os.tmpdir()'),
+  'AI vocal path uses MDX Web Worker + event-loop yields; models via userData/karaoke://models (async I/O, no Temp)'
 );
 
 assert(

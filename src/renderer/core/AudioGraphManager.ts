@@ -78,6 +78,11 @@ export class AudioGraphManager {
   private onMediaPauseSync: (() => void) | null = null;
   private onMediaSeekSync: (() => void) | null = null;
   private aiProgressUnsub: (() => void) | null = null;
+  /**
+   * When AI separation fails (model missing/corrupt/ORT error), keep the vocal-remover
+   * toggle useful by routing through realtime algorithmic DSP until AI succeeds again.
+   */
+  private aiUsingAlgorithmicFallback = false;
 
   // Ducking, Delay Sync & Master Gain
   private duckingGainNode: GainNode | null = null;
@@ -254,8 +259,10 @@ export class AudioGraphManager {
    * - AI: dry MediaElementSource → passThroughGain ─┐
    *       wet AudioBufferSource(instrumental) → effectGain ─┴→ PitchShifter
    *   Separation is async; dry path keeps playing until wet is ready (crossfade).
+   * @param options.skipAiActivate - rebuild AI graph without starting a new separation
+   *   (used when an instrumental stem is already ready after algorithmic fallback).
    */
-  private setupVocalRemoverGraph(): void {
+  private setupVocalRemoverGraph(options?: { skipAiActivate?: boolean }): void {
     if (!this.audioCtx || !this.sourceNode || !this.duckingGainNode) return;
 
     if (!this.pitchShifterNode) {
@@ -272,8 +279,8 @@ export class AudioGraphManager {
       /* ignore */
     }
 
-    if (isAiVocalRemoverMethod(this.vocalRemoverMethod)) {
-      this.setupAiVocalRemoverGraph();
+    if (isAiVocalRemoverMethod(this.vocalRemoverMethod) && !this.aiUsingAlgorithmicFallback) {
+      this.setupAiVocalRemoverGraph(options?.skipAiActivate === true);
     } else {
       this.setupAlgorithmicVocalRemoverGraph();
     }
@@ -317,7 +324,7 @@ export class AudioGraphManager {
     this.vocalRemoverNode.setEnabled(this.isVocalRemoverEnabled);
   }
 
-  private setupAiVocalRemoverGraph(): void {
+  private setupAiVocalRemoverGraph(skipActivate = false): void {
     if (!this.audioCtx || !this.sourceNode || !this.pitchShifterNode) return;
 
     const targetInputNode = this.pitchShifterNode.input;
@@ -332,7 +339,7 @@ export class AudioGraphManager {
 
     this.bindMediaSyncHandlers();
 
-    if (this.isVocalRemoverEnabled) {
+    if (this.isVocalRemoverEnabled && !skipActivate) {
       void this.activateAiInstrumental();
     }
   }
@@ -464,6 +471,7 @@ export class AudioGraphManager {
     }
 
     try {
+      this.aiUsingAlgorithmicFallback = false;
       const cached = separator.getCachedInstrumental(method, mediaUrl);
       const instrumental =
         cached ||
@@ -471,6 +479,11 @@ export class AudioGraphManager {
 
       if (token !== this.vocalSeparationToken || !this.isVocalRemoverEnabled) {
         return;
+      }
+
+      // Ensure AI dry/wet graph is active (may have been on algorithmic fallback).
+      if (!this.vocalRemoverPassThroughGain || this.vocalRemoverNode) {
+        this.setupVocalRemoverGraph({ skipAiActivate: true });
       }
 
       this.instrumentalBuffer = instrumental;
@@ -482,17 +495,34 @@ export class AudioGraphManager {
     } catch (err) {
       if (token !== this.vocalSeparationToken) return;
       const message = formatOrtBackendError(err);
-      this.log('error', 'AI vocal separation failed; keeping original mix', err);
+      this.log('error', 'AI vocal separation failed; falling back to algorithmic DSP', err);
       // Download failures already toast via vocal-model:download-progress — avoid a second toast.
       const alreadyToasted =
         err instanceof Error &&
         (err as Error & { code?: string }).code === 'VOCAL_MODEL_DOWNLOAD';
       if (!alreadyToasted) {
-        showToast(message || 'AI vocal remover failed', 'error', 10000);
+        showToast(
+          `${message || 'AI vocal remover failed'} — using algorithmic fallback`,
+          'error',
+          10000
+        );
+      } else {
+        showToast('AI model unavailable — using algorithmic vocal remover', 'warning', 8000);
       }
       this.crossfadeToInstrumental(false);
       this.stopInstrumentalSource(true);
+      this.applyAlgorithmicFallbackAfterAiFailure();
     }
+  }
+
+  /**
+   * Rebuilds the live graph with realtime mid/side DSP so the vocal-remover toggle
+   * still attenuates guide vocals when offline AI cannot produce a stem.
+   */
+  private applyAlgorithmicFallbackAfterAiFailure(): void {
+    if (!this.isVocalRemoverEnabled) return;
+    this.aiUsingAlgorithmicFallback = true;
+    this.setupVocalRemoverGraph();
   }
 
   /**
@@ -505,18 +535,28 @@ export class AudioGraphManager {
     if (isAiVocalRemoverMethod(this.vocalRemoverMethod)) {
       if (!enabled) {
         this.vocalSeparationToken++;
+        this.aiUsingAlgorithmicFallback = false;
         this.crossfadeToInstrumental(false);
         this.stopInstrumentalSource(true);
+        if (this.vocalRemoverNode) {
+          this.vocalRemoverNode.setEnabled(false);
+        }
         return;
       }
-      // Rebuild AI graph if we were previously on algorithmic nodes
-      if (!this.vocalRemoverPassThroughGain || this.vocalRemoverNode) {
+      // Rebuild AI graph if we were previously on algorithmic nodes / fallback
+      if (
+        this.aiUsingAlgorithmicFallback ||
+        !this.vocalRemoverPassThroughGain ||
+        this.vocalRemoverNode
+      ) {
+        this.aiUsingAlgorithmicFallback = false;
         this.setupVocalRemoverGraph();
         return;
       }
       void this.activateAiInstrumental();
       return;
     }
+    this.aiUsingAlgorithmicFallback = false;
     this.vocalRemoverNode?.setEnabled(enabled);
   }
 
@@ -533,6 +573,9 @@ export class AudioGraphManager {
       (isAiVocalRemoverMethod(prev) && isAiVocalRemoverMethod(next) && prev !== next);
 
     this.vocalRemoverMethod = next;
+    if (modeChanged) {
+      this.aiUsingAlgorithmicFallback = false;
+    }
 
     if (modeChanged && this.sourceNode) {
       // Switching algorithmic ↔ AI (or between AI models) needs a graph rebuild.

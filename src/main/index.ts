@@ -257,6 +257,27 @@ class KaraokeMainProcess {
             });
           }
 
+          // Durable ONNX models under userData/models — fetchable by renderer/worker (no giant IPC)
+          if (url.hostname === 'models') {
+            const rawName = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+            const filePath = this.vocalModelManager.resolveServableModel(rawName);
+            if (!filePath) {
+              this.logger.warn('Protocol', 'Vocal model asset not found', { rawName });
+              return new Response('Vocal model not found', { status: 404 });
+            }
+            const stat = await fs.promises.stat(filePath);
+            const stream = fs.createReadStream(filePath);
+            return new Response(Readable.toWeb(stream) as any, {
+              status: 200,
+              headers: {
+                'Content-Length': String(stat.size),
+                'Content-Type': 'application/octet-stream',
+                'Cache-Control': 'no-cache',
+                'Cross-Origin-Resource-Policy': 'cross-origin'
+              }
+            });
+          }
+
           // Format expected: karaoke://local/path/to/media.mp4
           if (url.hostname === 'local') {
             const rawPath = decodeURIComponent(url.pathname);
@@ -1131,7 +1152,7 @@ class KaraokeMainProcess {
     });
 
     // Offline AI vocal-remover models (userData/models) — download once, then offline
-    ipcMain.handle('vocal-model:is-cached', (_event, modelId: OfflineVocalModelId) => {
+    ipcMain.handle('vocal-model:is-cached', async (_event, modelId: OfflineVocalModelId) => {
       if (!OFFLINE_VOCAL_MODELS[modelId]) return false;
       return this.vocalModelManager.isModelCached(modelId);
     });
@@ -1142,7 +1163,11 @@ class KaraokeMainProcess {
       }
       try {
         const modelPath = await this.vocalModelManager.ensureModel(modelId);
-        return { success: true, modelPath };
+        return {
+          success: true,
+          modelPath,
+          modelUrl: this.vocalModelManager.getModelFetchUrl(modelId)
+        };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         this.logger.error('App', `vocal-model:ensure failed (${modelId}): ${message}`);
@@ -1165,14 +1190,17 @@ class KaraokeMainProcess {
       }
     });
 
-    ipcMain.handle('vocal-model:list', () => {
-      return Object.values(OFFLINE_VOCAL_MODELS).map((m) => ({
-        id: m.id,
-        label: m.label,
-        approxSizeMb: m.approxSizeMb,
-        filename: m.filename,
-        cached: this.vocalModelManager.isModelCached(m.id)
-      }));
+    ipcMain.handle('vocal-model:list', async () => {
+      const entries = await Promise.all(
+        Object.values(OFFLINE_VOCAL_MODELS).map(async (m) => ({
+          id: m.id,
+          label: m.label,
+          approxSizeMb: m.approxSizeMb,
+          filename: m.filename,
+          cached: await this.vocalModelManager.isModelCached(m.id)
+        }))
+      );
+      return entries;
     });
 
     // ORT WASM under userData/ort — durable paths for onnxruntime-web (not OS Temp)
