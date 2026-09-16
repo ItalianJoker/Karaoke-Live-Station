@@ -13,7 +13,27 @@ export type ToastMessage = {
   durationMs: number;
 };
 
+export type ConfirmOptions = {
+  /** Optional checkbox label — when present, result includes `dontShowAgain`. */
+  dontShowAgainLabel?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+};
+
+export type ConfirmResult = {
+  confirmed: boolean;
+  dontShowAgain: boolean;
+};
+
 type ToastListener = (toasts: ToastMessage[]) => void;
+
+type ConfirmRequest = {
+  message: string;
+  options?: ConfirmOptions;
+  resolve: (result: ConfirmResult) => void;
+};
+
+type ConfirmHandler = (request: Omit<ConfirmRequest, 'resolve'>) => Promise<ConfirmResult>;
 
 let nextId = 1;
 let toasts: ToastMessage[] = [];
@@ -69,25 +89,30 @@ export function showToast(
 }
 
 /**
- * Non-blocking confirm. Resolves true/false without pausing audio.
- * Uses the browser-native dialog only when a custom host is unavailable;
- * prefer wiring ToastConfirmHost in the control window.
+ * Non-blocking confirm. Resolves without pausing audio.
+ * Prefer wiring ToastHost in the control window.
  */
-let confirmHandler:
-  | ((message: string) => Promise<boolean>)
-  | null = null;
+let confirmHandler: ConfirmHandler | null = null;
 
-export function registerConfirmHandler(
-  handler: ((message: string) => Promise<boolean>) | null
-): void {
+export function registerConfirmHandler(handler: ConfirmHandler | null): void {
   confirmHandler = handler;
 }
 
-export async function confirmAsync(message: string): Promise<boolean> {
+export async function confirmAsync(
+  message: string,
+  options?: ConfirmOptions
+): Promise<boolean> {
+  const result = await confirmDetailed(message, options);
+  return result.confirmed;
+}
+
+export async function confirmDetailed(
+  message: string,
+  options?: ConfirmOptions
+): Promise<ConfirmResult> {
   if (confirmHandler) {
-    return confirmHandler(message);
+    return confirmHandler({ message, options });
   }
-  // Last-resort fallback — still better than sync confirm for audio isolation
-  // when the React confirm host is not mounted yet.
-  return Promise.resolve(window.confirm(message));
+  const confirmed = window.confirm(message);
+  return { confirmed, dontShowAgain: false };
 }

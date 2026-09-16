@@ -230,19 +230,18 @@ Ejemplos: 100% → ganancia plena; 50% → ganancia 0,25 (−12 dB aprox., mitad
 - **Velocidad:** de **0,50× a 1,50×** sin alterar el pitch (WSOLA / SoundTouch). `Ctrl+←` / `Ctrl+→` ajustan ±5%. Un clic en el indicador numérico suele restaurar 1,00×.
 - MIDI: la transposición actúa sobre los números de nota en tiempo real.
 
-### 4.4 Eliminación de voz guía (DSP experimental)
+### 4.4 Eliminación de voz guía (Experimental)
 
-La tecla **`V`** / el control **Eliminar Voz Guía (Experimental)** (`Rimuovi Voce Guida (Sperimentale)`) activa una reducción vocal **algorítmica clásica mid/side** (canal central / estilo karaoke L−R) en **tiempo real**: ligera, sin modelos AI/ML, sin descargas y sin separación offline.
+La tecla **`V`** / el control **Eliminar Voz Guía (Experimental)** activa el método elegido en **Ajustes → Audio**:
 
-En **Ajustes → Audio y reproducción** elige el algoritmo del botón de Regia:
+| Método | Notas |
+| --- | --- |
+| `centerCancelBassKeep` / `centerCancel` / `softMid` | DSP mid/side **en tiempo real** — ligero, sin descarga |
+| **UVR-MDX-NET Karaoke 2** (~53 MB) | IA offline — **recomendada** entre las opciones IA; ONNX WASM |
+| **HTDemucs v4** (~172 MB) | IA offline (Experimental) vía demucs-web + ONNX |
+| **BS-Roformer (ViperX)** (~158 MB cuantizado) | Avanzado/más pesado; modelo en caché local; STFT band-split aún no fiable en Electron WASM — toast + DSP disponible |
 
-| Algoritmo (`vocalRemoverAlgorithm`) | Etiqueta UI |
-| :--- | :--- |
-| **`centerCancelBassKeep`** (por defecto) | Cancelar centro (mantener graves) — recomendado |
-| **`centerCancel`** | Cancelación total del centro (L−R clásico) |
-| **`softMid`** | Atenuación mid suave (menos artefactos) |
-
-La activación es instantánea sobre el mix en reproducción; el resultado depende del stereo (voces muy laterales pueden seguir audibles).
+Los métodos IA se descargan una vez en `userData/models/` y luego funcionan offline. Separación async con crossfade. En el primer uso IA aparece un **aviso de hardware**. Los métodos algorítmicos no muestran el aviso. Si el modelo falla: toast; el DSP sigue disponible.
 
 ### 4.5 Auto-ducking BGM
 

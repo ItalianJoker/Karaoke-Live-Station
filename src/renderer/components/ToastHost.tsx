@@ -3,7 +3,9 @@ import {
   subscribeToasts,
   dismissToast,
   registerConfirmHandler,
-  type ToastMessage
+  type ToastMessage,
+  type ConfirmOptions,
+  type ConfirmResult
 } from '../utils/toast';
 
 /**
@@ -15,29 +17,39 @@ export const ToastHost: React.FC = () => {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmState, setConfirmState] = useState<{
     message: string;
-    resolve: (value: boolean) => void;
+    options?: ConfirmOptions;
+    resolve: (value: ConfirmResult) => void;
   } | null>(null);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   useEffect(() => subscribeToasts(setToasts), []);
 
   useEffect(() => {
     registerConfirmHandler(
-      (message: string) =>
-        new Promise<boolean>((resolve) => {
-          setConfirmState({ message, resolve });
+      ({ message, options }) =>
+        new Promise<ConfirmResult>((resolve) => {
+          setDontShowAgain(false);
+          setConfirmState({ message, options, resolve });
         })
     );
     return () => registerConfirmHandler(null);
   }, []);
 
   const answerConfirm = useCallback(
-    (value: boolean) => {
+    (confirmed: boolean) => {
       if (!confirmState) return;
-      confirmState.resolve(value);
+      confirmState.resolve({
+        confirmed,
+        dontShowAgain: confirmed ? dontShowAgain : false
+      });
       setConfirmState(null);
+      setDontShowAgain(false);
     },
-    [confirmState]
+    [confirmState, dontShowAgain]
   );
+
+  const cancelLabel = confirmState?.options?.cancelLabel || 'Annulla';
+  const confirmLabel = confirmState?.options?.confirmLabel || 'Conferma';
 
   return (
     <>
@@ -77,20 +89,31 @@ export const ToastHost: React.FC = () => {
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4">
             <p className="text-slate-100 text-sm whitespace-pre-wrap">{confirmState.message}</p>
+            {confirmState.options?.dontShowAgainLabel && (
+              <label className="flex items-start gap-2 text-xs text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-indigo-600"
+                  checked={dontShowAgain}
+                  onChange={(e) => setDontShowAgain(e.target.checked)}
+                />
+                <span>{confirmState.options.dontShowAgainLabel}</span>
+              </label>
+            )}
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700"
                 onClick={() => answerConfirm(false)}
               >
-                Annulla
+                {cancelLabel}
               </button>
               <button
                 type="button"
                 className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500"
                 onClick={() => answerConfirm(true)}
               >
-                Conferma
+                {confirmLabel}
               </button>
             </div>
           </div>

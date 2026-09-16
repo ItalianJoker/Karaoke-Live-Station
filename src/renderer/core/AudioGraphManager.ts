@@ -6,6 +6,15 @@ import {
   AlgorithmicVocalRemoverNode,
   type VocalRemoverAlgorithm
 } from './AlgorithmicVocalRemoverNode';
+import {
+  isAiVocalRemoverMethod,
+  isAlgorithmicVocalRemoverMethod,
+  isVocalRemoverMethod,
+  type VocalRemoverMethod,
+  type AiVocalRemoverMethod
+} from '../../shared/vocalRemover';
+import { getOfflineAiVocalSeparator } from './OfflineAiVocalSeparator';
+import { showToast } from '../utils/toast';
 
 /**
  * Callback receiving updated synchronized MIDI/KAR lyrics.
@@ -31,7 +40,8 @@ interface ActiveMidiVoice {
 /**
  * - Media element audio routing with stereo phase vocoder pitch shifting (-8 to +8 semitones)
  * - Independent tempo scaling (0.50x to 1.50x)
- * - Real-time algorithmic mid/side vocal reduction (no ML / Demucs)
+ * - Guide-vocal removal: realtime algorithmic mid/side DSP **or** offline AI
+ *   (UVR-MDX / HTDemucs / BS-Roformer) via async separate → crossfade
  * - Auto-ducking BGM attenuation when microphone input or host talks
  * - AudioWorklet-based General MIDI / SoundFont 2 synthesis via SpessaSynth
  * - Real-time channel muting (channels 0-15) without desynchronizing lyrics
@@ -44,9 +54,29 @@ export class AudioGraphManager {
   private sourceNode: MediaElementAudioSourceNode | null = null;
   private pitchShifterNode: PitchShifterNode | null = null;
 
-  // Vocal Remover — realtime algorithmic mid/side DSP (no ML)
+  // Vocal Remover — algorithmic DSP node and/or AI dry/wet stems
   private vocalRemoverNode: AlgorithmicVocalRemoverNode | null = null;
-  private vocalRemoverAlgorithm: VocalRemoverAlgorithm = 'centerCancelBassKeep';
+  private vocalRemoverMethod: VocalRemoverMethod = 'centerCancelBassKeep';
+  /** @deprecated alias kept for call sites that still say "algorithm" */
+  private get vocalRemoverAlgorithm(): VocalRemoverAlgorithm {
+    return isAlgorithmicVocalRemoverMethod(this.vocalRemoverMethod)
+      ? this.vocalRemoverMethod
+      : 'centerCancelBassKeep';
+  }
+
+  // AI dry/wet gains (MediaElement dry vs separated instrumental wet)
+  private vocalRemoverPassThroughGain: GainNode | null = null;
+  private vocalRemoverEffectGain: GainNode | null = null;
+  private instrumentalBuffer: AudioBuffer | null = null;
+  private instrumentalSourceNode: AudioBufferSourceNode | null = null;
+  private instrumentalPlaying = false;
+  private vocalSeparationToken = 0;
+  private lastAiMediaUrl: string | null = null;
+  private mediaSyncHandlersBound = false;
+  private onMediaPlaySync: (() => void) | null = null;
+  private onMediaPauseSync: (() => void) | null = null;
+  private onMediaSeekSync: (() => void) | null = null;
+  private aiProgressUnsub: (() => void) | null = null;
 
   // Ducking, Delay Sync & Master Gain
   private duckingGainNode: GainNode | null = null;
@@ -218,9 +248,11 @@ export class AudioGraphManager {
   }
 
   /**
-   * Builds realtime algorithmic vocal-remover routing:
-   * MediaElementSource → AlgorithmicVocalRemoverNode → PitchShifter → ducking…
-   * Bypass/effect crossfade lives inside the remover node (native GainNodes only).
+   * Builds vocal-remover routing for the active method:
+   * - Algorithmic: MediaElementSource → AlgorithmicVocalRemoverNode → PitchShifter
+   * - AI: dry MediaElementSource → passThroughGain ─┐
+   *       wet AudioBufferSource(instrumental) → effectGain ─┴→ PitchShifter
+   *   Separation is async; dry path keeps playing until wet is ready (crossfade).
    */
   private setupVocalRemoverGraph(): void {
     if (!this.audioCtx || !this.sourceNode || !this.duckingGainNode) return;
@@ -231,6 +263,24 @@ export class AudioGraphManager {
       this.pitchShifterNode.output.connect(this.duckingGainNode);
     }
 
+    this.teardownVocalRemoverNodes();
+
+    try {
+      this.sourceNode.disconnect();
+    } catch {
+      /* ignore */
+    }
+
+    if (isAiVocalRemoverMethod(this.vocalRemoverMethod)) {
+      this.setupAiVocalRemoverGraph();
+    } else {
+      this.setupAlgorithmicVocalRemoverGraph();
+    }
+  }
+
+  private teardownVocalRemoverNodes(): void {
+    this.stopInstrumentalSource();
+    this.instrumentalBuffer = null;
     if (this.vocalRemoverNode) {
       try {
         this.vocalRemoverNode.dispose();
@@ -239,13 +289,26 @@ export class AudioGraphManager {
       }
       this.vocalRemoverNode = null;
     }
-
-    try {
-      this.sourceNode.disconnect();
-    } catch {
-      /* ignore */
+    if (this.vocalRemoverPassThroughGain) {
+      try {
+        this.vocalRemoverPassThroughGain.disconnect();
+      } catch {
+        /* ignore */
+      }
+      this.vocalRemoverPassThroughGain = null;
     }
+    if (this.vocalRemoverEffectGain) {
+      try {
+        this.vocalRemoverEffectGain.disconnect();
+      } catch {
+        /* ignore */
+      }
+      this.vocalRemoverEffectGain = null;
+    }
+  }
 
+  private setupAlgorithmicVocalRemoverGraph(): void {
+    if (!this.audioCtx || !this.sourceNode || !this.pitchShifterNode) return;
     this.vocalRemoverNode = new AlgorithmicVocalRemoverNode(this.audioCtx);
     this.vocalRemoverNode.setAlgorithm(this.vocalRemoverAlgorithm);
     this.sourceNode.connect(this.vocalRemoverNode.input);
@@ -253,21 +316,227 @@ export class AudioGraphManager {
     this.vocalRemoverNode.setEnabled(this.isVocalRemoverEnabled);
   }
 
+  private setupAiVocalRemoverGraph(): void {
+    if (!this.audioCtx || !this.sourceNode || !this.pitchShifterNode) return;
+
+    const targetInputNode = this.pitchShifterNode.input;
+    this.vocalRemoverPassThroughGain = this.audioCtx.createGain();
+    this.vocalRemoverPassThroughGain.gain.setValueAtTime(1, this.audioCtx.currentTime);
+    this.vocalRemoverEffectGain = this.audioCtx.createGain();
+    this.vocalRemoverEffectGain.gain.setValueAtTime(0, this.audioCtx.currentTime);
+
+    this.sourceNode.connect(this.vocalRemoverPassThroughGain);
+    this.vocalRemoverPassThroughGain.connect(targetInputNode);
+    this.vocalRemoverEffectGain.connect(targetInputNode);
+
+    this.bindMediaSyncHandlers();
+
+    if (this.isVocalRemoverEnabled) {
+      void this.activateAiInstrumental();
+    }
+  }
+
+  private bindMediaSyncHandlers(): void {
+    if (!this.mediaElement || this.mediaSyncHandlersBound) return;
+
+    this.onMediaPlaySync = () => {
+      if (this.isVocalRemoverEnabled && this.instrumentalBuffer) {
+        this.startInstrumentalAt(this.mediaElement?.currentTime || 0);
+      }
+    };
+    this.onMediaPauseSync = () => {
+      this.stopInstrumentalSource(true);
+    };
+    this.onMediaSeekSync = () => {
+      if (
+        this.isVocalRemoverEnabled &&
+        this.instrumentalBuffer &&
+        this.mediaElement &&
+        !this.mediaElement.paused
+      ) {
+        this.startInstrumentalAt(this.mediaElement.currentTime);
+      }
+    };
+
+    this.mediaElement.addEventListener('play', this.onMediaPlaySync);
+    this.mediaElement.addEventListener('pause', this.onMediaPauseSync);
+    this.mediaElement.addEventListener('seeked', this.onMediaSeekSync);
+    this.mediaSyncHandlersBound = true;
+  }
+
+  private unbindMediaSyncHandlers(): void {
+    if (!this.mediaElement || !this.mediaSyncHandlersBound) return;
+    if (this.onMediaPlaySync) this.mediaElement.removeEventListener('play', this.onMediaPlaySync);
+    if (this.onMediaPauseSync) this.mediaElement.removeEventListener('pause', this.onMediaPauseSync);
+    if (this.onMediaSeekSync) this.mediaElement.removeEventListener('seeked', this.onMediaSeekSync);
+    this.mediaSyncHandlersBound = false;
+  }
+
+  private stopInstrumentalSource(_preserveBuffer = false): void {
+    if (this.instrumentalSourceNode || this.instrumentalPlaying) {
+      if (this.instrumentalSourceNode) {
+        try {
+          this.instrumentalSourceNode.onended = null;
+          this.instrumentalSourceNode.stop();
+        } catch {
+          /* already stopped */
+        }
+        try {
+          this.instrumentalSourceNode.disconnect();
+        } catch {
+          /* ignore */
+        }
+        this.instrumentalSourceNode = null;
+      }
+    }
+    this.instrumentalPlaying = false;
+  }
+
+  private startInstrumentalAt(offsetSec: number): void {
+    if (!this.audioCtx || !this.vocalRemoverEffectGain || !this.instrumentalBuffer) return;
+
+    this.stopInstrumentalSource(true);
+
+    const safeOffset = Math.max(
+      0,
+      Math.min(offsetSec, Math.max(0, this.instrumentalBuffer.duration - 0.05))
+    );
+    const source = this.audioCtx.createBufferSource();
+    source.buffer = this.instrumentalBuffer;
+    source.playbackRate.value = this.currentPlaybackSpeed;
+    source.connect(this.vocalRemoverEffectGain);
+    try {
+      source.start(0, safeOffset);
+    } catch (err) {
+      this.log('warn', 'Failed to start AI instrumental buffer', err);
+      return;
+    }
+
+    this.instrumentalSourceNode = source;
+    this.instrumentalPlaying = true;
+  }
+
+  private crossfadeToInstrumental(enabled: boolean): void {
+    if (!this.audioCtx || !this.vocalRemoverPassThroughGain || !this.vocalRemoverEffectGain) {
+      return;
+    }
+    const now = this.audioCtx.currentTime;
+    this.vocalRemoverPassThroughGain.gain.cancelScheduledValues(now);
+    this.vocalRemoverEffectGain.gain.cancelScheduledValues(now);
+    if (enabled) {
+      this.vocalRemoverPassThroughGain.gain.linearRampToValueAtTime(0, now + 0.08);
+      this.vocalRemoverEffectGain.gain.linearRampToValueAtTime(1, now + 0.08);
+    } else {
+      this.vocalRemoverPassThroughGain.gain.linearRampToValueAtTime(1, now + 0.08);
+      this.vocalRemoverEffectGain.gain.linearRampToValueAtTime(0, now + 0.08);
+    }
+  }
+
+  private async activateAiInstrumental(): Promise<void> {
+    if (!this.audioCtx || !this.mediaElement) return;
+    if (!isAiVocalRemoverMethod(this.vocalRemoverMethod)) return;
+
+    const mediaUrl = this.mediaElement.currentSrc || this.mediaElement.src;
+    if (!mediaUrl) {
+      this.log('warn', 'AI vocal remover requested but media element has no src');
+      return;
+    }
+
+    if (this.lastAiMediaUrl && this.lastAiMediaUrl !== mediaUrl) {
+      this.instrumentalBuffer = null;
+      this.stopInstrumentalSource();
+    }
+    this.lastAiMediaUrl = mediaUrl;
+
+    const token = ++this.vocalSeparationToken;
+    const method = this.vocalRemoverMethod as AiVocalRemoverMethod;
+    const separator = getOfflineAiVocalSeparator();
+
+    if (!this.aiProgressUnsub) {
+      this.aiProgressUnsub = separator.onProgress((info) => {
+        if (info.phase === 'model' || info.phase === 'separate') {
+          if (info.progress === 0 || info.progress >= 0.99 || Math.round(info.progress * 20) % 5 === 0) {
+            showToast(info.message, 'info', 2500);
+          }
+        }
+      });
+    }
+
+    try {
+      const cached = separator.getCachedInstrumental(method, mediaUrl);
+      const instrumental =
+        cached ||
+        (await separator.separateInstrumentalFromUrl(method, mediaUrl, this.audioCtx));
+
+      if (token !== this.vocalSeparationToken || !this.isVocalRemoverEnabled) {
+        return;
+      }
+
+      this.instrumentalBuffer = instrumental;
+      if (this.mediaElement && !this.mediaElement.paused) {
+        this.startInstrumentalAt(this.mediaElement.currentTime);
+      }
+      this.crossfadeToInstrumental(true);
+      this.log('info', `AI instrumental stem engaged (${method})`);
+    } catch (err) {
+      if (token !== this.vocalSeparationToken) return;
+      const message = err instanceof Error ? err.message : String(err);
+      this.log('error', 'AI vocal separation failed; keeping original mix', err);
+      showToast(message || 'AI vocal remover failed', 'error', 8000);
+      this.crossfadeToInstrumental(false);
+      this.stopInstrumentalSource(true);
+    }
+  }
+
   /**
-   * Toggles realtime algorithmic vocal reduction.
-   * Instant, non-blocking — no model download or offline separation.
+   * Toggles guide-vocal removal for the selected Settings method.
+   * Algorithmic: instant GainNode crossfade.
+   * AI: async offline separate → crossfade (dry continues until ready).
    */
   public setVocalRemover(enabled: boolean): void {
     this.isVocalRemoverEnabled = enabled;
+    if (isAiVocalRemoverMethod(this.vocalRemoverMethod)) {
+      if (!enabled) {
+        this.vocalSeparationToken++;
+        this.crossfadeToInstrumental(false);
+        this.stopInstrumentalSource(true);
+        return;
+      }
+      // Rebuild AI graph if we were previously on algorithmic nodes
+      if (!this.vocalRemoverPassThroughGain || this.vocalRemoverNode) {
+        this.setupVocalRemoverGraph();
+        return;
+      }
+      void this.activateAiInstrumental();
+      return;
+    }
     this.vocalRemoverNode?.setEnabled(enabled);
   }
 
   /**
-   * Selects which classical mid/side algorithm the remover uses (persisted in settings).
+   * Selects the vocal-remover method (algorithmic DSP or offline AI). Persisted in settings.
    */
-  public setVocalRemoverAlgorithm(algorithm: VocalRemoverAlgorithm): void {
-    this.vocalRemoverAlgorithm = algorithm;
-    this.vocalRemoverNode?.setAlgorithm(algorithm);
+  public setVocalRemoverAlgorithm(algorithm: VocalRemoverMethod | string): void {
+    const next: VocalRemoverMethod = isVocalRemoverMethod(algorithm)
+      ? algorithm
+      : 'centerCancelBassKeep';
+    const prev = this.vocalRemoverMethod;
+    const modeChanged =
+      isAiVocalRemoverMethod(prev) !== isAiVocalRemoverMethod(next) ||
+      (isAiVocalRemoverMethod(prev) && isAiVocalRemoverMethod(next) && prev !== next);
+
+    this.vocalRemoverMethod = next;
+
+    if (modeChanged && this.sourceNode) {
+      // Switching algorithmic ↔ AI (or between AI models) needs a graph rebuild.
+      this.vocalSeparationToken++;
+      this.setupVocalRemoverGraph();
+      return;
+    }
+
+    if (isAlgorithmicVocalRemoverMethod(next)) {
+      this.vocalRemoverNode?.setAlgorithm(next);
+    }
   }
 
 
@@ -1045,9 +1314,15 @@ export class AudioGraphManager {
 
   /**
    * Re-applies vocal remover state after the media element changes.
-   * Algorithmic path has no per-track cache — just ensure the node matches the toggle.
+   * Algorithmic: re-enable node. AI: re-run separation for the new media URL.
    */
   public refreshVocalRemoverForCurrentMedia(): void {
+    if (isAiVocalRemoverMethod(this.vocalRemoverMethod)) {
+      if (this.isVocalRemoverEnabled) {
+        void this.activateAiInstrumental();
+      }
+      return;
+    }
     this.vocalRemoverNode?.setEnabled(this.isVocalRemoverEnabled);
   }
 
@@ -1059,14 +1334,20 @@ export class AudioGraphManager {
     }
     this.voiceReleaseTimeouts = [];
     this.activeVoices = [];
-    if (this.vocalRemoverNode) {
-      try {
-        this.vocalRemoverNode.dispose();
-      } catch {
-        /* ignore */
-      }
-      this.vocalRemoverNode = null;
+    this.vocalSeparationToken++;
+    this.unbindMediaSyncHandlers();
+    this.stopInstrumentalSource();
+    this.instrumentalBuffer = null;
+    if (this.aiProgressUnsub) {
+      this.aiProgressUnsub();
+      this.aiProgressUnsub = null;
     }
+    try {
+      getOfflineAiVocalSeparator().clearCache();
+    } catch {
+      /* ignore */
+    }
+    this.teardownVocalRemoverNodes();
     this.stopMidiPlayback();
     if (this.workletSynth) {
       try {

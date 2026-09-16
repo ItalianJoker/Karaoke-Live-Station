@@ -38,6 +38,13 @@ import {
 } from '../../shared/stageMessages';
 import { APP_SHORTCUTS } from '../data/appShortcuts';
 import { FirewallGuideCard } from './FirewallGuideCard';
+import { isAiVocalRemoverMethod, type VocalRemoverMethod } from '../../shared/vocalRemover';
+import {
+  warnAiVocalRemoverIfNeeded,
+  dismissAiVocalHwWarningPermanently,
+  shouldShowAiVocalHwWarning,
+  resetAiVocalHwWarning
+} from '../utils/aiVocalHwWarning';
 import appLogo from '../assets/logo.png';
 
 const THEME_OPTIONS: { id: AppTheme; label: string }[] = [
@@ -70,6 +77,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const settings = useKaraokeStore((state) => state.settings);
   const updateSettings = useKaraokeStore((state) => state.updateSettings);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [hideAiHwWarning, setHideAiHwWarning] = useState(!shouldShowAiVocalHwWarning());
   const [defaultSystemSf, setDefaultSystemSf] = useState<string | null>(null);
   const [logFilePath, setLogFilePath] = useState<string>('');
   const [portalInfo, setPortalInfo] = useState<{ enabled: boolean; url: string; port?: number; ip?: string } | null>(null);
@@ -324,7 +332,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const matchVocalRemoverAlgo = matchesSearch(
     t('settings.vocalRemoverAlgorithm'),
     t('settings.vocalRemoverAlgorithmDesc'),
-    'vocal', 'rimozione', 'algoritmo', 'mid', 'side'
+    t('settings.aiVocalHwWarningTitle'),
+    'vocal',
+    'rimozione',
+    'algoritmo',
+    'mid',
+    'side',
+    'mdx',
+    'demucs',
+    'roformer',
+    'ai',
+    'onnx'
   );
   const matchNormalization = matchesSearch(
     t('settings.audioNormalization'),
@@ -967,20 +985,60 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </p>
                   <select
                     value={settings.vocalRemoverAlgorithm || 'centerCancelBassKeep'}
-                    onChange={(e) =>
-                      updateSettings({
-                        vocalRemoverAlgorithm: e.target.value as
-                          | 'centerCancelBassKeep'
-                          | 'centerCancel'
-                          | 'softMid'
-                      })
-                    }
+                    onChange={async (e) => {
+                      const next = e.target.value as VocalRemoverMethod;
+                      const prev = settings.vocalRemoverAlgorithm || 'centerCancelBassKeep';
+                      if (isAiVocalRemoverMethod(next)) {
+                        const ok = await warnAiVocalRemoverIfNeeded(next, t);
+                        if (!ok) {
+                          // Keep previous (algorithmic) selection — do not apply AI without consent
+                          return;
+                        }
+                      }
+                      updateSettings({ vocalRemoverAlgorithm: next });
+                      if (prev !== next && window.karaokeApi?.logger?.log) {
+                        window.karaokeApi.logger.log(
+                          'info',
+                          'SettingsModal',
+                          `Vocal remover method → ${next}`
+                        );
+                      }
+                    }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs"
                   >
-                    <option value="centerCancelBassKeep">{t('settings.vocalAlgoCenterBass')}</option>
-                    <option value="centerCancel">{t('settings.vocalAlgoCenter')}</option>
-                    <option value="softMid">{t('settings.vocalAlgoSoftMid')}</option>
+                    <optgroup label={t('settings.vocalGroupAlgorithmic', 'Realtime DSP')}>
+                      <option value="centerCancelBassKeep">{t('settings.vocalAlgoCenterBass')}</option>
+                      <option value="centerCancel">{t('settings.vocalAlgoCenter')}</option>
+                      <option value="softMid">{t('settings.vocalAlgoSoftMid')}</option>
+                    </optgroup>
+                    <optgroup label={t('settings.vocalGroupAi', 'Offline AI (Experimental)')}>
+                      <option value="aiMdxKaraoke2">{t('settings.vocalAiMdxKaraoke2')}</option>
+                      <option value="aiHtDemucs">{t('settings.vocalAiHtDemucs')}</option>
+                      <option value="aiBsRoformer">{t('settings.vocalAiBsRoformer')}</option>
+                    </optgroup>
                   </select>
+                  {isAiVocalRemoverMethod(settings.vocalRemoverAlgorithm || '') && (
+                    <div className="rounded-lg border border-amber-800/60 bg-amber-950/40 p-2.5 space-y-1.5">
+                      <p className="text-[11px] text-amber-100/90 leading-relaxed flex items-start gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                        <span>{t('settings.aiVocalHwWarningBody')}</span>
+                      </p>
+                      <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="accent-indigo-600"
+                          checked={hideAiHwWarning}
+                          onChange={(e) => {
+                            const next = e.target.checked;
+                            setHideAiHwWarning(next);
+                            if (next) dismissAiVocalHwWarningPermanently();
+                            else resetAiVocalHwWarning();
+                          }}
+                        />
+                        {t('settings.aiVocalHwWarningDontShow')}
+                      </label>
+                    </div>
+                  )}
                 </div>
               )}
 

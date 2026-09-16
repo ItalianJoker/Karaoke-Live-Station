@@ -222,11 +222,19 @@
     "stageMessageBackgroundImagePlaceholder": "Aucune image sélectionnée",
     "stageMessageBackgroundBrowse": "Parcourir…",
     "stageMessageBackgroundClear": "Effacer",
-    "vocalRemoverAlgorithm": "Algorithme de suppression vocale (Expérimental)",
-    "vocalRemoverAlgorithmDesc": "Méthodes DSP classiques mid/side en temps réel (pas d’IA). Choisit l’algorithme du bouton Régie.",
-    "vocalAlgoCenterBass": "Annuler le centre (garder les basses) — recommandé",
-    "vocalAlgoCenter": "Annulation totale du centre (L−R classique)",
-    "vocalAlgoSoftMid": "Atténuation mid douce (moins d’artefacts)"
+    "vocalRemoverAlgorithm": "Méthode de suppression vocale (Expérimental)",
+    "vocalRemoverAlgorithmDesc": "DSP mid/side classique en temps réel, ou IA locale hors ligne (modèles téléchargés une fois dans les données app). Choisit la méthode du bouton Régie.",
+    "vocalAlgoCenterBass": "Annulation mid (garder les basses)",
+    "vocalAlgoCenter": "Annulation mid complète (classique L−R)",
+    "vocalAlgoSoftMid": "Atténuation mid douce (moins d’artefacts)",
+    "vocalGroupAlgorithmic": "DSP temps réel",
+    "vocalGroupAi": "IA hors ligne (Expérimental)",
+    "vocalAiMdxKaraoke2": "UVR-MDX-NET Karaoke 2 — ~53 Mo — IA recommandée",
+    "vocalAiHtDemucs": "HTDemucs v4 — ~172 Mo (Expérimental)",
+    "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 Mo — avancé (Expérimental)",
+    "aiVocalHwWarningTitle": "Suppression vocale IA hors ligne — matériel",
+    "aiVocalHwWarningBody": "Les méthodes IA s’exécutent sur l’appareil (pas de cloud). CPU moderne recommandé ; GPU/ONNX aident si disponibles. BS-Roformer est plus lourd et peut utiliser beaucoup de RAM/CPU. Au premier usage, téléchargement des modèles (~50–300 Mo selon le choix). Fonction Expérimentale.",
+    "aiVocalHwWarningDontShow": "Ne plus afficher cet avertissement"
   },
   "history": {
     "title": "Historique de Lecture",
@@ -302,6 +310,7 @@
   },
   "common": {
     "cancel": "Annuler",
-    "close": "Fermer"
+    "close": "Fermer",
+    "confirm": "Confirmer"
   }
 }

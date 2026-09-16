@@ -39,6 +39,8 @@ import { HistoryPanel } from './HistoryPanel';
 import { SettingsModal } from './SettingsModal';
 import { ToastHost } from './ToastHost';
 import { showToast, confirmAsync } from '../utils/toast';
+import { warnAiVocalRemoverIfNeeded } from '../utils/aiVocalHwWarning';
+import { isAiVocalRemoverMethod } from '../../shared/vocalRemover';
 import { SingersModal } from './SingersModal';
 import { GuestRequestsModal } from './GuestRequestsModal';
 import { FirewallGuideCard } from './FirewallGuideCard';
@@ -106,6 +108,24 @@ export const ControlWindow: React.FC = () => {
     }
   }, [showPortalQrModal]);
 
+  // Toast progress while offline AI models download into userData/models
+  useEffect(() => {
+    if (!window.karaokeApi?.vocalModels?.onDownloadProgress) return;
+    return window.karaokeApi.vocalModels.onDownloadProgress((progress) => {
+      if (progress.phase === 'error') {
+        showToast(progress.message, 'error', 7000);
+        return;
+      }
+      if (progress.phase === 'ready') {
+        showToast(progress.message, 'success', 3500);
+        return;
+      }
+      if (progress.phase === 'download' || progress.phase === 'verify') {
+        showToast(progress.message, 'info', 2200);
+      }
+    });
+  }, []);
+
   const [editingSingerItem, setEditingSingerItem] = useState<import('../../shared/types').QueueItem | null>(null);
   const [editingSingerText, setEditingSingerText] = useState<string>('');
   const [isSingerDropdownOpen, setIsSingerDropdownOpen] = useState<boolean>(false);
@@ -131,6 +151,28 @@ export const ControlWindow: React.FC = () => {
   const toggleMidiChannelMute = useKaraokeStore((state) => state.toggleMidiChannelMute);
   const setVocalRemover = useKaraokeStore((state) => state.setVocalRemover);
   const setDucking = useKaraokeStore((state) => state.setDucking);
+
+  /** Enable/disable vocal remover; AI methods show hardware warning on first enable. */
+  const toggleVocalRemoverWithWarning = React.useCallback(
+    async (nextState: boolean) => {
+      if (nextState) {
+        const method = settings.vocalRemoverAlgorithm || 'centerCancelBassKeep';
+        if (isAiVocalRemoverMethod(method)) {
+          const ok = await warnAiVocalRemoverIfNeeded(method, t);
+          if (!ok) return;
+        }
+      }
+      setVocalRemover(nextState);
+      if (window.karaokeApi?.logger?.log) {
+        window.karaokeApi.logger.log(
+          'info',
+          'ControlWindow',
+          `Vocal Remover ${nextState ? 'enabled' : 'disabled'} (method=${settings.vocalRemoverAlgorithm || 'centerCancelBassKeep'})`
+        );
+      }
+    },
+    [settings.vocalRemoverAlgorithm, setVocalRemover, t]
+  );
   const queue = useKaraokeStore((state) => state.queue);
   const reorderQueue = useKaraokeStore((state) => state.reorderQueue);
   const restoreFairQueueOrder = useKaraokeStore((state) => state.restoreFairQueueOrder);
@@ -481,10 +523,11 @@ export const ControlWindow: React.FC = () => {
     audioGraphRef.current.setPitchOffset(playback.livePitchOffset);
     audioGraphRef.current.setPlaybackSpeed(playback.playbackSpeed);
     audioGraphRef.current.setMutedMidiChannels(playback.mutedMidiChannels);
-    audioGraphRef.current.setVocalRemover(playback.isVocalRemoverActive);
+    // Method first so setVocalRemover builds the correct graph (algorithmic vs AI)
     audioGraphRef.current.setVocalRemoverAlgorithm(
       settings.vocalRemoverAlgorithm || 'centerCancelBassKeep'
     );
+    audioGraphRef.current.setVocalRemover(playback.isVocalRemoverActive);
     audioGraphRef.current.setDucking(playback.isDuckingActive);
     audioGraphRef.current.setMasterVolume(playback.masterVolume, playback.isMuted);
     audioGraphRef.current.setAudioVideoSyncOffsetMs(settings.audioVideoSyncOffsetMs);
@@ -505,7 +548,8 @@ export const ControlWindow: React.FC = () => {
     playback.masterVolume,
     playback.isMuted,
     settings.audioVideoSyncOffsetMs,
-    settings.enableAudioNormalization
+    settings.enableAudioNormalization,
+    settings.vocalRemoverAlgorithm
   ]);
 
   // Keep SoundFont in sync if changed from settings
@@ -705,11 +749,7 @@ export const ControlWindow: React.FC = () => {
         setPlaybackState({ isMuted: !playback.isMuted });
       } else if (e.code === 'KeyV') {
         e.preventDefault();
-        const nextState = !playback.isVocalRemoverActive;
-        setVocalRemover(nextState);
-        if (window.karaokeApi?.logger?.log) {
-          window.karaokeApi.logger.log('info', 'ControlWindow', `Keyboard shortcut [V]: Vocal Remover ${nextState ? 'enabled' : 'disabled'}`);
-        }
+        void toggleVocalRemoverWithWarning(!playback.isVocalRemoverActive);
       } else if (e.code === 'KeyD') {
         e.preventDefault();
         setDucking(!playback.isDuckingActive);
@@ -776,6 +816,7 @@ export const ControlWindow: React.FC = () => {
       setPlaybackSpeed,
       setPlaybackState,
       setVocalRemover,
+      toggleVocalRemoverWithWarning,
       setDucking,
       closeMissingFileModal,
       handleSeek
@@ -1169,7 +1210,7 @@ export const ControlWindow: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setVocalRemover(!playback.isVocalRemoverActive)}
+                  onClick={() => void toggleVocalRemoverWithWarning(!playback.isVocalRemoverActive)}
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold border shadow-sm transition-all duration-150 active:scale-95 ${
                     playback.isVocalRemoverActive
                       ? 'bg-rose-950/60 border-rose-700/80 text-rose-300 shadow-rose-950/30'

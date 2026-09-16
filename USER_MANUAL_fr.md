@@ -230,19 +230,18 @@ Exemples : 100 % → gain plein ; 50 % → gain 0,25 (−12 dB environ, moitié 
 - **Vitesse :** de **0,50× à 1,50×** sans altérer le pitch (WSOLA / SoundTouch). `Ctrl+←` / `Ctrl+→` règlent de ±5 %. Un clic sur l’indicateur numérique restaure souvent 1,00×.
 - MIDI : la transposition agit sur les numéros de note en temps réel.
 
-### 4.4 Suppression de la voix guide (DSP expérimental)
+### 4.4 Suppression de la voix guide (Expérimental)
 
-La touche **`V`** / la commande **Suppression Voix Guide (Expérimental)** (`Rimuovi Voce Guida (Sperimentale)`) active une réduction vocale **algorithmique classique mid/side** (canal central / style karaoké L−R) en **temps réel** : légère, sans modèles AI/ML, sans téléchargement et sans séparation hors ligne.
+La touche **`V`** / la commande **Suppression Voix Guide (Expérimental)** active la méthode choisie dans **Réglages → Audio** :
 
-Dans **Paramètres → Audio & Lecture**, choisissez l’algorithme du bouton Régie :
+| Méthode | Notes |
+| --- | --- |
+| `centerCancelBassKeep` / `centerCancel` / `softMid` | DSP mid/side **temps réel** — léger, sans téléchargement |
+| **UVR-MDX-NET Karaoke 2** (~53 Mo) | IA hors ligne — **recommandée** parmi les options IA ; ONNX WASM |
+| **HTDemucs v4** (~172 Mo) | IA hors ligne (Expérimental) via demucs-web + ONNX |
+| **BS-Roformer (ViperX)** (~158 Mo quantifié) | Avancé/plus lourd ; modèle en cache local ; STFT band-split pas encore fiable dans Electron WASM — toast + DSP disponible |
 
-| Algorithme (`vocalRemoverAlgorithm`) | Libellé UI |
-| :--- | :--- |
-| **`centerCancelBassKeep`** (défaut) | Annuler le centre (garder les basses) — recommandé |
-| **`centerCancel`** | Annulation totale du centre (L−R classique) |
-| **`softMid`** | Atténuation mid douce (moins d’artefacts) |
-
-L’activation est instantanée sur le mix en lecture ; le résultat dépend du stéréo (voix très latérales peuvent rester audibles).
+Les méthodes IA téléchargent une fois dans `userData/models/`, puis restent hors ligne. Séparation async avec crossfade. Au premier usage IA, un **avertissement matériel** s’affiche. Les méthodes algorithmiques ne le montrent pas. Si le modèle échoue : toast ; le DSP reste utilisable.
 
 ### 4.5 Auto-ducking BGM
 

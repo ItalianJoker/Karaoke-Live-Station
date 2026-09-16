@@ -8,8 +8,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+### Added
+- **Offline AI vocal remover options** (Settings → Audio, Experimental): UVR-MDX-NET Karaoke 2 (~53 MB, recommended AI), HTDemucs v4 (~172 MB), BS-Roformer ViperX quantized (~158 MB, advanced). Models download once into `<userData>/models/` with progress + integrity check, then run fully offline via ONNX Runtime Web (WASM). Algorithmic mid/side DSP entries remain available in the same dropdown.
+- **AI hardware warning** (IT/EN/ES/FR): themed confirm on first AI method select / first AI toggle-on, plus Settings helper text; optional “don’t show again” (localStorage). Algorithmic methods are not blocked by this warning.
+
 ### Changed
 - **Project license** — Karaoke Live Station is now licensed under **GNU AGPLv3 or later** (`AGPL-3.0-or-later`): added root `LICENSE`, `package.json` license metadata, and README (IT/EN) + user-manual license notes
+- Vocal remover Control button still labeled *(Sperimentale)/(Experimental)*; AI path uses async separate → crossfade (dry audio continues until instrumental is ready)
 
 ---
 
