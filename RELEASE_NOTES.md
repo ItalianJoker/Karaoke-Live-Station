@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix freeze UI AI vocal remover** + ORT WASM senza Temp OS + modelli MDX/ONNX durabili in `userData` + fix URL download UVR-MDX-NET Karaoke 2 (404) + rimozione voce guida AI offline + avviso hardware + retry CI.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **mixer dual-stem on-demand** (MP4 A/V) + fix no-op vocal remover + freeze UI AI + ORT WASM senza Temp OS + modelli MDX/ONNX in `userData` + fix URL UVR-MDX 404 + avviso hardware + retry CI.
 
 ## 📦 File di Installazione
 
@@ -23,10 +23,20 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix freeze UI AI vo
 
 ## 🌟 Novità di questa refresh
 
+### 🎛️ Mixer dual-stem on-demand (MP4 con audio mux)
+- A riposo: solo audio nativo del video — **nessun** FFmpeg/ONNX finché non si attiva.
+- Attivazione (toggle ON o fader &lt; 100%): cache SHA-256 → stem pronti **oppure** estrazione + separazione in background con spinner («Separazione…») mentre il video continua.
+- Attivo: `video.muted`; stem strumentale + vocale sincronizzati a `currentTime` (video = clock master); fader = livello voce guida.
+- Disattivazione: ripristino audio nativo; cancellazione a metà estrazione torna a nativo (la cache può comunque popolarsi).
+
+### 🔇 Fix no-op — la voce restava dopo «model ready»
+- Ramp GainNode con `setValueAtTime` + `linearRamp` (Chromium altrimenti lascia il dry a 1).
+- Tracce video/mux: demux ffmpeg → PCM WAV prima di `decodeAudioData`.
+
 ### 🧊 Fix freeze UI — AI vocal remover in riproduzione
 - Attivare l’AI durante la riproduzione **non blocca più** la Regia (niente ORT/MDX sync sul thread UI).
 - MDX: separazione in **Web Worker** + yield tra chunk; modelli via **`karaoke://models/`** da `<userData>/models/` (I/O async; mai Temp OS).
-- Se il modello/backend AI non è pronto: **toast** + **fallback DSP algoritmico**; se l’AI completa: crossfade sull’instrumental (voce rimossa).
+- Se il modello/backend AI non è pronto: **toast** + **fallback DSP algoritmico**.
 
 ### 🧩 Fix ORT WASM — niente Temp OS (Windows Electron)
 - Errore tipico: `no available backend found` / `…/AppData/Local/Temp/…/wasm-simd-threaded.jsep.mjs` quando onnxruntime-web caricava `.mjs`/`.wasm` da percorsi effimeri.
@@ -43,7 +53,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix freeze UI AI vo
 - **UVR-MDX-NET Karaoke 2** (~53 MB) — AI consigliata; ONNX Runtime Web (WASM).
 - **HTDemucs v4** (~172 MB) — Experimental (`demucs-web` + ONNX).
 - **BS-Roformer (ViperX)** quantizzato (~158 MB) — avanzato; modello in cache locale; STFT band-split non ancora affidabile in Electron WASM (toast + DSP/MDX/HTDemucs restano usabili).
-- Percorso AI: separazione async → crossfade sull’instrumental (l’audio dry continua finché non è pronto).
+- Percorso AI: dual-stem on-demand (vedi sopra); DSP algoritmico resta mid/side realtime.
 - Pulsante Regia etichettato **(Sperimentale)**; scorciatoia `V`.
 
 ### ⚠️ Avviso requisiti hardware (AI)
@@ -82,7 +92,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix freeze UI AI vo
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **AI vocal remover UI freeze fix** + ORT WASM (no OS Temp) + durable MDX/ONNX under `userData` + UVR-MDX-NET Karaoke 2 download 404 fix + offline AI vocal remover + hardware warning + CI retries.
+GitHub Release **v1.1.0** overwrite: **on-demand dual-stem mixer** (muxed MP4) + vocal-remover no-op fix + AI UI freeze fix + ORT WASM (no OS Temp) + durable MDX/ONNX under `userData` + UVR-MDX 404 fix + hardware warning + CI retries.
 
 ## 📦 Installers
 
@@ -96,10 +106,20 @@ GitHub Release **v1.1.0** overwrite: **AI vocal remover UI freeze fix** + ORT WA
 
 ## 🌟 What’s new in this refresh
 
+### 🎛️ On-demand dual-stem mixer (muxed MP4 audio)
+- At rest: native video audio only — **no** FFmpeg/ONNX until engaged.
+- Engage (toggle ON or fader &lt; 100%): SHA-256 cache hit **or** background extract+separate with spinner while video keeps playing.
+- Active: `video.muted`; instrumental + vocals stems synced to `currentTime` (video = clock master); fader = guide-vocal level.
+- Deactivate: restore native audio; cancel mid-extract returns to native (cache may still populate).
+
+### 🔇 No-op fix — voice stayed after “model ready”
+- GainNode ramps use `setValueAtTime` + `linearRamp` (Chromium otherwise leaves dry at 1).
+- Video/muxed tracks: ffmpeg demux → PCM WAV before `decodeAudioData`.
+
 ### 🧊 UI freeze fix — AI vocal remover during playback
 - Enabling AI while a track is playing **no longer freezes** the Control UI (no sync ORT/MDX on the UI thread).
 - MDX: separation in a **Web Worker** + yields between chunks; models via **`karaoke://models/`** from `<userData>/models/` (async I/O; never OS Temp).
-- If the AI model/backend is not ready: **toast** + **algorithmic DSP fallback**; when AI completes: crossfade to the instrumental (guide vocal removed).
+- If the AI model/backend is not ready: **toast** + **algorithmic DSP fallback**.
 
 ### 🧩 ORT WASM fix — no OS Temp (Windows Electron)
 - Typical error: `no available backend found` / `…/AppData/Local/Temp/…/wasm-simd-threaded.jsep.mjs` when onnxruntime-web loaded `.mjs`/`.wasm` from ephemeral paths.
@@ -116,7 +136,7 @@ GitHub Release **v1.1.0** overwrite: **AI vocal remover UI freeze fix** + ORT WA
 - **UVR-MDX-NET Karaoke 2** (~53 MB) — recommended AI; ONNX Runtime Web (WASM).
 - **HTDemucs v4** (~172 MB) — Experimental (`demucs-web` + ONNX).
 - **BS-Roformer (ViperX)** quantized (~158 MB) — advanced; model cached offline; band-split STFT not yet reliable in Electron WASM (toast + DSP/MDX/HTDemucs remain usable).
-- AI path: async separate → instrumental crossfade (dry audio continues until ready).
+- AI path: on-demand dual-stem (above); algorithmic path stays realtime mid/side DSP.
 - Control button labeled **(Experimental)**; shortcut `V`.
 
 ### ⚠️ Hardware requirements warning (AI)
