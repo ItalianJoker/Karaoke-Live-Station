@@ -34,6 +34,7 @@ export interface KaraokeStoreState {
   setPlaybackSpeed: (speed: number) => void;
   toggleMidiChannelMute: (channelIndex: number) => void;
   setVocalRemover: (active: boolean) => void;
+  setVocalGuideLevel: (level: number) => void;
   setDucking: (active: boolean) => void;
 
   // 3. Singer Profiles (Persistent)
@@ -115,6 +116,8 @@ const INITIAL_PLAYBACK_STATE: ActivePlaybackState = {
   activeLyricsText: undefined,
   currentTrackId: undefined,
   isVocalRemoverActive: false,
+  vocalGuideLevel: 1,
+  dualStemState: 'NATIVE_AUDIO',
   isDuckingActive: false,
   masterVolume: 1.0,
   isMuted: false
@@ -311,7 +314,18 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
       },
 
       setVocalRemover: (active) => {
-        get().setPlaybackState({ isVocalRemoverActive: active });
+        get().setPlaybackState({
+          isVocalRemoverActive: active,
+          vocalGuideLevel: active ? 0 : 1
+        });
+      },
+
+      setVocalGuideLevel: (level) => {
+        const clamped = Math.max(0, Math.min(1, level));
+        get().setPlaybackState({
+          vocalGuideLevel: clamped,
+          isVocalRemoverActive: clamped < 0.999
+        });
       },
 
       setDucking: (active) => {

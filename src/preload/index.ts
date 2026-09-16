@@ -247,6 +247,29 @@ export interface KaraokeAPI {
       error?: string;
     }>;
   };
+
+  // 14. Extract PCM audio from local media (incl. video A/V) for AI vocal separation
+  media: {
+    extractAudioForSeparation: (mediaUrl: string) => Promise<{
+      success: boolean;
+      audioUrl?: string;
+      wavPath?: string;
+      fromCache?: boolean;
+      error?: string;
+    }>;
+  };
+
+  // 15. Dual-stem disk cache (SHA-256 keyed instrumental + vocals WAVs)
+  dualStem: {
+    lookup: (mediaUrl: string) => Promise<import('../shared/dualStem').DualStemLookupResult>;
+    save: (payload: {
+      mediaUrlOrPath: string;
+      method: string;
+      sampleRate: number;
+      instrumentalWav: ArrayBuffer;
+      vocalsWav: ArrayBuffer;
+    }) => Promise<import('../shared/dualStem').DualStemSaveResult>;
+  };
 }
 
 const karaokeApi: KaraokeAPI = {
@@ -430,6 +453,22 @@ const karaokeApi: KaraokeAPI = {
   ortWasm: {
     ensure: () => ipcRenderer.invoke('ort-wasm:ensure'),
     getPaths: () => ipcRenderer.invoke('ort-wasm:get-paths')
+  },
+
+  media: {
+    extractAudioForSeparation: (mediaUrl: string) =>
+      ipcRenderer.invoke('media:extract-audio-for-separation', mediaUrl)
+  },
+
+  dualStem: {
+    lookup: (mediaUrl: string) => ipcRenderer.invoke('dual-stem:lookup', mediaUrl),
+    save: (payload: {
+      mediaUrlOrPath: string;
+      method: string;
+      sampleRate: number;
+      instrumentalWav: ArrayBuffer;
+      vocalsWav: ArrayBuffer;
+    }) => ipcRenderer.invoke('dual-stem:save', payload)
   }
 };
 

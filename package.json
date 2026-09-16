@@ -15,6 +15,7 @@
     "start": "env -u ELECTRON_RUN_AS_NODE electron .",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run-tests.js",
+    "test:dual-stem": "node scripts/verify-dual-stem.js",
     "generate-icons": "node scripts/generate-icons.js",
     "clean": "node scripts/clean-test-data.js",
     "electron:dev": "concurrently -k \"vite\" \"env -u ELECTRON_RUN_AS_NODE electron .\"",

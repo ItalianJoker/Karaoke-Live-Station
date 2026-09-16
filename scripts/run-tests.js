@@ -575,12 +575,62 @@ assert(
     audioGraphSource.includes('setVocalRemover(') &&
     audioGraphSource.includes('setVocalRemoverAlgorithm') &&
     audioGraphSource.includes('AlgorithmicVocalRemoverNode') &&
-    audioGraphSource.includes('activateAiInstrumental') &&
-    audioGraphSource.includes('crossfadeToInstrumental') &&
+    audioGraphSource.includes('activateDualStemPipeline') &&
+    audioGraphSource.includes('hotSwapToDualStem') &&
     audioGraphSource.includes('getOfflineAiVocalSeparator') &&
     audioGraphSource.includes('applyAlgorithmicFallbackAfterAiFailure') &&
-    audioGraphSource.includes('aiUsingAlgorithmicFallback'),
-  'AudioGraphManager supports algorithmic DSP, AI async separate→crossfade, and AI→algorithmic fallback'
+    audioGraphSource.includes('aiUsingAlgorithmicFallback') &&
+    audioGraphSource.includes('rampAudioParam') &&
+    audioGraphSource.includes('vocalRemoverPassThroughGain') &&
+    audioGraphSource.includes('instrumentalGain') &&
+    audioGraphSource.includes('vocalsGain') &&
+    audioGraphSource.includes('DUAL_STEM_ACTIVE') &&
+    audioGraphSource.includes('EXTRACTING_AND_SEPARATING') &&
+    audioGraphSource.includes('setVocalGuideLevel'),
+  'AudioGraphManager supports algorithmic DSP, on-demand dual-stem AI, and AI→algorithmic fallback'
+);
+
+assert(
+  fs.existsSync(path.resolve(__dirname, '../src/renderer/core/audioGainRamp.ts')) &&
+    fs
+      .readFileSync(path.resolve(__dirname, '../src/renderer/core/audioGainRamp.ts'), 'utf8')
+      .includes('setValueAtTime') &&
+    algorithmicRemoverSource.includes('rampAudioParam'),
+  'Vocal-remover GainNode enable/crossfade uses setValueAtTime+linearRamp (not bare ramp no-op)'
+);
+
+const mediaExtractorSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/MediaAudioExtractor.ts'),
+  'utf8'
+);
+const dualStemCacheSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/DualStemCache.ts'),
+  'utf8'
+);
+const dualStemSharedSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/dualStem.ts'),
+  'utf8'
+);
+assert(
+  offlineAiSource.includes('decodeMediaForSeparation') &&
+    offlineAiSource.includes('isLikelyVideoContainer') &&
+    offlineAiSource.includes('extractAudioForSeparation') &&
+    offlineAiSource.includes('separateDualStemsFromUrl') &&
+    mediaExtractorSource.includes('extractAudioWavForSeparation') &&
+    mediaExtractorSource.includes('vocal-audio-cache') &&
+    mediaExtractorSource.includes('-vn') &&
+    dualStemCacheSource.includes('dual-stem-cache') &&
+    dualStemCacheSource.includes('stem_instrumental.wav') &&
+    dualStemCacheSource.includes('stem_vocals.wav') &&
+    dualStemSharedSource.includes('NATIVE_AUDIO') &&
+    dualStemSharedSource.includes('EXTRACTING_AND_SEPARATING') &&
+    dualStemSharedSource.includes('DUAL_STEM_ACTIVE') &&
+    mainSourceOrt.includes('media:extract-audio-for-separation') &&
+    mainSourceOrt.includes('dual-stem:lookup') &&
+    mainSourceOrt.includes('dual-stem:save') &&
+    preloadSourceOrt.includes('extractAudioForSeparation') &&
+    preloadSourceOrt.includes('dualStem'),
+  'On-demand dual-stem: ffmpeg demux + SHA-256 disk cache + IPC lookup/save'
 );
 
 const mdxWorkerClientSource = fs.readFileSync(
@@ -1468,6 +1518,30 @@ assert(
     fs.readFileSync(path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'), 'utf8').includes('appShortcuts.ts'),
   'Shortcut inventory shared by ?, Settings, and ControlWindow handler comment'
 );
+
+// -------------------------------------------------------------
+// Suite 12: Dual-stem functional (ffmpeg fixture + SHA-256 cache + state machine)
+// -------------------------------------------------------------
+{
+  const dualStemShared = fs.readFileSync(
+    path.resolve(__dirname, '../src/shared/dualStem.ts'),
+    'utf8'
+  );
+  assert(
+    dualStemShared.includes('nextDualStemState') &&
+      dualStemShared.includes('isDualStemEngaged') &&
+      dualStemShared.includes('EXTRACTING_AND_SEPARATING'),
+    'shared/dualStem exports state machine helpers'
+  );
+
+  const verifyPath = path.resolve(__dirname, 'verify-dual-stem.js');
+  assert(fs.existsSync(verifyPath), 'scripts/verify-dual-stem.js exists');
+  const { spawnSync } = require('child_process');
+  const child = spawnSync(process.execPath, [verifyPath], { encoding: 'utf8' });
+  if (child.stdout) process.stdout.write(child.stdout);
+  if (child.stderr) process.stderr.write(child.stderr);
+  assert(child.status === 0, 'verify-dual-stem.js functional suite exits 0');
+}
 
 // Summary
 // -------------------------------------------------------------

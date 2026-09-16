@@ -10,6 +10,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ### Fixed
 - **AI vocal remover UI freeze during playback** — enabling offline AI (MDX/ORT) no longer blocks the Electron main or renderer UI thread. MDX STFT+inference runs in a Web Worker (with event-loop yields as fallback); model integrity uses streaming async I/O; ONNX weights are fetched via `karaoke://models/` from `<userData>/models/` (not giant sync IPC / Temp). When AI cannot produce a stem, toast + **algorithmic DSP fallback** keeps the toggle useful; successful AI still crossfades to the instrumental wet stem.
+- **Vocal remover no-op (voice stays after model ready)** — dry→wet / algorithmic enable GainNode ramps now call `setValueAtTime` before `linearRamp` (Chromium otherwise leaves dry at 1). Video/muxed karaoke tracks demux via ffmpeg to PCM WAV under `userData/vocal-audio-cache` before AI separation so `decodeAudioData` is not fed a video container.
+
+### Added
+- **On-demand MP4 dual-stem mixer** — AI vocal remover stays idle until toggle/fader engage (`NATIVE_AUDIO` → `EXTRACTING_AND_SEPARATING` → `DUAL_STEM_ACTIVE`). SHA-256 disk cache (`userData/dual-stem-cache/<hash>/stem_instrumental.wav` + `stem_vocals.wav`). Video muted while dual-stem active; video is clock master; Control fader = guide-vocal level.
 
 ---
 
