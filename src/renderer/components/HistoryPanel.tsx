@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import { SiaeLogEntry } from '../../shared/types';
+import { textMatchesSearch } from '../../shared/textNormalize';
 export type { SiaeLogEntry };
 
 /**
@@ -77,15 +78,16 @@ export const HistoryPanel: React.FC = () => {
 
   /**
    * Filters logs by search query (matching track title, artist, or singer name).
+   * Accent-insensitive: "moriro" matches "morirò".
    */
   const filteredLogs = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = searchQuery.trim();
     if (!q) return logs;
     return logs.filter(
       (item) =>
-        item.trackTitle.toLowerCase().includes(q) ||
-        item.trackArtist.toLowerCase().includes(q) ||
-        (item.singerName && item.singerName.toLowerCase().includes(q))
+        textMatchesSearch(item.trackTitle, q) ||
+        textMatchesSearch(item.trackArtist, q) ||
+        (item.singerName != null && textMatchesSearch(item.singerName, q))
     );
   }, [logs, searchQuery]);
 

@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { KaraokeMediaTrack, SingerProfile, SqlQueryResult } from '../../shared/types';
+import { normalizeForSearch } from '../../shared/textNormalize';
 
 /**
  * SQLite Database Manager utilizing better-sqlite3 with Write-Ahead Logging (WAL).
@@ -24,6 +25,10 @@ export class DatabaseManager {
     this.db = new Database(dbFilePath);
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
+    // Accent-insensitive SQL search: fold both query and stored title/artist.
+    this.db.function('fold_diacritics', (value: unknown) =>
+      normalizeForSearch(value == null ? '' : String(value))
+    );
     this.initSchema();
   }
 
@@ -165,14 +170,14 @@ export class DatabaseManager {
    * Uses bound LIKE params (no string concat) and the composite title/artist index.
    */
   public searchTracks(query: string, limit = 200): KaraokeMediaTrack[] {
-    const q = (query || '').trim().toLowerCase();
+    const q = normalizeForSearch(query || '').trim();
     if (!q) {
       return this.getAllTracks().slice(0, Math.max(1, limit));
     }
     const like = `%${q.replace(/[%_]/g, '')}%`;
     const stmt = this.db.prepare(
       `SELECT * FROM tracks
-       WHERE lower(title) LIKE ? OR lower(artist) LIKE ?
+       WHERE fold_diacritics(title) LIKE ? OR fold_diacritics(artist) LIKE ?
        ORDER BY artist ASC, title ASC
        LIMIT ?`
     );

@@ -1412,6 +1412,95 @@ assert(
   'Shortcut inventory shared by ?, Settings, and ControlWindow handler comment'
 );
 
+// -------------------------------------------------------------
+// Suite: Accent-insensitive search (NFD + strip combining marks)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Accent-insensitive search matching\x1b[0m');
+
+function normalizeForSearchTest(text) {
+  return String(text ?? '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase();
+}
+
+function textMatchesSearchTest(haystack, needle) {
+  const q = normalizeForSearchTest(needle).trim();
+  if (!q) return true;
+  return normalizeForSearchTest(haystack).includes(q);
+}
+
+assert(
+  textMatchesSearchTest('morirò da re', 'moriro da re'),
+  'Unaccented query matches accented title (moriro → morirò)'
+);
+assert(
+  textMatchesSearchTest('morirò da re', 'morirò da re'),
+  'Accented query still matches accented title (additive)'
+);
+assert(
+  textMatchesSearchTest('Café Karaoke', 'CAFE'),
+  'Case- and accent-insensitive match on mixed text'
+);
+assert(
+  !textMatchesSearchTest('Hello', 'xyz'),
+  'Non-matching needle does not falsely match'
+);
+
+const textNormalizeSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/textNormalize.ts'),
+  'utf8'
+);
+assert(
+  textNormalizeSource.includes('normalize(') &&
+    textNormalizeSource.includes('NFD') &&
+    textNormalizeSource.includes('\\p{M}') &&
+    textNormalizeSource.includes('normalizeForSearch') &&
+    textNormalizeSource.includes('textMatchesSearch'),
+  'Shared textNormalize folds diacritics via NFD + combining marks'
+);
+
+const databaseSourceAccent = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/db/database.ts'),
+  'utf8'
+);
+const guestServerSourceAccent = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/server/guestServer.ts'),
+  'utf8'
+);
+const libraryPanelSourceAccent = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+  'utf8'
+);
+const historyPanelSourceAccent = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/HistoryPanel.tsx'),
+  'utf8'
+);
+const settingsModalSourceAccent = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+  'utf8'
+);
+const shortcutsHelpSourceAccent = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/ShortcutsHelpModal.tsx'),
+  'utf8'
+);
+const controlWindowSourceAccent = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+  'utf8'
+);
+
+assert(
+  databaseSourceAccent.includes('fold_diacritics') &&
+    databaseSourceAccent.includes('normalizeForSearch') &&
+    guestServerSourceAccent.includes('textMatchesSearch') &&
+    libraryPanelSourceAccent.includes('textMatchesSearch') &&
+    historyPanelSourceAccent.includes('textMatchesSearch') &&
+    settingsModalSourceAccent.includes('textMatchesSearch') &&
+    shortcutsHelpSourceAccent.includes('textMatchesSearch') &&
+    controlWindowSourceAccent.includes('textMatchesSearch'),
+  'All in-app search/filter surfaces use shared accent folding'
+);
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');
