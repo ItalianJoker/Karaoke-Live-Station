@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **Scarica strumentale con AI offline selezionabile** + menu Download + pool download simultanei + Rimozione Vocale live solo DSP (niente Separazione dual-stem) + fix storici UI/archivio/Stage.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **Scarica strumentale con AI offline selezionabile** + menu Download + pool download simultanei + **ricerca senza accenti** + Rimozione Vocale live solo DSP (niente Separazione dual-stem) + fix storici UI/archivio/Stage.
 
 ## 📦 File di Installazione
 
@@ -36,6 +36,9 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **Scarica strumentale
 ### 📥 Menu Download + concorrenza
 - Progresso attivo/in coda nel menu Download a sinistra di Impostazioni (niente alert sopra le righe brani).
 - Impostazione **Download simultanei massimi** (pool condiviso normale + strumentale).
+
+### 🔎 Ricerca senza accenti
+- Query senza diacritici trovano titoli accentati (es. `moriro` → *morirò*) su Local, Web, coda, cronologia, Impostazioni e scorciatoie.
 
 ### 🔇 Conferma unmute anteprima YouTube (stesso dispositivo)
 - Embed YouTube ricerca Web / Pre-Ascolto: stesso modale tematico se CUE === Uscita Principale.
@@ -69,7 +72,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **Scarica strumentale
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **Download Instrumental with selectable offline AI** + Download menu + simultaneous download pool + live vocal remover stays DSP-only (no dual-stem Separazione) + retained UI/archive/Stage fixes.
+GitHub Release **v1.1.0** overwrite: **Download Instrumental with selectable offline AI** + Download menu + simultaneous download pool + **accent-insensitive search** + live vocal remover stays DSP-only (no dual-stem Separazione) + retained UI/archive/Stage fixes.
 
 ## 📦 Installers
 
@@ -96,6 +99,9 @@ GitHub Release **v1.1.0** overwrite: **Download Instrumental with selectable off
 ### 📥 Download menu + concurrency
 - Active/queued progress in the Download menu left of Settings (no alert list above song rows).
 - **Max simultaneous downloads** setting (shared pool for normal + instrumental).
+
+### 🔎 Accent-insensitive search
+- Unaccented queries match accented titles (e.g. `moriro` → *morirò*) across Local, Web, queue, history, Settings, and shortcuts.
 
 ### 🔇 YouTube preview unmute confirm (same device)
 - Web-search / Pre-Listen YouTube embed: same themed confirm when CUE === Main Output.
