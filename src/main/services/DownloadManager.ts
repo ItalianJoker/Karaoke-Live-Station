@@ -9,6 +9,10 @@ import {
   StartDownloadResult
 } from '../../shared/types';
 import { resolveFfmpegPath, resolveYtDlpPath } from './BinaryResolver';
+import {
+  findSiblingSubtitle,
+  processInstrumentalVideo
+} from './InstrumentalProcessor';
 
 /** Media extensions considered when matching existing local karaoke files. */
 const MEDIA_EXTENSIONS = new Set([
@@ -43,6 +47,13 @@ export interface DownloadOptions {
   libraryPath?: string;
   /** Optional catalog snapshot used for id/path deduplication */
   catalogTracks?: KaraokeMediaTrack[];
+  /**
+   * When true: after download, demux audio, apply algorithmic vocal removal,
+   * remux video with instrumental audio (optional lyric burn-in), then complete.
+   */
+  instrumental?: boolean;
+  /** Algorithmic vocal-remover method for instrumental post-process */
+  vocalRemoverAlgorithm?: string;
 }
 
 /**
@@ -299,16 +310,39 @@ export class DownloadManager {
     this.ytdlpPath = resolveYtDlpPath();
     this.ffmpegPath = resolveFfmpegPath();
 
+    const instrumental = options.instrumental === true;
+    // Instrumental library entries use a distinct title so they do not collide with
+    // a normal karaoke download of the same YouTube id.
+    const effectiveTitle = instrumental
+      ? this.ensureInstrumentalTitle(options.titleHint || 'Unknown')
+      : options.titleHint;
+    const dedupUrlKey = instrumental ? `${options.url}::instrumental` : options.url;
+
+    const catalogForDedup = instrumental
+      ? (options.catalogTracks || []).filter(
+          (t) =>
+            /instrumental/i.test(t.title || '') || /instrumental/i.test(t.localFilePath || '')
+        )
+      : options.catalogTracks;
+
     const existing = this.findExistingLocalMedia({
       url: options.url,
       trackId: options.trackId,
-      title: options.titleHint,
+      title: effectiveTitle,
       artist: options.artistHint,
       libraryPath: options.libraryPath,
-      catalogTracks: options.catalogTracks
+      catalogTracks: catalogForDedup
     });
 
-    if (existing) {
+    const existingUsable =
+      existing &&
+      (!instrumental ||
+        /instrumental/i.test(existing.localFilePath) ||
+        /instrumental/i.test(path.basename(existing.localFilePath)))
+        ? existing
+        : null;
+
+    if (existingUsable) {
       const downloadId = `dl_reuse_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       const payload: DownloadProgressPayload = {
         downloadId,
@@ -318,21 +352,21 @@ export class DownloadManager {
         downloadedBytes: 0,
         totalBytes: 0,
         status: 'completed',
-        outputFilePath: existing.localFilePath,
+        outputFilePath: existingUsable.localFilePath,
         alreadyExists: true,
-        existingLocation: existing.location
+        existingLocation: existingUsable.location
       };
       this.emitProgress(payload);
       return {
         downloadId,
         alreadyExists: true,
-        localFilePath: existing.localFilePath,
-        uri: existing.uri,
-        location: existing.location
+        localFilePath: existingUsable.localFilePath,
+        uri: existingUsable.uri,
+        location: existingUsable.location
       };
     }
 
-    const existingDownloadId = this.activeUrls.get(options.url);
+    const existingDownloadId = this.activeUrls.get(dedupUrlKey);
     if (existingDownloadId && this.activeProcesses.has(existingDownloadId)) {
       const active = this.activeProcesses.get(existingDownloadId);
       if (active) this.emitProgress({ ...active.payload });
@@ -340,7 +374,7 @@ export class DownloadManager {
     }
 
     const downloadId = `dl_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    this.activeUrls.set(options.url, downloadId);
+    this.activeUrls.set(dedupUrlKey, downloadId);
     const outputTemplate = path.join(this.tempDir, `${downloadId}.%(ext)s`);
 
     const payload: DownloadProgressPayload = {
@@ -378,12 +412,23 @@ export class DownloadManager {
       );
     }
 
+    // Best-effort auto-subs for optional lyric burn-in on instrumental remux
+    if (instrumental && !options.isAudioOnly) {
+      args.push(
+        '--write-auto-sub',
+        '--sub-langs',
+        'en.*,it.*,es.*,fr.*,*-orig',
+        '--convert-subs',
+        'srt'
+      );
+    }
+
     const child = spawn(this.ytdlpPath, args, {
       cwd: this.tempDir,
       stdio: ['ignore', 'pipe', 'pipe']
     });
 
-    this.activeProcesses.set(downloadId, { process: child, payload, url: options.url });
+    this.activeProcesses.set(downloadId, { process: child, payload, url: dedupUrlKey });
 
     let detectedOutputFile: string | null = null;
 
@@ -418,35 +463,93 @@ export class DownloadManager {
     });
 
     child.on('close', (code: number | null) => {
-      this.activeProcesses.delete(downloadId);
-      this.activeUrls.delete(options.url);
+      void (async () => {
+        this.activeProcesses.delete(downloadId);
+        this.activeUrls.delete(dedupUrlKey);
 
-      if (code === 0) {
-        if (!detectedOutputFile || !fs.existsSync(detectedOutputFile)) {
-          const found = fs.readdirSync(this.tempDir).find((f) => f.startsWith(downloadId));
-          if (found) detectedOutputFile = path.join(this.tempDir, found);
+        if (code === 0) {
+          if (!detectedOutputFile || !fs.existsSync(detectedOutputFile)) {
+            const found = fs.readdirSync(this.tempDir).find(
+              (f) => f.startsWith(downloadId) && !/\.(srt|ass|vtt|info\.json)$/i.test(f)
+            );
+            if (found) detectedOutputFile = path.join(this.tempDir, found);
+          }
+
+          if (instrumental && detectedOutputFile && fs.existsSync(detectedOutputFile)) {
+            const instrumentalOut = path.join(this.tempDir, `${downloadId}.instrumental.mp4`);
+            const subtitlePath = findSiblingSubtitle(detectedOutputFile);
+            payload.status = 'removing_vocals';
+            payload.percent = 85;
+            this.emitProgress({ ...payload });
+
+            const result = await processInstrumentalVideo({
+              inputVideoPath: detectedOutputFile,
+              outputPath: instrumentalOut,
+              algorithm: options.vocalRemoverAlgorithm,
+              subtitlePath,
+              onProgress: (phase, percent) => {
+                if (payload.status === 'cancelled') return;
+                payload.status =
+                  phase === 'remuxing'
+                    ? 'remuxing'
+                    : phase === 'removing_vocals'
+                      ? 'removing_vocals'
+                      : 'processing';
+                payload.percent = Math.max(payload.percent, 80 + percent * 0.2);
+                this.emitProgress({ ...payload });
+              }
+            });
+
+            // Cancel may have flipped status while ffmpeg ran
+            if ((payload.status as DownloadProgressPayload['status']) === 'cancelled') return;
+
+            if (!result.success || !result.outputPath) {
+              payload.status = 'error';
+              payload.errorMessage = result.error || 'Instrumental processing failed';
+              this.emitProgress({ ...payload });
+              return;
+            }
+
+            // Drop the original muxed download; keep instrumental remux as the artifact
+            try {
+              if (path.resolve(detectedOutputFile) !== path.resolve(result.outputPath)) {
+                await fs.promises.unlink(detectedOutputFile).catch(() => undefined);
+              }
+            } catch {
+              /* ignore */
+            }
+            detectedOutputFile = result.outputPath;
+          }
+
+          payload.status = 'completed';
+          payload.percent = 100;
+          payload.eta = '00:00';
+          payload.outputFilePath = detectedOutputFile || undefined;
+          this.emitProgress({ ...payload });
+        } else if (payload.status !== 'cancelled') {
+          payload.status = 'error';
+          payload.errorMessage = `yt-dlp exited with error code ${code}`;
+          this.emitProgress({ ...payload });
         }
-        payload.status = 'completed';
-        payload.percent = 100;
-        payload.eta = '00:00';
-        payload.outputFilePath = detectedOutputFile || undefined;
-        this.emitProgress({ ...payload });
-      } else if (payload.status !== 'cancelled') {
-        payload.status = 'error';
-        payload.errorMessage = `yt-dlp exited with error code ${code}`;
-        this.emitProgress({ ...payload });
-      }
+      })();
     });
 
     child.on('error', (err: Error) => {
       this.activeProcesses.delete(downloadId);
-      this.activeUrls.delete(options.url);
+      this.activeUrls.delete(dedupUrlKey);
       payload.status = 'error';
       payload.errorMessage = err.message;
       this.emitProgress({ ...payload });
     });
 
     return { downloadId, alreadyExists: false };
+  }
+
+  /** Ensures library/display title marks instrumental versions distinctly. */
+  private ensureInstrumentalTitle(title: string): string {
+    const trimmed = (title || 'Unknown').trim() || 'Unknown';
+    if (/instrumental/i.test(trimmed)) return trimmed;
+    return `${trimmed} (Instrumental)`;
   }
 
   public cancelDownload(downloadId: string): boolean {

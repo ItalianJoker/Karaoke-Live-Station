@@ -24,6 +24,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { KaraokeMediaTrack, DownloadProgressPayload } from '../../shared/types';
+import { isInstrumentalDownloadEligibleTitle } from '../../shared/vocalRemover';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { useScopedLibrarySearch } from '../hooks/useScopedLibrarySearch';
 import { VideoPreviewModal, extractVersionTags } from './VideoPreviewModal';
@@ -586,34 +587,47 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         : localTracks
       : searchResults;
 
-  const handleStartDownload = async (track: KaraokeMediaTrack) => {
+  const handleStartDownload = async (track: KaraokeMediaTrack, opts?: { instrumental?: boolean }) => {
     if (!window.karaokeApi) return;
     if (settings.autoArchiveWebTracks && !settings.libraryPath?.trim()) {
       showToast(t('errors.libraryPathRequired', 'Imposta la cartella libreria nelle impostazioni prima di scaricare.'));
       return;
     }
+    const instrumental = opts?.instrumental === true;
+    const titleHint = instrumental
+      ? /instrumental/i.test(track.title || '')
+        ? track.title
+        : `${(track.title || 'Unknown').trim()} (Instrumental)`
+      : track.title;
     try {
       const result = await window.karaokeApi.downloads.start({
         url: track.uri,
-        titleHint: track.title,
+        titleHint,
         artistHint: track.artist,
         trackId: track.id,
-        libraryPath: settings.libraryPath || undefined
+        libraryPath: settings.libraryPath || undefined,
+        instrumental,
+        vocalRemoverAlgorithm: settings.vocalRemoverAlgorithm
       });
 
-      setTrackMap((prev) => ({ ...prev, [result.downloadId]: track }));
+      const mappedTrack: KaraokeMediaTrack = instrumental
+        ? { ...track, title: titleHint || track.title }
+        : track;
+      setTrackMap((prev) => ({ ...prev, [result.downloadId]: mappedTrack }));
 
       if (result.alreadyExists && result.localFilePath) {
         const localUri = result.uri || `karaoke://local/${encodeURIComponent(result.localFilePath)}`;
         updateTrackInQueue(track.id, {
           localFilePath: result.localFilePath,
           uri: localUri,
-          source: result.location === 'library' ? 'local_library' : track.source
+          source: result.location === 'library' ? 'local_library' : track.source,
+          ...(instrumental ? { title: mappedTrack.title } : {})
         });
         updateTrackInQueue(track.uri, {
           localFilePath: result.localFilePath,
           uri: localUri,
-          source: result.location === 'library' ? 'local_library' : track.source
+          source: result.location === 'library' ? 'local_library' : track.source,
+          ...(instrumental ? { title: mappedTrack.title } : {})
         });
         showToast(
           t('library.alreadyLocal', {
@@ -928,7 +942,11 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                   </button>
                 )}
 
-                {dl.status === 'downloading' && (
+                {(dl.status === 'downloading' ||
+                  dl.status === 'converting' ||
+                  dl.status === 'processing' ||
+                  dl.status === 'removing_vocals' ||
+                  dl.status === 'remuxing') && (
                   <button
                     type="button"
                     onClick={() => window.karaokeApi?.downloads.cancel(dl.downloadId)}
@@ -1088,14 +1106,26 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                   </button>
 
                   {track.source === 'youtube' && (
-                    <button
-                      type="button"
-                      onClick={() => handleStartDownload(track)}
-                      className="p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
-                      title={t('library.downloading')}
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleStartDownload(track)}
+                        className="p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
+                        title={t('library.download')}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                      {isInstrumentalDownloadEligibleTitle(track.title) && (
+                        <button
+                          type="button"
+                          onClick={() => handleStartDownload(track, { instrumental: true })}
+                          className="p-2 bg-slate-800/80 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
+                          title={t('library.downloadInstrumental')}
+                        >
+                          <Music className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </>
                   )}
 
 

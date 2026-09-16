@@ -319,6 +319,8 @@ export interface StartDownloadOptions {
   libraryPath?: string;
   /** When true, apply algorithmic vocal removal and remux instrumental A/V after download */
   instrumental?: boolean;
+  /** Algorithmic vocal-remover method for instrumental post-process */
+  vocalRemoverAlgorithm?: string;
 }
 
 /**

@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ---
 
+## [Unreleased] — Algorithmic vocal remover + Download Instrumental
+
+### Removed
+- Offline AI vocal remover stack (ONNX Runtime / MDX / HTDemucs / BS-Roformer, `karaoke://models` & `karaoke://ort`, dual-stem on-demand mixer, model manager, related settings and caches).
+
+### Changed
+- Live **Rimozione Vocale** / Vocal Remover uses **algorithmic mid/side DSP only** (Settings: `centerCancelBassKeep`, `centerCancel`, `softMid`).
+
+### Added
+- YouTube search **Download Instrumental** (hidden when title already contains Karaoke/instrumental): download → demux → algorithmic vocal removal → remux MP4 (optional subtitle burn-in) → library.
+
 ## [Unreleased]
 
 ---

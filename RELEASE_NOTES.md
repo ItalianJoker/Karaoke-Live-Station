@@ -6,6 +6,11 @@
 
 ---
 
+> **Next (unreleased on this branch):** rimozione completa del percorso AI vocal remover (ONNX/ORT/MDX/dual-stem); **Rimozione Vocale** solo algoritmica; nuovo pulsante YouTube **Scarica strumentale** / **Download Instrumental**.  
+> **Next (unreleased on this branch):** full removal of the AI vocal-remover path (ONNX/ORT/MDX/dual-stem); algorithmic-only vocal remover; new YouTube **Download Instrumental** button.
+
+---
+
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 

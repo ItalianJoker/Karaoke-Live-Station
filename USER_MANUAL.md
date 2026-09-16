@@ -37,7 +37,7 @@ Console operatore completa:
 - Transport (Play / Pausa / Stop / Ricomincia / Prossimo)
 - Volume master con curva percettiva
 - Pitch in semitoni e velocità (time-stretch)
-- Rimozione voce guida **(Sperimentale)**: DSP mid/side in tempo reale **oppure** AI locale offline (MDX / HTDemucs / BS-Roformer)
+- Rimozione voce guida **(Sperimentale)** tramite DSP classico mid/side (algoritmico, tempo reale)
 - Auto-ducking BGM al microfono
 - Mixer MIDI/KAR a 16 canali
 - Pre-ascolto CUE su dispositivo secondario
@@ -237,11 +237,8 @@ Il tasto **`V`** / il controllo **Rimuovi Voce Guida (Sperimentale)** attiva il 
 | Metodo | Note |
 | --- | --- |
 | `centerCancelBassKeep` / `centerCancel` / `softMid` | DSP mid/side **in tempo reale** — leggero, nessun download |
-| **UVR-MDX-NET Karaoke 2** (~53 MB) | AI offline — **consigliata** tra le opzioni AI; ONNX WASM |
-| **HTDemucs v4** (~172 MB) | AI offline (Sperimentale) via demucs-web + ONNX |
-| **BS-Roformer (ViperX)** (~158 MB quantizzato) | Avanzato/più pesante; modello in cache locale; STFT band-split non ancora affidabile in Electron WASM — toast + DSP sempre disponibile |
 
-I metodi AI scaricano una volta in `userData/models/`, poi restano offline. Separazione async con crossfade (l’audio dry continua finché l’instrumental non è pronto). Al primo uso AI compare un **avviso hardware** (CPU moderna; BS-Roformer più pesante). I metodi algoritmici non mostrano l’avviso. Se il modello manca/falla: toast di errore; il DSP resta usabile.
+Nella ricerca YouTube, **Scarica strumentale** (se il titolo non contiene già “Karaoke” o “instrumental”) scarica il video, applica lo stesso algoritmo offline via ffmpeg e salva un MP4 strumentale in libreria (sottotitoli bruciati se disponibili).
 
 ### 4.5 Auto-ducking BGM
 

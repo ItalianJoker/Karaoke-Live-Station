@@ -955,6 +955,8 @@ class KaraokeMainProcess {
           artistHint?: string;
           trackId?: string;
           libraryPath?: string;
+          instrumental?: boolean;
+          vocalRemoverAlgorithm?: string;
         }
       ) => {
         const libraryPath =
@@ -965,8 +967,18 @@ class KaraokeMainProcess {
         } catch {
           catalogTracks = [];
         }
+        const instrumental = options.instrumental === true;
+        const titleHint = instrumental
+          ? /instrumental/i.test(options.titleHint || '')
+            ? options.titleHint
+            : `${(options.titleHint || 'Unknown').trim()} (Instrumental)`
+          : options.titleHint;
         return await this.downloadManager.startDownload({
           ...options,
+          titleHint,
+          instrumental,
+          vocalRemoverAlgorithm:
+            options.vocalRemoverAlgorithm || this.currentSettings?.vocalRemoverAlgorithm,
           libraryPath,
           catalogTracks
         });

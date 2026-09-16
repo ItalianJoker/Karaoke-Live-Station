@@ -453,9 +453,9 @@ assert(
 
 
 // -------------------------------------------------------------
-// Suite 7: Vocal Remover — algorithmic DSP + offline AI options
+// Suite 7: Vocal Remover — algorithmic DSP only (+ Download Instrumental)
 // -------------------------------------------------------------
-console.log('\n\x1b[36m▶ Suite 7: Vocal Remover (DSP + offline AI)\x1b[0m');
+console.log('\n\x1b[36m▶ Suite 7: Vocal Remover (algorithmic DSP only)\x1b[0m');
 
 const audioGraphSource = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
@@ -465,18 +465,6 @@ const algorithmicRemoverSource = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/core/AlgorithmicVocalRemoverNode.ts'),
   'utf8'
 );
-const offlineAiSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/core/OfflineAiVocalSeparator.ts'),
-  'utf8'
-);
-const mdxSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/core/MdxNetSeparator.ts'),
-  'utf8'
-);
-const modelManagerSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/main/services/OfflineVocalModelManager.ts'),
-  'utf8'
-);
 const vocalRemoverShared = fs.readFileSync(
   path.resolve(__dirname, '../src/shared/vocalRemover.ts'),
   'utf8'
@@ -484,12 +472,39 @@ const vocalRemoverShared = fs.readFileSync(
 const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
 );
+const mainSourceOrt = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+const preloadSourceOrt = fs.readFileSync(path.resolve(__dirname, '../src/preload/index.ts'), 'utf8');
+const instrumentalProcessorSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/InstrumentalProcessor.ts'),
+  'utf8'
+);
+const downloadManagerSourceVocal = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+  'utf8'
+);
+const libraryPanelSourceVocal = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+  'utf8'
+);
 
 assert(
-  packageJson.dependencies?.['demucs-web'] &&
-    packageJson.dependencies?.['onnxruntime-web'] &&
-    packageJson.dependencies?.['fft.js'],
-  'package.json depends on demucs-web + onnxruntime-web + fft.js for offline AI'
+  !packageJson.dependencies?.['demucs-web'] &&
+    !packageJson.dependencies?.['onnxruntime-web'] &&
+    !packageJson.dependencies?.['fft.js'],
+  'package.json no longer depends on demucs-web / onnxruntime-web / fft.js'
+);
+
+assert(
+  !fs.existsSync(path.resolve(__dirname, '../public/ort')) &&
+    !fs.existsSync(path.resolve(__dirname, '../src/main/services/OfflineVocalModelManager.ts')) &&
+    !fs.existsSync(path.resolve(__dirname, '../src/main/services/OrtWasmManager.ts')) &&
+    !fs.existsSync(path.resolve(__dirname, '../src/main/services/DualStemCache.ts')) &&
+    !fs.existsSync(path.resolve(__dirname, '../src/renderer/core/OfflineAiVocalSeparator.ts')) &&
+    !fs.existsSync(path.resolve(__dirname, '../src/renderer/core/MdxNetSeparator.ts')) &&
+    !fs.existsSync(path.resolve(__dirname, '../src/shared/dualStem.ts')) &&
+    !fs.existsSync(path.resolve(__dirname, '../src/shared/ortWasm.ts')) &&
+    !fs.existsSync(path.resolve(__dirname, '../scripts/verify-dual-stem.js')),
+  'AI/ORT/MDX/dual-stem modules and public/ort assets are fully removed'
 );
 
 assert(
@@ -503,71 +518,13 @@ assert(
 );
 
 assert(
-  vocalRemoverShared.includes('aiMdxKaraoke2') &&
-    vocalRemoverShared.includes('aiHtDemucs') &&
-    vocalRemoverShared.includes('aiBsRoformer') &&
-    vocalRemoverShared.includes('UVR_MDXNET_KARA_2') &&
-    vocalRemoverShared.includes('Tha456/uvr5-models') &&
-    !vocalRemoverShared.includes('Politrees/UVR_resources/resolve/main/MDXNet_models') &&
-    vocalRemoverShared.includes('htdemucs_embedded') &&
-    vocalRemoverShared.includes('bs_roformer'),
-  'Shared catalog lists MDX Karaoke 2, HTDemucs, and BS-Roformer offline models'
-);
-
-assert(
-  offlineAiSource.includes('MdxNetSeparator') &&
-    offlineAiSource.includes('DemucsProcessor') &&
-    offlineAiSource.includes('aiBsRoformer') &&
-    mdxSource.includes('DIM_F') &&
-    mdxSource.includes('N_FFT') &&
-    modelManagerSource.includes('userData') &&
-    modelManagerSource.includes('models') &&
-    modelManagerSource.includes('.meta.json'),
-  'Offline AI separator + MDX STFT path + userData model cache are wired'
-);
-
-const ortWasmManagerSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/main/services/OrtWasmManager.ts'),
-  'utf8'
-);
-const ortWasmConfigSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/core/ortWasmConfig.ts'),
-  'utf8'
-);
-const ortWasmSharedSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/shared/ortWasm.ts'),
-  'utf8'
-);
-const mainSourceOrt = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
-const preloadSourceOrt = fs.readFileSync(path.resolve(__dirname, '../src/preload/index.ts'), 'utf8');
-
-assert(
-  ortWasmManagerSource.includes("path.join(app.getPath('userData'), 'ort')") &&
-    ortWasmManagerSource.includes('ensureOrtWasm') &&
-    ortWasmManagerSource.includes('needsRefresh') &&
-    !ortWasmManagerSource.includes('os.tmpdir()') &&
-    !ortWasmManagerSource.includes("app.getPath('temp')"),
-  'OrtWasmManager seeds durable userData/ort (never OS temp as permanent home)'
-);
-
-assert(
-  ortWasmConfigSource.includes('karaoke://ort/') &&
-    ortWasmConfigSource.includes('configureOrtWasmFromUserData') &&
-    ortWasmConfigSource.includes('proxy = false') &&
-    ortWasmConfigSource.includes('getConfiguredOrtWasmPaths') &&
-    offlineAiSource.includes('configureOrtWasmFromUserData') &&
-    mdxSource.includes('configureOrtWasmFromUserData') &&
-    !offlineAiSource.includes("wasmPaths = './ort/'"),
-  'Renderer points ORT wasmPaths at karaoke://ort/ (userData), not relative Temp blobs'
-);
-
-assert(
-  mainSourceOrt.includes("hostname === 'ort'") &&
-    mainSourceOrt.includes("hostname === 'models'") &&
-    mainSourceOrt.includes('ort-wasm:ensure') &&
-    preloadSourceOrt.includes('ortWasm') &&
-    ortWasmSharedSource.includes('ort-wasm-simd-threaded.wasm'),
-  'karaoke://ort + karaoke://models protocols + IPC expose seeded ORT/model assets'
+  vocalRemoverShared.includes('centerCancelBassKeep') &&
+    vocalRemoverShared.includes('isInstrumentalDownloadEligibleTitle') &&
+    vocalRemoverShared.includes('coerceVocalRemoverMethod') &&
+    !vocalRemoverShared.includes('aiMdxKaraoke2') &&
+    !vocalRemoverShared.includes('OFFLINE_VOCAL_MODELS') &&
+    !vocalRemoverShared.includes('isAiVocalRemoverMethod'),
+  'Shared vocalRemover catalog is algorithmic-only'
 );
 
 assert(
@@ -575,19 +532,11 @@ assert(
     audioGraphSource.includes('setVocalRemover(') &&
     audioGraphSource.includes('setVocalRemoverAlgorithm') &&
     audioGraphSource.includes('AlgorithmicVocalRemoverNode') &&
-    audioGraphSource.includes('activateDualStemPipeline') &&
-    audioGraphSource.includes('hotSwapToDualStem') &&
-    audioGraphSource.includes('getOfflineAiVocalSeparator') &&
-    audioGraphSource.includes('applyAlgorithmicFallbackAfterAiFailure') &&
-    audioGraphSource.includes('aiUsingAlgorithmicFallback') &&
-    audioGraphSource.includes('rampAudioParam') &&
-    audioGraphSource.includes('vocalRemoverPassThroughGain') &&
-    audioGraphSource.includes('instrumentalGain') &&
-    audioGraphSource.includes('vocalsGain') &&
-    audioGraphSource.includes('DUAL_STEM_ACTIVE') &&
-    audioGraphSource.includes('EXTRACTING_AND_SEPARATING') &&
-    audioGraphSource.includes('setVocalGuideLevel'),
-  'AudioGraphManager supports algorithmic DSP, on-demand dual-stem AI, and AI→algorithmic fallback'
+    !audioGraphSource.includes('activateDualStemPipeline') &&
+    !audioGraphSource.includes('getOfflineAiVocalSeparator') &&
+    !audioGraphSource.includes('setVocalGuideLevel') &&
+    !audioGraphSource.includes('DUAL_STEM_ACTIVE'),
+  'AudioGraphManager wires algorithmic DSP only (no dual-stem AI path)'
 );
 
 assert(
@@ -599,77 +548,26 @@ assert(
   'Vocal-remover GainNode enable/crossfade uses setValueAtTime+linearRamp (not bare ramp no-op)'
 );
 
-const mediaExtractorSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/main/services/MediaAudioExtractor.ts'),
-  'utf8'
-);
-const dualStemCacheSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/main/services/DualStemCache.ts'),
-  'utf8'
-);
-const dualStemSharedSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/shared/dualStem.ts'),
-  'utf8'
-);
 assert(
-  offlineAiSource.includes('decodeMediaForSeparation') &&
-    offlineAiSource.includes('isLikelyVideoContainer') &&
-    offlineAiSource.includes('extractAudioForSeparation') &&
-    offlineAiSource.includes('separateDualStemsFromUrl') &&
-    mediaExtractorSource.includes('extractAudioWavForSeparation') &&
-    mediaExtractorSource.includes('vocal-audio-cache') &&
-    mediaExtractorSource.includes('-vn') &&
-    dualStemCacheSource.includes('dual-stem-cache') &&
-    dualStemCacheSource.includes('stem_instrumental.wav') &&
-    dualStemCacheSource.includes('stem_vocals.wav') &&
-    dualStemSharedSource.includes('NATIVE_AUDIO') &&
-    dualStemSharedSource.includes('EXTRACTING_AND_SEPARATING') &&
-    dualStemSharedSource.includes('DUAL_STEM_ACTIVE') &&
-    mainSourceOrt.includes('media:extract-audio-for-separation') &&
-    mainSourceOrt.includes('dual-stem:lookup') &&
-    mainSourceOrt.includes('dual-stem:save') &&
-    preloadSourceOrt.includes('extractAudioForSeparation') &&
-    preloadSourceOrt.includes('dualStem'),
-  'On-demand dual-stem: ffmpeg demux + SHA-256 disk cache + IPC lookup/save'
-);
-
-const mdxWorkerClientSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/core/MdxVocalWorkerClient.ts'),
-  'utf8'
-);
-const mdxWorkerSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/workers/mdxVocalWorker.ts'),
-  'utf8'
-);
-const yieldToMainSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/core/yieldToMain.ts'),
-  'utf8'
+  !mainSourceOrt.includes("hostname === 'ort'") &&
+    !mainSourceOrt.includes("hostname === 'models'") &&
+    !mainSourceOrt.includes('ort-wasm:ensure') &&
+    !mainSourceOrt.includes('vocal-model:') &&
+    !mainSourceOrt.includes('dual-stem:') &&
+    !preloadSourceOrt.includes('ortWasm') &&
+    !preloadSourceOrt.includes('vocalModels') &&
+    !preloadSourceOrt.includes('dualStem'),
+  'Main/preload expose no karaoke://ort|models or vocal-model/dual-stem IPC'
 );
 
 assert(
-  mdxSource.includes('yieldToMainThread') &&
-    yieldToMainSource.includes('yieldToMainThread') &&
-    mdxWorkerClientSource.includes('new Worker') &&
-    mdxWorkerSource.includes('MdxNetSeparator') &&
-    offlineAiSource.includes('MdxVocalWorkerClient') &&
-    offlineAiSource.includes('karaoke://models/') &&
-    modelManagerSource.includes('resolveServableModel') &&
-    modelManagerSource.includes('createReadStream') &&
-    modelManagerSource.includes('fs.promises.readFile') &&
-    !modelManagerSource.includes('hashFileSync') &&
-    !modelManagerSource.includes('os.tmpdir()'),
-  'AI vocal path uses MDX Web Worker + event-loop yields; models via userData/karaoke://models (async I/O, no Temp)'
-);
-
-assert(
-  fs.existsSync(path.resolve(__dirname, '../public/ort/ort-wasm-simd-threaded.wasm')),
-  'ORT WASM assets are vendored under public/ort for Electron'
-);
-
-assert(
-  audioGraphSource.includes('formatOrtBackendError') &&
-    ortWasmConfigSource.includes('no available backend'),
-  'AI vocal remover surfaces a clearer ORT backend failure toast'
+  instrumentalProcessorSource.includes('processInstrumentalVideo') &&
+    instrumentalProcessorSource.includes('buildAlgorithmicVocalRemoverFilter') &&
+    downloadManagerSourceVocal.includes('instrumental') &&
+    downloadManagerSourceVocal.includes('processInstrumentalVideo') &&
+    libraryPanelSourceVocal.includes('downloadInstrumental') &&
+    libraryPanelSourceVocal.includes('isInstrumentalDownloadEligibleTitle'),
+  'Download Instrumental: ffmpeg algorithmic pipeline + YouTube UI button'
 );
 
 assert(
@@ -704,10 +602,6 @@ const settingsModalSourceVocal = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
   'utf8'
 );
-const aiWarnSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/utils/aiVocalHwWarning.ts'),
-  'utf8'
-);
 assert(
   toastSource.includes('showToast') &&
     toastSource.includes('confirmAsync') &&
@@ -720,13 +614,13 @@ assert(
 );
 
 assert(
-  aiWarnSource.includes('warnAiVocalRemoverIfNeeded') &&
-    aiWarnSource.includes('isAiVocalRemoverMethod') &&
-    settingsModalSourceVocal.includes('aiVocalHwWarningBody') &&
-    settingsModalSourceVocal.includes('warnAiVocalRemoverIfNeeded') &&
-    controlSource.includes('toggleVocalRemoverWithWarning') &&
-    controlSource.includes('warnAiVocalRemoverIfNeeded'),
-  'AI hardware warning shown on first AI select/toggle; algorithmic methods skip it'
+  !controlSource.includes('warnAiVocalRemoverIfNeeded') &&
+    !controlSource.includes('toggleVocalRemoverWithWarning') &&
+    !settingsModalSourceVocal.includes('aiVocalHwWarningBody') &&
+    !settingsModalSourceVocal.includes('aiMdxKaraoke2') &&
+    settingsModalSourceVocal.includes('centerCancelBassKeep') &&
+    settingsModalSourceVocal.includes('softMid'),
+  'Settings/Control expose algorithmic vocal options only (no AI warnings)'
 );
 
 const mainSourceForDialogs = fs.readFileSync(
@@ -734,23 +628,22 @@ const mainSourceForDialogs = fs.readFileSync(
   'utf8'
 );
 assert(
-  mainSourceForDialogs.includes('vocal-model:get-buffer') &&
-    mainSourceForDialogs.includes('OfflineVocalModelManager') &&
-    mainSourceForDialogs.includes("return { success: false, error: message }") &&
-    (mainSourceForDialogs.includes('Non-modal (no parent)') ||
-      mainSourceForDialogs.includes('Intentionally omit parent window') ||
-      mainSourceForDialogs.includes('omit parent')),
-  'Vocal-model IPC returns structured errors (no cryptic throw); dialogs avoid modal parent'
+  mainSourceForDialogs.includes('Non-modal (no parent)') ||
+    mainSourceForDialogs.includes('Intentionally omit parent window') ||
+    mainSourceForDialogs.includes('omit parent'),
+  'Native dialogs avoid modal parent so audio is not suspended'
 );
 
 const enLocaleVocal = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../locales/en.json'), 'utf8'));
 const itLocaleVocal = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../locales/it.json'), 'utf8'));
 assert(
-  enLocaleVocal.settings.vocalAiMdxKaraoke2 &&
-    enLocaleVocal.settings.aiVocalHwWarningBody &&
-    itLocaleVocal.settings.vocalAiMdxKaraoke2 &&
-    itLocaleVocal.settings.aiVocalHwWarningBody,
-  'EN/IT locales include AI vocal method labels and hardware warning text'
+  enLocaleVocal.library.downloadInstrumental &&
+    itLocaleVocal.library.downloadInstrumental &&
+    !enLocaleVocal.settings.vocalAiMdxKaraoke2 &&
+    !itLocaleVocal.settings.aiVocalHwWarningBody &&
+    enLocaleVocal.settings.vocalRemoverAlgorithmDesc &&
+    !/offline AI|AI locale|IA local/i.test(enLocaleVocal.settings.vocalRemoverAlgorithmDesc),
+  'EN/IT locales: Download Instrumental present; AI vocal keys removed'
 );
 
 // -------------------------------------------------------------
@@ -1281,7 +1174,7 @@ assert(
     audioGraphSourceP45.includes('voiceReleaseTimeouts') &&
     audioGraphSourceP45.includes('clearTimeout') &&
     audioGraphSourceP45.includes('AlgorithmicVocalRemoverNode'),
-  'Algorithmic vocal remover + MIDI release timers present; AI path uses OfflineAiVocalSeparator'
+  'Algorithmic vocal remover + MIDI release timers present (no AI separator)'
 );
 assert(
   audioGraphSourceP45.includes('computePerceptualGain') &&
@@ -1518,30 +1411,6 @@ assert(
     fs.readFileSync(path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'), 'utf8').includes('appShortcuts.ts'),
   'Shortcut inventory shared by ?, Settings, and ControlWindow handler comment'
 );
-
-// -------------------------------------------------------------
-// Suite 12: Dual-stem functional (ffmpeg fixture + SHA-256 cache + state machine)
-// -------------------------------------------------------------
-{
-  const dualStemShared = fs.readFileSync(
-    path.resolve(__dirname, '../src/shared/dualStem.ts'),
-    'utf8'
-  );
-  assert(
-    dualStemShared.includes('nextDualStemState') &&
-      dualStemShared.includes('isDualStemEngaged') &&
-      dualStemShared.includes('EXTRACTING_AND_SEPARATING'),
-    'shared/dualStem exports state machine helpers'
-  );
-
-  const verifyPath = path.resolve(__dirname, 'verify-dual-stem.js');
-  assert(fs.existsSync(verifyPath), 'scripts/verify-dual-stem.js exists');
-  const { spawnSync } = require('child_process');
-  const child = spawnSync(process.execPath, [verifyPath], { encoding: 'utf8' });
-  if (child.stdout) process.stdout.write(child.stdout);
-  if (child.stderr) process.stderr.write(child.stderr);
-  assert(child.status === 0, 'verify-dual-stem.js functional suite exits 0');
-}
 
 // Summary
 // -------------------------------------------------------------

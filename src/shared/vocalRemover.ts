@@ -37,3 +37,12 @@ export function coerceVocalRemoverMethod(method: string | undefined | null): Voc
   if (method && isVocalRemoverMethod(method)) return method;
   return 'centerCancelBassKeep';
 }
+
+/**
+ * YouTube results whose titles already say Karaoke / instrumental should not
+ * show the "Download Instrumental" action (case-insensitive).
+ */
+export function isInstrumentalDownloadEligibleTitle(title: string | undefined | null): boolean {
+  if (!title || !title.trim()) return false;
+  return !/karaoke|instrumental/i.test(title);
+}
