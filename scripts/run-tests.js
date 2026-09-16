@@ -507,6 +507,8 @@ assert(
     vocalRemoverShared.includes('aiHtDemucs') &&
     vocalRemoverShared.includes('aiBsRoformer') &&
     vocalRemoverShared.includes('UVR_MDXNET_KARA_2') &&
+    vocalRemoverShared.includes('Tha456/uvr5-models') &&
+    !vocalRemoverShared.includes('Politrees/UVR_resources/resolve/main/MDXNet_models') &&
     vocalRemoverShared.includes('htdemucs_embedded') &&
     vocalRemoverShared.includes('bs_roformer'),
   'Shared catalog lists MDX Karaoke 2, HTDemucs, and BS-Roformer offline models'
@@ -603,10 +605,11 @@ const mainSourceForDialogs = fs.readFileSync(
 assert(
   mainSourceForDialogs.includes('vocal-model:get-buffer') &&
     mainSourceForDialogs.includes('OfflineVocalModelManager') &&
+    mainSourceForDialogs.includes("return { success: false, error: message }") &&
     (mainSourceForDialogs.includes('Non-modal (no parent)') ||
       mainSourceForDialogs.includes('Intentionally omit parent window') ||
       mainSourceForDialogs.includes('omit parent')),
-  'Vocal-model IPC registered; native file dialogs avoid modal parent that can stall audio'
+  'Vocal-model IPC returns structured errors (no cryptic throw); dialogs avoid modal parent'
 );
 
 const enLocaleVocal = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../locales/en.json'), 'utf8'));

@@ -205,8 +205,13 @@ export interface KaraokeAPI {
   // 12. Offline AI vocal-remover models (cached under userData/models)
   vocalModels: {
     isModelCached: (modelId: OfflineVocalModelId) => Promise<boolean>;
-    ensureModel: (modelId: OfflineVocalModelId) => Promise<{ success: boolean; modelPath?: string }>;
-    getModelBuffer: (modelId: OfflineVocalModelId) => Promise<ArrayBuffer>;
+    ensureModel: (
+      modelId: OfflineVocalModelId
+    ) => Promise<{ success: boolean; modelPath?: string; error?: string }>;
+    /** Structured result — never rejects on download/read failure (avoids cryptic IPC toasts). */
+    getModelBuffer: (
+      modelId: OfflineVocalModelId
+    ) => Promise<{ success: boolean; buffer?: ArrayBuffer; error?: string }>;
     listModels: () => Promise<
       Array<{
         id: OfflineVocalModelId;

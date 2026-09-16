@@ -1097,17 +1097,31 @@ class KaraokeMainProcess {
 
     ipcMain.handle('vocal-model:ensure', async (_event, modelId: OfflineVocalModelId) => {
       if (!OFFLINE_VOCAL_MODELS[modelId]) {
-        throw new Error(`Unknown vocal model id: ${modelId}`);
+        return { success: false, error: `Unknown vocal model id: ${modelId}` };
       }
-      const modelPath = await this.vocalModelManager.ensureModel(modelId);
-      return { success: true, modelPath };
+      try {
+        const modelPath = await this.vocalModelManager.ensureModel(modelId);
+        return { success: true, modelPath };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error('App', `vocal-model:ensure failed (${modelId}): ${message}`);
+        return { success: false, error: message };
+      }
     });
 
     ipcMain.handle('vocal-model:get-buffer', async (_event, modelId: OfflineVocalModelId) => {
       if (!OFFLINE_VOCAL_MODELS[modelId]) {
-        throw new Error(`Unknown vocal model id: ${modelId}`);
+        return { success: false, error: `Unknown vocal model id: ${modelId}` };
       }
-      return this.vocalModelManager.readModelBuffer(modelId);
+      try {
+        const buffer = await this.vocalModelManager.readModelBuffer(modelId);
+        return { success: true, buffer };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error('App', `vocal-model:get-buffer failed (${modelId}): ${message}`);
+        // Structured result avoids Electron wrapping as "Error invoking remote method…"
+        return { success: false, error: message };
+      }
     });
 
     ipcMain.handle('vocal-model:list', () => {

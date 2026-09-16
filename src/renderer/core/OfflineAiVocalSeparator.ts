@@ -96,10 +96,27 @@ export class OfflineAiVocalSeparator {
       throw new Error('Vocal model IPC unavailable (not running in Electron?)');
     }
 
-    const buffer = await api.getModelBuffer(modelId);
-    if (!buffer || buffer.byteLength === 0) {
-      throw new Error(`Failed to load offline model buffer for ${modelId}`);
+    // ensureModel first so download failures return a clear { success:false, error } (no IPC throw).
+    if (api.ensureModel) {
+      const ensured = await api.ensureModel(modelId);
+      if (!ensured?.success) {
+        const err = new Error(ensured?.error || `Failed to download offline model ${modelId}`);
+        (err as Error & { code?: string }).code = 'VOCAL_MODEL_DOWNLOAD';
+        throw err;
+      }
     }
+
+    const result = await api.getModelBuffer(modelId);
+    if (!result?.success || !result.buffer || result.buffer.byteLength === 0) {
+      const err = new Error(
+        result?.error || `Failed to load offline model buffer for ${modelId}`
+      );
+      if (result?.error && /download failed|integrity|SHA-256/i.test(result.error)) {
+        (err as Error & { code?: string }).code = 'VOCAL_MODEL_DOWNLOAD';
+      }
+      throw err;
+    }
+    const buffer = result.buffer;
 
     configureOrtWasm();
 

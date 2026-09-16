@@ -84,10 +84,11 @@ export const OFFLINE_VOCAL_MODELS: Record<OfflineVocalModelId, OfflineVocalModel
     id: 'mdxKaraoke2',
     approxSizeMb: 53,
     minBytes: 40 * 1024 * 1024,
-    // Politrees/UVR_resources UVR_MDXNET_KARA_2.onnx
+    // Tha456/uvr5-models mirror of UVR_MDXNET_KARA_2.onnx (same SHA as Politrees historical upload).
+    // Politrees/UVR_resources main path 404s after repo reshuffle.
     sha256: 'bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4',
     filename: 'UVR_MDXNET_KARA_2.onnx',
-    url: 'https://huggingface.co/Politrees/UVR_resources/resolve/main/MDXNet_models/UVR_MDXNET_KARA_2.onnx',
+    url: 'https://huggingface.co/Tha456/uvr5-models/resolve/main/UVR_MDXNET_KARA_2.onnx',
     label: 'UVR-MDX-NET Karaoke 2'
   },
   htDemucs: {
