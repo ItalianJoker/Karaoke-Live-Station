@@ -1519,6 +1519,30 @@ assert(
   'Shortcut inventory shared by ?, Settings, and ControlWindow handler comment'
 );
 
+// -------------------------------------------------------------
+// Suite 12: Dual-stem functional (ffmpeg fixture + SHA-256 cache + state machine)
+// -------------------------------------------------------------
+{
+  const dualStemShared = fs.readFileSync(
+    path.resolve(__dirname, '../src/shared/dualStem.ts'),
+    'utf8'
+  );
+  assert(
+    dualStemShared.includes('nextDualStemState') &&
+      dualStemShared.includes('isDualStemEngaged') &&
+      dualStemShared.includes('EXTRACTING_AND_SEPARATING'),
+    'shared/dualStem exports state machine helpers'
+  );
+
+  const verifyPath = path.resolve(__dirname, 'verify-dual-stem.js');
+  assert(fs.existsSync(verifyPath), 'scripts/verify-dual-stem.js exists');
+  const { spawnSync } = require('child_process');
+  const child = spawnSync(process.execPath, [verifyPath], { encoding: 'utf8' });
+  if (child.stdout) process.stdout.write(child.stdout);
+  if (child.stderr) process.stderr.write(child.stderr);
+  assert(child.status === 0, 'verify-dual-stem.js functional suite exits 0');
+}
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');

@@ -53,3 +53,24 @@ export type DualStemSaveResult = {
 export function isDualStemEngaged(vocalGuideLevel: number): boolean {
   return vocalGuideLevel < 0.999;
 }
+
+/** Pure transitions for tests and documentation of the dual-stem controller. */
+export type DualStemEvent = 'engage' | 'stems_ready' | 'deactivate' | 'cancel' | 'ai_failed';
+
+export function nextDualStemState(
+  current: DualStemPlaybackState,
+  event: DualStemEvent
+): DualStemPlaybackState {
+  switch (current) {
+    case 'NATIVE_AUDIO':
+      return event === 'engage' ? 'EXTRACTING_AND_SEPARATING' : current;
+    case 'EXTRACTING_AND_SEPARATING':
+      if (event === 'stems_ready') return 'DUAL_STEM_ACTIVE';
+      if (event === 'cancel' || event === 'deactivate' || event === 'ai_failed') return 'NATIVE_AUDIO';
+      return current;
+    case 'DUAL_STEM_ACTIVE':
+      return event === 'deactivate' ? 'NATIVE_AUDIO' : current;
+    default:
+      return 'NATIVE_AUDIO';
+  }
+}
