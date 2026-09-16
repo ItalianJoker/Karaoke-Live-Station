@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix URL download UVR-MDX-NET Karaoke 2 (404)** + rimozione voce guida con **AI locale offline** (MDX / HTDemucs / BS-Roformer) + avviso hardware + retry CI `npm ci`.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix ORT WASM su Windows** (niente Temp OS) + modelli MDX/ONNX durabili in `userData` + fix URL download UVR-MDX-NET Karaoke 2 (404) + rimozione voce guida AI offline + avviso hardware + retry CI.
 
 ## 📦 File di Installazione
 
@@ -23,39 +23,42 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix URL download UV
 
 ## 🌟 Novità di questa refresh
 
+### 🧩 Fix ORT WASM — niente Temp OS (Windows Electron)
+- Errore tipico: `no available backend found` / `…/AppData/Local/Temp/…/wasm-simd-threaded.jsep.mjs` quando onnxruntime-web caricava `.mjs`/`.wasm` da percorsi effimeri.
+- Runtime WASM seedati in **`<userData>/ort/`** (come yt-dlp in `bin/`), serviti via **`karaoke://ort/`**; aggiornamento solo se mancanti, size diversa o source packaged più recente.
+- Modelli ONNX (MDX / HTDemucs / BS-Roformer) restano in **`<userData>/models/`** con staging sibling e sidecar `.meta.json` — ridownload solo se mancanti, corrotti o catalogo più recente.
+- Toast più chiaro se il backend WASM fallisce ancora.
+
 ### 🔗 Fix download UVR-MDX-NET Karaoke 2 (HTTP 404)
-- Il catalogo puntava a `Politrees/UVR_resources` su Hugging Face: il file `UVR_MDXNET_KARA_2.onnx` non è più su `main` → **404** al primo download del modello AI consigliato.
-- URL aggiornato al mirror pubblico **Tha456/uvr5-models** (stesso SHA-256 / ~53 MB); HTDemucs e BS-Roformer già OK (HTTP 200).
-- IPC `vocal-model:ensure` / `get-buffer`: risposta strutturata `{ success, error }` invece di throw, così la Regia mostra il toast chiaro senza il duplicato “Error invoking remote method”.
+- URL catalogo aggiornato al mirror pubblico **Tha456/uvr5-models** (stesso SHA-256 / ~53 MB).
+- IPC `vocal-model:ensure` / `get-buffer`: risposta strutturata `{ success, error }`.
 
 ### 🎙️ Rimuovi Voce Guida (Sperimentale) — DSP + AI offline
 - Tendina **Impostazioni → Audio**: metodi **DSP mid/side in tempo reale** (`centerCancelBassKeep`, `centerCancel`, `softMid`) **e** opzioni **AI locale** (nessuna API cloud).
 - **UVR-MDX-NET Karaoke 2** (~53 MB) — AI consigliata; ONNX Runtime Web (WASM).
 - **HTDemucs v4** (~172 MB) — Experimental (`demucs-web` + ONNX).
 - **BS-Roformer (ViperX)** quantizzato (~158 MB) — avanzato; modello in cache locale; STFT band-split non ancora affidabile in Electron WASM (toast + DSP/MDX/HTDemucs restano usabili).
-- Modelli scaricati al primo uso in `<userData>/models/` (progresso + verifica), poi **completamente offline**.
 - Percorso AI: separazione async → crossfade sull’instrumental (l’audio dry continua finché non è pronto).
 - Pulsante Regia etichettato **(Sperimentale)**; scorciatoia `V`.
 
 ### ⚠️ Avviso requisiti hardware (AI)
-- Al primo utilizzo di un metodo AI (selezione Impostazioni o attivazione `V`): **modale tematico** + testo guida in Impostazioni (IT/EN/ES/FR).
-- CPU moderna consigliata; GPU/ONNX aiutano; BS-Roformer più pesante; primo uso scarica ~50–300 MB.
+- Al primo utilizzo di un metodo AI: **modale tematico** + testo guida in Impostazioni (IT/EN/ES/FR).
 - Opzione **Non mostrare più**; i metodi algoritmici **non** mostrano l’avviso.
 
 ### 🛠️ CI — retry install
-- Retry `npm ci` con backoff (bash su tutte le piattaforme) per download intermittenti di `ffmpeg-static` (es. HTTP 500 su darwin-arm64).
+- Retry `npm ci` con backoff (bash su tutte le piattaforme) per download intermittenti di `ffmpeg-static`.
 
 ### 🔇 Conferma unmute anteprima YouTube (stesso dispositivo)
-- Anche sull’embed YouTube della ricerca Web / Pre-Ascolto: se CUE e Uscita Principale coincidono, togliere il muto apre lo **stesso modale tematico** già usato per video/audio/MIDI locali.
+- Embed YouTube ricerca Web / Pre-Ascolto: stesso modale tematico se CUE === Uscita Principale.
 
 ### 🖼️ Archiviazione automatica → thumbnail Local
-- Dopo download YouTube + salvataggio in libreria: **reindex completo** della Local (scan + cover ffmpeg) **prima** di accodare il file locale.
+- Reindex completo Local (scan + cover ffmpeg) **prima** di accodare il file locale.
 
 ### 🖼️ Icona ufficiale ovunque
 - Packaging Windows / Linux / macOS con logo ufficiale `public/logo.png`.
 
 ### 📥 YouTube → coda con archiviazione automatica
-- Con archiviazione ON, **Metti in coda** attende download **e** archivio riusciti, aggiorna Locale, poi accoda il **file locale della libreria**.
+- Con archiviazione ON, **Metti in coda** attende download **e** archivio, aggiorna Locale, accoda il **file locale**.
 
 ### 🎧 Pre-Ascolto tematico (CUE)
 - Modale anteprima tematico sul dispositivo CUE; avviso stesso-dispositivo all’unmute.
@@ -74,7 +77,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix URL download UV
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **UVR-MDX-NET Karaoke 2 download URL 404 fix** + guide-vocal removal with **local offline AI** (MDX / HTDemucs / BS-Roformer) + hardware warning + CI `npm ci` retries.
+GitHub Release **v1.1.0** overwrite: **ORT WASM fix (no OS Temp)** + durable MDX/ONNX under `userData` + UVR-MDX-NET Karaoke 2 download 404 fix + offline AI vocal remover + hardware warning + CI retries.
 
 ## 📦 Installers
 
@@ -88,27 +91,30 @@ GitHub Release **v1.1.0** overwrite: **UVR-MDX-NET Karaoke 2 download URL 404 fi
 
 ## 🌟 What’s new in this refresh
 
+### 🧩 ORT WASM fix — no OS Temp (Windows Electron)
+- Typical error: `no available backend found` / `…/AppData/Local/Temp/…/wasm-simd-threaded.jsep.mjs` when onnxruntime-web loaded `.mjs`/`.wasm` from ephemeral paths.
+- WASM runtimes seeded into **`<userData>/ort/`** (same durability as yt-dlp under `bin/`), served via **`karaoke://ort/`**; refresh only when missing, size-mismatched, or packaged source newer.
+- ONNX models (MDX / HTDemucs / BS-Roformer) stay under **`<userData>/models/`** with sibling staging + `.meta.json` — re-download only if missing, corrupt, or catalog newer.
+- Clearer toast if the WASM backend still fails.
+
 ### 🔗 UVR-MDX-NET Karaoke 2 download fix (HTTP 404)
-- Catalog pointed at Hugging Face `Politrees/UVR_resources`; `UVR_MDXNET_KARA_2.onnx` is no longer on `main` → **404** on first download of the recommended AI model.
-- URL updated to the public **Tha456/uvr5-models** mirror (same SHA-256 / ~53 MB); HTDemucs and BS-Roformer already OK (HTTP 200).
-- IPC `vocal-model:ensure` / `get-buffer`: structured `{ success, error }` instead of throw, so Control shows a clear toast without the duplicate “Error invoking remote method”.
+- Catalog URL updated to the public **Tha456/uvr5-models** mirror (same SHA-256 / ~53 MB).
+- IPC `vocal-model:ensure` / `get-buffer`: structured `{ success, error }`.
 
 ### 🎙️ Vocal Remover (Experimental) — DSP + offline AI
 - **Settings → Audio** dropdown: realtime **mid/side DSP** (`centerCancelBassKeep`, `centerCancel`, `softMid`) **and** **local AI** options (no cloud APIs).
 - **UVR-MDX-NET Karaoke 2** (~53 MB) — recommended AI; ONNX Runtime Web (WASM).
 - **HTDemucs v4** (~172 MB) — Experimental (`demucs-web` + ONNX).
 - **BS-Roformer (ViperX)** quantized (~158 MB) — advanced; model cached offline; band-split STFT not yet reliable in Electron WASM (toast + DSP/MDX/HTDemucs remain usable).
-- Models download on first use into `<userData>/models/` (progress + integrity), then run **fully offline**.
 - AI path: async separate → instrumental crossfade (dry audio continues until ready).
 - Control button labeled **(Experimental)**; shortcut `V`.
 
 ### ⚠️ Hardware requirements warning (AI)
 - On first AI method select or first AI toggle-on: **themed modal** + Settings helper text (IT/EN/ES/FR).
-- Modern CPU recommended; GPU/ONNX helps; BS-Roformer is heavier; first use downloads ~50–300 MB.
 - Optional **Don’t show again**; algorithmic methods **never** show this warning.
 
 ### 🛠️ CI — install retries
-- `npm ci` retry with backoff (`shell: bash` on all platforms) for flaky `ffmpeg-static` downloads (e.g. HTTP 500 on darwin-arm64).
+- `npm ci` retry with backoff (`shell: bash` on all platforms) for flaky `ffmpeg-static` downloads.
 
 ### 🔇 YouTube preview unmute confirm (same device)
 - Web-search / Pre-Listen YouTube embed: same themed confirm when CUE === Main Output.
