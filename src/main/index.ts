@@ -14,6 +14,7 @@ import { FirewallHelper } from './services/FirewallHelper';
 import { OfflineVocalModelManager } from './services/OfflineVocalModelManager';
 import { OrtWasmManager } from './services/OrtWasmManager';
 import { extractAudioWavForSeparation } from './services/MediaAudioExtractor';
+import { lookupDualStemCache, saveDualStemCache } from './services/DualStemCache';
 import {
   ActivePlaybackState,
   AppSettings,
@@ -1244,6 +1245,45 @@ class KaraokeMainProcess {
         return { success: false, error: message };
       }
     });
+
+    // Dual-stem disk cache (SHA-256 of source → stem_instrumental.wav + stem_vocals.wav)
+    ipcMain.handle('dual-stem:lookup', async (_event, mediaUrl: string) => {
+      try {
+        return await lookupDualStemCache(mediaUrl || '');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error('App', `dual-stem:lookup error: ${message}`);
+        return { success: false, error: message };
+      }
+    });
+
+    ipcMain.handle(
+      'dual-stem:save',
+      async (
+        _event,
+        payload: {
+          mediaUrlOrPath: string;
+          method: string;
+          sampleRate: number;
+          instrumentalWav: ArrayBuffer;
+          vocalsWav: ArrayBuffer;
+        }
+      ) => {
+        try {
+          const result = await saveDualStemCache(payload);
+          if (!result.success) {
+            this.logger.warn('App', `dual-stem:save failed: ${result.error}`);
+          } else {
+            this.logger.info('App', 'Saved dual-stem cache', { sha256: result.sha256 });
+          }
+          return result;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.error('App', `dual-stem:save error: ${message}`);
+          return { success: false, error: message };
+        }
+      }
+    );
   }
 
   /**

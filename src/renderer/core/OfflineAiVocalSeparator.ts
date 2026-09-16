@@ -29,6 +29,7 @@ import {
   formatOrtBackendError,
   getConfiguredOrtWasmPaths
 } from './ortWasmConfig';
+import { encodeWavPcm16, subtractBuffers } from './wavEncode';
 import { yieldToMainThread } from './yieldToMain';
 
 export type AiSeparatorProgress = {
@@ -36,6 +37,11 @@ export type AiSeparatorProgress = {
   progress: number;
   message: string;
   modelId?: OfflineVocalModelId;
+};
+
+export type DualStemBuffers = {
+  instrumental: AudioBuffer;
+  vocals: AudioBuffer;
 };
 
 type ProgressListener = (info: AiSeparatorProgress) => void;
@@ -46,7 +52,9 @@ export { formatOrtBackendError };
 
 export class OfflineAiVocalSeparator {
   private readonly instrumentalCache = new Map<string, AudioBuffer>();
+  private readonly dualStemMemoryCache = new Map<string, DualStemBuffers>();
   private readonly inFlight = new Map<string, Promise<AudioBuffer>>();
+  private readonly dualStemInFlight = new Map<string, Promise<DualStemBuffers>>();
   private readonly listeners = new Set<ProgressListener>();
 
   private mdxClient: MdxVocalWorkerClient | null = null;
@@ -78,7 +86,143 @@ export class OfflineAiVocalSeparator {
     method: AiVocalRemoverMethod,
     mediaUrl: string
   ): AudioBuffer | null {
+    const dual = this.dualStemMemoryCache.get(this.cacheKey(method, mediaUrl));
+    if (dual) return dual.instrumental;
     return this.instrumentalCache.get(this.cacheKey(method, mediaUrl)) || null;
+  }
+
+  public getCachedDualStems(
+    method: AiVocalRemoverMethod,
+    mediaUrl: string
+  ): DualStemBuffers | null {
+    return this.dualStemMemoryCache.get(this.cacheKey(method, mediaUrl)) || null;
+  }
+
+  /**
+   * On-demand dual-stem separation: disk cache (SHA-256) → memory → FFmpeg+ONNX.
+   * Never runs until the vocal remover is engaged by the caller.
+   */
+  public async separateDualStemsFromUrl(
+    method: AiVocalRemoverMethod,
+    mediaUrl: string,
+    audioContext: AudioContext
+  ): Promise<DualStemBuffers> {
+    const key = this.cacheKey(method, mediaUrl);
+    const mem = this.dualStemMemoryCache.get(key);
+    if (mem) return mem;
+
+    const existing = this.dualStemInFlight.get(key);
+    if (existing) return existing;
+
+    const work = this.runDualStemSeparation(method, mediaUrl, audioContext, key);
+    this.dualStemInFlight.set(key, work);
+    try {
+      return await work;
+    } finally {
+      this.dualStemInFlight.delete(key);
+    }
+  }
+
+  private rememberDualStems(key: string, stems: DualStemBuffers): void {
+    this.dualStemMemoryCache.set(key, stems);
+    this.instrumentalCache.set(key, stems.instrumental);
+    while (this.dualStemMemoryCache.size > MAX_CACHED_STEMS) {
+      const oldest = this.dualStemMemoryCache.keys().next().value;
+      if (oldest === undefined) break;
+      this.dualStemMemoryCache.delete(oldest);
+      this.instrumentalCache.delete(oldest);
+    }
+  }
+
+  private async loadDualStemsFromDiskCache(
+    mediaUrl: string,
+    audioContext: AudioContext
+  ): Promise<DualStemBuffers | null> {
+    const api = typeof window !== 'undefined' ? window.karaokeApi?.dualStem : undefined;
+    if (!api?.lookup) return null;
+    const lookup = await api.lookup(mediaUrl);
+    if (!lookup?.success || !lookup.hit || !lookup.instrumentalUrl || !lookup.vocalsUrl) {
+      return null;
+    }
+    this.emit({ phase: 'decode', progress: 0.2, message: 'Loading cached dual stems…' });
+    await yieldToMainThread();
+    const [instAb, vocAb] = await Promise.all([
+      fetch(lookup.instrumentalUrl).then((r) => {
+        if (!r.ok) throw new Error(`Failed to fetch instrumental stem (${r.status})`);
+        return r.arrayBuffer();
+      }),
+      fetch(lookup.vocalsUrl).then((r) => {
+        if (!r.ok) throw new Error(`Failed to fetch vocals stem (${r.status})`);
+        return r.arrayBuffer();
+      })
+    ]);
+    await yieldToMainThread();
+    const [instrumental, vocals] = await Promise.all([
+      audioContext.decodeAudioData(instAb.slice(0)),
+      audioContext.decodeAudioData(vocAb.slice(0))
+    ]);
+    return { instrumental, vocals };
+  }
+
+  private async persistDualStemsToDisk(
+    method: AiVocalRemoverMethod,
+    mediaUrl: string,
+    stems: DualStemBuffers
+  ): Promise<void> {
+    const api = typeof window !== 'undefined' ? window.karaokeApi?.dualStem : undefined;
+    if (!api?.save) return;
+    try {
+      const instrumentalWav = encodeWavPcm16(stems.instrumental);
+      const vocalsWav = encodeWavPcm16(stems.vocals);
+      await api.save({
+        mediaUrlOrPath: mediaUrl,
+        method,
+        sampleRate: stems.instrumental.sampleRate,
+        instrumentalWav,
+        vocalsWav
+      });
+    } catch (err) {
+      console.warn('[OfflineAiVocalSeparator] dual-stem cache save failed', err);
+    }
+  }
+
+  private async runDualStemSeparation(
+    method: AiVocalRemoverMethod,
+    mediaUrl: string,
+    audioContext: AudioContext,
+    cacheKey: string
+  ): Promise<DualStemBuffers> {
+    const fromDisk = await this.loadDualStemsFromDiskCache(mediaUrl, audioContext);
+    if (fromDisk) {
+      this.rememberDualStems(cacheKey, fromDisk);
+      this.emit({ phase: 'ready', progress: 1, message: 'Dual stems ready (cache)' });
+      return fromDisk;
+    }
+
+    await this.ensureMethodReady(method);
+
+    this.emit({ phase: 'decode', progress: 0.05, message: 'Decoding audio…' });
+    await yieldToMainThread();
+    const decoded = await this.decodeMediaForSeparation(mediaUrl, audioContext);
+
+    let stems: DualStemBuffers;
+    switch (method) {
+      case 'aiMdxKaraoke2':
+        stems = await this.runMdxDual(decoded, audioContext);
+        break;
+      case 'aiHtDemucs':
+        stems = await this.runDemucsDual(decoded, audioContext);
+        break;
+      case 'aiBsRoformer':
+        await this.runBsRoformer(decoded, audioContext);
+        throw new Error('unreachable');
+    }
+
+    this.rememberDualStems(cacheKey, stems);
+    // Persist even if UI cancelled — next engage is instant.
+    void this.persistDualStemsToDisk(method, mediaUrl, stems);
+    this.emit({ phase: 'ready', progress: 1, message: 'Dual stems ready' });
+    return stems;
   }
 
   /**
@@ -357,39 +501,14 @@ export class OfflineAiVocalSeparator {
     audioContext: AudioContext,
     cacheKey: string
   ): Promise<AudioBuffer> {
-    await this.ensureMethodReady(method);
-
-    this.emit({ phase: 'decode', progress: 0.05, message: 'Decoding audio…' });
-    await yieldToMainThread();
-    const decoded = await this.decodeMediaForSeparation(mediaUrl, audioContext);
-
-    let instrumental: AudioBuffer;
-    switch (method) {
-      case 'aiMdxKaraoke2':
-        instrumental = await this.runMdx(decoded, audioContext);
-        break;
-      case 'aiHtDemucs':
-        instrumental = await this.runDemucs(decoded, audioContext);
-        break;
-      case 'aiBsRoformer':
-        instrumental = await this.runBsRoformer(decoded, audioContext);
-        break;
-    }
-
-    if (this.instrumentalCache.has(cacheKey)) {
-      this.instrumentalCache.delete(cacheKey);
-    }
-    this.instrumentalCache.set(cacheKey, instrumental);
-    while (this.instrumentalCache.size > MAX_CACHED_STEMS) {
-      const oldest = this.instrumentalCache.keys().next().value;
-      if (oldest === undefined) break;
-      this.instrumentalCache.delete(oldest);
-    }
-    this.emit({ phase: 'ready', progress: 1, message: 'Instrumental stem ready' });
-    return instrumental;
+    const dual = await this.runDualStemSeparation(method, mediaUrl, audioContext, cacheKey);
+    return dual.instrumental;
   }
 
-  private async runMdx(decoded: AudioBuffer, audioContext: AudioContext): Promise<AudioBuffer> {
+  private async runMdxDual(
+    decoded: AudioBuffer,
+    audioContext: AudioContext
+  ): Promise<DualStemBuffers> {
     if (!this.mdxClient) throw new Error('MDX separator unavailable');
     let working = decoded;
     if (Math.abs(decoded.sampleRate - MDX_SAMPLE_RATE) > 1) {
@@ -398,13 +517,18 @@ export class OfflineAiVocalSeparator {
     const left = working.getChannelData(0);
     const right = working.numberOfChannels > 1 ? working.getChannelData(1) : left;
     const { left: outL, right: outR } = await this.mdxClient.separateInstrumental(left, right);
-    const buf = audioContext.createBuffer(2, outL.length, MDX_SAMPLE_RATE);
-    buf.getChannelData(0).set(outL);
-    buf.getChannelData(1).set(outR);
-    return buf;
+    const instrumental = audioContext.createBuffer(2, outL.length, MDX_SAMPLE_RATE);
+    instrumental.getChannelData(0).set(outL);
+    instrumental.getChannelData(1).set(outR);
+    // UVR Karaoke 2 predicts "other"/instrumental; vocals ≈ mixture − other
+    const vocals = subtractBuffers(working, instrumental, audioContext);
+    return { instrumental, vocals };
   }
 
-  private async runDemucs(decoded: AudioBuffer, audioContext: AudioContext): Promise<AudioBuffer> {
+  private async runDemucsDual(
+    decoded: AudioBuffer,
+    audioContext: AudioContext
+  ): Promise<DualStemBuffers> {
     if (!this.demucs) throw new Error('HTDemucs processor unavailable');
     const targetRate = CONSTANTS.SAMPLE_RATE;
     let working = decoded;
@@ -424,17 +548,21 @@ export class OfflineAiVocalSeparator {
     await yieldToMainThread();
     const length = left.length;
     const instrumental = audioContext.createBuffer(2, length, targetRate);
-    const outL = instrumental.getChannelData(0);
-    const outR = instrumental.getChannelData(1);
+    const vocals = audioContext.createBuffer(2, length, targetRate);
+    const outIL = instrumental.getChannelData(0);
+    const outIR = instrumental.getChannelData(1);
+    const outVL = vocals.getChannelData(0);
+    const outVR = vocals.getChannelData(1);
     for (let i = 0; i < length; i++) {
-      outL[i] = stems.drums.left[i] + stems.bass.left[i] + stems.other.left[i];
-      outR[i] = stems.drums.right[i] + stems.bass.right[i] + stems.other.right[i];
+      outIL[i] = stems.drums.left[i] + stems.bass.left[i] + stems.other.left[i];
+      outIR[i] = stems.drums.right[i] + stems.bass.right[i] + stems.other.right[i];
+      outVL[i] = stems.vocals.left[i];
+      outVR[i] = stems.vocals.right[i];
       if ((i & 0xffff) === 0xffff) {
-        // Periodic yield while mixing long stems.
         await yieldToMainThread();
       }
     }
-    return instrumental;
+    return { instrumental, vocals };
   }
 
   /**
@@ -480,6 +608,7 @@ export class OfflineAiVocalSeparator {
 
   public clearCache(): void {
     this.instrumentalCache.clear();
+    this.dualStemMemoryCache.clear();
   }
 }
 

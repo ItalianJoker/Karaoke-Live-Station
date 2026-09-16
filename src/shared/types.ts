@@ -248,6 +248,13 @@ export interface ActivePlaybackState {
   currentTrackId?: string;
   /** Center-channel vocal remover active status */
   isVocalRemoverActive: boolean;
+  /**
+   * Guide-vocal fader 0..1 (1 = full guide / native-equivalent, 0 = instrumental only).
+   * Engaging AI dual-stem means level &lt; 1.
+   */
+  vocalGuideLevel?: number;
+  /** On-demand dual-stem pipeline state (AI methods) */
+  dualStemState?: 'NATIVE_AUDIO' | 'EXTRACTING_AND_SEPARATING' | 'DUAL_STEM_ACTIVE';
   /** Auto-ducking BGM attenuation active status */
   isDuckingActive: boolean;
   /** Master volume gain multiplier (0.0 to 1.0) */

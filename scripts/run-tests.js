@@ -575,15 +575,19 @@ assert(
     audioGraphSource.includes('setVocalRemover(') &&
     audioGraphSource.includes('setVocalRemoverAlgorithm') &&
     audioGraphSource.includes('AlgorithmicVocalRemoverNode') &&
-    audioGraphSource.includes('activateAiInstrumental') &&
-    audioGraphSource.includes('crossfadeToInstrumental') &&
+    audioGraphSource.includes('activateDualStemPipeline') &&
+    audioGraphSource.includes('hotSwapToDualStem') &&
     audioGraphSource.includes('getOfflineAiVocalSeparator') &&
     audioGraphSource.includes('applyAlgorithmicFallbackAfterAiFailure') &&
     audioGraphSource.includes('aiUsingAlgorithmicFallback') &&
     audioGraphSource.includes('rampAudioParam') &&
     audioGraphSource.includes('vocalRemoverPassThroughGain') &&
-    audioGraphSource.includes('vocalRemoverEffectGain'),
-  'AudioGraphManager supports algorithmic DSP, AI async separate→crossfade, and AI→algorithmic fallback'
+    audioGraphSource.includes('instrumentalGain') &&
+    audioGraphSource.includes('vocalsGain') &&
+    audioGraphSource.includes('DUAL_STEM_ACTIVE') &&
+    audioGraphSource.includes('EXTRACTING_AND_SEPARATING') &&
+    audioGraphSource.includes('setVocalGuideLevel'),
+  'AudioGraphManager supports algorithmic DSP, on-demand dual-stem AI, and AI→algorithmic fallback'
 );
 
 assert(
@@ -599,16 +603,34 @@ const mediaExtractorSource = fs.readFileSync(
   path.resolve(__dirname, '../src/main/services/MediaAudioExtractor.ts'),
   'utf8'
 );
+const dualStemCacheSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/DualStemCache.ts'),
+  'utf8'
+);
+const dualStemSharedSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/dualStem.ts'),
+  'utf8'
+);
 assert(
   offlineAiSource.includes('decodeMediaForSeparation') &&
     offlineAiSource.includes('isLikelyVideoContainer') &&
     offlineAiSource.includes('extractAudioForSeparation') &&
+    offlineAiSource.includes('separateDualStemsFromUrl') &&
     mediaExtractorSource.includes('extractAudioWavForSeparation') &&
     mediaExtractorSource.includes('vocal-audio-cache') &&
     mediaExtractorSource.includes('-vn') &&
+    dualStemCacheSource.includes('dual-stem-cache') &&
+    dualStemCacheSource.includes('stem_instrumental.wav') &&
+    dualStemCacheSource.includes('stem_vocals.wav') &&
+    dualStemSharedSource.includes('NATIVE_AUDIO') &&
+    dualStemSharedSource.includes('EXTRACTING_AND_SEPARATING') &&
+    dualStemSharedSource.includes('DUAL_STEM_ACTIVE') &&
     mainSourceOrt.includes('media:extract-audio-for-separation') &&
-    preloadSourceOrt.includes('extractAudioForSeparation'),
-  'Video/muxed karaoke audio is demuxed via ffmpeg to PCM WAV before AI separation'
+    mainSourceOrt.includes('dual-stem:lookup') &&
+    mainSourceOrt.includes('dual-stem:save') &&
+    preloadSourceOrt.includes('extractAudioForSeparation') &&
+    preloadSourceOrt.includes('dualStem'),
+  'On-demand dual-stem: ffmpeg demux + SHA-256 disk cache + IPC lookup/save'
 );
 
 const mdxWorkerClientSource = fs.readFileSync(
