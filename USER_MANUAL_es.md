@@ -324,6 +324,7 @@ Pestaña **Biblioteca y búsqueda** (`Libreria & Ricerca`) (`2` o `Ctrl+F`).
 
 - Modo **Local** (ámbito independiente de la búsqueda Web)
 - Filtro **continuo** mientras escribes (`onChange`) sobre título, artista, código
+- Coincidencia **sin distinguir mayúsculas/minúsculas ni acentos** (p. ej. `moriro da re` encuentra `morirò da re`)
 - Estados vacíos distintos:
   - **«Libreria vuota. Scansiona una cartella o cerca sul web.»** (texto de UI en italiano)
   - **«Nessun brano corrisponde alla ricerca locale.»** (texto de UI en italiano)
@@ -580,7 +581,7 @@ Flag **`alreadyLogged`** en la instancia de cola: una sola fila por actuación a
 - Persistencia SQLite (`siae_logs`)
 - **Timestamp ISO 8601** + epoch en milisegundos
 - Título, artista, cantante, duración efectiva
-- Filtro de búsqueda: título / artista / cantante
+- Filtro de búsqueda: título / artista / cantante (insensible a acentos)
 - **Exportar SIAE (CSV)** (`Esporta SIAE (CSV)`) con columnas de fecha/hora ISO y timestamp
 - **Vaciar historial** (`Svuota Storico`) con confirmación de seguridad
 

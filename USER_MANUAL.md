@@ -325,6 +325,7 @@ Scheda **Libreria & Ricerca** (`2` o `Ctrl+F`).
 
 - Modalità **Locale** (ambito indipendente dalla ricerca Web)
 - Filtro **continuo** mentre digiti (`onChange`) su titolo, artista, codice
+- Match **senza distinzione di maiuscole/minuscole e di accenti** (es. `moriro da re` trova `morirò da re`; anche le query accentate funzionano)
 - Stati vuoti distinti:
   - **«Libreria vuota. Scansiona una cartella o cerca sul web.»**
   - **«Nessun brano corrisponde alla ricerca locale.»**
@@ -470,7 +471,7 @@ Apri **Impostazioni di Sistema** (ingranaggio). In alto: campo **«Cerca imposta
 | **Schermo Stage** | Banner intro/outro, titolo overlay, prossimo cantante in intro, **`showPitchOnStage`**, **`showSpeedOnStage`**, **sfondi personalizzati messaggi Stage** |
 | **Scorciatoie** | Elenco completo delle scorciatoie live (stesso inventario del pannello **?** / F1), ricercabile |
 
-La ricerca filtra etichette/descrizioni **tra tutte le categorie** (inclusa la scheda Scorciatoie in **parità** con la guida **?**); svuotando il campo torni alla navigazione a tab. Nessuna impostazione viene rimossa dalla riorganizzazione a tab.
+La ricerca filtra etichette/descrizioni **tra tutte le categorie** (inclusa la scheda Scorciatoie in **parità** con la guida **?**); il match è case-insensitive e **senza accenti**. Svuotando il campo torni alla navigazione a tab. Nessuna impostazione viene rimossa dalla riorganizzazione a tab.
 
 ### 9.2 Altre opzioni utili
 
@@ -543,7 +544,7 @@ Anche in Impostazioni → Scorciatoie e nel pannello **?** / F1 (stesso elenco):
 ### 11.2 Flusso ospite
 
 1. Inquadra il QR (iOS/Android, nessuna app).
-2. Cerca nel **catalogo locale** (solo brani realmente in libreria; niente testo libero arbitrario).
+2. Cerca nel **catalogo locale** (solo brani realmente in libreria; niente testo libero arbitrario; match senza accenti).
 3. Inserisce nome e tonalità (tipicamente da −4 a +4 semitoni lato guest).
 4. Invia la richiesta.
 
@@ -581,7 +582,7 @@ Flag **`alreadyLogged`** sull’istanza in coda: una sola riga per esecuzione an
 - Persistenza SQLite (`siae_logs`)
 - **Timestamp ISO 8601** + epoch millisecondi
 - Titolo, artista, cantante, durata effettiva
-- Filtro ricerca: titolo / artista / cantante
+- Filtro ricerca: titolo / artista / cantante (anche senza digitare gli accenti)
 - **Esporta SIAE (CSV)** con colonne data/ora ISO e timestamp
 - **Svuota Storico** con conferma di sicurezza
 

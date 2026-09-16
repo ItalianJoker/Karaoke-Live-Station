@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AppTheme, StageMessageStyle, YtDlpStatus } from '../../shared/types';
+import { textMatchesSearch } from '../../shared/textNormalize';
 import {
   STAGE_MESSAGE_KEYS,
   StageMessageKey,
@@ -87,8 +88,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const matchesSearch = (...parts: string[]) => {
     if (!isSearching) return true;
-    const q = settingsSearch.trim().toLowerCase();
-    return parts.some((p) => (p || '').toLowerCase().includes(q));
+    const q = settingsSearch.trim();
+    return parts.some((p) => textMatchesSearch(p || '', q));
   };
 
   useEffect(() => {
