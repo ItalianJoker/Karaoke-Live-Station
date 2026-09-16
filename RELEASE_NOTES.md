@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): rimozione voce guida con **AI locale offline** (MDX / HTDemucs / BS-Roformer) + avviso hardware + retry CI `npm ci`.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix URL download UVR-MDX-NET Karaoke 2 (404)** + rimozione voce guida con **AI locale offline** (MDX / HTDemucs / BS-Roformer) + avviso hardware + retry CI `npm ci`.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,11 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): rimozione voce guida 
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### 🔗 Fix download UVR-MDX-NET Karaoke 2 (HTTP 404)
+- Il catalogo puntava a `Politrees/UVR_resources` su Hugging Face: il file `UVR_MDXNET_KARA_2.onnx` non è più su `main` → **404** al primo download del modello AI consigliato.
+- URL aggiornato al mirror pubblico **Tha456/uvr5-models** (stesso SHA-256 / ~53 MB); HTDemucs e BS-Roformer già OK (HTTP 200).
+- IPC `vocal-model:ensure` / `get-buffer`: risposta strutturata `{ success, error }` invece di throw, così la Regia mostra il toast chiaro senza il duplicato “Error invoking remote method”.
 
 ### 🎙️ Rimuovi Voce Guida (Sperimentale) — DSP + AI offline
 - Tendina **Impostazioni → Audio**: metodi **DSP mid/side in tempo reale** (`centerCancelBassKeep`, `centerCancel`, `softMid`) **e** opzioni **AI locale** (nessuna API cloud).
@@ -69,7 +74,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): rimozione voce guida 
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: guide-vocal removal with **local offline AI** (MDX / HTDemucs / BS-Roformer) + hardware warning + CI `npm ci` retries.
+GitHub Release **v1.1.0** overwrite: **UVR-MDX-NET Karaoke 2 download URL 404 fix** + guide-vocal removal with **local offline AI** (MDX / HTDemucs / BS-Roformer) + hardware warning + CI `npm ci` retries.
 
 ## 📦 Installers
 
@@ -82,6 +87,11 @@ GitHub Release **v1.1.0** overwrite: guide-vocal removal with **local offline AI
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### 🔗 UVR-MDX-NET Karaoke 2 download fix (HTTP 404)
+- Catalog pointed at Hugging Face `Politrees/UVR_resources`; `UVR_MDXNET_KARA_2.onnx` is no longer on `main` → **404** on first download of the recommended AI model.
+- URL updated to the public **Tha456/uvr5-models** mirror (same SHA-256 / ~53 MB); HTDemucs and BS-Roformer already OK (HTTP 200).
+- IPC `vocal-model:ensure` / `get-buffer`: structured `{ success, error }` instead of throw, so Control shows a clear toast without the duplicate “Error invoking remote method”.
 
 ### 🎙️ Vocal Remover (Experimental) — DSP + offline AI
 - **Settings → Audio** dropdown: realtime **mid/side DSP** (`centerCancelBassKeep`, `centerCancel`, `softMid`) **and** **local AI** options (no cloud APIs).
