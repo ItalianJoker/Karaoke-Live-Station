@@ -453,9 +453,9 @@ assert(
 
 
 // -------------------------------------------------------------
-// Suite 7: Vocal Remover — algorithmic DSP only (+ Download Instrumental)
+// Suite 7: Vocal Remover — live algorithmic DSP + Download Instrumental AI
 // -------------------------------------------------------------
-console.log('\n\x1b[36m▶ Suite 7: Vocal Remover (algorithmic DSP only)\x1b[0m');
+console.log('\n\x1b[36m▶ Suite 7: Vocal Remover (live DSP + Instrumental AI)\x1b[0m');
 
 const audioGraphSource = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
@@ -486,25 +486,30 @@ const libraryPanelSourceVocal = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
   'utf8'
 );
-
-assert(
-  !packageJson.dependencies?.['demucs-web'] &&
-    !packageJson.dependencies?.['onnxruntime-web'] &&
-    !packageJson.dependencies?.['fft.js'],
-  'package.json no longer depends on demucs-web / onnxruntime-web / fft.js'
+const offlineModelManagerSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/OfflineVocalModelManager.ts'),
+  'utf8'
 );
 
 assert(
-  !fs.existsSync(path.resolve(__dirname, '../public/ort')) &&
-    !fs.existsSync(path.resolve(__dirname, '../src/main/services/OfflineVocalModelManager.ts')) &&
-    !fs.existsSync(path.resolve(__dirname, '../src/main/services/OrtWasmManager.ts')) &&
+  packageJson.dependencies?.['demucs-web'] &&
+    packageJson.dependencies?.['onnxruntime-web'] &&
+    packageJson.dependencies?.['fft.js'],
+  'package.json includes demucs-web / onnxruntime-web / fft.js for Instrumental AI'
+);
+
+assert(
+  fs.existsSync(path.resolve(__dirname, '../public/ort')) &&
+    fs.existsSync(path.resolve(__dirname, '../src/main/services/OfflineVocalModelManager.ts')) &&
+    fs.existsSync(path.resolve(__dirname, '../src/main/services/OrtWasmManager.ts')) &&
+    fs.existsSync(path.resolve(__dirname, '../src/main/ai/MdxNetSeparator.ts')) &&
+    fs.existsSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts')) &&
+    fs.existsSync(path.resolve(__dirname, '../src/shared/ortWasm.ts')) &&
     !fs.existsSync(path.resolve(__dirname, '../src/main/services/DualStemCache.ts')) &&
     !fs.existsSync(path.resolve(__dirname, '../src/renderer/core/OfflineAiVocalSeparator.ts')) &&
-    !fs.existsSync(path.resolve(__dirname, '../src/renderer/core/MdxNetSeparator.ts')) &&
     !fs.existsSync(path.resolve(__dirname, '../src/shared/dualStem.ts')) &&
-    !fs.existsSync(path.resolve(__dirname, '../src/shared/ortWasm.ts')) &&
     !fs.existsSync(path.resolve(__dirname, '../scripts/verify-dual-stem.js')),
-  'AI/ORT/MDX/dual-stem modules and public/ort assets are fully removed'
+  'Instrumental AI stack present; live dual-stem Separazione modules stay deleted'
 );
 
 assert(
@@ -519,24 +524,28 @@ assert(
 
 assert(
   vocalRemoverShared.includes('centerCancelBassKeep') &&
+    vocalRemoverShared.includes('aiMdxKaraoke2') &&
+    vocalRemoverShared.includes('OFFLINE_VOCAL_MODELS') &&
+    vocalRemoverShared.includes('isAiVocalRemoverMethod') &&
+    vocalRemoverShared.includes('coerceAlgorithmicVocalRemoverMethod') &&
     vocalRemoverShared.includes('isInstrumentalDownloadEligibleTitle') &&
-    vocalRemoverShared.includes('coerceVocalRemoverMethod') &&
-    !vocalRemoverShared.includes('aiMdxKaraoke2') &&
-    !vocalRemoverShared.includes('OFFLINE_VOCAL_MODELS') &&
-    !vocalRemoverShared.includes('isAiVocalRemoverMethod'),
-  'Shared vocalRemover catalog is algorithmic-only'
+    vocalRemoverShared.includes('version:') &&
+    offlineModelManagerSource.includes('install.version') &&
+    offlineModelManagerSource.includes('isModelCached'),
+  'Shared catalog restores AI methods; model cache checks URL/SHA/version'
 );
 
 assert(
   audioGraphSource.includes('setupVocalRemoverGraph') &&
     audioGraphSource.includes('setVocalRemover(') &&
     audioGraphSource.includes('setVocalRemoverAlgorithm') &&
+    audioGraphSource.includes('coerceAlgorithmicVocalRemoverMethod') &&
     audioGraphSource.includes('AlgorithmicVocalRemoverNode') &&
     !audioGraphSource.includes('activateDualStemPipeline') &&
     !audioGraphSource.includes('getOfflineAiVocalSeparator') &&
     !audioGraphSource.includes('setVocalGuideLevel') &&
     !audioGraphSource.includes('DUAL_STEM_ACTIVE'),
-  'AudioGraphManager wires algorithmic DSP only (no dual-stem AI path)'
+  'AudioGraphManager live path stays algorithmic (AI Settings coerce; no Separazione)'
 );
 
 assert(
@@ -549,25 +558,31 @@ assert(
 );
 
 assert(
-  !mainSourceOrt.includes("hostname === 'ort'") &&
-    !mainSourceOrt.includes("hostname === 'models'") &&
-    !mainSourceOrt.includes('ort-wasm:ensure') &&
-    !mainSourceOrt.includes('vocal-model:') &&
+  mainSourceOrt.includes("hostname === 'ort'") &&
+    mainSourceOrt.includes("hostname === 'models'") &&
+    mainSourceOrt.includes('ort-wasm:ensure') &&
+    mainSourceOrt.includes('vocal-model:') &&
     !mainSourceOrt.includes('dual-stem:') &&
-    !preloadSourceOrt.includes('ortWasm') &&
-    !preloadSourceOrt.includes('vocalModels') &&
+    preloadSourceOrt.includes('ortWasm') &&
+    preloadSourceOrt.includes('vocalModels') &&
     !preloadSourceOrt.includes('dualStem'),
-  'Main/preload expose no karaoke://ort|models or vocal-model/dual-stem IPC'
+  'Main/preload expose karaoke://ort|models + vocal-model IPC without dual-stem'
 );
 
 assert(
   instrumentalProcessorSource.includes('processInstrumentalVideo') &&
     instrumentalProcessorSource.includes('buildAlgorithmicVocalRemoverFilter') &&
+    instrumentalProcessorSource.includes('isAiVocalRemoverMethod') &&
+    instrumentalProcessorSource.includes('separateInstrumentalWithAi') &&
+    instrumentalProcessorSource.includes('ensuring_model') &&
     downloadManagerSourceVocal.includes('instrumental') &&
     downloadManagerSourceVocal.includes('processInstrumentalVideo') &&
+    downloadManagerSourceVocal.includes('setMaxSimultaneousDownloads') &&
+    downloadManagerSourceVocal.includes('downloading_model') &&
     libraryPanelSourceVocal.includes('downloadInstrumental') &&
-    libraryPanelSourceVocal.includes('isInstrumentalDownloadEligibleTitle'),
-  'Download Instrumental: ffmpeg algorithmic pipeline + YouTube UI button'
+    libraryPanelSourceVocal.includes('isInstrumentalDownloadEligibleTitle') &&
+    libraryPanelSourceVocal.includes('instrumentalDownloadWarning'),
+  'Download Instrumental: AI/algo pipeline + concurrency + start warning'
 );
 
 assert(
@@ -616,11 +631,15 @@ assert(
 assert(
   !controlSource.includes('warnAiVocalRemoverIfNeeded') &&
     !controlSource.includes('toggleVocalRemoverWithWarning') &&
-    !settingsModalSourceVocal.includes('aiVocalHwWarningBody') &&
-    !settingsModalSourceVocal.includes('aiMdxKaraoke2') &&
+    !controlSource.includes('EXTRACTING_AND_SEPARATING') &&
+    controlSource.includes('showDownloadsMenu') &&
+    controlSource.includes('headerDownloads') &&
+    settingsModalSourceVocal.includes('aiMdxKaraoke2') &&
+    settingsModalSourceVocal.includes('maxSimultaneousDownloads') &&
     settingsModalSourceVocal.includes('centerCancelBassKeep') &&
-    settingsModalSourceVocal.includes('softMid'),
-  'Settings/Control expose algorithmic vocal options only (no AI warnings)'
+    settingsModalSourceVocal.includes('softMid') &&
+    !libraryPanelSourceVocal.includes('downloadsActive'),
+  'Settings expose AI for Instrumental; Download menu in header; no Separazione; no alert list above rows'
 );
 
 const mainSourceForDialogs = fs.readFileSync(
@@ -639,11 +658,12 @@ const itLocaleVocal = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../loc
 assert(
   enLocaleVocal.library.downloadInstrumental &&
     itLocaleVocal.library.downloadInstrumental &&
-    !enLocaleVocal.settings.vocalAiMdxKaraoke2 &&
-    !itLocaleVocal.settings.aiVocalHwWarningBody &&
-    enLocaleVocal.settings.vocalRemoverAlgorithmDesc &&
-    !/offline AI|AI locale|IA local/i.test(enLocaleVocal.settings.vocalRemoverAlgorithmDesc),
-  'EN/IT locales: Download Instrumental present; AI vocal keys removed'
+    enLocaleVocal.settings.vocalAiMdxKaraoke2 &&
+    enLocaleVocal.settings.maxSimultaneousDownloads &&
+    enLocaleVocal.library.instrumentalDownloadWarning &&
+    enLocaleVocal.library.downloadsMenu &&
+    /Download Instrumental|userData\/models/i.test(enLocaleVocal.settings.vocalRemoverAlgorithmDesc),
+  'EN/IT locales: Instrumental AI + download menu + concurrency copy present'
 );
 
 // -------------------------------------------------------------

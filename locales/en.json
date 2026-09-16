@@ -135,7 +135,12 @@
     "download": "Download",
     "downloadInstrumental": "Download Instrumental",
     "removingVocals": "Removing vocals…",
-    "remuxingInstrumental": "Building instrumental video…"
+    "remuxingInstrumental": "Building instrumental video…",
+    "instrumentalDownloadWarning": "Download Instrumental takes longer than a normal download and may use more CPU/RAM while separating vocals.",
+    "downloadsMenu": "Downloads",
+    "downloadsEmpty": "No active downloads",
+    "downloadingModel": "Downloading model…",
+    "queued": "Queued"
   },
   "settings": {
     "title": "System Settings",
@@ -227,12 +232,17 @@
     "stageMessageBackgroundBrowse": "Browse…",
     "stageMessageBackgroundClear": "Clear",
     "vocalRemoverAlgorithm": "Vocal Remover Method (Experimental)",
-    "vocalRemoverAlgorithmDesc": "Realtime classical mid/side DSP used by the Control vocal-remover button (no AI / no model download).",
+    "vocalRemoverAlgorithmDesc": "Algorithmic DSP is used by live Rimozione Vocale. Offline AI methods apply to Download Instrumental (models download once into app data / userData/models, then stay offline).",
     "vocalGroupAlgorithmic": "Realtime DSP",
-    "vocalGroupAi": "Offline AI (Experimental)",
+    "vocalGroupAi": "Offline AI — Download Instrumental",
     "vocalAlgoCenterBass": "Center cancel (keep bass)",
     "vocalAlgoCenter": "Full center cancel (classic L−R)",
-    "vocalAlgoSoftMid": "Soft mid attenuation (fewer artifacts)"
+    "vocalAlgoSoftMid": "Soft mid attenuation (fewer artifacts)",
+    "vocalAiMdxKaraoke2": "UVR-MDX-NET Karaoke 2 — ~53 MB — recommended AI",
+    "vocalAiHtDemucs": "HTDemucs v4 — ~172 MB (Experimental)",
+    "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 MB — advanced (Experimental)",
+    "maxSimultaneousDownloads": "Max simultaneous downloads",
+    "maxSimultaneousDownloadsDesc": "Shared limit for traditional Download and Download Instrumental. Extra jobs wait in the Download menu queue."
   },
   "history": {
     "title": "Playback History",

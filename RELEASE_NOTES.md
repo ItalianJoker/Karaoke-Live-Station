@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **Rimozione Vocale solo algoritmica** (DSP mid/side) + **Scarica strumentale** YouTube + rimozione completa del percorso AI (ONNX/ORT/MDX/dual-stem) + fix storici UI/archivio/Stage.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **Scarica strumentale con AI offline selezionabile** + menu Download + pool download simultanei + **ricerca senza accenti** + Rimozione Vocale live solo DSP (niente Separazione dual-stem) + fix storici UI/archivio/Stage.
 
 ## 📦 File di Installazione
 
@@ -23,18 +23,22 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **Rimozione Vocale so
 
 ## 🌟 Novità di questa refresh
 
-### 🎙️ Rimozione Vocale (Sperimentale) — solo DSP algoritmico
-- Tendina **Impostazioni → Audio**: `centerCancelBassKeep`, `centerCancel`, `softMid` (mid/side in tempo reale).
-- **Nessuna** AI / ONNX / ORT / download modelli; niente spinner «Separazione…» né fader dual-stem.
-- Pulsante Regia etichettato **(Sperimentale)**; scorciatoia `V`.
+### 🎙️ Rimozione Vocale live — solo DSP
+- Pulsante Regia / tasto `V`: mid/side algoritmico (`centerCancelBassKeep`, `centerCancel`, `softMid`).
+- **Niente** spinner «Separazione…» né fader dual-stem live.
 
-### 📥 Scarica strumentale (ricerca YouTube)
-- Pulsante accanto a Scarica quando il titolo **non** contiene già `Karaoke` o `instrumental` (case-insensitive).
-- Pipeline: download → demux audio → rimozione voce algoritmica (ffmpeg) → remux MP4 strumentale → libreria (`… (Instrumental)`).
-- Sottotitoli auto bruciati sul video se disponibili; altrimenti remux senza burn-in.
+### 🤖 Scarica strumentale — AI offline (selezionabile)
+- Impostazioni → Audio: UVR-MDX Karaoke 2 / HTDemucs / BS-Roformer (oltre al DSP).
+- Modelli in `userData/models/`; aggiornamento solo se mancanti, corrotti o catalogo più nuovo (URL/SHA/version).
+- Pipeline: yt-dlp → ensure modello → separazione AI (utility process) o DSP → remux (+ lyric burn se possibile) → libreria `(Instrumental)`.
+- Toast di avviso all’avvio (più lungo / più risorse di un download normale).
 
-### 🧹 Rimozione percorso AI
-- Eliminati ONNX Runtime, MDX/HTDemucs/BS-Roformer, `karaoke://models` / `karaoke://ort`, model manager, cache dual-stem e dipendenze correlate.
+### 📥 Menu Download + concorrenza
+- Progresso attivo/in coda nel menu Download a sinistra di Impostazioni (niente alert sopra le righe brani).
+- Impostazione **Download simultanei massimi** (pool condiviso normale + strumentale).
+
+### 🔎 Ricerca senza accenti
+- Query senza diacritici trovano titoli accentati (es. `moriro` → *morirò*) su Local, Web, coda, cronologia, Impostazioni e scorciatoie.
 
 ### 🔇 Conferma unmute anteprima YouTube (stesso dispositivo)
 - Embed YouTube ricerca Web / Pre-Ascolto: stesso modale tematico se CUE === Uscita Principale.
@@ -68,7 +72,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **Rimozione Vocale so
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **algorithmic-only vocal remover** (mid/side DSP) + YouTube **Download Instrumental** + full removal of the AI path (ONNX/ORT/MDX/dual-stem) + retained UI/archive/Stage fixes.
+GitHub Release **v1.1.0** overwrite: **Download Instrumental with selectable offline AI** + Download menu + simultaneous download pool + **accent-insensitive search** + live vocal remover stays DSP-only (no dual-stem Separazione) + retained UI/archive/Stage fixes.
 
 ## 📦 Installers
 
@@ -82,18 +86,22 @@ GitHub Release **v1.1.0** overwrite: **algorithmic-only vocal remover** (mid/sid
 
 ## 🌟 What’s new in this refresh
 
-### 🎙️ Vocal Remover (Experimental) — algorithmic DSP only
-- **Settings → Audio**: `centerCancelBassKeep`, `centerCancel`, `softMid` (realtime mid/side).
-- **No** AI / ONNX / ORT / model download; no “Separating…” spinner or dual-stem fader.
-- Control button labeled **(Experimental)**; shortcut `V`.
+### 🎙️ Live Vocal Remover — DSP only
+- Control button / `V`: algorithmic mid/side (`centerCancelBassKeep`, `centerCancel`, `softMid`).
+- **No** “Separating…” spinner or live dual-stem fader.
 
-### 📥 Download Instrumental (YouTube search)
-- Button next to Download when the title does **not** already contain `Karaoke` or `instrumental` (case-insensitive).
-- Pipeline: download → demux audio → algorithmic vocal removal (ffmpeg) → remux instrumental MP4 → library (`… (Instrumental)`).
-- Auto-subs burned onto the video when available; otherwise remux without burn-in.
+### 🤖 Download Instrumental — selectable offline AI
+- Settings → Audio: UVR-MDX Karaoke 2 / HTDemucs / BS-Roformer (plus DSP options).
+- Models under `userData/models/`; update only when missing, corrupt, or catalog newer (URL/SHA/version).
+- Pipeline: yt-dlp → ensure model → AI (utility process) or DSP separate → remux (+ lyric burn when possible) → library `(Instrumental)`.
+- Non-blocking toast on start (longer / heavier than a normal download).
 
-### 🧹 AI path removed
-- Removed ONNX Runtime, MDX/HTDemucs/BS-Roformer, `karaoke://models` / `karaoke://ort`, model manager, dual-stem caches, and related dependencies.
+### 📥 Download menu + concurrency
+- Active/queued progress in the Download menu left of Settings (no alert list above song rows).
+- **Max simultaneous downloads** setting (shared pool for normal + instrumental).
+
+### 🔎 Accent-insensitive search
+- Unaccented queries match accented titles (e.g. `moriro` → *morirò*) across Local, Web, queue, history, Settings, and shortcuts.
 
 ### 🔇 YouTube preview unmute confirm (same device)
 - Web-search / Pre-Listen YouTube embed: same themed confirm when CUE === Main Output.

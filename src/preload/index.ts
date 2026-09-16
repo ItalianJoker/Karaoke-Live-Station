@@ -15,6 +15,7 @@ import {
   FirewallCheckResult,
   SiaeLogEntry
 } from '../shared/types';
+import type { OfflineVocalModelId, VocalModelDownloadProgress } from '../shared/vocalRemover';
 
 /**
  * Secure IPC Bridge contract exposed to the renderer window via contextBridge.
@@ -131,6 +132,51 @@ export interface KaraokeAPI {
     onProgress: (callback: (payload: DownloadProgressPayload) => void) => () => void;
     /** Subscribes to library reindex notifications after saves */
     onLibraryReindexed: (callback: () => void) => () => void;
+  };
+
+  // 6b. Offline AI models for Download Instrumental (userData/models) — not live dual-stem
+  vocalModels: {
+    isModelCached: (modelId: OfflineVocalModelId) => Promise<boolean>;
+    ensureModel: (
+      modelId: OfflineVocalModelId
+    ) => Promise<{
+      success: boolean;
+      modelPath?: string;
+      modelUrl?: string;
+      error?: string;
+    }>;
+    getModelBuffer: (
+      modelId: OfflineVocalModelId
+    ) => Promise<{ success: boolean; buffer?: ArrayBuffer; error?: string }>;
+    listModels: () => Promise<
+      Array<{
+        id: OfflineVocalModelId;
+        label: string;
+        approxSizeMb: number;
+        filename: string;
+        version?: string;
+        cached: boolean;
+      }>
+    >;
+    onDownloadProgress: (callback: (progress: VocalModelDownloadProgress) => void) => () => void;
+  };
+
+  // 6c. ORT WASM under userData/ort
+  ortWasm: {
+    ensure: () => Promise<{
+      success: boolean;
+      wasmPathsPrefix?: string;
+      wasmFilePaths?: { wasm: string; mjs: string };
+      ortDir?: string;
+      error?: string;
+    }>;
+    getPaths: () => Promise<{
+      success: boolean;
+      wasmPathsPrefix?: string;
+      wasmFilePaths?: { wasm: string; mjs: string };
+      ortDir?: string;
+      error?: string;
+    }>;
   };
 
   // 7. Guest Portal & Requests
@@ -297,6 +343,29 @@ const karaokeApi: KaraokeAPI = {
         ipcRenderer.removeListener('library:reindexed', handler);
       };
     }
+  },
+
+  vocalModels: {
+    isModelCached: (modelId: OfflineVocalModelId) =>
+      ipcRenderer.invoke('vocal-model:is-cached', modelId),
+    ensureModel: (modelId: OfflineVocalModelId) =>
+      ipcRenderer.invoke('vocal-model:ensure', modelId),
+    getModelBuffer: (modelId: OfflineVocalModelId) =>
+      ipcRenderer.invoke('vocal-model:get-buffer', modelId),
+    listModels: () => ipcRenderer.invoke('vocal-model:list'),
+    onDownloadProgress: (callback: (progress: VocalModelDownloadProgress) => void) => {
+      const handler = (_event: IpcRendererEvent, progress: VocalModelDownloadProgress) =>
+        callback(progress);
+      ipcRenderer.on('vocal-model:download-progress', handler);
+      return () => {
+        ipcRenderer.removeListener('vocal-model:download-progress', handler);
+      };
+    }
+  },
+
+  ortWasm: {
+    ensure: () => ipcRenderer.invoke('ort-wasm:ensure'),
+    getPaths: () => ipcRenderer.invoke('ort-wasm:get-paths')
   },
 
   // Guest Portal Bridge

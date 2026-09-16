@@ -106,10 +106,22 @@ export interface AppSettings {
   /** Enable DSP mid/side guide-vocal attenuation (algorithmic only) */
   enableVocalRemover: boolean;
   /**
-   * Vocal remover method selected in Settings (realtime Web Audio DSP only).
+   * Vocal remover method selected in Settings.
+   * Algorithmic ids drive live Rimozione Vocale DSP; AI ids apply to Download Instrumental.
    * See `src/shared/vocalRemover.ts` for the catalog.
    */
-  vocalRemoverAlgorithm: 'centerCancelBassKeep' | 'centerCancel' | 'softMid';
+  vocalRemoverAlgorithm:
+    | 'centerCancelBassKeep'
+    | 'centerCancel'
+    | 'softMid'
+    | 'aiMdxKaraoke2'
+    | 'aiHtDemucs'
+    | 'aiBsRoformer';
+  /**
+   * Max concurrent yt-dlp jobs (shared pool for traditional Download and Download Instrumental).
+   * Extra starts are queued until a slot frees.
+   */
+  maxSimultaneousDownloads: number;
   /** Enable microphone-triggered background music ducking */
   enableAutoDuckingBGM: boolean;
   /** Enable automatic dynamic audio volume normalization (leveling) */
@@ -288,9 +300,11 @@ export interface DownloadProgressPayload {
   totalBytes: number;
   /** Current download phase */
   status:
+    | 'queued'
     | 'downloading'
     | 'converting'
     | 'processing'
+    | 'downloading_model'
     | 'removing_vocals'
     | 'remuxing'
     | 'completed'
@@ -304,6 +318,10 @@ export interface DownloadProgressPayload {
   alreadyExists?: boolean;
   /** Where the reused file was found */
   existingLocation?: 'library' | 'queue_cache' | 'database';
+  /** True when this job requested instrumental post-process */
+  instrumental?: boolean;
+  /** Display title hint for the Download menu */
+  titleHint?: string;
 }
 
 /**
@@ -317,9 +335,9 @@ export interface StartDownloadOptions {
   artistHint?: string;
   trackId?: string;
   libraryPath?: string;
-  /** When true, apply algorithmic vocal removal and remux instrumental A/V after download */
+  /** When true, apply vocal removal (AI or algorithmic) and remux instrumental A/V after download */
   instrumental?: boolean;
-  /** Algorithmic vocal-remover method for instrumental post-process */
+  /** Vocal-remover method for instrumental post-process (AI or algorithmic) */
   vocalRemoverAlgorithm?: string;
 }
 

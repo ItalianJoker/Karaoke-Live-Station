@@ -334,7 +334,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     'mid',
     'side',
     'center',
-    'bass'
+    'bass',
+    'ai',
+    'mdx',
+    'demucs',
+    'instrumental'
+  );
+  const matchMaxDownloads = matchesSearch(
+    t('settings.maxSimultaneousDownloads'),
+    t('settings.maxSimultaneousDownloadsDesc'),
+    'download',
+    'simultaneous',
+    'concurrent',
+    'paralleli',
+    'max'
   );
   const matchNormalization = matchesSearch(
     t('settings.audioNormalization'),
@@ -405,7 +418,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const generalHasMatches =
     matchSupport || matchThemeLang || matchFairQueue || matchGuestPortal || matchSiae || matchLogs;
-  const libraryHasMatches = matchLibraryPath || matchAutoArchive || matchYtdlp;
+  const libraryHasMatches = matchLibraryPath || matchAutoArchive || matchYtdlp || matchMaxDownloads;
   const audioHasMatches =
     matchSoundfont || matchDevices || matchAvSync || matchVocalRemoverAlgo || matchNormalization || matchAutoAdvance;
   const stageHasMatches =
@@ -803,6 +816,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </label>
               )}
 
+              {(!isSearching || matchMaxDownloads) && (
+                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2">
+                  <label className="block font-semibold text-white text-xs">
+                    {t('settings.maxSimultaneousDownloads')}
+                  </label>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    {t('settings.maxSimultaneousDownloadsDesc')}
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={1}
+                      max={8}
+                      step={1}
+                      value={Math.min(8, Math.max(1, settings.maxSimultaneousDownloads || 2))}
+                      onChange={(e) =>
+                        updateSettings({
+                          maxSimultaneousDownloads: Math.min(
+                            8,
+                            Math.max(1, parseInt(e.target.value, 10) || 2)
+                          )
+                        })
+                      }
+                      className="flex-1 accent-indigo-600"
+                    />
+                    <span className="text-xs font-mono text-indigo-300 w-6 text-right">
+                      {Math.min(8, Math.max(1, settings.maxSimultaneousDownloads || 2))}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {(!isSearching || matchYtdlp) && (
                 <div className="space-y-3 pt-1">
                   <div className="flex items-center justify-between flex-wrap gap-2">
@@ -991,9 +1036,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs"
                   >
-                    <option value="centerCancelBassKeep">{t('settings.vocalAlgoCenterBass')}</option>
-                    <option value="centerCancel">{t('settings.vocalAlgoCenter')}</option>
-                    <option value="softMid">{t('settings.vocalAlgoSoftMid')}</option>
+                    <optgroup label={t('settings.vocalGroupAlgorithmic')}>
+                      <option value="centerCancelBassKeep">{t('settings.vocalAlgoCenterBass')}</option>
+                      <option value="centerCancel">{t('settings.vocalAlgoCenter')}</option>
+                      <option value="softMid">{t('settings.vocalAlgoSoftMid')}</option>
+                    </optgroup>
+                    <optgroup label={t('settings.vocalGroupAi')}>
+                      <option value="aiMdxKaraoke2">{t('settings.vocalAiMdxKaraoke2')}</option>
+                      <option value="aiHtDemucs">{t('settings.vocalAiHtDemucs')}</option>
+                      <option value="aiBsRoformer">{t('settings.vocalAiBsRoformer')}</option>
+                    </optgroup>
                   </select>
                 </div>
               )}

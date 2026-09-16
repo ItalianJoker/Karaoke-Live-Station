@@ -1,24 +1,37 @@
 /**
- * Offline algorithmic instrumental pipeline for downloaded videos.
+ * Offline instrumental pipeline for downloaded videos.
  *
  * 1. Demux audio to PCM WAV via ffmpeg
- * 2. Apply mid/side vocal-reduction filters matching AlgorithmicVocalRemoverNode
+ * 2. Remove vocals:
+ *    - AI methods → OfflineVocalModelManager + utility-process ORT (Download Instrumental)
+ *    - Algorithmic → ffmpeg mid/side filter matching AlgorithmicVocalRemoverNode
  * 3. Remux original video with instrumental audio (optional subtitle burn-in)
+ *
+ * Live Rimozione Vocale stays algorithmic in the renderer — this module is download-only.
  */
 import { execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
 import {
+  coerceAlgorithmicVocalRemoverMethod,
   coerceVocalRemoverMethod,
-  type AlgorithmicVocalRemoverMethod
+  isAiVocalRemoverMethod,
+  methodToModelId,
+  type AlgorithmicVocalRemoverMethod,
+  type AiVocalRemoverMethod
 } from '../../shared/vocalRemover';
 import { resolveFfmpegPath } from './BinaryResolver';
+import { separateInstrumentalWithAi } from './InstrumentalAiSeparator';
+import type { OfflineVocalModelManager } from './OfflineVocalModelManager';
+import type { OrtWasmManager } from './OrtWasmManager';
+import type { Logger } from './Logger';
 
 const execFileAsync = promisify(execFile);
 
 export type InstrumentalProcessPhase =
   | 'extracting'
+  | 'ensuring_model'
   | 'removing_vocals'
   | 'remuxing';
 
@@ -29,6 +42,10 @@ export type InstrumentalProcessOptions = {
   /** Optional .srt / .ass / .vtt for burn-in */
   subtitlePath?: string | null;
   onProgress?: (phase: InstrumentalProcessPhase, percent: number) => void;
+  /** Required when algorithm is an AI method */
+  vocalModelManager?: OfflineVocalModelManager;
+  ortWasmManager?: OrtWasmManager;
+  logger?: Logger;
 };
 
 export type InstrumentalProcessResult = {
@@ -68,7 +85,6 @@ export function buildAlgorithmicVocalRemoverFilter(
       break;
   }
 
-  // Input label [0:a] assumed by caller when embedding; here we return a chain from [in] → [out]
   return [
     `[0:a]asplit=2[orig][orig2]`,
     `[orig]pan=mono|c0=0.5*c0+0.5*c1[mid]`,
@@ -121,15 +137,78 @@ export function findSiblingSubtitle(videoPath: string): string | null {
   }
 }
 
+async function removeVocalsAlgorithmic(
+  extractedWav: string,
+  instrumentalWav: string,
+  algorithm: AlgorithmicVocalRemoverMethod
+): Promise<void> {
+  const filter = buildAlgorithmicVocalRemoverFilter(algorithm);
+  await runFfmpeg([
+    '-y',
+    '-i',
+    extractedWav,
+    '-filter_complex',
+    filter,
+    '-map',
+    '[aout]',
+    '-ac',
+    '2',
+    '-ar',
+    '44100',
+    '-c:a',
+    'pcm_s16le',
+    instrumentalWav
+  ]);
+}
+
+async function removeVocalsAi(
+  extractedWav: string,
+  instrumentalWav: string,
+  method: AiVocalRemoverMethod,
+  options: InstrumentalProcessOptions,
+  report: (phase: InstrumentalProcessPhase, percent: number) => void
+): Promise<void> {
+  const { vocalModelManager, ortWasmManager, logger } = options;
+  if (!vocalModelManager || !ortWasmManager) {
+    throw new Error('AI instrumental separation requires OfflineVocalModelManager + OrtWasmManager');
+  }
+
+  const modelId = methodToModelId(method);
+  report('ensuring_model', 20);
+  // ensureModel skips download when local userData/models copy is already current
+  // (URL/SHA/version match); only fetches when missing, corrupt, or newer remote.
+  const modelPath = await vocalModelManager.ensureModel(modelId);
+  report('ensuring_model', 40);
+  const ortPaths = await ortWasmManager.ensureOrtWasm();
+  const ortDir = ortPaths.ortDir || ortWasmManager.getOrtDir();
+
+  report('removing_vocals', 45);
+  await separateInstrumentalWithAi(
+    {
+      method,
+      modelPath,
+      ortDir,
+      inputWav: extractedWav,
+      outputWav: instrumentalWav,
+      onProgress: (info) => {
+        const pct = 45 + Math.max(0, Math.min(1, info.progress)) * 25;
+        report('removing_vocals', pct);
+      }
+    },
+    logger
+  );
+}
+
 /**
- * Demux → algorithmic vocal remove → remux (optional lyrics burn).
+ * Demux → AI or algorithmic vocal remove → remux (optional lyrics burn).
  */
 export async function processInstrumentalVideo(
   options: InstrumentalProcessOptions
 ): Promise<InstrumentalProcessResult> {
   const input = path.resolve(options.inputVideoPath);
   const output = path.resolve(options.outputPath);
-  const algorithm = coerceVocalRemoverMethod(options.algorithm);
+  const selected = coerceVocalRemoverMethod(options.algorithm);
+  const useAi = isAiVocalRemoverMethod(selected);
 
   if (!fs.existsSync(input)) {
     return { success: false, error: `Input video not found: ${input}` };
@@ -167,26 +246,24 @@ export async function processInstrumentalVideo(
       extractedWav
     ]);
 
-    report('removing_vocals', 35);
-    const filter = buildAlgorithmicVocalRemoverFilter(algorithm);
-    await runFfmpeg([
-      '-y',
-      '-i',
-      extractedWav,
-      '-filter_complex',
-      filter,
-      '-map',
-      '[aout]',
-      '-ac',
-      '2',
-      '-ar',
-      '44100',
-      '-c:a',
-      'pcm_s16le',
-      instrumentalWav
-    ]);
+    if (useAi) {
+      await removeVocalsAi(
+        extractedWav,
+        instrumentalWav,
+        selected as AiVocalRemoverMethod,
+        options,
+        report
+      );
+    } else {
+      report('removing_vocals', 35);
+      await removeVocalsAlgorithmic(
+        extractedWav,
+        instrumentalWav,
+        coerceAlgorithmicVocalRemoverMethod(selected)
+      );
+    }
 
-    report('remuxing', 70);
+    report('remuxing', 75);
     const subtitlePath =
       options.subtitlePath && fs.existsSync(options.subtitlePath)
         ? options.subtitlePath
@@ -194,7 +271,6 @@ export async function processInstrumentalVideo(
 
     let lyricsBurned = false;
     if (subtitlePath) {
-      // Escape path for ffmpeg subtitles filter (Windows + special chars)
       const escapedSub = subtitlePath
         .replace(/\\/g, '/')
         .replace(/:/g, '\\:')
@@ -229,7 +305,6 @@ export async function processInstrumentalVideo(
         ]);
         lyricsBurned = true;
       } catch {
-        // Fall back to copy+remux without burn if subtitle filter fails
         lyricsBurned = false;
         await runFfmpeg([
           '-y',

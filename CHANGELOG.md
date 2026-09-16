@@ -6,22 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ---
 
-## [1.1.0] — Algorithmic vocal remover + Download Instrumental (refresh) — 2026-09-16
-
-Overwrite of GitHub Release `v1.1.0` after removing the AI vocal path and adding YouTube Download Instrumental.
-
-### Removed
-- Offline AI vocal remover stack (ONNX Runtime / MDX / HTDemucs / BS-Roformer, `karaoke://models` & `karaoke://ort`, dual-stem on-demand mixer, model manager, related settings and caches).
-
-### Changed
-- Live **Rimozione Vocale** / Vocal Remover uses **algorithmic mid/side DSP only** (Settings: `centerCancelBassKeep`, `centerCancel`, `softMid`).
-
-### Added
-- YouTube search **Download Instrumental** (hidden when title already contains Karaoke/instrumental): download → demux → algorithmic vocal removal → remux MP4 (optional subtitle burn-in) → library.
-
 ## [Unreleased]
 
----
+### Added
+- **Download Instrumental — offline AI vocal removal** (Settings: UVR-MDX Karaoke 2 / HTDemucs / BS-Roformer). Models persist under `userData/models/` and update only when missing, corrupt, or catalog URL/SHA/version is newer. Live Rimozione Vocale stays algorithmic (no Separazione dual-stem).
+- **Download menu** (header, left of Settings) for active/queued progress; removed alert-style list above library rows.
+- **Max simultaneous downloads** setting (shared pool for normal + instrumental).
+- Non-blocking toast warning when starting Download Instrumental (longer / heavier than a normal download).
+
+## [1.1.0] — Algorithmic vocal remover + Download Instrumental (refresh) — 2026-09-16
 
 ## [1.1.0] — On-demand dual-stem vocal remover (refresh) — 2026-09-16
 

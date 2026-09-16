@@ -13,6 +13,9 @@ import {
   findSiblingSubtitle,
   processInstrumentalVideo
 } from './InstrumentalProcessor';
+import type { OfflineVocalModelManager } from './OfflineVocalModelManager';
+import type { OrtWasmManager } from './OrtWasmManager';
+import type { Logger } from './Logger';
 
 /** Media extensions considered when matching existing local karaoke files. */
 const MEDIA_EXTENSIONS = new Set([
@@ -48,11 +51,11 @@ export interface DownloadOptions {
   /** Optional catalog snapshot used for id/path deduplication */
   catalogTracks?: KaraokeMediaTrack[];
   /**
-   * When true: after download, demux audio, apply algorithmic vocal removal,
+   * When true: after download, demux audio, apply vocal removal (AI or algorithmic),
    * remux video with instrumental audio (optional lyric burn-in), then complete.
    */
   instrumental?: boolean;
-  /** Algorithmic vocal-remover method for instrumental post-process */
+  /** Vocal-remover method for instrumental post-process (AI or algorithmic) */
   vocalRemoverAlgorithm?: string;
 }
 
@@ -60,6 +63,13 @@ export interface DownloadOptions {
  * Callback function listening for live download progress updates.
  */
 export type DownloadProgressCallback = (payload: DownloadProgressPayload) => void;
+
+type PendingDownloadJob = {
+  downloadId: string;
+  options: DownloadOptions;
+  payload: DownloadProgressPayload;
+  dedupUrlKey: string;
+};
 
 /**
  * Background Download Manager wrapping yt-dlp child processes.
@@ -75,6 +85,12 @@ export class DownloadManager {
     new Map();
   private activeUrls: Map<string, string> = new Map();
   private progressListeners: Set<DownloadProgressCallback> = new Set();
+  /** Shared pool limit for normal + instrumental yt-dlp children. */
+  private maxSimultaneousDownloads = 2;
+  private pendingQueue: PendingDownloadJob[] = [];
+  private vocalModelManager?: OfflineVocalModelManager;
+  private ortWasmManager?: OrtWasmManager;
+  private logger?: Logger;
 
   constructor(tempDir: string, queueCacheDir?: string) {
     this.tempDir = tempDir;
@@ -91,6 +107,22 @@ export class DownloadManager {
     this.ytdlpPath = resolveYtDlpPath();
   }
 
+  public setMaxSimultaneousDownloads(n: number): void {
+    const clamped = Math.max(1, Math.min(8, Math.floor(Number(n)) || 1));
+    this.maxSimultaneousDownloads = clamped;
+    this.pumpQueue();
+  }
+
+  public setInstrumentalAiDeps(deps: {
+    vocalModelManager: OfflineVocalModelManager;
+    ortWasmManager: OrtWasmManager;
+    logger: Logger;
+  }): void {
+    this.vocalModelManager = deps.vocalModelManager;
+    this.ortWasmManager = deps.ortWasmManager;
+    this.logger = deps.logger;
+  }
+
   public subscribeProgress(cb: DownloadProgressCallback): () => void {
     this.progressListeners.add(cb);
     return () => {
@@ -105,6 +137,28 @@ export class DownloadManager {
       } catch (err) {
         console.error('Error in progress listener:', err);
       }
+    }
+  }
+
+  /** Count of active yt-dlp children (excludes queued pending jobs). */
+  private getRunningCount(): number {
+    let count = 0;
+    for (const entry of this.activeProcesses.values()) {
+      if (entry.payload.status !== 'queued') count++;
+    }
+    return count;
+  }
+
+  /** Starts the next pending job(s) while slots remain under the shared pool limit. */
+  private pumpQueue(): void {
+    while (this.getRunningCount() < this.maxSimultaneousDownloads && this.pendingQueue.length > 0) {
+      const next = this.pendingQueue.shift();
+      if (!next) break;
+      if (next.payload.status === 'cancelled') continue;
+      next.payload.status = 'downloading';
+      next.payload.percent = 0;
+      this.emitProgress({ ...next.payload });
+      this.launchDownload(next.downloadId, next.options, next.payload, next.dedupUrlKey);
     }
   }
 
@@ -305,6 +359,7 @@ export class DownloadManager {
 
   /**
    * Starts a download, or immediately reuses an existing local file when dedup finds a match.
+   * Excess jobs beyond {@link maxSimultaneousDownloads} are queued until a yt-dlp slot frees.
    */
   public async startDownload(options: DownloadOptions): Promise<StartDownloadResult> {
     this.ytdlpPath = resolveYtDlpPath();
@@ -354,7 +409,9 @@ export class DownloadManager {
         status: 'completed',
         outputFilePath: existingUsable.localFilePath,
         alreadyExists: true,
-        existingLocation: existingUsable.location
+        existingLocation: existingUsable.location,
+        instrumental,
+        titleHint: effectiveTitle
       };
       this.emitProgress(payload);
       return {
@@ -367,15 +424,21 @@ export class DownloadManager {
     }
 
     const existingDownloadId = this.activeUrls.get(dedupUrlKey);
-    if (existingDownloadId && this.activeProcesses.has(existingDownloadId)) {
+    if (existingDownloadId) {
       const active = this.activeProcesses.get(existingDownloadId);
-      if (active) this.emitProgress({ ...active.payload });
-      return { downloadId: existingDownloadId, alreadyExists: false };
+      if (active) {
+        this.emitProgress({ ...active.payload });
+        return { downloadId: existingDownloadId, alreadyExists: false };
+      }
+      const pending = this.pendingQueue.find((job) => job.downloadId === existingDownloadId);
+      if (pending) {
+        this.emitProgress({ ...pending.payload });
+        return { downloadId: existingDownloadId, alreadyExists: false };
+      }
     }
 
     const downloadId = `dl_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     this.activeUrls.set(dedupUrlKey, downloadId);
-    const outputTemplate = path.join(this.tempDir, `${downloadId}.%(ext)s`);
 
     const payload: DownloadProgressPayload = {
       downloadId,
@@ -384,9 +447,44 @@ export class DownloadManager {
       eta: '--:--',
       downloadedBytes: 0,
       totalBytes: 0,
-      status: 'downloading'
+      status: 'downloading',
+      instrumental,
+      titleHint: effectiveTitle
     };
+
+    const launchOptions: DownloadOptions = {
+      ...options,
+      titleHint: effectiveTitle
+    };
+
+    if (this.getRunningCount() >= this.maxSimultaneousDownloads) {
+      payload.status = 'queued';
+      this.pendingQueue.push({
+        downloadId,
+        options: launchOptions,
+        payload,
+        dedupUrlKey
+      });
+      this.emitProgress({ ...payload });
+      return { downloadId, alreadyExists: false };
+    }
+
     this.emitProgress(payload);
+    this.launchDownload(downloadId, launchOptions, payload, dedupUrlKey);
+    return { downloadId, alreadyExists: false };
+  }
+
+  /**
+   * Spawns yt-dlp for a download that already owns a pool slot (or was just dequeued).
+   */
+  private launchDownload(
+    downloadId: string,
+    options: DownloadOptions,
+    payload: DownloadProgressPayload,
+    dedupUrlKey: string
+  ): void {
+    const instrumental = options.instrumental === true;
+    const outputTemplate = path.join(this.tempDir, `${downloadId}.%(ext)s`);
 
     const args: string[] = [
       options.url,
@@ -466,6 +564,7 @@ export class DownloadManager {
       void (async () => {
         this.activeProcesses.delete(downloadId);
         this.activeUrls.delete(dedupUrlKey);
+        this.pumpQueue();
 
         if (code === 0) {
           if (!detectedOutputFile || !fs.existsSync(detectedOutputFile)) {
@@ -487,14 +586,20 @@ export class DownloadManager {
               outputPath: instrumentalOut,
               algorithm: options.vocalRemoverAlgorithm,
               subtitlePath,
+              vocalModelManager: this.vocalModelManager,
+              ortWasmManager: this.ortWasmManager,
+              logger: this.logger,
               onProgress: (phase, percent) => {
                 if (payload.status === 'cancelled') return;
-                payload.status =
-                  phase === 'remuxing'
-                    ? 'remuxing'
-                    : phase === 'removing_vocals'
-                      ? 'removing_vocals'
-                      : 'processing';
+                if (phase === 'ensuring_model') {
+                  payload.status = 'downloading_model';
+                } else if (phase === 'removing_vocals') {
+                  payload.status = 'removing_vocals';
+                } else if (phase === 'remuxing') {
+                  payload.status = 'remuxing';
+                } else {
+                  payload.status = 'processing';
+                }
                 payload.percent = Math.max(payload.percent, 80 + percent * 0.2);
                 this.emitProgress({ ...payload });
               }
@@ -540,9 +645,8 @@ export class DownloadManager {
       payload.status = 'error';
       payload.errorMessage = err.message;
       this.emitProgress({ ...payload });
+      this.pumpQueue();
     });
-
-    return { downloadId, alreadyExists: false };
   }
 
   /** Ensures library/display title marks instrumental versions distinctly. */
@@ -553,6 +657,16 @@ export class DownloadManager {
   }
 
   public cancelDownload(downloadId: string): boolean {
+    const pendingIdx = this.pendingQueue.findIndex((job) => job.downloadId === downloadId);
+    if (pendingIdx >= 0) {
+      const [pending] = this.pendingQueue.splice(pendingIdx, 1);
+      pending.payload.status = 'cancelled';
+      pending.payload.errorMessage = 'Download cancelled by user';
+      this.emitProgress({ ...pending.payload });
+      this.activeUrls.delete(pending.dedupUrlKey);
+      return true;
+    }
+
     const active = this.activeProcesses.get(downloadId);
     if (!active) return false;
 
@@ -574,6 +688,7 @@ export class DownloadManager {
       console.warn('Failed to clean partial download files:', err);
     }
 
+    this.pumpQueue();
     return true;
   }
 

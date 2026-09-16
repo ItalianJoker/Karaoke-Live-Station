@@ -28,8 +28,9 @@ import {
   Star,
   History,
   GripVertical,
-  HelpCircle,
-  Download
+  Download,
+  XCircle,
+  HelpCircle
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AudioGraphManager } from '../core/AudioGraphManager';
@@ -43,7 +44,7 @@ import { SingersModal } from './SingersModal';
 import { GuestRequestsModal } from './GuestRequestsModal';
 import { FirewallGuideCard } from './FirewallGuideCard';
 import { ShortcutsHelpModal } from './ShortcutsHelpModal';
-import { AppSettings } from '../../shared/types';
+import { AppSettings, DownloadProgressPayload } from '../../shared/types';
 import { textMatchesSearch } from '../../shared/textNormalize';
 import appLogo from '../assets/logo.png';
 
@@ -83,6 +84,11 @@ export const ControlWindow: React.FC = () => {
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [showPortalQrModal, setShowPortalQrModal] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showDownloadsMenu, setShowDownloadsMenu] = useState(false);
+  const [headerDownloads, setHeaderDownloads] = useState<Record<string, DownloadProgressPayload>>(
+    {}
+  );
+  const downloadsMenuRef = useRef<HTMLDivElement>(null);
 
   // View tabs on right panel: 'queue' | 'library' | 'history'
   const [activeRightTab, setActiveRightTab] = useState<'queue' | 'library' | 'history'>(() => {
@@ -106,6 +112,16 @@ export const ControlWindow: React.FC = () => {
       window.karaokeApi.guestPortal.getInfo().then(setPortalInfo);
     }
   }, [showPortalQrModal]);
+
+  useEffect(() => {
+    if (!showDownloadsMenu) return;
+    const onDoc = (ev: MouseEvent) => {
+      const el = downloadsMenuRef.current;
+      if (el && !el.contains(ev.target as Node)) setShowDownloadsMenu(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [showDownloadsMenu]);
 
   const [editingSingerItem, setEditingSingerItem] = useState<import('../../shared/types').QueueItem | null>(null);
   const [editingSingerText, setEditingSingerText] = useState<string>('');
@@ -436,6 +452,24 @@ export const ControlWindow: React.FC = () => {
       });
 
       const unSubDownloads = window.karaokeApi.downloads.onProgress((payload) => {
+        setHeaderDownloads((prev) => {
+          const next = { ...prev, [payload.downloadId]: payload };
+          if (
+            payload.status === 'completed' ||
+            payload.status === 'error' ||
+            payload.status === 'cancelled'
+          ) {
+            // Keep terminal rows briefly then drop so the menu stays tidy
+            setTimeout(() => {
+              setHeaderDownloads((cur) => {
+                const copy = { ...cur };
+                delete copy[payload.downloadId];
+                return copy;
+              });
+            }, 4000);
+          }
+          return next;
+        });
         if (payload.status === 'downloading' || payload.status === 'converting') {
           setDownloadProgress({ percent: payload.percent, speed: payload.speed });
         } else if (payload.status === 'completed' && payload.outputFilePath) {
@@ -876,6 +910,84 @@ export const ControlWindow: React.FC = () => {
           >
             <HelpCircle className="w-4 h-4 text-indigo-400 hover:text-indigo-300" />
           </button>
+
+          {/* Downloads menu — active/queued progress (replaces alert list above library rows) */}
+          <div className="relative" ref={downloadsMenuRef}>
+            <button
+              type="button"
+              onClick={() => setShowDownloadsMenu((v) => !v)}
+              className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95 relative"
+              title={t('library.downloadsMenu')}
+              aria-expanded={showDownloadsMenu}
+            >
+              <Download className="w-4 h-4 text-cyan-400 hover:text-cyan-300" />
+              {Object.keys(headerDownloads).length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 flex items-center justify-center">
+                  {Object.keys(headerDownloads).length}
+                </span>
+              )}
+            </button>
+            {showDownloadsMenu && (
+              <div className="absolute right-0 mt-2 w-80 max-h-80 overflow-y-auto z-50 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 space-y-2.5">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                  <Download className="w-3.5 h-3.5" /> {t('library.downloadsMenu')}
+                </div>
+                {Object.keys(headerDownloads).length === 0 ? (
+                  <p className="text-[11px] text-slate-500 py-2">{t('library.downloadsEmpty')}</p>
+                ) : (
+                  Object.values(headerDownloads).map((dl) => (
+                    <div key={dl.downloadId} className="flex items-center gap-2 text-xs">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] text-slate-300 truncate mb-0.5">
+                          {dl.titleHint || dl.downloadId}
+                          {dl.instrumental ? ' · Inst.' : ''}
+                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-500 mb-1 font-mono">
+                          <span>
+                            {dl.status === 'downloading_model'
+                              ? t('library.downloadingModel')
+                              : dl.status === 'queued'
+                                ? t('library.queued')
+                                : dl.status === 'removing_vocals'
+                                  ? t('library.removingVocals')
+                                  : dl.status === 'remuxing'
+                                    ? t('library.remuxingInstrumental')
+                                    : dl.status.toUpperCase()}
+                            {dl.speed ? ` · ${dl.speed}` : ''}
+                          </span>
+                          <span>{dl.percent.toFixed(0)}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-300 ${
+                              dl.status === 'completed' ? 'bg-emerald-500' : 'bg-cyan-500'
+                            }`}
+                            style={{ width: `${Math.min(100, Math.max(0, dl.percent))}%` }}
+                          />
+                        </div>
+                      </div>
+                      {(dl.status === 'queued' ||
+                        dl.status === 'downloading' ||
+                        dl.status === 'converting' ||
+                        dl.status === 'processing' ||
+                        dl.status === 'downloading_model' ||
+                        dl.status === 'removing_vocals' ||
+                        dl.status === 'remuxing') && (
+                        <button
+                          type="button"
+                          onClick={() => window.karaokeApi?.downloads.cancel(dl.downloadId)}
+                          className="text-slate-500 hover:text-red-400 p-1 rounded-full hover:bg-slate-800"
+                          title={t('common.cancel', 'Cancel')}
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Impostazioni Sistema */}
           <button

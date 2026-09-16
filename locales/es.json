@@ -135,7 +135,12 @@
     "download": "Descargar",
     "downloadInstrumental": "Descargar instrumental",
     "removingVocals": "Eliminando voz…",
-    "remuxingInstrumental": "Creando vídeo instrumental…"
+    "remuxingInstrumental": "Creando vídeo instrumental…",
+    "instrumentalDownloadWarning": "Descargar Instrumental tarda más que una descarga normal y puede usar más CPU/RAM al separar la voz.",
+    "downloadsMenu": "Descargas",
+    "downloadsEmpty": "No hay descargas activas",
+    "downloadingModel": "Descargando modelo…",
+    "queued": "En cola"
   },
   "settings": {
     "title": "Ajustes del Sistema",
@@ -227,12 +232,17 @@
     "stageMessageBackgroundBrowse": "Examinar…",
     "stageMessageBackgroundClear": "Borrar",
     "vocalRemoverAlgorithm": "Método de eliminación de voz (Experimental)",
-    "vocalRemoverAlgorithmDesc": "DSP mid/side clásico en tiempo real usado por el botón de eliminación de voz en Regia (sin IA / sin descarga de modelos).",
+    "vocalRemoverAlgorithmDesc": "El DSP algorítmico se usa en la eliminación de voz en vivo. Los métodos de IA offline se aplican a Descargar Instrumental (los modelos se descargan una vez en userData/models).",
     "vocalAlgoCenterBass": "Cancelación mid (mantener bajos)",
     "vocalAlgoCenter": "Cancelación mid completa (clásico L−R)",
     "vocalAlgoSoftMid": "Atenuación mid suave (menos artefactos)",
     "vocalGroupAlgorithmic": "DSP en tiempo real",
-    "vocalGroupAi": "IA offline (Experimental)"
+    "vocalGroupAi": "IA offline — Descargar Instrumental",
+    "vocalAiMdxKaraoke2": "UVR-MDX-NET Karaoke 2 — ~53 MB — IA recomendada",
+    "vocalAiHtDemucs": "HTDemucs v4 — ~172 MB (Experimental)",
+    "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 MB — avanzado (Experimental)",
+    "maxSimultaneousDownloads": "Descargas simultáneas máximas",
+    "maxSimultaneousDownloadsDesc": "Límite compartido entre Descarga normal y Descargar Instrumental. Los trabajos extra esperan en el menú Descargas."
   },
   "history": {
     "title": "Historial de Reproducción",

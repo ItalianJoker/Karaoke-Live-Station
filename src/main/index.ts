@@ -11,6 +11,8 @@ import { Logger } from './services/Logger';
 import { resolveFfmpegPath, resolveYtDlpPath } from './services/BinaryResolver';
 import { YtDlpUpdater } from './services/YtDlpUpdater';
 import { FirewallHelper } from './services/FirewallHelper';
+import { OfflineVocalModelManager } from './services/OfflineVocalModelManager';
+import { OrtWasmManager } from './services/OrtWasmManager';
 import {
   ActivePlaybackState,
   AppSettings,
@@ -19,6 +21,11 @@ import {
   GuestSongRequest,
   LogLevel
 } from '../shared/types';
+import {
+  OFFLINE_VOCAL_MODELS,
+  type OfflineVocalModelId
+} from '../shared/vocalRemover';
+import { ORT_WASM_ASSET_FILES } from '../shared/ortWasm';
 
 /**
  * Returns the corresponding MIME content-type for audio/video media files.
@@ -153,6 +160,8 @@ class KaraokeMainProcess {
   private db: DatabaseManager;
   private downloadManager: DownloadManager;
   private ytDlpUpdater: YtDlpUpdater;
+  private vocalModelManager: OfflineVocalModelManager;
+  private ortWasmManager: OrtWasmManager;
   private guestServer: GuestPortalServer | null = null;
   private currentMasterState: ActivePlaybackState | null = null;
   private currentQueue: QueueItem[] = [];
@@ -169,6 +178,13 @@ class KaraokeMainProcess {
     this.db = new DatabaseManager(userDataPath);
     this.downloadManager = new DownloadManager(tempDownloadDir, queueCacheDir);
     this.ytDlpUpdater = new YtDlpUpdater(userDataPath, this.logger);
+    this.vocalModelManager = new OfflineVocalModelManager(this.logger);
+    this.ortWasmManager = new OrtWasmManager(this.logger);
+    this.downloadManager.setInstrumentalAiDeps({
+      vocalModelManager: this.vocalModelManager,
+      ortWasmManager: this.ortWasmManager,
+      logger: this.logger
+    });
 
     this.setupAppLifecycle();
     this.setupCustomProtocol();
@@ -227,6 +243,48 @@ class KaraokeMainProcess {
       protocol.handle('karaoke', async (request) => {
         try {
           const url = new URL(request.url);
+          // Durable ORT WASM/MJS under userData/ort — never OS Temp
+          if (url.hostname === 'ort') {
+            const rawName = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+            const filePath = this.ortWasmManager.resolveServableAsset(rawName);
+            if (!filePath) {
+              this.logger.warn('Protocol', 'ORT asset not found', { rawName });
+              return new Response('ORT asset not found', { status: 404 });
+            }
+            const stat = await fs.promises.stat(filePath);
+            const stream = fs.createReadStream(filePath);
+            return new Response(Readable.toWeb(stream) as any, {
+              status: 200,
+              headers: {
+                'Content-Length': String(stat.size),
+                'Content-Type': getMediaMimeType(filePath),
+                'Cache-Control': 'public, max-age=31536000, immutable',
+                'Cross-Origin-Resource-Policy': 'cross-origin'
+              }
+            });
+          }
+
+          // Durable ONNX models under userData/models
+          if (url.hostname === 'models') {
+            const rawName = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+            const filePath = this.vocalModelManager.resolveServableModel(rawName);
+            if (!filePath) {
+              this.logger.warn('Protocol', 'Vocal model asset not found', { rawName });
+              return new Response('Vocal model not found', { status: 404 });
+            }
+            const stat = await fs.promises.stat(filePath);
+            const stream = fs.createReadStream(filePath);
+            return new Response(Readable.toWeb(stream) as any, {
+              status: 200,
+              headers: {
+                'Content-Length': String(stat.size),
+                'Content-Type': 'application/octet-stream',
+                'Cache-Control': 'no-cache',
+                'Cross-Origin-Resource-Policy': 'cross-origin'
+              }
+            });
+          }
+
           // Format expected: karaoke://local/path/to/media.mp4
           if (url.hostname === 'local') {
             const rawPath = decodeURIComponent(url.pathname);
@@ -330,6 +388,15 @@ class KaraokeMainProcess {
     app.whenReady().then(async () => {
       Menu.setApplicationMenu(null);
       this.setupYouTubeEmbedReferer();
+      // Seed ORT WASM into userData/ort for Download Instrumental AI (not live Separazione)
+      try {
+        await this.ortWasmManager.ensureOrtWasm();
+      } catch (err) {
+        this.logger.error(
+          'OrtWasmManager',
+          `Failed to seed ORT WASM under userData/ort: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
       await this.initWindows();
       this.initGuestServer();
       setTimeout(() => {
@@ -607,6 +674,11 @@ class KaraokeMainProcess {
         this.currentSettings = command.payload as AppSettings;
         if (this.currentSettings.logLevel) {
           this.logger.setLogLevel(this.currentSettings.logLevel);
+        }
+        if (typeof this.currentSettings.maxSimultaneousDownloads === 'number') {
+          this.downloadManager.setMaxSimultaneousDownloads(
+            this.currentSettings.maxSimultaneousDownloads
+          );
         }
       }
       if (command.action === 'sync:queue' && command.payload) {
@@ -1101,6 +1173,79 @@ class KaraokeMainProcess {
 
     ipcMain.handle('ytdlp:check-update', async () => {
       return await this.ytDlpUpdater.checkForUpdates(true);
+    });
+
+    // Offline AI models for Download Instrumental (userData/models) — not live dual-stem
+    ipcMain.handle('vocal-model:is-cached', async (_event, modelId: OfflineVocalModelId) => {
+      if (!OFFLINE_VOCAL_MODELS[modelId]) return false;
+      return this.vocalModelManager.isModelCached(modelId);
+    });
+
+    ipcMain.handle('vocal-model:ensure', async (_event, modelId: OfflineVocalModelId) => {
+      if (!OFFLINE_VOCAL_MODELS[modelId]) {
+        return { success: false, error: `Unknown vocal model id: ${modelId}` };
+      }
+      try {
+        const modelPath = await this.vocalModelManager.ensureModel(modelId);
+        return {
+          success: true,
+          modelPath,
+          modelUrl: this.vocalModelManager.getModelFetchUrl(modelId)
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error('App', `vocal-model:ensure failed (${modelId}): ${message}`);
+        return { success: false, error: message };
+      }
+    });
+
+    ipcMain.handle('vocal-model:get-buffer', async (_event, modelId: OfflineVocalModelId) => {
+      if (!OFFLINE_VOCAL_MODELS[modelId]) {
+        return { success: false, error: `Unknown vocal model id: ${modelId}` };
+      }
+      try {
+        const buffer = await this.vocalModelManager.readModelBuffer(modelId);
+        return { success: true, buffer };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error('App', `vocal-model:get-buffer failed (${modelId}): ${message}`);
+        return { success: false, error: message };
+      }
+    });
+
+    ipcMain.handle('vocal-model:list', async () => {
+      const entries = await Promise.all(
+        Object.values(OFFLINE_VOCAL_MODELS).map(async (m) => ({
+          id: m.id,
+          label: m.label,
+          approxSizeMb: m.approxSizeMb,
+          filename: m.filename,
+          version: m.version,
+          cached: await this.vocalModelManager.isModelCached(m.id)
+        }))
+      );
+      return entries;
+    });
+
+    ipcMain.handle('ort-wasm:ensure', async () => {
+      try {
+        const paths = await this.ortWasmManager.ensureOrtWasm();
+        return { success: true, ...paths, assets: ORT_WASM_ASSET_FILES };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error('App', `ort-wasm:ensure failed: ${message}`);
+        return { success: false, error: message };
+      }
+    });
+
+    ipcMain.handle('ort-wasm:get-paths', async () => {
+      try {
+        const paths = await this.ortWasmManager.ensureOrtWasm();
+        return { success: true, ...paths };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { success: false, error: message };
+      }
     });
   }
 

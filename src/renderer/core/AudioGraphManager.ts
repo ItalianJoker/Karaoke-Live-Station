@@ -7,8 +7,8 @@ import {
   type VocalRemoverAlgorithm
 } from './AlgorithmicVocalRemoverNode';
 import {
-  isAlgorithmicVocalRemoverMethod,
-  isVocalRemoverMethod,
+  coerceAlgorithmicVocalRemoverMethod,
+  type AlgorithmicVocalRemoverMethod,
   type VocalRemoverMethod
 } from '../../shared/vocalRemover';
 
@@ -49,14 +49,12 @@ export class AudioGraphManager {
   private sourceNode: MediaElementAudioSourceNode | null = null;
   private pitchShifterNode: PitchShifterNode | null = null;
 
-  // Vocal Remover — algorithmic mid/side DSP
+  // Vocal Remover — algorithmic mid/side DSP only (live); AI ids coerce to default algo
   private vocalRemoverNode: AlgorithmicVocalRemoverNode | null = null;
-  private vocalRemoverMethod: VocalRemoverMethod = 'centerCancelBassKeep';
+  private vocalRemoverMethod: AlgorithmicVocalRemoverMethod = 'centerCancelBassKeep';
   /** @deprecated alias kept for call sites that still say "algorithm" */
   private get vocalRemoverAlgorithm(): VocalRemoverAlgorithm {
-    return isAlgorithmicVocalRemoverMethod(this.vocalRemoverMethod)
-      ? this.vocalRemoverMethod
-      : 'centerCancelBassKeep';
+    return this.vocalRemoverMethod;
   }
 
   // Ducking, Delay Sync & Master Gain
@@ -281,13 +279,12 @@ export class AudioGraphManager {
   }
 
   /**
-   * Selects the vocal-remover algorithm. Persisted in settings.
-   * Unknown or legacy AI method ids fall back to centerCancelBassKeep.
+   * Selects the vocal-remover algorithm for live Rimozione Vocale (DSP only).
+   * AI Settings ids (Download Instrumental) coerce to centerCancelBassKeep for live playback.
+   * Does not restore dual-stem Separazione.
    */
   public setVocalRemoverAlgorithm(algorithm: VocalRemoverMethod | string): void {
-    const next: VocalRemoverMethod = isVocalRemoverMethod(algorithm)
-      ? algorithm
-      : 'centerCancelBassKeep';
+    const next = coerceAlgorithmicVocalRemoverMethod(algorithm);
     this.vocalRemoverMethod = next;
 
     if (this.vocalRemoverNode) {
