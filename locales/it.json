@@ -222,11 +222,19 @@
     "stageMessageBackgroundImagePlaceholder": "Nessuna immagine selezionata",
     "stageMessageBackgroundBrowse": "Sfoglia…",
     "stageMessageBackgroundClear": "Cancella",
-    "vocalRemoverAlgorithm": "Algoritmo Rimozione Voce (Sperimentale)",
-    "vocalRemoverAlgorithmDesc": "Metodi DSP classici mid/side in tempo reale (nessuna AI). Scegli l’algoritmo usato dal pulsante in Regia.",
-    "vocalAlgoCenterBass": "Cancella centro (mantieni bassi) — consigliato",
-    "vocalAlgoCenter": "Cancella centro completo (L−R classico)",
-    "vocalAlgoSoftMid": "Attenuazione mid soft (meno artefatti)"
+    "vocalRemoverAlgorithm": "Metodo Rimozione Voce (Sperimentale)",
+    "vocalRemoverAlgorithmDesc": "DSP mid/side classico in tempo reale, oppure AI locale offline (i modelli si scaricano una volta nei dati app). Sceglie il metodo del pulsante in Regia.",
+    "vocalAlgoCenterBass": "Cancel mid (mantieni bassi)",
+    "vocalAlgoCenter": "Cancel mid completo (classico L−R)",
+    "vocalAlgoSoftMid": "Attenuazione mid soft (meno artefatti)",
+    "vocalGroupAlgorithmic": "DSP in tempo reale",
+    "vocalGroupAi": "AI offline (Sperimentale)",
+    "vocalAiMdxKaraoke2": "UVR-MDX-NET Karaoke 2 — ~53 MB — AI consigliata",
+    "vocalAiHtDemucs": "HTDemucs v4 — ~172 MB (Sperimentale)",
+    "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 MB — avanzato (Sperimentale)",
+    "aiVocalHwWarningTitle": "Rimozione voce AI offline — requisiti hardware",
+    "aiVocalHwWarningBody": "I metodi AI girano sul dispositivo (niente cloud). CPU moderna consigliata; GPU/ONNX aiutano se disponibili. BS-Roformer è più pesante e può usare molta RAM/CPU. Al primo uso scarica i modelli (~50–300 MB a seconda della scelta). Funzione Sperimentale.",
+    "aiVocalHwWarningDontShow": "Non mostrare più questo avviso"
   },
   "history": {
     "title": "Storico Esecuzioni",
@@ -302,6 +310,7 @@
   },
   "common": {
     "cancel": "Annulla",
-    "close": "Chiudi"
+    "close": "Chiudi",
+    "confirm": "Conferma"
   }
 }

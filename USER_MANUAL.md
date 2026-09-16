@@ -37,7 +37,7 @@ Console operatore completa:
 - Transport (Play / Pausa / Stop / Ricomincia / Prossimo)
 - Volume master con curva percettiva
 - Pitch in semitoni e velocità (time-stretch)
-- Rimozione voce guida **(Sperimentale)** via DSP classico mid/side (algoritmico, tempo reale)
+- Rimozione voce guida **(Sperimentale)**: DSP mid/side in tempo reale **oppure** AI locale offline (MDX / HTDemucs / BS-Roformer)
 - Auto-ducking BGM al microfono
 - Mixer MIDI/KAR a 16 canali
 - Pre-ascolto CUE su dispositivo secondario
@@ -230,19 +230,18 @@ Esempi: 100% → guadagno pieno; 50% → guadagno 0,25 (−12 dB circa, dimezzam
 - **Velocità:** da **0,50× a 1,50×** senza alterare il pitch (WSOLA / SoundTouch). `Ctrl+←` / `Ctrl+→` regolano di ±5%. Clic sull’indicatore numerico ripristina spesso 1,00×.
 - MIDI: la trasposizione agisce sui numeri di nota in tempo reale.
 
-### 4.4 Rimozione voce guida (DSP sperimentale)
+### 4.4 Rimozione voce guida (Sperimentale)
 
-Il tasto **`V`** / controllo **Rimuovi Voce Guida (Sperimentale)** attiva una riduzione voce **algoritmica classica mid/side** (centro-canale / stile karaoke L−R) in **tempo reale**: leggera, senza modelli AI/ML, senza download e senza elaborazione offline.
+Il tasto **`V`** / il controllo **Rimuovi Voce Guida (Sperimentale)** attiva il metodo scelto in **Impostazioni → Audio**:
 
-In **Impostazioni → Audio & Riproduzione** puoi scegliere l’algoritmo usato dal pulsante in Regia:
+| Metodo | Note |
+| --- | --- |
+| `centerCancelBassKeep` / `centerCancel` / `softMid` | DSP mid/side **in tempo reale** — leggero, nessun download |
+| **UVR-MDX-NET Karaoke 2** (~53 MB) | AI offline — **consigliata** tra le opzioni AI; ONNX WASM |
+| **HTDemucs v4** (~172 MB) | AI offline (Sperimentale) via demucs-web + ONNX |
+| **BS-Roformer (ViperX)** (~158 MB quantizzato) | Avanzato/più pesante; modello in cache locale; STFT band-split non ancora affidabile in Electron WASM — toast + DSP sempre disponibile |
 
-| Algoritmo (`vocalRemoverAlgorithm`) | Descrizione UI |
-| :--- | :--- |
-| **`centerCancelBassKeep`** (default) | Cancella centro (mantieni bassi) — consigliato |
-| **`centerCancel`** | Cancella centro completo (L−R classico) |
-| **`softMid`** | Attenuazione mid soft (meno artefatti) |
-
-Attivazione/disattivazione istantanea sul mix in riproduzione; il risultato dipende dal mix stereo (voci fortemente laterali o dry/wet particolari possono restare udibili).
+I metodi AI scaricano una volta in `userData/models/`, poi restano offline. Separazione async con crossfade (l’audio dry continua finché l’instrumental non è pronto). Al primo uso AI compare un **avviso hardware** (CPU moderna; BS-Roformer più pesante). I metodi algoritmici non mostrano l’avviso. Se il modello manca/falla: toast di errore; il DSP resta usabile.
 
 ### 4.5 Auto-ducking BGM
 

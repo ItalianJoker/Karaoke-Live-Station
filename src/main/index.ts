@@ -11,6 +11,7 @@ import { Logger } from './services/Logger';
 import { resolveFfmpegPath, resolveYtDlpPath } from './services/BinaryResolver';
 import { YtDlpUpdater } from './services/YtDlpUpdater';
 import { FirewallHelper } from './services/FirewallHelper';
+import { OfflineVocalModelManager } from './services/OfflineVocalModelManager';
 import {
   ActivePlaybackState,
   AppSettings,
@@ -19,6 +20,8 @@ import {
   GuestSongRequest,
   LogLevel
 } from '../shared/types';
+import type { OfflineVocalModelId } from '../shared/vocalRemover';
+import { OFFLINE_VOCAL_MODELS } from '../shared/vocalRemover';
 
 /**
  * Returns the corresponding MIME content-type for audio/video media files.
@@ -146,6 +149,7 @@ class KaraokeMainProcess {
   private db: DatabaseManager;
   private downloadManager: DownloadManager;
   private ytDlpUpdater: YtDlpUpdater;
+  private vocalModelManager: OfflineVocalModelManager;
   private guestServer: GuestPortalServer | null = null;
   private currentMasterState: ActivePlaybackState | null = null;
   private currentQueue: QueueItem[] = [];
@@ -162,6 +166,7 @@ class KaraokeMainProcess {
     this.db = new DatabaseManager(userDataPath);
     this.downloadManager = new DownloadManager(tempDownloadDir, queueCacheDir);
     this.ytDlpUpdater = new YtDlpUpdater(userDataPath, this.logger);
+    this.vocalModelManager = new OfflineVocalModelManager(this.logger);
 
     this.setupAppLifecycle();
     this.setupCustomProtocol();
@@ -1082,6 +1087,37 @@ class KaraokeMainProcess {
 
     ipcMain.handle('ytdlp:check-update', async () => {
       return await this.ytDlpUpdater.checkForUpdates(true);
+    });
+
+    // Offline AI vocal-remover models (userData/models) — download once, then offline
+    ipcMain.handle('vocal-model:is-cached', (_event, modelId: OfflineVocalModelId) => {
+      if (!OFFLINE_VOCAL_MODELS[modelId]) return false;
+      return this.vocalModelManager.isModelCached(modelId);
+    });
+
+    ipcMain.handle('vocal-model:ensure', async (_event, modelId: OfflineVocalModelId) => {
+      if (!OFFLINE_VOCAL_MODELS[modelId]) {
+        throw new Error(`Unknown vocal model id: ${modelId}`);
+      }
+      const modelPath = await this.vocalModelManager.ensureModel(modelId);
+      return { success: true, modelPath };
+    });
+
+    ipcMain.handle('vocal-model:get-buffer', async (_event, modelId: OfflineVocalModelId) => {
+      if (!OFFLINE_VOCAL_MODELS[modelId]) {
+        throw new Error(`Unknown vocal model id: ${modelId}`);
+      }
+      return this.vocalModelManager.readModelBuffer(modelId);
+    });
+
+    ipcMain.handle('vocal-model:list', () => {
+      return Object.values(OFFLINE_VOCAL_MODELS).map((m) => ({
+        id: m.id,
+        label: m.label,
+        approxSizeMb: m.approxSizeMb,
+        filename: m.filename,
+        cached: this.vocalModelManager.isModelCached(m.id)
+      }));
     });
   }
 

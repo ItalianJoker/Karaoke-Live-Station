@@ -14,6 +14,7 @@ import {
   FirewallCheckResult,
   SiaeLogEntry
 } from '../shared/types';
+import type { OfflineVocalModelId, VocalModelDownloadProgress } from '../shared/vocalRemover';
 
 /**
  * Secure IPC Bridge contract exposed to the renderer window via contextBridge.
@@ -200,6 +201,23 @@ export interface KaraokeAPI {
     /** Checks GitHub releases for updates and performs immediate download/update if available */
     checkUpdate: () => Promise<YtDlpStatus>;
   };
+
+  // 12. Offline AI vocal-remover models (cached under userData/models)
+  vocalModels: {
+    isModelCached: (modelId: OfflineVocalModelId) => Promise<boolean>;
+    ensureModel: (modelId: OfflineVocalModelId) => Promise<{ success: boolean; modelPath?: string }>;
+    getModelBuffer: (modelId: OfflineVocalModelId) => Promise<ArrayBuffer>;
+    listModels: () => Promise<
+      Array<{
+        id: OfflineVocalModelId;
+        label: string;
+        approxSizeMb: number;
+        filename: string;
+        cached: boolean;
+      }>
+    >;
+    onDownloadProgress: (callback: (progress: VocalModelDownloadProgress) => void) => () => void;
+  };
 }
 
 const karaokeApi: KaraokeAPI = {
@@ -361,6 +379,24 @@ const karaokeApi: KaraokeAPI = {
     getStatus: () => ipcRenderer.invoke('ytdlp:get-status'),
     checkUpdate: () => ipcRenderer.invoke('ytdlp:check-update')
   },
+
+  vocalModels: {
+    isModelCached: (modelId: OfflineVocalModelId) =>
+      ipcRenderer.invoke('vocal-model:is-cached', modelId),
+    ensureModel: (modelId: OfflineVocalModelId) =>
+      ipcRenderer.invoke('vocal-model:ensure', modelId),
+    getModelBuffer: (modelId: OfflineVocalModelId) =>
+      ipcRenderer.invoke('vocal-model:get-buffer', modelId),
+    listModels: () => ipcRenderer.invoke('vocal-model:list'),
+    onDownloadProgress: (callback: (progress: VocalModelDownloadProgress) => void) => {
+      const handler = (_event: IpcRendererEvent, progress: VocalModelDownloadProgress) =>
+        callback(progress);
+      ipcRenderer.on('vocal-model:download-progress', handler);
+      return () => {
+        ipcRenderer.removeListener('vocal-model:download-progress', handler);
+      };
+    }
+  }
 };
 
 contextBridge.exposeInMainWorld('karaokeApi', karaokeApi);

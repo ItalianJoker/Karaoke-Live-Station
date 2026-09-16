@@ -8,7 +8,7 @@
  * 4. i18n Localization Parity across it, en, es, fr
  * 5. Queue Cache Garbage Collection & Protection
  * 6. Default Settings & Feature Flags
- * 7. Algorithmic Mid/Side Vocal Remover (center cancel / soft mid, no ML)
+ * 7. Vocal Remover — algorithmic mid/side DSP + offline AI (MDX / HTDemucs / BS-Roformer)
  * 8. SIAE History Tracking & Duplicate Protection (120s Threshold, Natural End, ISO 8601 Timestamps)
  */
 
@@ -453,9 +453,9 @@ assert(
 
 
 // -------------------------------------------------------------
-// Suite 7: Algorithmic Mid/Side Vocal Remover (no ML)
+// Suite 7: Vocal Remover — algorithmic DSP + offline AI options
 // -------------------------------------------------------------
-console.log('\n\x1b[36m▶ Suite 7: Algorithmic Mid/Side Vocal Remover\x1b[0m');
+console.log('\n\x1b[36m▶ Suite 7: Vocal Remover (DSP + offline AI)\x1b[0m');
 
 const audioGraphSource = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
@@ -465,14 +465,31 @@ const algorithmicRemoverSource = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/core/AlgorithmicVocalRemoverNode.ts'),
   'utf8'
 );
+const offlineAiSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/OfflineAiVocalSeparator.ts'),
+  'utf8'
+);
+const mdxSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/MdxNetSeparator.ts'),
+  'utf8'
+);
+const modelManagerSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/OfflineVocalModelManager.ts'),
+  'utf8'
+);
+const vocalRemoverShared = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/vocalRemover.ts'),
+  'utf8'
+);
 const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
 );
 
 assert(
-  !packageJson.dependencies?.['demucs-web'] &&
-    !packageJson.dependencies?.['onnxruntime-web'],
-  'package.json does not depend on demucs-web / onnxruntime-web'
+  packageJson.dependencies?.['demucs-web'] &&
+    packageJson.dependencies?.['onnxruntime-web'] &&
+    packageJson.dependencies?.['fft.js'],
+  'package.json depends on demucs-web + onnxruntime-web + fft.js for offline AI'
 );
 
 assert(
@@ -486,9 +503,24 @@ assert(
 );
 
 assert(
-  audioGraphSource.includes('createChannelSplitter') ||
-    algorithmicRemoverSource.includes('createChannelSplitter'),
-  'Vocal remover uses Web Audio ChannelSplitter for mid/side matrix'
+  vocalRemoverShared.includes('aiMdxKaraoke2') &&
+    vocalRemoverShared.includes('aiHtDemucs') &&
+    vocalRemoverShared.includes('aiBsRoformer') &&
+    vocalRemoverShared.includes('UVR_MDXNET_KARA_2') &&
+    vocalRemoverShared.includes('htdemucs_embedded') &&
+    vocalRemoverShared.includes('bs_roformer'),
+  'Shared catalog lists MDX Karaoke 2, HTDemucs, and BS-Roformer offline models'
+);
+
+assert(
+  offlineAiSource.includes('MdxNetSeparator') &&
+    offlineAiSource.includes('DemucsProcessor') &&
+    offlineAiSource.includes('aiBsRoformer') &&
+    mdxSource.includes('DIM_F') &&
+    mdxSource.includes('N_FFT') &&
+    modelManagerSource.includes('userData') &&
+    modelManagerSource.includes('models'),
+  'Offline AI separator + MDX STFT path + userData model cache are wired'
 );
 
 assert(
@@ -496,20 +528,15 @@ assert(
     audioGraphSource.includes('setVocalRemover(') &&
     audioGraphSource.includes('setVocalRemoverAlgorithm') &&
     audioGraphSource.includes('AlgorithmicVocalRemoverNode') &&
-    !audioGraphSource.includes('activateDemucsInstrumental') &&
-    !audioGraphSource.includes('getDemucsVocalSeparator'),
-  'AudioGraphManager routes vocal removal through AlgorithmicVocalRemoverNode'
+    audioGraphSource.includes('activateAiInstrumental') &&
+    audioGraphSource.includes('crossfadeToInstrumental') &&
+    audioGraphSource.includes('getOfflineAiVocalSeparator'),
+  'AudioGraphManager supports algorithmic DSP and AI async separate→crossfade'
 );
 
 assert(
-  !fs.existsSync(path.resolve(__dirname, '../src/renderer/core/DemucsVocalSeparator.ts')) &&
-    !fs.existsSync(path.resolve(__dirname, '../src/main/services/DemucsModelManager.ts')),
-  'DemucsVocalSeparator and DemucsModelManager files are removed'
-);
-
-assert(
-  true,
-  'ORT WASM assets no longer required for vocal remover (algorithmic path)'
+  fs.existsSync(path.resolve(__dirname, '../public/ort/ort-wasm-simd-threaded.wasm')),
+  'ORT WASM assets are vendored under public/ort for Electron'
 );
 
 assert(
@@ -540,13 +567,33 @@ const controlSource = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
   'utf8'
 );
+const settingsModalSourceVocal = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+  'utf8'
+);
+const aiWarnSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/utils/aiVocalHwWarning.ts'),
+  'utf8'
+);
 assert(
   toastSource.includes('showToast') &&
     toastSource.includes('confirmAsync') &&
+    toastSource.includes('confirmDetailed') &&
+    toastSource.includes('dontShowAgainLabel') &&
     controlSource.includes('ToastHost') &&
     controlSource.includes('showToast(') &&
     !controlSource.includes('alert('),
   'Control UI uses non-blocking ToastHost instead of window.alert for audio isolation'
+);
+
+assert(
+  aiWarnSource.includes('warnAiVocalRemoverIfNeeded') &&
+    aiWarnSource.includes('isAiVocalRemoverMethod') &&
+    settingsModalSourceVocal.includes('aiVocalHwWarningBody') &&
+    settingsModalSourceVocal.includes('warnAiVocalRemoverIfNeeded') &&
+    controlSource.includes('toggleVocalRemoverWithWarning') &&
+    controlSource.includes('warnAiVocalRemoverIfNeeded'),
+  'AI hardware warning shown on first AI select/toggle; algorithmic methods skip it'
 );
 
 const mainSourceForDialogs = fs.readFileSync(
@@ -554,12 +601,22 @@ const mainSourceForDialogs = fs.readFileSync(
   'utf8'
 );
 assert(
-  !mainSourceForDialogs.includes('demucs:get-model-buffer') &&
-    !mainSourceForDialogs.includes('DemucsModelManager') &&
+  mainSourceForDialogs.includes('vocal-model:get-buffer') &&
+    mainSourceForDialogs.includes('OfflineVocalModelManager') &&
     (mainSourceForDialogs.includes('Non-modal (no parent)') ||
       mainSourceForDialogs.includes('Intentionally omit parent window') ||
       mainSourceForDialogs.includes('omit parent')),
-  'Demucs IPC removed; native file dialogs avoid modal parent that can stall audio'
+  'Vocal-model IPC registered; native file dialogs avoid modal parent that can stall audio'
+);
+
+const enLocaleVocal = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../locales/en.json'), 'utf8'));
+const itLocaleVocal = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../locales/it.json'), 'utf8'));
+assert(
+  enLocaleVocal.settings.vocalAiMdxKaraoke2 &&
+    enLocaleVocal.settings.aiVocalHwWarningBody &&
+    itLocaleVocal.settings.vocalAiMdxKaraoke2 &&
+    itLocaleVocal.settings.aiVocalHwWarningBody,
+  'EN/IT locales include AI vocal method labels and hardware warning text'
 );
 
 // -------------------------------------------------------------
@@ -1090,7 +1147,7 @@ assert(
     audioGraphSourceP45.includes('voiceReleaseTimeouts') &&
     audioGraphSourceP45.includes('clearTimeout') &&
     audioGraphSourceP45.includes('AlgorithmicVocalRemoverNode'),
-  'Algorithmic vocal remover + MIDI release timers present; no Demucs cache path'
+  'Algorithmic vocal remover + MIDI release timers present; AI path uses OfflineAiVocalSeparator'
 );
 assert(
   audioGraphSourceP45.includes('computePerceptualGain') &&

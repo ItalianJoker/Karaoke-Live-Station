@@ -222,11 +222,19 @@
     "stageMessageBackgroundImagePlaceholder": "Ninguna imagen seleccionada",
     "stageMessageBackgroundBrowse": "Examinar…",
     "stageMessageBackgroundClear": "Borrar",
-    "vocalRemoverAlgorithm": "Algoritmo de eliminación de voz (Experimental)",
-    "vocalRemoverAlgorithmDesc": "Métodos DSP clásicos mid/side en tiempo real (sin IA). Elige el algoritmo del botón de Regia.",
-    "vocalAlgoCenterBass": "Cancelar centro (mantener graves) — recomendado",
-    "vocalAlgoCenter": "Cancelación total del centro (L−R clásico)",
-    "vocalAlgoSoftMid": "Atenuación mid suave (menos artefactos)"
+    "vocalRemoverAlgorithm": "Método de eliminación de voz (Experimental)",
+    "vocalRemoverAlgorithmDesc": "DSP mid/side clásico en tiempo real, o IA local offline (los modelos se descargan una vez en los datos de la app). Elige el método del botón de Regia.",
+    "vocalAlgoCenterBass": "Cancelación mid (mantener bajos)",
+    "vocalAlgoCenter": "Cancelación mid completa (clásico L−R)",
+    "vocalAlgoSoftMid": "Atenuación mid suave (menos artefactos)",
+    "vocalGroupAlgorithmic": "DSP en tiempo real",
+    "vocalGroupAi": "IA offline (Experimental)",
+    "vocalAiMdxKaraoke2": "UVR-MDX-NET Karaoke 2 — ~53 MB — IA recomendada",
+    "vocalAiHtDemucs": "HTDemucs v4 — ~172 MB (Experimental)",
+    "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 MB — avanzado (Experimental)",
+    "aiVocalHwWarningTitle": "Eliminación de voz IA offline — requisitos de hardware",
+    "aiVocalHwWarningBody": "Los métodos IA se ejecutan en el dispositivo (sin nube). Se recomienda CPU moderna; GPU/ONNX ayudan si están disponibles. BS-Roformer es más pesado y puede usar mucha RAM/CPU. En el primer uso descarga modelos (~50–300 MB según la opción). Función Experimental.",
+    "aiVocalHwWarningDontShow": "No volver a mostrar este aviso"
   },
   "history": {
     "title": "Historial de Reproducción",
@@ -302,6 +310,7 @@
   },
   "common": {
     "cancel": "Cancelar",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "confirm": "Confirmar"
   }
 }

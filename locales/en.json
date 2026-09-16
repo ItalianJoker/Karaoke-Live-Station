@@ -222,11 +222,19 @@
     "stageMessageBackgroundImagePlaceholder": "No image selected",
     "stageMessageBackgroundBrowse": "Browse…",
     "stageMessageBackgroundClear": "Clear",
-    "vocalRemoverAlgorithm": "Vocal Remover Algorithm (Experimental)",
-    "vocalRemoverAlgorithmDesc": "Real-time classical mid/side DSP methods (no AI). Chooses the algorithm used by the Control button.",
-    "vocalAlgoCenterBass": "Center cancel (keep bass) — recommended",
+    "vocalRemoverAlgorithm": "Vocal Remover Method (Experimental)",
+    "vocalRemoverAlgorithmDesc": "Realtime classical mid/side DSP, or offline on-device AI (models download once into app data). Chooses the method used by the Control button.",
+    "vocalGroupAlgorithmic": "Realtime DSP",
+    "vocalGroupAi": "Offline AI (Experimental)",
+    "vocalAlgoCenterBass": "Center cancel (keep bass)",
     "vocalAlgoCenter": "Full center cancel (classic L−R)",
-    "vocalAlgoSoftMid": "Soft mid attenuation (fewer artifacts)"
+    "vocalAlgoSoftMid": "Soft mid attenuation (fewer artifacts)",
+    "vocalAiMdxKaraoke2": "UVR-MDX-NET Karaoke 2 — ~53 MB — recommended AI",
+    "vocalAiHtDemucs": "HTDemucs v4 — ~172 MB (Experimental)",
+    "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 MB — advanced (Experimental)",
+    "aiVocalHwWarningTitle": "Offline AI vocal remover — hardware note",
+    "aiVocalHwWarningBody": "AI methods run on-device (no cloud). A modern CPU is recommended; GPU/ONNX helps when available. BS-Roformer is heavier and may use significant RAM/CPU. First use downloads models (~50–300 MB depending on choice). This feature is Experimental.",
+    "aiVocalHwWarningDontShow": "Don't show this warning again"
   },
   "history": {
     "title": "Playback History",
@@ -302,6 +310,7 @@
   },
   "common": {
     "cancel": "Cancel",
+    "confirm": "Confirm",
     "close": "Close"
   }
 }

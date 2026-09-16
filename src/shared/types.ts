@@ -103,10 +103,19 @@ export interface AppSettings {
 
   /** Enable anti-monopoly fair queue rotation algorithm */
   enableFairQueue: boolean;
-  /** Enable DSP center-channel vocal attenuation */
+  /** Enable DSP / offline-AI guide-vocal attenuation */
   enableVocalRemover: boolean;
-  /** Classical mid/side vocal-remover algorithm (Settings) */
-  vocalRemoverAlgorithm: 'centerCancelBassKeep' | 'centerCancel' | 'softMid';
+  /**
+   * Vocal remover method selected in Settings (algorithmic DSP or offline AI).
+   * See `src/shared/vocalRemover.ts` for the full catalog.
+   */
+  vocalRemoverAlgorithm:
+    | 'centerCancelBassKeep'
+    | 'centerCancel'
+    | 'softMid'
+    | 'aiMdxKaraoke2'
+    | 'aiHtDemucs'
+    | 'aiBsRoformer';
   /** Enable microphone-triggered background music ducking */
   enableAutoDuckingBGM: boolean;
   /** Enable automatic dynamic audio volume normalization (leveling) */
