@@ -22,7 +22,6 @@ export class MdxVocalWorkerClient {
   >();
   private readonly listeners = new Set<ProgressListener>();
   private modelLoaded = false;
-  private wasmPaths: string | { wasm: string; mjs: string } | null = null;
 
   public onProgress(listener: ProgressListener): () => void {
     this.listeners.add(listener);
@@ -117,7 +116,6 @@ export class MdxVocalWorkerClient {
     modelBuffer: ArrayBuffer,
     wasmPaths: string | { wasm: string; mjs: string }
   ): Promise<void> {
-    this.wasmPaths = wasmPaths;
     this.ensureWorker();
 
     if (this.useFallback) {

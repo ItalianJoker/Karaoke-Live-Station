@@ -67,7 +67,7 @@ self.onmessage = (event: MessageEvent<MdxWorkerInMessage>) => {
           right
         };
         // Transfer ownership back to the renderer to avoid a second copy.
-        self.postMessage(out, [left.buffer, right.buffer] as unknown as Transferable[]);
+        self.postMessage(out, { transfer: [left.buffer, right.buffer] });
         return;
       }
     } catch (err) {

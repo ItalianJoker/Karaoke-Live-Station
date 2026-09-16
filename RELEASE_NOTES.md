@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix ORT WASM su Windows** (niente Temp OS) + modelli MDX/ONNX durabili in `userData` + fix URL download UVR-MDX-NET Karaoke 2 (404) + rimozione voce guida AI offline + avviso hardware + retry CI.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix freeze UI AI vocal remover** + ORT WASM senza Temp OS + modelli MDX/ONNX durabili in `userData` + fix URL download UVR-MDX-NET Karaoke 2 (404) + rimozione voce guida AI offline + avviso hardware + retry CI.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,11 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix ORT WASM su Win
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### 🧊 Fix freeze UI — AI vocal remover in riproduzione
+- Attivare l’AI durante la riproduzione **non blocca più** la Regia (niente ORT/MDX sync sul thread UI).
+- MDX: separazione in **Web Worker** + yield tra chunk; modelli via **`karaoke://models/`** da `<userData>/models/` (I/O async; mai Temp OS).
+- Se il modello/backend AI non è pronto: **toast** + **fallback DSP algoritmico**; se l’AI completa: crossfade sull’instrumental (voce rimossa).
 
 ### 🧩 Fix ORT WASM — niente Temp OS (Windows Electron)
 - Errore tipico: `no available backend found` / `…/AppData/Local/Temp/…/wasm-simd-threaded.jsep.mjs` quando onnxruntime-web caricava `.mjs`/`.wasm` da percorsi effimeri.
@@ -77,7 +82,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix ORT WASM su Win
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **ORT WASM fix (no OS Temp)** + durable MDX/ONNX under `userData` + UVR-MDX-NET Karaoke 2 download 404 fix + offline AI vocal remover + hardware warning + CI retries.
+GitHub Release **v1.1.0** overwrite: **AI vocal remover UI freeze fix** + ORT WASM (no OS Temp) + durable MDX/ONNX under `userData` + UVR-MDX-NET Karaoke 2 download 404 fix + offline AI vocal remover + hardware warning + CI retries.
 
 ## 📦 Installers
 
@@ -90,6 +95,11 @@ GitHub Release **v1.1.0** overwrite: **ORT WASM fix (no OS Temp)** + durable MDX
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### 🧊 UI freeze fix — AI vocal remover during playback
+- Enabling AI while a track is playing **no longer freezes** the Control UI (no sync ORT/MDX on the UI thread).
+- MDX: separation in a **Web Worker** + yields between chunks; models via **`karaoke://models/`** from `<userData>/models/` (async I/O; never OS Temp).
+- If the AI model/backend is not ready: **toast** + **algorithmic DSP fallback**; when AI completes: crossfade to the instrumental (guide vocal removed).
 
 ### 🧩 ORT WASM fix — no OS Temp (Windows Electron)
 - Typical error: `no available backend found` / `…/AppData/Local/Temp/…/wasm-simd-threaded.jsep.mjs` when onnxruntime-web loaded `.mjs`/`.wasm` from ephemeral paths.
