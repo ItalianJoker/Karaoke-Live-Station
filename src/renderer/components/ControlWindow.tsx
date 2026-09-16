@@ -45,6 +45,7 @@ import { GuestRequestsModal } from './GuestRequestsModal';
 import { FirewallGuideCard } from './FirewallGuideCard';
 import { ShortcutsHelpModal } from './ShortcutsHelpModal';
 import { AppSettings, DownloadProgressPayload } from '../../shared/types';
+import { textMatchesSearch } from '../../shared/textNormalize';
 import appLogo from '../assets/logo.png';
 
 /**
@@ -210,9 +211,9 @@ export const ControlWindow: React.FC = () => {
   }, [storeSingers, queue]);
 
   const filteredSingers = React.useMemo(() => {
-    const query = editingSingerText.trim().toLowerCase();
+    const query = editingSingerText.trim();
     if (!query) return knownSingersList;
-    return knownSingersList.filter((s) => s.name.toLowerCase().includes(query));
+    return knownSingersList.filter((s) => textMatchesSearch(s.name, query));
   }, [knownSingersList, editingSingerText]);
 
   // Keep playback.currentTrackId in sync with currentTrack

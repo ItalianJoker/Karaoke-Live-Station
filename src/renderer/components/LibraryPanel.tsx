@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { KaraokeMediaTrack, DownloadProgressPayload } from '../../shared/types';
 import { isInstrumentalDownloadEligibleTitle } from '../../shared/vocalRemover';
+import { textMatchesSearch } from '../../shared/textNormalize';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { useScopedLibrarySearch } from '../hooks/useScopedLibrarySearch';
 import { VideoPreviewModal, extractVersionTags } from './VideoPreviewModal';
@@ -476,12 +477,10 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       if (!window.karaokeApi?.db?.searchTracks) {
-        const lower = q.toLowerCase();
         setLocalResults(
           localTracks.filter(
             (track) =>
-              track.title.toLowerCase().includes(lower) ||
-              track.artist.toLowerCase().includes(lower)
+              textMatchesSearch(track.title, q) || textMatchesSearch(track.artist, q)
           )
         );
         return;
@@ -492,12 +491,10 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       } catch (err) {
         console.error('Local library search failed:', err);
         if (!cancelled) {
-          const lower = q.toLowerCase();
           setLocalResults(
             localTracks.filter(
               (track) =>
-                track.title.toLowerCase().includes(lower) ||
-                track.artist.toLowerCase().includes(lower)
+                textMatchesSearch(track.title, q) || textMatchesSearch(track.artist, q)
             )
           );
         }
@@ -566,10 +563,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         const matches = await window.karaokeApi.db.searchTracks(q, 200);
         setLocalResults(matches);
       } else {
-        const lower = q.toLowerCase();
         setLocalResults(
           localTracks.filter(
-            (t) => t.title.toLowerCase().includes(lower) || t.artist.toLowerCase().includes(lower)
+            (t) => textMatchesSearch(t.title, q) || textMatchesSearch(t.artist, q)
           )
         );
       }

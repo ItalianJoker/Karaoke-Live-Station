@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Keyboard, X, Search, Play, Volume2, Monitor } from 'lucide-react';
 import { APP_SHORTCUTS } from '../data/appShortcuts';
+import { textMatchesSearch } from '../../shared/textNormalize';
 
 interface ShortcutsHelpModalProps {
   isOpen: boolean;
@@ -25,11 +26,11 @@ export const ShortcutsHelpModal: React.FC<ShortcutsHelpModalProps> = ({ isOpen, 
 
   const filteredShortcuts = useMemo(() => {
     if (!filterQuery.trim()) return shortcutsList;
-    const q = filterQuery.toLowerCase();
+    const q = filterQuery.trim();
     return shortcutsList.filter((item) => {
-      const desc = t(item.descriptionKey).toLowerCase();
-      const keys = item.keys.join(' ').toLowerCase();
-      return desc.includes(q) || keys.includes(q);
+      const desc = t(item.descriptionKey);
+      const keys = item.keys.join(' ');
+      return textMatchesSearch(desc, q) || textMatchesSearch(keys, q);
     });
   }, [filterQuery, shortcutsList, t]);
 

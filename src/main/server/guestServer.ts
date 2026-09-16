@@ -6,6 +6,7 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import os from 'os';
 import QRCode from 'qrcode';
 import { GuestSongRequest, QueueItem, ActivePlaybackState, KaraokeMediaTrack } from '../../shared/types';
+import { normalizeForSearch, textMatchesSearch } from '../../shared/textNormalize';
 
 /**
  * Callback contracts invoked by the embedded Guest Portal server.
@@ -199,7 +200,8 @@ export class GuestPortalServer {
 
     // API endpoint for retrieving or searching available library catalog songs
     this.app.get('/api/songs', (req: Request, res: Response) => {
-      const q = typeof req.query.q === 'string' ? req.query.q.trim().toLowerCase() : '';
+      const q =
+        typeof req.query.q === 'string' ? normalizeForSearch(req.query.q).trim() : '';
       const allTracks = this.callbacks.getLibraryTracks();
       const sanitized = allTracks.map((t) => ({
         id: t.id,
@@ -215,7 +217,7 @@ export class GuestPortalServer {
       }
 
       const filtered = sanitized.filter(
-        (t) => t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)
+        (t) => textMatchesSearch(t.title, q) || textMatchesSearch(t.artist, q)
       );
       res.json({ total: allTracks.length, songs: filtered.slice(0, 100) });
     });

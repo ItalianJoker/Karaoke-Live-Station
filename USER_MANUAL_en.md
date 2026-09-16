@@ -325,6 +325,7 @@ Tab **Library & Search** (`Libreria & Ricerca`) (`2` or `Ctrl+F`).
 
 - **Local** mode (scope independent from Web search)
 - **Continuous** filter while typing (`onChange`) on title, artist, code
+- Matching is **case- and accent-insensitive** (e.g. `moriro da re` matches `morirò da re`; accented queries still work)
 - Distinct empty states:
   - **«Libreria vuota. Scansiona una cartella o cerca sul web.»** (Italian UI)
   - **«Nessun brano corrisponde alla ricerca locale.»** (Italian UI)
@@ -475,7 +476,7 @@ Open **System Settings** (`Impostazioni di Sistema`) (gear). At the top: field *
 | **Stage Screen** (`Schermo Stage`) | Intro/outro banners, title overlay, next singer in intro, **`showPitchOnStage`**, **`showSpeedOnStage`**, **custom Stage message text/style/background** |
 | **Shortcuts** (`Scorciatoie`) | Full live-shortcut inventory (same list as the **?** / F1 panel), searchable |
 
-Search filters labels/descriptions **across all categories** (including Shortcuts in **parity** with the **?** guide); clearing the field returns to tab navigation. No setting is removed by the tab reorganization.
+Search filters labels/descriptions **across all categories** (including Shortcuts in **parity** with the **?** guide); matching is case- and accent-insensitive. Clearing the field returns to tab navigation. No setting is removed by the tab reorganization.
 
 ### 9.2 Other useful options
 
@@ -548,7 +549,7 @@ Also documented in Settings → Shortcuts and the **?** / F1 help panel (same in
 ### 11.2 Guest flow
 
 1. Scan the QR (iOS/Android, no app).
-2. Search the **local catalog** (only tracks actually in the library; no arbitrary free text).
+2. Search the **local catalog** (only tracks actually in the library; no arbitrary free text; accent-insensitive).
 3. Enter name and key (typically −4 to +4 semitones on the guest side).
 4. Send the request.
 
@@ -586,7 +587,7 @@ Flag **`alreadyLogged`** on the queue instance: one row per performance even if 
 - SQLite persistence (`siae_logs`)
 - **ISO 8601 timestamp** + epoch milliseconds
 - Title, artist, singer, effective duration
-- Search filter: title / artist / singer
+- Search filter: title / artist / singer (accent-insensitive)
 - **Export SIAE (CSV)** (`Esporta SIAE (CSV)`) with ISO date/time and timestamp columns
 - **Clear History** (`Svuota Storico`) with safety confirmation
 

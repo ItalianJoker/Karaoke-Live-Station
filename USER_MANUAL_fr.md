@@ -324,6 +324,7 @@ Onglet **Bibliothèque & Recherche** (`Libreria & Ricerca`) (`2` ou `Ctrl+F`).
 
 - Mode **Locale** (périmètre indépendant de la recherche Web)
 - Filtre **continu** pendant la frappe (`onChange`) sur titre, artiste, code
+- Correspondance **insensible à la casse et aux accents** (ex. `moriro da re` trouve `morirò da re`)
 - États vides distincts :
   - **«Libreria vuota. Scansiona una cartella o cerca sul web.»** (texte d’UI en italien)
   - **«Nessun brano corrisponde alla ricerca locale.»** (texte d’UI en italien)
@@ -580,7 +581,7 @@ Flag **`alreadyLogged`** sur l’instance en file : une seule ligne par prestati
 - Persistance SQLite (`siae_logs`)
 - **Horodatage ISO 8601** + epoch millisecondes
 - Titre, artiste, chanteur, durée effective
-- Filtre de recherche : titre / artiste / chanteur
+- Filtre de recherche : titre / artiste / chanteur (insensible aux accents)
 - **Exporter SIAE (CSV)** (`Esporta SIAE (CSV)`) avec colonnes date/heure ISO et horodatage
 - **Vider l’historique** (`Svuota Storico`) avec confirmation de sécurité
 
