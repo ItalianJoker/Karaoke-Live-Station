@@ -11,6 +11,7 @@
  */
 import * as ort from 'onnxruntime-web';
 import { hannWindow, realFftFrame, realIfftFrame } from './audioFft';
+import { configureOrtWasmFromUserData } from './ortWasmConfig';
 
 export type MdxProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
@@ -52,11 +53,9 @@ export class MdxNetSeparator {
     }
   }
 
-  /** Configure ORT WASM paths once (vendored under /public/ort). */
-  private configureOrt(): void {
-    ort.env.wasm.numThreads = 1;
-    ort.env.wasm.simd = true;
-    ort.env.wasm.wasmPaths = './ort/';
+  /** Configure ORT WASM from durable userData/ort (karaoke://ort/), not Temp. */
+  private async configureOrt(): Promise<void> {
+    await configureOrtWasmFromUserData();
   }
 
   public async loadModel(modelBuffer: ArrayBuffer): Promise<void> {
@@ -65,7 +64,7 @@ export class MdxNetSeparator {
 
     this.loadPromise = (async () => {
       this.emit({ phase: 'model', progress: 0.05, message: 'Loading UVR-MDX-NET Karaoke 2…' });
-      this.configureOrt();
+      await this.configureOrt();
       this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
         executionProviders: ['wasm'],
         graphOptimizationLevel: 'basic'

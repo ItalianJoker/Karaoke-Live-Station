@@ -3,7 +3,7 @@
  *
  * Lifecycle:
  * 1. ensureModel via main-process IPC (download+cache under userData/models)
- * 2. Load ONNX in renderer with onnxruntime-web (WASM paths from /public/ort)
+ * 2. Ensure ORT WASM under userData/ort (karaoke://ort/) then load ONNX in renderer
  * 3. Separate media URL → instrumental AudioBuffer (cached LRU)
  * 4. AudioGraphManager crossfades dry→wet when ready (never choppy no-op)
  *
@@ -20,6 +20,7 @@ import {
   type OfflineVocalModelId
 } from '../../shared/vocalRemover';
 import { MdxNetSeparator, MDX_SAMPLE_RATE } from './MdxNetSeparator';
+import { configureOrtWasmFromUserData, formatOrtBackendError } from './ortWasmConfig';
 
 export type AiSeparatorProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
@@ -32,11 +33,7 @@ type ProgressListener = (info: AiSeparatorProgress) => void;
 
 const MAX_CACHED_STEMS = 4;
 
-function configureOrtWasm(): void {
-  ort.env.wasm.numThreads = 1;
-  ort.env.wasm.simd = true;
-  ort.env.wasm.wasmPaths = './ort/';
-}
+export { formatOrtBackendError };
 
 export class OfflineAiVocalSeparator {
   private readonly instrumentalCache = new Map<string, AudioBuffer>();
@@ -118,20 +115,39 @@ export class OfflineAiVocalSeparator {
     }
     const buffer = result.buffer;
 
-    configureOrtWasm();
+    try {
+      await configureOrtWasmFromUserData();
+    } catch (err) {
+      const wrapped = new Error(formatOrtBackendError(err));
+      (wrapped as Error & { code?: string }).code = 'ORT_WASM_BACKEND';
+      throw wrapped;
+    }
 
-    switch (method) {
-      case 'aiMdxKaraoke2':
-        if (!this.mdx) this.mdx = new MdxNetSeparator();
-        this.mdx.onProgress((info) => this.emit({ ...info, modelId }));
-        await this.mdx.loadModel(buffer);
-        break;
-      case 'aiHtDemucs':
-        await this.ensureDemucs(buffer);
-        break;
-      case 'aiBsRoformer':
-        await this.ensureBsRoformer(buffer);
-        break;
+    try {
+      switch (method) {
+        case 'aiMdxKaraoke2':
+          if (!this.mdx) this.mdx = new MdxNetSeparator();
+          this.mdx.onProgress((info) => this.emit({ ...info, modelId }));
+          await this.mdx.loadModel(buffer);
+          break;
+        case 'aiHtDemucs':
+          await this.ensureDemucs(buffer);
+          break;
+        case 'aiBsRoformer':
+          await this.ensureBsRoformer(buffer);
+          break;
+      }
+    } catch (err) {
+      const message = formatOrtBackendError(err);
+      const wrapped = new Error(message);
+      if (
+        /no available backend|wasm|jsep|ort-wasm|Failed to f/i.test(
+          err instanceof Error ? err.message : String(err)
+        )
+      ) {
+        (wrapped as Error & { code?: string }).code = 'ORT_WASM_BACKEND';
+      }
+      throw wrapped;
     }
     this.emit({
       phase: 'model',

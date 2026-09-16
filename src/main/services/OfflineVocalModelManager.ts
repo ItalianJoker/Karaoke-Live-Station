@@ -9,12 +9,20 @@ import {
   type VocalModelDownloadProgress
 } from '../../shared/vocalRemover';
 
+type ModelInstallMeta = {
+  id: OfflineVocalModelId;
+  url: string;
+  sha256?: string;
+  size: number;
+  installedAt: string;
+};
+
 /**
  * Downloads and caches offline vocal-separator ONNX models under `<userData>/models/`.
  *
- * Lifecycle:
- * - First use of an AI method calls ensureModel(id) → download + size/SHA check
- * - Subsequent launches reuse the cached file (fully offline)
+ * Lifecycle (same rule as managed libraries under userData):
+ * - Download only when missing, corrupt (size/SHA), or catalog URL/SHA is newer than the sidecar
+ * - Staging file is a sibling under userData (`*.download`), never OS temp as final home
  * - Progress is broadcast to renderer windows for toast / Settings UI
  */
 export class OfflineVocalModelManager {
@@ -35,6 +43,36 @@ export class OfflineVocalModelManager {
     return path.join(this.getModelsDir(), meta.filename);
   }
 
+  private getInstallMetaPath(modelId: OfflineVocalModelId): string {
+    return `${this.getModelPath(modelId)}.meta.json`;
+  }
+
+  private readInstallMeta(modelId: OfflineVocalModelId): ModelInstallMeta | null {
+    try {
+      const p = this.getInstallMetaPath(modelId);
+      if (!fs.existsSync(p)) return null;
+      return JSON.parse(fs.readFileSync(p, 'utf8')) as ModelInstallMeta;
+    } catch {
+      return null;
+    }
+  }
+
+  private writeInstallMeta(modelId: OfflineVocalModelId, size: number): void {
+    const catalog = OFFLINE_VOCAL_MODELS[modelId];
+    const payload: ModelInstallMeta = {
+      id: modelId,
+      url: catalog.url,
+      sha256: catalog.sha256,
+      size,
+      installedAt: new Date().toISOString()
+    };
+    fs.writeFileSync(this.getInstallMetaPath(modelId), JSON.stringify(payload, null, 2), 'utf8');
+  }
+
+  /**
+   * True when the on-disk file passes integrity and matches the current catalog URL/SHA.
+   * Catalog URL or SHA changes count as "newer remote" and force a re-download.
+   */
   public isModelCached(modelId: OfflineVocalModelId): boolean {
     const meta = OFFLINE_VOCAL_MODELS[modelId];
     const modelPath = this.getModelPath(modelId);
@@ -44,7 +82,12 @@ export class OfflineVocalModelManager {
       if (size < meta.minBytes) return false;
       if (meta.sha256) {
         const hash = this.hashFileSync(modelPath);
-        return hash === meta.sha256;
+        if (hash !== meta.sha256) return false;
+      }
+      const install = this.readInstallMeta(modelId);
+      if (install) {
+        if (install.url !== meta.url) return false;
+        if ((install.sha256 || '') !== (meta.sha256 || '')) return false;
       }
       return true;
     } catch {
@@ -53,12 +96,21 @@ export class OfflineVocalModelManager {
   }
 
   /**
-   * Ensures the model file exists on disk (download + integrity when missing).
+   * Ensures the model file exists on disk (download + integrity when missing/corrupt/outdated).
    * Concurrent callers share one in-flight promise per model id.
    */
   public async ensureModel(modelId: OfflineVocalModelId): Promise<string> {
     if (this.isModelCached(modelId)) {
-      return this.getModelPath(modelId);
+      // Backfill sidecar for installs that predate meta.json (no re-download).
+      const modelPath = this.getModelPath(modelId);
+      if (!this.readInstallMeta(modelId) && fs.existsSync(modelPath)) {
+        try {
+          this.writeInstallMeta(modelId, fs.statSync(modelPath).size);
+        } catch {
+          /* ignore */
+        }
+      }
+      return modelPath;
     }
     const existing = this.inFlight.get(modelId);
     if (existing) return existing;
@@ -215,10 +267,12 @@ export class OfflineVocalModelManager {
                 }
               }
 
+              // Atomic install into userData/models (sibling .download staging — not OS temp).
               fs.renameSync(tempPath, modelPath);
+              this.writeInstallMeta(modelId, size);
               this.logger.info(
                 'OfflineVocalModelManager',
-                `${meta.label} ready (${size} bytes)`
+                `${meta.label} ready (${size} bytes) under userData/models`
               );
               this.emitProgress({
                 modelId,

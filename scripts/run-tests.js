@@ -521,8 +521,51 @@ assert(
     mdxSource.includes('DIM_F') &&
     mdxSource.includes('N_FFT') &&
     modelManagerSource.includes('userData') &&
-    modelManagerSource.includes('models'),
+    modelManagerSource.includes('models') &&
+    modelManagerSource.includes('.meta.json'),
   'Offline AI separator + MDX STFT path + userData model cache are wired'
+);
+
+const ortWasmManagerSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/OrtWasmManager.ts'),
+  'utf8'
+);
+const ortWasmConfigSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/ortWasmConfig.ts'),
+  'utf8'
+);
+const ortWasmSharedSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/ortWasm.ts'),
+  'utf8'
+);
+const mainSourceOrt = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+const preloadSourceOrt = fs.readFileSync(path.resolve(__dirname, '../src/preload/index.ts'), 'utf8');
+
+assert(
+  ortWasmManagerSource.includes("path.join(app.getPath('userData'), 'ort')") &&
+    ortWasmManagerSource.includes('ensureOrtWasm') &&
+    ortWasmManagerSource.includes('needsRefresh') &&
+    !ortWasmManagerSource.includes('os.tmpdir()') &&
+    !ortWasmManagerSource.includes("app.getPath('temp')"),
+  'OrtWasmManager seeds durable userData/ort (never OS temp as permanent home)'
+);
+
+assert(
+  ortWasmConfigSource.includes('karaoke://ort/') &&
+    ortWasmConfigSource.includes('configureOrtWasmFromUserData') &&
+    ortWasmConfigSource.includes('proxy = false') &&
+    offlineAiSource.includes('configureOrtWasmFromUserData') &&
+    mdxSource.includes('configureOrtWasmFromUserData') &&
+    !offlineAiSource.includes("wasmPaths = './ort/'"),
+  'Renderer points ORT wasmPaths at karaoke://ort/ (userData), not relative Temp blobs'
+);
+
+assert(
+  mainSourceOrt.includes("hostname === 'ort'") &&
+    mainSourceOrt.includes('ort-wasm:ensure') &&
+    preloadSourceOrt.includes('ortWasm') &&
+    ortWasmSharedSource.includes('ort-wasm-simd-threaded.wasm'),
+  'karaoke://ort protocol + IPC expose seeded ORT WASM assets'
 );
 
 assert(
@@ -539,6 +582,12 @@ assert(
 assert(
   fs.existsSync(path.resolve(__dirname, '../public/ort/ort-wasm-simd-threaded.wasm')),
   'ORT WASM assets are vendored under public/ort for Electron'
+);
+
+assert(
+  audioGraphSource.includes('formatOrtBackendError') &&
+    ortWasmConfigSource.includes('no available backend'),
+  'AI vocal remover surfaces a clearer ORT backend failure toast'
 );
 
 assert(
