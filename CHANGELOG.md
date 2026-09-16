@@ -8,21 +8,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+---
+
+## [1.1.0] — ORT WASM userData + MDX durability (refresh) — 2026-09-16
+
+Overwrite of GitHub Release `v1.1.0` after ORT WASM Temp-path fix + durable model installs.
+
 ### Fixed
 - **ORT WASM backend on Windows Electron** — onnxruntime-web no longer loads `.mjs`/`.wasm` from OS Temp / ephemeral `file://` blobs (fix for `no available backend found` / `wasm-simd-threaded.jsep.mjs`). Assets are seeded once into `<userData>/ort/` (like yt-dlp under `bin/`) and served via `karaoke://ort/`; refresh only when missing, size-mismatched, or packaged source newer. Clearer toast when the WASM backend still fails.
 - **Offline AI models durability** — MDX/HTDemucs/BS-Roformer stay under `<userData>/models/` with sibling `.download` staging (not OS temp as final home); sidecar `.meta.json` skips re-download unless missing, corrupt, or catalog URL/SHA newer.
-
-### Added
-- **Offline AI vocal remover options** (Settings → Audio, Experimental): UVR-MDX-NET Karaoke 2 (~53 MB, recommended AI), HTDemucs v4 (~172 MB), BS-Roformer ViperX quantized (~158 MB, advanced). Models download once into `<userData>/models/` with progress + integrity check, then run fully offline via ONNX Runtime Web (WASM). Algorithmic mid/side DSP entries remain available in the same dropdown.
-- **AI hardware warning** (IT/EN/ES/FR): themed confirm on first AI method select / first AI toggle-on, plus Settings helper text; optional “don’t show again” (localStorage). Algorithmic methods are not blocked by this warning.
-
-### Changed
-- **Project license** — Karaoke Live Station is now licensed under **GNU AGPLv3 or later** (`AGPL-3.0-or-later`): added root `LICENSE`, `package.json` license metadata, and README (IT/EN) + user-manual license notes
-- Vocal remover Control button still labeled *(Sperimentale)/(Experimental)*; AI path uses async separate → crossfade (dry audio continues until instrumental is ready)
-
-### Fixed (CI)
-- **CI macOS `npm ci`** — retry with backoff when `ffmpeg-static` postinstall hits transient GitHub Releases HTTP 500 (darwin-arm64)
-- **CI Windows `npm ci` retry** — run the retry loop under `shell: bash` (windows-latest defaults to PowerShell and rejected the bash `for` syntax)
 
 ---
 
