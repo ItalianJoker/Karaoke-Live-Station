@@ -3,9 +3,11 @@
  *
  * Lifecycle:
  * 1. ensureModel via main-process IPC (download+cache under userData/models)
- * 2. Ensure ORT WASM under userData/ort (karaoke://ort/) then load ONNX in renderer
- * 3. Separate media URL → instrumental AudioBuffer (cached LRU)
- * 4. AudioGraphManager crossfades dry→wet when ready (never choppy no-op)
+ * 2. Fetch ONNX via karaoke://models/ (streaming; avoids giant sync IPC buffers)
+ * 3. Ensure ORT WASM under userData/ort (karaoke://ort/) then load ONNX
+ * 4. MDX runs in a Web Worker (STFT+ORT off the UI thread); other methods yield
+ * 5. Separate media URL → instrumental AudioBuffer (cached LRU)
+ * 6. AudioGraphManager crossfades dry→wet when ready (never choppy no-op)
  *
  * BS-Roformer: quantized ViperX ONNX is cached offline; full band-split STFT
  * preprocessor is heavy for Electron WASM — we run a best-effort ORT path and
@@ -16,11 +18,18 @@ import { DemucsProcessor, CONSTANTS } from 'demucs-web';
 import {
   isAiVocalRemoverMethod,
   methodToModelId,
+  OFFLINE_VOCAL_MODELS,
   type AiVocalRemoverMethod,
   type OfflineVocalModelId
 } from '../../shared/vocalRemover';
-import { MdxNetSeparator, MDX_SAMPLE_RATE } from './MdxNetSeparator';
-import { configureOrtWasmFromUserData, formatOrtBackendError } from './ortWasmConfig';
+import { MDX_SAMPLE_RATE } from './MdxNetSeparator';
+import { MdxVocalWorkerClient } from './MdxVocalWorkerClient';
+import {
+  configureOrtWasmFromUserData,
+  formatOrtBackendError,
+  getConfiguredOrtWasmPaths
+} from './ortWasmConfig';
+import { yieldToMainThread } from './yieldToMain';
 
 export type AiSeparatorProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
@@ -40,7 +49,7 @@ export class OfflineAiVocalSeparator {
   private readonly inFlight = new Map<string, Promise<AudioBuffer>>();
   private readonly listeners = new Set<ProgressListener>();
 
-  private mdx: MdxNetSeparator | null = null;
+  private mdxClient: MdxVocalWorkerClient | null = null;
   private demucs: DemucsProcessor | null = null;
   private demucsReady = false;
   private bsSession: ort.InferenceSession | null = null;
@@ -73,6 +82,54 @@ export class OfflineAiVocalSeparator {
   }
 
   /**
+   * Load model bytes from durable userData/models via karaoke://models/ when possible.
+   * Falls back to IPC getModelBuffer (async read) outside Electron.
+   */
+  private async loadModelArrayBuffer(modelId: OfflineVocalModelId): Promise<ArrayBuffer> {
+    const api = typeof window !== 'undefined' ? window.karaokeApi?.vocalModels : undefined;
+    if (!api?.ensureModel) {
+      throw new Error('Vocal model IPC unavailable (not running in Electron?)');
+    }
+
+    const ensured = await api.ensureModel(modelId);
+    if (!ensured?.success) {
+      const err = new Error(ensured?.error || `Failed to download offline model ${modelId}`);
+      (err as Error & { code?: string }).code = 'VOCAL_MODEL_DOWNLOAD';
+      throw err;
+    }
+
+    // Prefer streaming fetch so the main process does not serialize 50–170 MB over IPC.
+    const fetchUrl =
+      ensured.modelUrl ||
+      `karaoke://models/${encodeURIComponent(OFFLINE_VOCAL_MODELS[modelId].filename)}`;
+    try {
+      await yieldToMainThread();
+      const response = await fetch(fetchUrl);
+      if (response.ok) {
+        const buffer = await response.arrayBuffer();
+        if (buffer.byteLength > 0) return buffer;
+      }
+    } catch {
+      // Fall through to IPC buffer path.
+    }
+
+    if (!api.getModelBuffer) {
+      throw new Error(`Failed to load offline model buffer for ${modelId}`);
+    }
+    const result = await api.getModelBuffer(modelId);
+    if (!result?.success || !result.buffer || result.buffer.byteLength === 0) {
+      const err = new Error(
+        result?.error || `Failed to load offline model buffer for ${modelId}`
+      );
+      if (result?.error && /download failed|integrity|SHA-256/i.test(result.error)) {
+        (err as Error & { code?: string }).code = 'VOCAL_MODEL_DOWNLOAD';
+      }
+      throw err;
+    }
+    return result.buffer;
+  }
+
+  /**
    * Ensures the ONNX weights for `method` are on disk (IPC) and the in-process
    * runtime session is ready.
    */
@@ -88,32 +145,8 @@ export class OfflineAiVocalSeparator {
       modelId
     });
 
-    const api = typeof window !== 'undefined' ? window.karaokeApi?.vocalModels : undefined;
-    if (!api?.getModelBuffer) {
-      throw new Error('Vocal model IPC unavailable (not running in Electron?)');
-    }
-
-    // ensureModel first so download failures return a clear { success:false, error } (no IPC throw).
-    if (api.ensureModel) {
-      const ensured = await api.ensureModel(modelId);
-      if (!ensured?.success) {
-        const err = new Error(ensured?.error || `Failed to download offline model ${modelId}`);
-        (err as Error & { code?: string }).code = 'VOCAL_MODEL_DOWNLOAD';
-        throw err;
-      }
-    }
-
-    const result = await api.getModelBuffer(modelId);
-    if (!result?.success || !result.buffer || result.buffer.byteLength === 0) {
-      const err = new Error(
-        result?.error || `Failed to load offline model buffer for ${modelId}`
-      );
-      if (result?.error && /download failed|integrity|SHA-256/i.test(result.error)) {
-        (err as Error & { code?: string }).code = 'VOCAL_MODEL_DOWNLOAD';
-      }
-      throw err;
-    }
-    const buffer = result.buffer;
+    const buffer = await this.loadModelArrayBuffer(modelId);
+    await yieldToMainThread();
 
     try {
       await configureOrtWasmFromUserData();
@@ -123,12 +156,16 @@ export class OfflineAiVocalSeparator {
       throw wrapped;
     }
 
+    const wasmPaths = getConfiguredOrtWasmPaths() || 'karaoke://ort/';
+
     try {
       switch (method) {
         case 'aiMdxKaraoke2':
-          if (!this.mdx) this.mdx = new MdxNetSeparator();
-          this.mdx.onProgress((info) => this.emit({ ...info, modelId }));
-          await this.mdx.loadModel(buffer);
+          if (!this.mdxClient) {
+            this.mdxClient = new MdxVocalWorkerClient();
+            this.mdxClient.onProgress((info) => this.emit({ ...info, modelId }));
+          }
+          await this.mdxClient.loadModel(buffer, wasmPaths);
           break;
         case 'aiHtDemucs':
           await this.ensureDemucs(buffer);
@@ -192,6 +229,7 @@ export class OfflineAiVocalSeparator {
         });
       }
     });
+    await yieldToMainThread();
     await this.demucs.loadModel(modelBuffer);
     this.demucsReady = true;
   }
@@ -204,6 +242,7 @@ export class OfflineAiVocalSeparator {
       message: 'Loading BS-Roformer (ViperX)…',
       modelId: 'bsRoformer'
     });
+    await yieldToMainThread();
     this.bsSession = await ort.InferenceSession.create(modelBuffer.slice(0), {
       executionProviders: ['wasm'],
       graphOptimizationLevel: 'basic'
@@ -241,11 +280,13 @@ export class OfflineAiVocalSeparator {
     await this.ensureMethodReady(method);
 
     this.emit({ phase: 'decode', progress: 0.05, message: 'Decoding audio…' });
+    await yieldToMainThread();
     const response = await fetch(mediaUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch media for separation (HTTP ${response.status})`);
     }
     const arrayBuffer = await response.arrayBuffer();
+    await yieldToMainThread();
     const decoded = await audioContext.decodeAudioData(arrayBuffer.slice(0));
 
     let instrumental: AudioBuffer;
@@ -275,21 +316,14 @@ export class OfflineAiVocalSeparator {
   }
 
   private async runMdx(decoded: AudioBuffer, audioContext: AudioContext): Promise<AudioBuffer> {
-    if (!this.mdx) throw new Error('MDX separator unavailable');
+    if (!this.mdxClient) throw new Error('MDX separator unavailable');
     let working = decoded;
     if (Math.abs(decoded.sampleRate - MDX_SAMPLE_RATE) > 1) {
       working = await this.resampleBuffer(decoded, MDX_SAMPLE_RATE);
     }
     const left = working.getChannelData(0);
     const right = working.numberOfChannels > 1 ? working.getChannelData(1) : left;
-    const { left: outL, right: outR } = await this.mdx.separateInstrumental(left, right, (r) => {
-      this.emit({
-        phase: 'separate',
-        progress: r,
-        message: `MDX separating… ${Math.round(r * 100)}%`,
-        modelId: 'mdxKaraoke2'
-      });
-    });
+    const { left: outL, right: outR } = await this.mdxClient.separateInstrumental(left, right);
     const buf = audioContext.createBuffer(2, outL.length, MDX_SAMPLE_RATE);
     buf.getChannelData(0).set(outL);
     buf.getChannelData(1).set(outR);
@@ -311,7 +345,9 @@ export class OfflineAiVocalSeparator {
       message: 'Running HTDemucs inference…',
       modelId: 'htDemucs'
     });
+    await yieldToMainThread();
     const stems = await this.demucs.separate(left, right);
+    await yieldToMainThread();
     const length = left.length;
     const instrumental = audioContext.createBuffer(2, length, targetRate);
     const outL = instrumental.getChannelData(0);
@@ -319,6 +355,10 @@ export class OfflineAiVocalSeparator {
     for (let i = 0; i < length; i++) {
       outL[i] = stems.drums.left[i] + stems.bass.left[i] + stems.other.left[i];
       outR[i] = stems.drums.right[i] + stems.bass.right[i] + stems.other.right[i];
+      if ((i & 0xffff) === 0xffff) {
+        // Periodic yield while mixing long stems.
+        await yieldToMainThread();
+      }
     }
     return instrumental;
   }

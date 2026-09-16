@@ -72,16 +72,19 @@ export class OfflineVocalModelManager {
   /**
    * True when the on-disk file passes integrity and matches the current catalog URL/SHA.
    * Catalog URL or SHA changes count as "newer remote" and force a re-download.
+   *
+   * Async (streaming hash) so large ONNX files never block the Electron main process /
+   * freeze the UI when the user toggles AI vocal remover during playback.
    */
-  public isModelCached(modelId: OfflineVocalModelId): boolean {
+  public async isModelCached(modelId: OfflineVocalModelId): Promise<boolean> {
     const meta = OFFLINE_VOCAL_MODELS[modelId];
     const modelPath = this.getModelPath(modelId);
     try {
       if (!fs.existsSync(modelPath)) return false;
-      const size = fs.statSync(modelPath).size;
+      const size = (await fs.promises.stat(modelPath)).size;
       if (size < meta.minBytes) return false;
       if (meta.sha256) {
-        const hash = this.hashFileSync(modelPath);
+        const hash = await this.hashFile(modelPath);
         if (hash !== meta.sha256) return false;
       }
       const install = this.readInstallMeta(modelId);
@@ -100,12 +103,12 @@ export class OfflineVocalModelManager {
    * Concurrent callers share one in-flight promise per model id.
    */
   public async ensureModel(modelId: OfflineVocalModelId): Promise<string> {
-    if (this.isModelCached(modelId)) {
+    if (await this.isModelCached(modelId)) {
       // Backfill sidecar for installs that predate meta.json (no re-download).
       const modelPath = this.getModelPath(modelId);
       if (!this.readInstallMeta(modelId) && fs.existsSync(modelPath)) {
         try {
-          this.writeInstallMeta(modelId, fs.statSync(modelPath).size);
+          this.writeInstallMeta(modelId, (await fs.promises.stat(modelPath)).size);
         } catch {
           /* ignore */
         }
@@ -124,17 +127,47 @@ export class OfflineVocalModelManager {
     }
   }
 
-  /** Reads cached model bytes for IPC transfer to the renderer (ORT session load). */
+  /**
+   * Reads cached model bytes for IPC transfer (legacy). Prefer karaoke://models/ fetch
+   * from the renderer/worker so the main process does not serialize huge buffers on the UI path.
+   */
   public async readModelBuffer(modelId: OfflineVocalModelId): Promise<ArrayBuffer> {
     const modelPath = await this.ensureModel(modelId);
-    const buffer = fs.readFileSync(modelPath);
+    const buffer = await fs.promises.readFile(modelPath);
     return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
   }
 
-  private hashFileSync(filePath: string): string {
-    const hash = crypto.createHash('sha256');
-    hash.update(fs.readFileSync(filePath));
-    return hash.digest('hex');
+  /**
+   * Resolve a safe absolute path for karaoke://models/<filename>.
+   * Only catalog filenames under userData/models are allowed.
+   */
+  public resolveServableModel(filename: string): string | null {
+    const safe = path.basename(filename);
+    if (!safe || safe !== filename.replace(/^\/+/, '')) return null;
+    const allowed = Object.values(OFFLINE_VOCAL_MODELS).some((m) => m.filename === safe);
+    if (!allowed) return null;
+    const modelPath = path.join(this.getModelsDir(), safe);
+    if (!fs.existsSync(modelPath)) return null;
+    return modelPath;
+  }
+
+  /** Durable fetch URL for a cached model (renderer/worker; not OS Temp). */
+  public getModelFetchUrl(modelId: OfflineVocalModelId): string {
+    const meta = OFFLINE_VOCAL_MODELS[modelId];
+    return `karaoke://models/${encodeURIComponent(meta.filename)}`;
+  }
+
+  /** Streaming SHA-256 — keeps the main event loop free during large model checks. */
+  private hashFile(filePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const hash = crypto.createHash('sha256');
+      const stream = fs.createReadStream(filePath);
+      stream.on('data', (chunk: Buffer) => {
+        hash.update(chunk);
+      });
+      stream.on('end', () => resolve(hash.digest('hex')));
+      stream.on('error', (err) => reject(err));
+    });
   }
 
   private emitProgress(progress: VocalModelDownloadProgress): void {
@@ -248,40 +281,46 @@ export class OfflineVocalModelManager {
                 message: `Verifying ${meta.label}…`
               });
 
-              if (meta.sha256) {
-                const hash = this.hashFileSync(tempPath);
-                if (hash !== meta.sha256) {
-                  fs.unlinkSync(tempPath);
-                  const err = new Error(
-                    `${meta.label} SHA-256 mismatch (got ${hash.slice(0, 12)}…)`
+              void (async () => {
+                try {
+                  if (meta.sha256) {
+                    const hash = await this.hashFile(tempPath);
+                    if (hash !== meta.sha256) {
+                      fs.unlinkSync(tempPath);
+                      const err = new Error(
+                        `${meta.label} SHA-256 mismatch (got ${hash.slice(0, 12)}…)`
+                      );
+                      this.emitProgress({
+                        modelId,
+                        phase: 'error',
+                        loaded: size,
+                        total: size,
+                        message: err.message
+                      });
+                      reject(err);
+                      return;
+                    }
+                  }
+
+                  // Atomic install into userData/models (sibling .download staging — not OS temp).
+                  fs.renameSync(tempPath, modelPath);
+                  this.writeInstallMeta(modelId, size);
+                  this.logger.info(
+                    'OfflineVocalModelManager',
+                    `${meta.label} ready (${size} bytes) under userData/models`
                   );
                   this.emitProgress({
                     modelId,
-                    phase: 'error',
+                    phase: 'ready',
                     loaded: size,
                     total: size,
-                    message: err.message
+                    message: `${meta.label} ready`
                   });
-                  reject(err);
-                  return;
+                  resolve();
+                } catch (err) {
+                  reject(err instanceof Error ? err : new Error(String(err)));
                 }
-              }
-
-              // Atomic install into userData/models (sibling .download staging — not OS temp).
-              fs.renameSync(tempPath, modelPath);
-              this.writeInstallMeta(modelId, size);
-              this.logger.info(
-                'OfflineVocalModelManager',
-                `${meta.label} ready (${size} bytes) under userData/models`
-              );
-              this.emitProgress({
-                modelId,
-                phase: 'ready',
-                loaded: size,
-                total: size,
-                message: `${meta.label} ready`
-              });
-              resolve();
+              })();
             } catch (err) {
               reject(err instanceof Error ? err : new Error(String(err)));
             }

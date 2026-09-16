@@ -6,13 +6,22 @@ import * as ort from 'onnxruntime-web';
 
 let ortConfigured = false;
 let ortConfigurePromise: Promise<void> | null = null;
+/** Last durable wasmPaths applied (karaoke://ort/…); passed into MDX Web Worker. */
+let lastWasmPaths: string | { wasm: string; mjs: string } | null = null;
 
 function applyOrtFlags(wasmPaths: string | { wasm: string; mjs: string }): void {
   ort.env.wasm.numThreads = 1;
   ort.env.wasm.simd = true;
-  // Disable proxy worker — Electron/bundlers often break Worker + import.meta.url → Temp.
+  // Disable ORT's built-in proxy worker — Electron/bundlers often break Worker +
+  // import.meta.url → Temp. We run MDX in our own worker with explicit karaoke:// paths.
   ort.env.wasm.proxy = false;
   ort.env.wasm.wasmPaths = wasmPaths;
+  lastWasmPaths = wasmPaths;
+}
+
+/** Explicit karaoke://ort URLs (or ./ort/ in Vite dev) for worker ORT configuration. */
+export function getConfiguredOrtWasmPaths(): string | { wasm: string; mjs: string } | null {
+  return lastWasmPaths;
 }
 
 /**

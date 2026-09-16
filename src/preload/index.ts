@@ -207,7 +207,13 @@ export interface KaraokeAPI {
     isModelCached: (modelId: OfflineVocalModelId) => Promise<boolean>;
     ensureModel: (
       modelId: OfflineVocalModelId
-    ) => Promise<{ success: boolean; modelPath?: string; error?: string }>;
+    ) => Promise<{
+      success: boolean;
+      modelPath?: string;
+      /** karaoke://models/… URL for streaming fetch (preferred over getModelBuffer). */
+      modelUrl?: string;
+      error?: string;
+    }>;
     /** Structured result — never rejects on download/read failure (avoids cryptic IPC toasts). */
     getModelBuffer: (
       modelId: OfflineVocalModelId
