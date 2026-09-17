@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+## [1.1.0] — Settings split + download cancel + AI Instrumental (refresh) — 2026-09-17
+
+Overwrite of GitHub Release `v1.1.0` after settings split (live DSP vs Instrumental AI), abortable download cancel, and MDX UVR low-bin align (PR #19 + #20).
+
 ### Fixed
 - **Download cancel** — interrupt from the Download menu now aborts yt-dlp (process tree), instrumental ffmpeg, model download, and AI utility workers; UI clears for traditional and instrumental jobs.
 - **MDX Karaoke 2** — zero lowest 3 STFT bins before ONNX (matches UVR `separate.py`), improving low-end behavior.

@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **Scarica strumentale con AI offline selezionabile** + menu Download + pool download simultanei + **ricerca senza accenti** + Rimozione Vocale live solo DSP (niente Separazione dual-stem) + fix storici UI/archivio/Stage.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **impostazioni separate** live DSP vs Scarica strumentale AI (default UVR-MDX) + **annulla download** (menu Download, yt-dlp/ffmpeg/AI) + AI strumentale + menu Download + pool simultanei + ricerca senza accenti + fix storici.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,13 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **Scarica strumentale
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### 🎛️ Impostazioni vocali separate (live vs strumentale)
+- **Rimozione Vocale live** (`V`): solo algoritmi DSP in Impostazioni.
+- **Metodo Scarica strumentale**: menu dedicato (AI + DSP); default **UVR-MDX Karaoke 2**. L’AI non guida mai il live.
+
+### ⏹️ Annulla download
+- Il pulsante interrompi nel menu Download ferma yt-dlp (albero processi), conversione ffmpeg e job AI/modello, anche in fase strumentale.
 
 ### 🎙️ Rimozione Vocale live — solo DSP
 - Pulsante Regia / tasto `V`: mid/side algoritmico (`centerCancelBassKeep`, `centerCancel`, `softMid`).
@@ -72,7 +79,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **Scarica strumentale
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **Download Instrumental with selectable offline AI** + Download menu + simultaneous download pool + **accent-insensitive search** + live vocal remover stays DSP-only (no dual-stem Separazione) + retained UI/archive/Stage fixes.
+GitHub Release **v1.1.0** overwrite: **split Settings** for live DSP vs Download Instrumental AI (default UVR-MDX) + **working download cancel** (Download menu, yt-dlp/ffmpeg/AI) + Instrumental AI + Download menu + concurrency pool + accent-insensitive search + retained fixes.
 
 ## 📦 Installers
 
@@ -85,6 +92,13 @@ GitHub Release **v1.1.0** overwrite: **Download Instrumental with selectable off
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### 🎛️ Split vocal settings (live vs instrumental)
+- **Live Rimozione Vocale** (`V`): algorithmic DSP methods only in Settings.
+- **Download Instrumental method**: separate dropdown (AI + DSP); default **UVR-MDX Karaoke 2**. AI never drives live playback.
+
+### ⏹️ Cancel download
+- The Download menu interrupt button stops yt-dlp (process tree), ffmpeg conversion, and AI/model jobs — including during instrumental post-process.
 
 ### 🎙️ Live Vocal Remover — DSP only
 - Control button / `V`: algorithmic mid/side (`centerCancelBassKeep`, `centerCancel`, `softMid`).
