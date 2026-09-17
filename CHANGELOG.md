@@ -8,6 +8,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+## [1.1.0] — Instrumental download staging under userData/temp (refresh) — 2026-09-17
+
+Overwrite of GitHub Release `v1.1.0` after PR #24 (reliable yt-dlp original staging before Instrumental AI).
+
+### Fixed
+- **Download Instrumental skipped AI / “original never downloaded”** — yt-dlp always staged under `userData/temp` (not the library folder), but Destination/Merger parsing could miss the final muxed MP4 (relative paths, unquoted Merger, format-fragment hints). Instrumental then completed without AI. Staging helpers now prefer `${downloadId}.mp4`, ignore `.f###`/`.part` sidecars, and fail clearly when the original is missing. Remux still lands as `*.instrumental.mp4` then library `(Instrumental)`.
+
 ## [1.1.0] — Local media path `//home/...` + SoundFont preference (refresh) — 2026-09-17
 
 Overwrite of GitHub Release `v1.1.0` after PR #23 (`karaoke://local` path normalization + SoundFont candidate order).

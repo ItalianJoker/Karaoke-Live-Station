@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix path media locale `//home/...`** (AppImage Linux) + SoundFont da `resources/` + fix «Rimozione voce» al ~45% + **Carica altri video** + **Pulisci coda** + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **staging Download Instrumental** (`userData/temp`) + fix AI saltata se l’MP4 originale non veniva risolto + path media locale `//home/...` + SoundFont + progresso ~45% + **Carica altri video** + **Pulisci coda** + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,11 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix path media loca
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### 📥 Scarica strumentale — staging originale affidabile
+- yt-dlp scrive l’MP4 originale in **`userData/temp`** (su Linux AppImage: `~/.config/karaoke-live-station/temp/`), non nella cartella libreria.
+- Risoluzione Destination/Merger più robusta (path relativi, Merger senza virgolette, niente frammenti `.f###`); se manca l’originale, errore chiaro invece di «completato» senza AI.
+- Sequenza: download → ensure modello (opz.) → AI/DSP → remux `*.instrumental.mp4` → cleanup originale → salvataggio libreria `(Instrumental)`.
 
 ### 📂 Path media locale (`karaoke://local`)
 - Correzione del doppio slash `//home/...` dopo `encodeURIComponent` di path assoluti POSIX: playback Instrumental e file locali non falliscono più con `Media file not found` / `DEMUXER_ERROR_COULD_NOT_OPEN`.
@@ -103,7 +108,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix path media loca
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **local media path `//home/...` fix** (Linux AppImage) + SoundFont from `resources/` + Instrumental AI ~45% progress fix + YouTube **Load more videos** + Download **Clear downloads** + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
+GitHub Release **v1.1.0** overwrite: **Download Instrumental staging** (`userData/temp`) + fix for AI skipped when the original MP4 was not resolved + local media path `//home/...` + SoundFont + ~45% progress + YouTube **Load more videos** + Download **Clear downloads** + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
 
 ## 📦 Installers
 
@@ -116,6 +121,11 @@ GitHub Release **v1.1.0** overwrite: **local media path `//home/...` fix** (Linu
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### 📥 Download Instrumental — reliable original staging
+- yt-dlp writes the original MP4 under **`userData/temp`** (Linux AppImage: `~/.config/karaoke-live-station/temp/`), not the library folder.
+- Stronger Destination/Merger resolution (relative paths, unquoted Merger, ignore `.f###` fragments); clear error if the original is missing instead of “completed” without AI.
+- Sequence: download → optional model ensure → AI/DSP → remux `*.instrumental.mp4` → delete original → library save `(Instrumental)`.
 
 ### 📂 Local media path (`karaoke://local`)
 - Fixed double-slash `//home/...` after `encodeURIComponent` of POSIX absolute paths — Instrumental and local files no longer fail with `Media file not found` / `DEMUXER_ERROR_COULD_NOT_OPEN`.
