@@ -144,7 +144,11 @@
     "downloading": "Download in corso…",
     "converting": "Conversione…",
     "convertingInstrumental": "Conversione strumentale…",
-    "downloadCompleted": "Completato"
+    "downloadCompleted": "Completato",
+    "loadMoreVideos": "Carica altri video",
+    "loadingMore": "Caricamento…",
+    "clearDownloads": "Pulisci coda",
+    "confirmClearDownloads": "Annullare tutti i download in corso e svuotare l’elenco?"
   },
   "settings": {
     "title": "Impostazioni di Sistema",

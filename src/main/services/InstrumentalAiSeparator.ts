@@ -42,8 +42,12 @@ export const AI_SEPARATION_MAX_TIMEOUT_MS = 3 * 60 * 60 * 1000;
  * Prefer finishing over false timeouts; idle watchdog still catches true hangs.
  */
 export const AI_SEPARATION_MS_PER_AUDIO_SEC = 45 * 1000;
-/** Fail if the worker goes silent this long (no progress heartbeat). */
-export const AI_SEPARATION_IDLE_TIMEOUT_MS = 8 * 60 * 1000;
+/**
+ * Fail if the worker goes silent this long (no progress heartbeat).
+ * First MDX chunk (STFT+ORT+iSTFT) can be multi-minute on CPU even with FFT plan cache;
+ * intra-chunk heartbeats should reset this, but keep a generous backstop.
+ */
+export const AI_SEPARATION_IDLE_TIMEOUT_MS = 20 * 60 * 1000;
 
 /**
  * Scale the hard timeout with track length so a ~3–5 min song on CPU is not

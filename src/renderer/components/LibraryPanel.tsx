@@ -79,6 +79,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     webQuery
   } = useScopedLibrarySearch();
   const [isScanning, setIsScanning] = useState(false);
+  const [webHasMore, setWebHasMore] = useState(false);
+  const [webLoadingMore, setWebLoadingMore] = useState(false);
+  const webSearchOffsetRef = useRef(0);
   const [completedDownloads, setCompletedDownloads] = useState<
     Array<{ id: string; title: string; artist: string }>
   >([]);
@@ -530,6 +533,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     }
   };
 
+  const YOUTUBE_PAGE_SIZE = 10;
+
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     // Web search only runs on explicit submit while Web tab is active.
@@ -538,13 +543,21 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       const q = webQuery.trim();
       if (!q) {
         setWebResults([]);
+        setWebHasMore(false);
         return;
       }
       setWebSearching(true);
+      setWebHasMore(false);
+      webSearchOffsetRef.current = 0;
       try {
         if (window.karaokeApi) {
-          const ytTracks = await window.karaokeApi.library.searchYouTube(q);
+          const ytTracks = await window.karaokeApi.library.searchYouTube(q, {
+            offset: 0,
+            limit: YOUTUBE_PAGE_SIZE
+          });
           setWebResults(ytTracks);
+          webSearchOffsetRef.current = ytTracks.length > 0 ? YOUTUBE_PAGE_SIZE : 0;
+          setWebHasMore(ytTracks.length >= YOUTUBE_PAGE_SIZE);
         }
       } finally {
         setWebSearching(false);
@@ -571,6 +584,29 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       }
     } finally {
       setLocalSearching(false);
+    }
+  };
+
+  const handleLoadMoreVideos = async () => {
+    if (searchMode !== 'web' || webLoadingMore || !webHasMore) return;
+    const q = webQuery.trim();
+    if (!q || !window.karaokeApi) return;
+    setWebLoadingMore(true);
+    try {
+      const offset = webSearchOffsetRef.current;
+      const next = await window.karaokeApi.library.searchYouTube(q, {
+        offset,
+        limit: YOUTUBE_PAGE_SIZE
+      });
+      setWebResults((prev) => {
+        const seen = new Set(prev.map((t) => t.id));
+        const appended = next.filter((t) => t.id && !seen.has(t.id));
+        return [...prev, ...appended];
+      });
+      webSearchOffsetRef.current = offset + YOUTUBE_PAGE_SIZE;
+      setWebHasMore(next.length >= YOUTUBE_PAGE_SIZE);
+    } finally {
+      setWebLoadingMore(false);
     }
   };
 
@@ -1060,6 +1096,24 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
               </div>
             );
           })
+        )}
+        {searchMode === 'web' && displayedTracks.length > 0 && webHasMore && (
+          <div className="pt-2 pb-1 flex justify-center">
+            <button
+              type="button"
+              onClick={() => void handleLoadMoreVideos()}
+              disabled={webLoadingMore || isSearching}
+              className="px-4 py-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2"
+              data-testid="youtube-load-more"
+            >
+              {webLoadingMore ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : null}
+              {webLoadingMore
+                ? t('library.loadingMore', 'Caricamento…')
+                : t('library.loadMoreVideos', 'Carica altri video')}
+            </button>
+          </div>
         )}
       </div>
 

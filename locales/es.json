@@ -144,7 +144,11 @@
     "downloading": "Descargando…",
     "converting": "Convirtiendo…",
     "convertingInstrumental": "Convirtiendo instrumental…",
-    "downloadCompleted": "Completado"
+    "downloadCompleted": "Completado",
+    "loadMoreVideos": "Cargar más videos",
+    "loadingMore": "Cargando más…",
+    "clearDownloads": "Vaciar descargas",
+    "confirmClearDownloads": "¿Cancelar todas las descargas en curso y vaciar la lista?"
   },
   "settings": {
     "title": "Ajustes del Sistema",

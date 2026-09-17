@@ -8,6 +8,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+### Fixed
+- **Instrumental AI stuck at ~45% (“Rimozione voce”)** — phase-aware monotonic progress (no snap-back after model load); intra-chunk STFT/ORT heartbeats; cached Bluestein FFT plans for UVR MDX `n_fft=5120`; safer ONNX/WASM `ArrayBuffer` copies; idle watchdog 20 min.
+
+### Added
+- **YouTube “Carica altri video”** — Load more pagination in Web search (`ytsearch` + playlist window).
+- **Download menu — Pulisci coda** — clear list and cancel all in-flight/queued downloads (with confirm when active).
+
 ## [1.1.0] — Download speed/ETA + instrumental AI timeout (refresh) — 2026-09-17
 
 Overwrite of GitHub Release `v1.1.0` after PR #21 (speed/ETA parsing + Instrumental AI timeout hardening).

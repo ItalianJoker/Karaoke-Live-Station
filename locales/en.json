@@ -144,7 +144,11 @@
     "downloading": "Downloading…",
     "converting": "Converting…",
     "convertingInstrumental": "Converting instrumental…",
-    "downloadCompleted": "Completed"
+    "downloadCompleted": "Completed",
+    "loadMoreVideos": "Load more videos",
+    "loadingMore": "Loading more…",
+    "clearDownloads": "Clear downloads",
+    "confirmClearDownloads": "Cancel all in-progress downloads and clear the list?"
   },
   "settings": {
     "title": "System Settings",

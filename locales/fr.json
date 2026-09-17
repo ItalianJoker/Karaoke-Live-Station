@@ -144,7 +144,11 @@
     "downloading": "Téléchargement…",
     "converting": "Conversion…",
     "convertingInstrumental": "Conversion instrumentale…",
-    "downloadCompleted": "Terminé"
+    "downloadCompleted": "Terminé",
+    "loadMoreVideos": "Charger plus de vidéos",
+    "loadingMore": "Chargement…",
+    "clearDownloads": "Vider les téléchargements",
+    "confirmClearDownloads": "Annuler tous les téléchargements en cours et vider la liste ?"
   },
   "settings": {
     "title": "Paramètres Système",

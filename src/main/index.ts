@@ -880,9 +880,16 @@ class KaraokeMainProcess {
       return this.scanFolder(folderPath);
     });
 
-    ipcMain.handle('search:youtube', async (_event, query: string) => {
-      return this.searchYouTube(query);
-    });
+    ipcMain.handle(
+      'search:youtube',
+      async (
+        _event,
+        query: string,
+        options?: { offset?: number; limit?: number }
+      ) => {
+        return this.searchYouTube(query, options);
+      }
+    );
 
     ipcMain.handle('library:get-track-thumbnail', (_event, filePath: string) => {
       return this.getOrGenerateThumbnail(filePath);
@@ -1061,6 +1068,10 @@ class KaraokeMainProcess {
 
     ipcMain.handle('download:cancel', (_event, downloadId: string) => {
       return this.downloadManager.cancelDownload(downloadId);
+    });
+
+    ipcMain.handle('download:cancel-all', () => {
+      return this.downloadManager.cancelAllDownloads();
     });
 
     ipcMain.handle('download:find-existing', (_event, options: {
@@ -1458,16 +1469,33 @@ class KaraokeMainProcess {
    * @param query - Search term entered by user
    * @returns Array of YouTube media track candidates
    */
-  private searchYouTube(query: string): Promise<KaraokeMediaTrack[]> {
+  private searchYouTube(
+    query: string,
+    options?: { offset?: number; limit?: number }
+  ): Promise<KaraokeMediaTrack[]> {
     return new Promise((resolve) => {
       const sanitizedQuery = `${query.trim()} karaoke`;
+      const pageSize =
+        typeof options?.limit === 'number' && Number.isFinite(options.limit) && options.limit > 0
+          ? Math.min(50, Math.floor(options.limit))
+          : 10;
+      const offset =
+        typeof options?.offset === 'number' && Number.isFinite(options.offset) && options.offset > 0
+          ? Math.floor(options.offset)
+          : 0;
+      const playlistEnd = offset + pageSize;
       const { spawn } = require('child_process');
       const ytdlpPath = resolveYtDlpPath();
 
       let child: any;
       try {
+        // yt-dlp search is a synthetic playlist of N items; window with playlist-start/end.
         child = spawn(ytdlpPath, [
-          `ytsearch10:${sanitizedQuery}`,
+          `ytsearch${playlistEnd}:${sanitizedQuery}`,
+          '--playlist-start',
+          String(offset + 1),
+          '--playlist-end',
+          String(playlistEnd),
           '--dump-json',
           '--flat-playlist',
           '--no-warnings'

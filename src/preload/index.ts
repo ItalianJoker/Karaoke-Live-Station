@@ -77,8 +77,11 @@ export interface KaraokeAPI {
   library: {
     /** Scans a local filesystem folder for media files */
     scanFolder: (folderPath: string) => Promise<KaraokeMediaTrack[]>;
-    /** Searches YouTube for karaoke backing tracks */
-    searchYouTube: (query: string) => Promise<KaraokeMediaTrack[]>;
+    /** Searches YouTube for karaoke backing tracks (optional offset/limit for Load more) */
+    searchYouTube: (
+      query: string,
+      options?: { offset?: number; limit?: number }
+    ) => Promise<KaraokeMediaTrack[]>;
     /** Generates or retrieves a cached video thumbnail for a local video file */
     getTrackThumbnail: (filePath: string) => Promise<string | undefined>;
   };
@@ -99,6 +102,8 @@ export interface KaraokeAPI {
     start: (options: StartDownloadOptions) => Promise<StartDownloadResult>;
     /** Cancels an ongoing download process */
     cancel: (downloadId: string) => Promise<boolean>;
+    /** Cancels all queued/in-flight downloads (Download menu clear) */
+    cancelAll: () => Promise<{ cancelledIds: string[] }>;
     /** Looks up an existing local library/cache copy before downloading */
     findExisting: (options: {
       url?: string;
@@ -308,7 +313,8 @@ const karaokeApi: KaraokeAPI = {
   // Library Scanner & YouTube Search
   library: {
     scanFolder: (folderPath: string) => ipcRenderer.invoke('library:scan-folder', folderPath),
-    searchYouTube: (query: string) => ipcRenderer.invoke('search:youtube', query),
+    searchYouTube: (query: string, options?: { offset?: number; limit?: number }) =>
+      ipcRenderer.invoke('search:youtube', query, options),
     getTrackThumbnail: (filePath: string) => ipcRenderer.invoke('library:get-track-thumbnail', filePath)
   },
 
@@ -323,6 +329,7 @@ const karaokeApi: KaraokeAPI = {
   downloads: {
     start: (options) => ipcRenderer.invoke('download:start', options),
     cancel: (downloadId) => ipcRenderer.invoke('download:cancel', downloadId),
+    cancelAll: () => ipcRenderer.invoke('download:cancel-all'),
     findExisting: (options) => ipcRenderer.invoke('download:find-existing', options),
     saveToLibrary: (payload) => ipcRenderer.invoke('download:save-to-library', payload),
     saveToQueueCache: (payload) => ipcRenderer.invoke('download:save-to-queue-cache', payload),
