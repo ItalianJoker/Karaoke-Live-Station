@@ -8,8 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+## [1.1.0] — AI extract race + web delete sync + download warnings (refresh) — 2026-09-17
+
+Overwrite of GitHub Release `v1.1.0` after PR #27 (Instrumental AI worker ready race) + PR #28 (Web search after library delete) + PR #29 (manual download warnings in Downloads menu).
+
 ### Fixed
+- **Instrumental AI extract WAV never written** — parent waited a fixed 50ms before posting `separate`; ORT import often took longer, so the utility worker missed the job and never wrote `{id}.instrumental.extract.wav`. Now gates on the worker ready ping, verifies the output WAV, and uses instrumental method coerce.
 - **Web search still “in library” after delete** — deleting a track cleared the DB/file and Local list, but Web results kept the post-download `local_library` patch, so only Delete showed. Delete now reverts matching web rows (YouTube id / path / `${ytId}_` filename) back to `youtube` so Download (+ Instrumental) reappear without restart or re-search.
+- **Manual download warnings outside Downloads menu** — `alreadyLocal` and in-flight download errors toasted outside the header menu; they now render on Downloads rows (amber, auto-open) like Instrumental phase / queued labels.
 
 ## [1.1.0] — AI instrumental debug logs + Actions Node 24 (refresh) — 2026-09-17
 

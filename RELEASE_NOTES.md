@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **log debug AI strumentale** + naming WAV extract corretto + **Actions Node 24** + staging Download Instrumental (`userData/temp`) + path media locale `//home/...` + SoundFont + progresso ~45% + **Carica altri video** + **Pulisci coda** + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **race worker AI strumentale** (extract WAV) + **sync Web dopo Elimina** + **avvisi Download nel menu** + log debug AI + naming WAV + Actions Node 24 + staging Instrumental + path `//home/...` + SoundFont + progresso ~45% + Carica altri / Pulisci coda + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,17 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **log debug AI strume
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### 🎙️ Scarica strumentale AI — race worker / extract WAV
+- Il job `separate` parte solo dopo il ready-ping del utility worker (niente post prematuro durante l’import ORT).
+- Verifica che `{id}.instrumental.extract.wav` esista prima del remux; coerce metodo strumentale (non live DSP).
+- Test mock pipeline: `scripts/verify-ai-instrumental-extract.js`.
+
+### 🔍 Ricerca Web — Download di nuovo dopo Elimina
+- Dopo Elimina dalla libreria, le righe Web tornano a `youtube` (match id / path / prefisso filename) così ricompaiono Download / Scarica strumentale senza ri-cercare.
+
+### 📥 Menu Download — avvisi manuali in coda
+- «Già in libreria» e errori download manuali vanno sulle righe del menu Download (non toast fuori coda); tono ambra e auto-apertura menu.
 
 ### 🧪 Scarica strumentale AI — log debug + naming WAV
 - Log `debug` più ricchi lungo la pipeline Instrumental (extract / modello / ORT / remux / cleanup), senza segreti.
@@ -115,7 +126,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **log debug AI strume
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **Instrumental AI debug logs** + correct extract WAV naming + **Actions Node 24** + Download Instrumental staging (`userData/temp`) + local media path `//home/...` + SoundFont + ~45% progress + YouTube **Load more videos** + Download **Clear downloads** + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
+GitHub Release **v1.1.0** overwrite: **Instrumental AI worker ready race** (extract WAV) + **Web search after library delete** + **manual download warnings in Downloads menu** + AI debug logs + WAV naming + Actions Node 24 + Instrumental staging + path `//home/...` + SoundFont + ~45% progress + Load more / Clear downloads + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
 
 ## 📦 Installers
 
@@ -128,6 +139,17 @@ GitHub Release **v1.1.0** overwrite: **Instrumental AI debug logs** + correct ex
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### 🎙️ Instrumental AI — worker ready race / extract WAV
+- `separate` is posted only after the utility-worker ready ping (no early post during ORT import).
+- Refuse success if `{id}.instrumental.extract.wav` is missing; use instrumental method coerce (not live DSP).
+- Mock pipeline test: `scripts/verify-ai-instrumental-extract.js`.
+
+### 🔍 Web search — Download again after library delete
+- After Delete from library, matching Web rows revert to `youtube` (id / path / filename prefix) so Download / Download Instrumental return without re-search.
+
+### 📥 Download menu — manual warnings in-queue
+- “Already in library” and manual download errors render on Downloads menu rows (not out-of-queue toasts); amber tone and auto-open menu.
 
 ### 🧪 Instrumental AI — debug logs + WAV naming
 - Richer `debug` logs across the Instrumental pipeline (extract / model / ORT / remux / cleanup), no secrets.
