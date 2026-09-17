@@ -96,6 +96,7 @@ assert(
     procSrc.includes('${sourceStem}.instrumental.extract.wav') &&
     procSrc.includes('isDemuxExtractWavName') &&
     procSrc.includes('AI separation input path check') &&
+    procSrc.includes('coerceInstrumentalVocalRemoverMethod') &&
     !procSrc.includes('basename(output, path.extname(output))'),
   'Extract WAV is {stem}.extract.wav from source MP4 stem (not remux basename)'
 );
@@ -107,8 +108,12 @@ assert(
 );
 assert(
   aiSepSrc.includes('assertAiInputIsWav') &&
-    aiSepSrc.includes('instrumental.extract.wav'),
-  'AI separator rejects non-demux / AI-output WAV names'
+    aiSepSrc.includes('instrumental.extract.wav') &&
+    aiSepSrc.includes('AI_WORKER_READY_TIMEOUT_MS') &&
+    aiSepSrc.includes('sendSeparate') &&
+    aiSepSrc.includes('separateSent') &&
+    aiSepSrc.includes('output_missing'),
+  'AI separator: WAV guards + ready-ping gate + output existence check'
 );
 
 assert(

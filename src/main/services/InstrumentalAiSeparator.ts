@@ -53,6 +53,12 @@ export const AI_SEPARATION_MS_PER_AUDIO_SEC = 45 * 1000;
  * intra-chunk heartbeats should reset this, but keep a generous backstop.
  */
 export const AI_SEPARATION_IDLE_TIMEOUT_MS = 20 * 60 * 1000;
+/**
+ * Max time to wait for the worker's ready ping (requestId 0) before sending `separate`.
+ * Must NOT post separate on a fixed short timer — utilityProcess can drop messages posted
+ * before parentPort listeners bind (heavy ORT imports often take >>50ms).
+ */
+export const AI_WORKER_READY_TIMEOUT_MS = 2 * 60 * 1000;
 
 /**
  * Scale the hard timeout with track length so a ~3–5 min song on CPU is not
@@ -169,8 +175,10 @@ export async function separateInstrumentalWithAi(
   const worker = spawnWorker();
   let requestId = 1;
   let settled = false;
+  let separateSent = false;
   let hardTimer: ReturnType<typeof setTimeout> | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  let readyTimer: ReturnType<typeof setTimeout> | null = null;
   const hardTimeoutMs = computeAiSeparationTimeoutMs(options.durationSec);
   const startedAt = Date.now();
   let lastPhase: string | null = null;
@@ -193,6 +201,10 @@ export async function separateInstrumentalWithAi(
       clearTimeout(idleTimer);
       idleTimer = null;
     }
+    if (readyTimer) {
+      clearTimeout(readyTimer);
+      readyTimer = null;
+    }
   };
 
   return new Promise<void>((resolve, reject) => {
@@ -213,6 +225,9 @@ export async function separateInstrumentalWithAi(
         inputWav,
         inputWavBytes: safeSize(inputWav),
         outputWav,
+        outputWavBytes: safeSize(outputWav),
+        outputWavExists: fs.existsSync(outputWav),
+        separateSent,
         workerKind: worker.kind,
         elapsedMs: Date.now() - startedAt,
         hardTimeoutMs,
@@ -231,6 +246,15 @@ export async function separateInstrumentalWithAi(
 
     const succeed = () => {
       if (settled) return;
+      // Hard guarantee: parent must see the AI output WAV before resolving.
+      if (!fs.existsSync(outputWav) || (safeSize(outputWav) ?? 0) < 1024) {
+        fail(
+          `AI separation reported done but output WAV missing/empty: ${outputWav}`,
+          false,
+          'output_missing'
+        );
+        return;
+      }
       settled = true;
       clearTimers();
       signal?.removeEventListener('abort', onAbort);
@@ -266,6 +290,36 @@ export async function separateInstrumentalWithAi(
       }, AI_SEPARATION_IDLE_TIMEOUT_MS);
     };
 
+    const sendSeparate = () => {
+      if (settled || separateSent) return;
+      separateSent = true;
+      if (readyTimer) {
+        clearTimeout(readyTimer);
+        readyTimer = null;
+      }
+      const payload = {
+        type: 'separate' as const,
+        requestId,
+        method,
+        modelPath,
+        ortDir,
+        inputWav,
+        outputWav
+      };
+      logger?.debug('InstrumentalAiSeparator', 'Sending separate to AI worker', {
+        workerKind: worker.kind,
+        requestId,
+        inputWav,
+        outputWav,
+        waitMs: Date.now() - startedAt
+      });
+      if (worker.kind === 'utility') {
+        worker.proc.postMessage(payload);
+      } else {
+        worker.proc.send(payload);
+      }
+    };
+
     const onMsg = (raw: unknown) => {
       const msg = raw as {
         type?: string;
@@ -284,8 +338,12 @@ export async function separateInstrumentalWithAi(
         if (msg.requestId === 0) {
           logger?.debug('InstrumentalAiSeparator', 'AI worker ready ping', {
             workerKind: worker.kind,
-            script: worker.script
+            script: worker.script,
+            waitMs: Date.now() - startedAt
           });
+          // Critical: only send separate AFTER ready — fixed 50ms timers race heavy imports
+          // and utilityProcess can drop messages posted before parentPort listeners bind.
+          sendSeparate();
           return;
         }
         if (msg.phase && msg.phase !== lastPhase) {
@@ -296,6 +354,7 @@ export async function separateInstrumentalWithAi(
             ortBackend: msg.ortBackend || 'wasm',
             ortNumThreads: msg.ortNumThreads ?? 1,
             inputWav,
+            outputWav,
             elapsedMs: Date.now() - startedAt
           });
         }
@@ -318,35 +377,28 @@ export async function separateInstrumentalWithAi(
     if (worker.kind === 'utility') {
       worker.proc.on('message', onMsg);
       worker.proc.on('exit', (code) => {
-        if (!settled) fail(`Instrumental AI worker exited early (code ${code})`, false, 'worker_exit');
+        if (!settled) {
+          fail(
+            `Instrumental AI worker exited early (code ${code}` +
+              `${separateSent ? '' : '; separate never sent — worker may not have become ready'})`,
+            false,
+            separateSent ? 'worker_exit' : 'worker_exit_before_ready'
+          );
+        }
       });
-      // Give the worker a tick to bind parentPort
-      setTimeout(() => {
-        worker.proc.postMessage({
-          type: 'separate',
-          requestId,
-          method,
-          modelPath,
-          ortDir,
-          inputWav,
-          outputWav
-        });
-      }, 50);
     } else {
       worker.proc.on('message', onMsg);
       worker.proc.on('exit', (code) => {
-        if (!settled) fail(`Instrumental AI worker exited early (code ${code})`, false, 'worker_exit');
+        if (!settled) {
+          fail(
+            `Instrumental AI worker exited early (code ${code}` +
+              `${separateSent ? '' : '; separate never sent — worker may not have become ready'})`,
+            false,
+            separateSent ? 'worker_exit' : 'worker_exit_before_ready'
+          );
+        }
       });
       worker.proc.on('error', (err) => fail(err.message, false, 'worker_spawn_error'));
-      worker.proc.send({
-        type: 'separate',
-        requestId,
-        method,
-        modelPath,
-        ortDir,
-        inputWav,
-        outputWav
-      });
     }
 
     signal?.addEventListener('abort', onAbort, { once: true });
@@ -373,10 +425,23 @@ export async function separateInstrumentalWithAi(
       workerScript: worker.script,
       timeoutMs: hardTimeoutMs,
       idleTimeoutMs: AI_SEPARATION_IDLE_TIMEOUT_MS,
-      durationSec: options.durationSec ?? null
+      readyTimeoutMs: AI_WORKER_READY_TIMEOUT_MS,
+      durationSec: options.durationSec ?? null,
+      note: 'Waiting for worker ready ping before sending separate (avoids dropped IPC)'
     });
 
     armIdleWatchdog();
+    readyTimer = setTimeout(() => {
+      if (!separateSent && !settled) {
+        fail(
+          `Instrumental AI worker did not become ready within ${Math.round(
+            AI_WORKER_READY_TIMEOUT_MS / 1000
+          )}s (no ready ping). Worker script: ${worker.script}`,
+          false,
+          'ready_timeout'
+        );
+      }
+    }, AI_WORKER_READY_TIMEOUT_MS);
     hardTimer = setTimeout(() => {
       fail(
         `Instrumental AI separation timed out after ${Math.round(hardTimeoutMs / 60000)} min (track ~${Math.round(
