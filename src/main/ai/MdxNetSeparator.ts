@@ -145,19 +145,27 @@ export class MdxNetSeparator {
     const totalChunks = Math.max(1, Math.ceil((paddedL.length - CHUNK_SIZE) / step) + 1);
     let chunkIndex = 0;
 
+    const reportSeparate = (ratio: number, message: string) => {
+      const clamped = Math.max(0, Math.min(1, ratio));
+      onChunk?.(clamped);
+      this.emit({ phase: 'separate', progress: clamped, message });
+    };
+
     // Heartbeat before the first heavy ORT chunk so the parent idle watchdog arms.
-    this.emit({
-      phase: 'separate',
-      progress: 0,
-      message: `MDX separating… 0% (${totalChunks} chunks)`
-    });
-    onChunk?.(0);
+    // Use a tiny epsilon so UI progress mapping does not snap back to the phase floor.
+    reportSeparate(1 / (totalChunks * 1000), `MDX separating… 0% (${totalChunks} chunks)`);
     await yieldToMainThread();
 
     for (let start = 0; start + CHUNK_SIZE <= paddedL.length; start += step) {
       const chunkL = paddedL.subarray(start, start + CHUNK_SIZE);
       const chunkR = paddedR.subarray(start, start + CHUNK_SIZE);
-      const { left: sepL, right: sepR } = await this.separateChunk(chunkL, chunkR);
+      const { left: sepL, right: sepR } = await this.separateChunk(chunkL, chunkR, (intra) => {
+        // Intra-chunk heartbeats keep idle watchdog alive and move the Download bar.
+        reportSeparate(
+          (chunkIndex + Math.max(0, Math.min(1, intra))) / totalChunks,
+          `MDX separating… ${Math.round(((chunkIndex + intra) / totalChunks) * 100)}%`
+        );
+      });
 
       for (let i = 0; i < CHUNK_SIZE; i++) {
         const dst = start + i - pad;
@@ -171,12 +179,10 @@ export class MdxNetSeparator {
       }
 
       chunkIndex++;
-      onChunk?.(chunkIndex / totalChunks);
-      this.emit({
-        phase: 'separate',
-        progress: chunkIndex / totalChunks,
-        message: `MDX separating… ${Math.round((chunkIndex / totalChunks) * 100)}%`
-      });
+      reportSeparate(
+        chunkIndex / totalChunks,
+        `MDX separating… ${Math.round((chunkIndex / totalChunks) * 100)}%`
+      );
       // Keep renderer/worker responsive between heavy STFT+ORT chunks.
       await yieldToMainThread();
     }
@@ -187,7 +193,12 @@ export class MdxNetSeparator {
       if (start % step !== 0) {
         const chunkL = paddedL.subarray(start, start + CHUNK_SIZE);
         const chunkR = paddedR.subarray(start, start + CHUNK_SIZE);
-        const { left: sepL, right: sepR } = await this.separateChunk(chunkL, chunkR);
+        const { left: sepL, right: sepR } = await this.separateChunk(chunkL, chunkR, (intra) => {
+          reportSeparate(
+            Math.min(1, (chunkIndex + Math.max(0, Math.min(1, intra))) / totalChunks),
+            `MDX separating… ${Math.round(((chunkIndex + intra) / totalChunks) * 100)}%`
+          );
+        });
         for (let i = 0; i < CHUNK_SIZE; i++) {
           const dst = start + i - pad;
           if (dst < 0 || dst >= length) continue;
@@ -213,11 +224,13 @@ export class MdxNetSeparator {
 
   private async separateChunk(
     left: Float32Array,
-    right: Float32Array
+    right: Float32Array,
+    onIntra?: (ratio: number) => void
   ): Promise<{ left: Float32Array; right: Float32Array }> {
     if (!this.session) throw new Error('MDX model not loaded');
 
     // Build spectrogram [1, 4, dim_f, dim_t] = L_re, L_im, R_re, R_im
+    // STFT ≈ 0–0.45 of chunk work; ORT ≈ 0.45–0.55; iSTFT ≈ 0.55–1.
     const input = new Float32Array(1 * 4 * DIM_F * DIM_T);
     for (let t = 0; t < DIM_T; t++) {
       const offset = t * HOP;
@@ -240,8 +253,9 @@ export class MdxNetSeparator {
         input[base(2)] = specR.re[f];
         input[base(3)] = specR.im[f];
       }
-      // Yield every 32 STFT frames so long chunk builds cannot freeze the UI thread.
+      // Yield + heartbeat every 32 STFT frames (UVR-style progress during long chunks).
       if ((t & 31) === 31) {
+        onIntra?.((t / DIM_T) * 0.45);
         await yieldToMainThread();
       }
     }
@@ -256,9 +270,13 @@ export class MdxNetSeparator {
       }
     }
 
+    onIntra?.(0.45);
+    await yieldToMainThread();
     const tensor = new ort.Tensor('float32', input, [1, 4, DIM_F, DIM_T]);
     const feeds: Record<string, ort.Tensor> = { [this.inputName]: tensor };
     const results = await this.session.run(feeds);
+    onIntra?.(0.55);
+    await yieldToMainThread();
     const outName = this.session.outputNames[0];
     const outTensor = results[outName];
     const outData = outTensor.data as Float32Array;
@@ -294,6 +312,7 @@ export class MdxNetSeparator {
         winAcc[idx] += this.window[i] * this.window[i];
       }
       if ((t & 31) === 31) {
+        onIntra?.(0.55 + (t / DIM_T) * 0.45);
         await yieldToMainThread();
       }
     }
@@ -303,6 +322,7 @@ export class MdxNetSeparator {
       outL[i] = accL[i] / w;
       outR[i] = accR[i] / w;
     }
+    onIntra?.(1);
     return { left: outL, right: outR };
   }
 

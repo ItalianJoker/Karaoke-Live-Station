@@ -86,10 +86,17 @@ assert(
     aiSepSrc.includes('AI_SEPARATION_IDLE_TIMEOUT_MS') &&
     procSrc.includes('durationSec') &&
     procSrc.includes('onAiEta') &&
+    procSrc.includes('lastAiPct') &&
+    procSrc.includes("case 'separate'") &&
     fs
       .readFileSync(path.join(root, 'src/main/workers/instrumentalAiWorker.ts'), 'utf8')
-      .includes('wasmBinary'),
-  'AI timeout scales with duration; idle heartbeats; ORT wasmBinary load'
+      .includes('wasmBinary') &&
+    fs
+      .readFileSync(path.join(root, 'src/main/workers/instrumentalAiWorker.ts'), 'utf8')
+      .includes('toArrayBuffer') &&
+    mdxSrc.includes('onIntra') &&
+    fs.readFileSync(path.join(root, 'src/main/ai/audioFft.ts'), 'utf8').includes('getBluesteinPlan'),
+  'AI timeout + phase-aware progress + intra-chunk heartbeats + Bluestein cache + wasmBinary'
 );
 
 // --- Runtime: compile TS helpers via requiring built paths is hard; use dynamic import of shared via ts-node-less approach ---

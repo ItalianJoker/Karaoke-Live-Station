@@ -11,6 +11,8 @@
 
 Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix velocità/ETA download** + **timeout AI «Rimozione voce»** (timeout scalato, heartbeat, ORT wasmBinary) + impostazioni separate live/strumentale + annulla download + AI strumentale + menu Download + ricerca senza accenti.
 
+> **In corso (prossimo refresh):** fix barra «Rimozione voce» bloccata al ~45%, **Carica altri video** in ricerca YouTube, **Pulisci coda** nel menu Download.
+
 ## 📦 File di Installazione
 
 | Piattaforma | File | Descrizione |
@@ -88,6 +90,8 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix velocità/ETA d
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
 GitHub Release **v1.1.0** overwrite: **download speed/ETA fix** + **Instrumental AI “Rimozione voce” timeout** (scaled timeout, heartbeats, ORT wasmBinary) + split Settings live/instrumental + working cancel + Instrumental AI + Download menu + accent-insensitive search.
+
+> **Upcoming refresh:** fix AI progress stuck at ~45%, YouTube **Load more videos**, Download menu **Clear downloads**.
 
 ## 📦 Installers
 

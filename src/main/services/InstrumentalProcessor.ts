@@ -270,6 +270,9 @@ async function removeVocalsAi(
   }
   const aiSeparate = options.aiSeparate || separateInstrumentalWithAi;
   const aiStartedAt = Date.now();
+  // Phase-aware floors so model-ready (progress=1) then separate(0) never snaps the bar
+  // back to 45% — that reset made Rimozione voce look frozen during the first MDX chunk.
+  let lastAiPct = 45;
   await aiSeparate(
     {
       method,
@@ -281,10 +284,32 @@ async function removeVocalsAi(
       durationSec: durationSec > 0 ? durationSec : undefined,
       onProgress: (info) => {
         const ratio = Math.max(0, Math.min(1, info.progress));
-        const pct = 45 + ratio * 25;
-        report('removing_vocals', pct);
-        // Surface conversion ETA from observed progress velocity (Download menu binds eta)
-        if (ratio > 0.02 && typeof options.onAiEta === 'function') {
+        let mapped: number;
+        switch (info.phase) {
+          case 'decode':
+            mapped = 45 + ratio * 3; // 45–48
+            break;
+          case 'model':
+            mapped = 48 + ratio * 4; // 48–52
+            break;
+          case 'separate':
+            mapped = 52 + ratio * 18; // 52–70
+            break;
+          case 'ready':
+            mapped = 70;
+            break;
+          default:
+            mapped = 45 + ratio * 25;
+            break;
+        }
+        lastAiPct = Math.max(lastAiPct, mapped);
+        report('removing_vocals', lastAiPct);
+        // Surface conversion ETA from observed separate-phase velocity
+        if (
+          info.phase === 'separate' &&
+          ratio > 0.02 &&
+          typeof options.onAiEta === 'function'
+        ) {
           const elapsed = (Date.now() - aiStartedAt) / 1000;
           const remaining = elapsed * ((1 - ratio) / ratio);
           if (Number.isFinite(remaining) && remaining >= 0) {

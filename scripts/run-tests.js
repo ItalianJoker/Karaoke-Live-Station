@@ -654,8 +654,11 @@ assert(
     instrumentalProcessorSource.includes('signal?: AbortSignal') &&
     instrumentalProcessorSource.includes('cancelled') &&
     controlSource.includes('downloads.cancel') &&
+    downloadManagerSourceVocal.includes('cancelAllDownloads') &&
+    controlSource.includes('downloads.cancelAll') &&
+    controlSource.includes('clearDownloads') &&
     fs.existsSync(path.resolve(__dirname, '../src/main/services/processKill.ts')),
-  'Download cancel aborts yt-dlp/ffmpeg/AI via AbortController through instrumental phase'
+  'Download cancel/clear-all aborts yt-dlp/ffmpeg/AI via AbortController through instrumental phase'
 );
 
 assert(
@@ -678,10 +681,21 @@ assert(
     instrumentalAiSepSource.includes('durationSec') &&
     instrumentalProcessorSource.includes('onAiEta') &&
     instrumentalProcessorSource.includes('readPcmWavDurationSec') &&
+    instrumentalProcessorSource.includes('lastAiPct') &&
+    instrumentalProcessorSource.includes("case 'separate'") &&
     fs
       .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
-      .includes('wasmBinary'),
-  'AI separation uses duration-scaled timeout, idle heartbeats, and in-memory ORT wasmBinary'
+      .includes('wasmBinary') &&
+    fs
+      .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
+      .includes('toArrayBuffer') &&
+    fs
+      .readFileSync(path.resolve(__dirname, '../src/main/ai/MdxNetSeparator.ts'), 'utf8')
+      .includes('onIntra') &&
+    fs
+      .readFileSync(path.resolve(__dirname, '../src/main/ai/audioFft.ts'), 'utf8')
+      .includes('getBluesteinPlan'),
+  'AI separation: duration timeout, phase-aware monotonic %, intra-chunk heartbeats, Bluestein plan cache, wasmBinary'
 );
 
 assert(
@@ -696,10 +710,10 @@ const mainSourceForDialogs = fs.readFileSync(
   'utf8'
 );
 assert(
-  mainSourceForDialogs.includes('Non-modal (no parent)') ||
-    mainSourceForDialogs.includes('Intentionally omit parent window') ||
-    mainSourceForDialogs.includes('omit parent'),
-  'Native dialogs avoid modal parent so audio is not suspended'
+  mainSourceForDialogs.includes('playlist-start') &&
+    mainSourceForDialogs.includes('playlist-end') &&
+    /ytsearch\$\{/.test(mainSourceForDialogs),
+  'YouTube search supports offset/limit via ytsearch + playlist-start/end'
 );
 
 const enLocaleVocal = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../locales/en.json'), 'utf8'));
@@ -1357,8 +1371,11 @@ assert(
     libraryPanelScopedSource.includes('localQuery') &&
     /searchMode\s*===\s*'web'/.test(libraryPanelScopedSource) &&
     libraryPanelScopedSource.includes('searchYouTube') &&
-    libraryPanelScopedSource.includes('setWebSearching'),
-  'Local live search mutates local bucket; YouTube search only on web submit'
+    libraryPanelScopedSource.includes('setWebSearching') &&
+    libraryPanelScopedSource.includes('loadMoreVideos') &&
+    libraryPanelScopedSource.includes('youtube-load-more') &&
+    libraryPanelScopedSource.includes('offset'),
+  'Local live search mutates local bucket; YouTube search only on web submit; Load more pagination'
 );
 
 assert(

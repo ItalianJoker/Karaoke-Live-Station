@@ -925,6 +925,21 @@ export class DownloadManager {
     return true;
   }
 
+  /**
+   * Cancel every queued and in-flight download (traditional + instrumental).
+   * Used by the Download menu “clear queue” action.
+   */
+  public cancelAllDownloads(): { cancelledIds: string[] } {
+    const ids = new Set<string>();
+    for (const job of this.pendingQueue) ids.add(job.downloadId);
+    for (const id of this.activeJobs.keys()) ids.add(id);
+    const cancelledIds: string[] = [];
+    for (const id of ids) {
+      if (this.cancelDownload(id)) cancelledIds.push(id);
+    }
+    return { cancelledIds };
+  }
+
   public async saveToLibrary(
     tempFilePath: string,
     targetLibraryDirectory: string,

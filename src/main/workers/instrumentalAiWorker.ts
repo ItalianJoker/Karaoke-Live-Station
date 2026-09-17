@@ -54,6 +54,13 @@ function post(msg: OutMessage): void {
   }
 }
 
+/** Copy Node Buffer / Uint8Array into a standalone ArrayBuffer (avoids pool `.buffer` traps). */
+function toArrayBuffer(u8: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(u8.byteLength);
+  copy.set(u8);
+  return copy.buffer;
+}
+
 function ortWasmConfigFromDir(ortDir: string): {
   wasm: string;
   mjs: string;
@@ -65,7 +72,7 @@ function ortWasmConfigFromDir(ortDir: string): {
     throw new Error(`ORT WASM assets missing under ${ortDir}`);
   }
   // Load .wasm bytes from disk — utilityProcess file:// fetch of large WASM can hang.
-  const wasmBinary = new Uint8Array(fs.readFileSync(wasm));
+  const wasmBinary = new Uint8Array(toArrayBuffer(new Uint8Array(fs.readFileSync(wasm))));
   return {
     wasm: pathToFileURL(wasm).href,
     mjs: pathToFileURL(mjs).href,
@@ -98,7 +105,7 @@ async function separateMdx(
     );
   }
 
-  const modelBuffer = fs.readFileSync(modelPath).buffer.slice(0) as ArrayBuffer;
+  const modelBuffer = toArrayBuffer(new Uint8Array(fs.readFileSync(modelPath)));
   const separator = new MdxNetSeparator();
   separator.onProgress((info) => {
     post({
@@ -154,7 +161,7 @@ async function separateDemucs(
     message: 'Loading HTDemucs…'
   });
 
-  const modelBuffer = fs.readFileSync(modelPath).buffer.slice(0) as ArrayBuffer;
+  const modelBuffer = toArrayBuffer(new Uint8Array(fs.readFileSync(modelPath)));
   const demucs = new DemucsProcessor({
     ort,
     sessionOptions: {

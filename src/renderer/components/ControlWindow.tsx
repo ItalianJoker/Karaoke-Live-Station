@@ -938,8 +938,54 @@ export const ControlWindow: React.FC = () => {
             </button>
             {showDownloadsMenu && (
               <div className="absolute right-0 mt-2 w-80 max-h-80 overflow-y-auto z-50 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 space-y-2.5">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-                  <Download className="w-3.5 h-3.5" /> {t('library.downloadsMenu')}
+                <div className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5">
+                    <Download className="w-3.5 h-3.5" /> {t('library.downloadsMenu')}
+                  </span>
+                  {Object.keys(headerDownloads).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const activeStatuses = new Set([
+                          'queued',
+                          'downloading',
+                          'converting',
+                          'processing',
+                          'downloading_model',
+                          'removing_vocals',
+                          'remuxing'
+                        ]);
+                        const hasActive = Object.values(headerDownloads).some((d) =>
+                          activeStatuses.has(d.status)
+                        );
+                        if (
+                          hasActive &&
+                          !(await confirmAsync(
+                            t(
+                              'library.confirmClearDownloads',
+                              'Annullare tutti i download in corso e svuotare l’elenco?'
+                            )
+                          ))
+                        ) {
+                          return;
+                        }
+                        try {
+                          await window.karaokeApi?.downloads.cancelAll();
+                        } catch {
+                          /* still clear the menu list */
+                        }
+                        setHeaderDownloads({});
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold normal-case tracking-normal text-slate-300 hover:text-rose-300 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60"
+                      title={t('library.clearDownloads', 'Pulisci coda')}
+                      data-testid="downloads-clear-all"
+                    >
+                      <Trash2 className="w-3 h-3 text-rose-400" />
+                      {t('library.clearDownloads', 'Pulisci coda')}
+                    </button>
+                  )}
                 </div>
                 {Object.keys(headerDownloads).length === 0 ? (
                   <p className="text-[11px] text-slate-500 py-2">{t('library.downloadsEmpty')}</p>
