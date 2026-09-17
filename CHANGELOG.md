@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+### Fixed
+- **Download menu speed + ETA** — yt-dlp `--progress-template` `download:` is a *type key*, not output text; progress lines never matched the parser. Template now emits a `KLSPROG|` marker, forces `--progress`, and the Download menu shows speed + remaining time.
+- **Instrumental AI “Rimozione voce” timeout** — hard timeout now scales with track length; idle watchdog resets on progress heartbeats; ORT WASM is loaded via in-memory `wasmBinary` in the utility worker (avoids file:// fetch hangs). Conversion ETA updates during AI separation. Cancel unchanged; models still update only if newer under `userData/models`.
+
 ## [1.1.0] — Settings split + download cancel + AI Instrumental (refresh) — 2026-09-17
 
 Overwrite of GitHub Release `v1.1.0` after settings split (live DSP vs Instrumental AI), abortable download cancel, and MDX UVR low-bin align (PR #19 + #20).

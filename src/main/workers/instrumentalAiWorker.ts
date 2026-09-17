@@ -54,15 +54,22 @@ function post(msg: OutMessage): void {
   }
 }
 
-function ortWasmPathsFromDir(ortDir: string): { wasm: string; mjs: string } {
+function ortWasmConfigFromDir(ortDir: string): {
+  wasm: string;
+  mjs: string;
+  wasmBinary: Uint8Array;
+} {
   const wasm = path.join(ortDir, 'ort-wasm-simd-threaded.wasm');
   const mjs = path.join(ortDir, 'ort-wasm-simd-threaded.mjs');
   if (!fs.existsSync(wasm) || !fs.existsSync(mjs)) {
     throw new Error(`ORT WASM assets missing under ${ortDir}`);
   }
+  // Load .wasm bytes from disk — utilityProcess file:// fetch of large WASM can hang.
+  const wasmBinary = new Uint8Array(fs.readFileSync(wasm));
   return {
     wasm: pathToFileURL(wasm).href,
-    mjs: pathToFileURL(mjs).href
+    mjs: pathToFileURL(mjs).href,
+    wasmBinary
   };
 }
 
@@ -102,7 +109,7 @@ async function separateMdx(
       message: info.message
     });
   });
-  await separator.loadModel(modelBuffer, ortWasmPathsFromDir(ortDir));
+  await separator.loadModel(modelBuffer, ortWasmConfigFromDir(ortDir));
   const { left: outL, right: outR } = await separator.separateInstrumental(left, right, (ratio) => {
     post({
       type: 'progress',
@@ -122,11 +129,15 @@ async function separateDemucs(
   outputWav: string,
   requestId: number
 ): Promise<void> {
-  const wasmPaths = ortWasmPathsFromDir(ortDir);
+  const wasmPaths = ortWasmConfigFromDir(ortDir);
   ort.env.wasm.numThreads = 1;
   ort.env.wasm.simd = true;
   ort.env.wasm.proxy = false;
-  ort.env.wasm.wasmPaths = wasmPaths;
+  ort.env.wasm.wasmBinary = wasmPaths.wasmBinary.buffer.slice(
+    wasmPaths.wasmBinary.byteOffset,
+    wasmPaths.wasmBinary.byteOffset + wasmPaths.wasmBinary.byteLength
+  );
+  ort.env.wasm.wasmPaths = { mjs: wasmPaths.mjs, wasm: wasmPaths.wasm };
 
   const wav = readPcmWavFile(inputWav);
   if (Math.abs(wav.sampleRate - CONSTANTS.SAMPLE_RATE) > 1) {

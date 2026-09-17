@@ -659,6 +659,32 @@ assert(
 );
 
 assert(
+  downloadManagerSourceVocal.includes('KLSPROG|') &&
+    downloadManagerSourceVocal.includes('--progress') &&
+    /KLSPROG\\\|/.test(downloadManagerSourceVocal) &&
+    controlSource.includes('showEta') &&
+    controlSource.includes('dl.eta'),
+  'Download menu binds yt-dlp KLSPROG speed/ETA (progress-template TYPE key fix)'
+);
+
+const instrumentalAiSepSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/InstrumentalAiSeparator.ts'),
+  'utf8'
+);
+assert(
+  instrumentalAiSepSource.includes('computeAiSeparationTimeoutMs') &&
+    instrumentalAiSepSource.includes('AI_SEPARATION_IDLE_TIMEOUT_MS') &&
+    instrumentalAiSepSource.includes('armIdleWatchdog') &&
+    instrumentalAiSepSource.includes('durationSec') &&
+    instrumentalProcessorSource.includes('onAiEta') &&
+    instrumentalProcessorSource.includes('readPcmWavDurationSec') &&
+    fs
+      .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
+      .includes('wasmBinary'),
+  'AI separation uses duration-scaled timeout, idle heartbeats, and in-memory ORT wasmBinary'
+);
+
+assert(
   fs
     .readFileSync(path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'), 'utf8')
     .includes("instrumentalVocalRemoverMethod: 'aiMdxKaraoke2'"),

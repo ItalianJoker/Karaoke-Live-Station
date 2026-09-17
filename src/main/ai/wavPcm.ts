@@ -82,6 +82,58 @@ export function readPcmWavFile(filePath: string): PcmWav {
   return { sampleRate, channels: Math.min(2, channels), left, right };
 }
 
+/**
+ * Read only WAV header fields to compute duration — avoids loading multi-hundred-MB PCM
+ * into memory just for AI timeout scaling.
+ */
+export function readPcmWavDurationSec(filePath: string): number {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const header = Buffer.alloc(12);
+    if (fs.readSync(fd, header, 0, 12, 0) < 12) {
+      throw new Error(`WAV too short: ${filePath}`);
+    }
+    if (header.toString('ascii', 0, 4) !== 'RIFF' || header.toString('ascii', 8, 12) !== 'WAVE') {
+      throw new Error(`Not a RIFF/WAVE file: ${filePath}`);
+    }
+
+    let offset = 12;
+    let channels = 2;
+    let sampleRate = 44100;
+    let bitsPerSample = 16;
+    let dataSize = 0;
+    const chunkHdr = Buffer.alloc(8);
+
+    while (true) {
+      const n = fs.readSync(fd, chunkHdr, 0, 8, offset);
+      if (n < 8) break;
+      const id = chunkHdr.toString('ascii', 0, 4);
+      const size = chunkHdr.readUInt32LE(4);
+      const chunkStart = offset + 8;
+      if (id === 'fmt ') {
+        const fmt = Buffer.alloc(Math.min(size, 40));
+        fs.readSync(fd, fmt, 0, fmt.length, chunkStart);
+        channels = fmt.readUInt16LE(2);
+        sampleRate = fmt.readUInt32LE(4);
+        bitsPerSample = fmt.readUInt16LE(14);
+      } else if (id === 'data') {
+        dataSize = size;
+        break;
+      }
+      offset = chunkStart + size + (size % 2);
+    }
+
+    if (dataSize <= 0 || sampleRate <= 0 || channels <= 0 || bitsPerSample <= 0) {
+      throw new Error(`Could not determine WAV duration: ${filePath}`);
+    }
+    const bytesPerFrame = channels * (bitsPerSample / 8);
+    if (bytesPerFrame <= 0) throw new Error(`Invalid WAV frame size: ${filePath}`);
+    return dataSize / bytesPerFrame / sampleRate;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 /** Write planar float32 stereo as 16-bit PCM WAV. */
 export function writePcmWavFile(
   filePath: string,

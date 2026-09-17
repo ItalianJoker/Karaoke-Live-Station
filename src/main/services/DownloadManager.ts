@@ -502,14 +502,17 @@ export class DownloadManager {
       options.url,
       '--ffmpeg-location',
       this.ffmpegPath,
+      // Force progress when stdout/stderr are pipes (non-TTY Electron spawn)
+      '--progress',
       '--newline',
       '--no-playlist',
       '--no-mtime',
       '-o',
       outputTemplate,
-      // Machine-friendly progress (status|percent|speed_Bps|eta_s) — parsed from stderr/stdout
+      // yt-dlp treats `download:` as the template TYPE key, not output text.
+      // Literal marker `KLSPROG|` must be inside the template body so lines match.
       '--progress-template',
-      'download:%(progress.status)s|%(progress._percent_str)s|%(progress.speed)s|%(progress.eta)s'
+      'download:KLSPROG|%(progress.status)s|%(progress._percent_str)s|%(progress.speed)s|%(progress.eta)s|%(progress.downloaded_bytes)s|%(progress.total_bytes)s'
     ];
 
     if (options.isAudioOnly) {
@@ -565,15 +568,26 @@ export class DownloadManager {
         if (match?.[1]) detectedOutputFile = match[1].trim().replace(/"$/, '');
       }
 
-      // Preferred: structured --progress-template (status|percent|speedBps|etaSec)
-      const structured = trimmed.match(
-        /^download:([^|]+)\|([^|]*)\|([^|]*)\|([^|]*)$/i
-      );
+      // Preferred: structured --progress-template lines
+      // Current: KLSPROG|status|percent|speedBps|etaSec|downloaded|total
+      // Legacy mistakes: download:status|…  OR bare status|… (TYPE key swallowed)
+      const structured =
+        trimmed.match(
+          /^KLSPROG\|([^|]+)\|([^|]*)\|([^|]*)\|([^|]*)(?:\|([^|]*)\|([^|]*))?$/i
+        ) ||
+        trimmed.match(
+          /^download:([^|]+)\|([^|]*)\|([^|]*)\|([^|]*)(?:\|([^|]*)\|([^|]*))?$/i
+        ) ||
+        trimmed.match(
+          /^(downloading|finished)\|([^|]*)\|([^|]*)\|([^|]*)(?:\|([^|]*)\|([^|]*))?$/i
+        );
       if (structured) {
         const progressStatus = structured[1].trim().toLowerCase();
         const percentMatch = structured[2].match(/([0-9.]+)\s*%?/);
         const speedField = structured[3].trim();
         const etaField = structured[4].trim();
+        const downloadedField = structured[5]?.trim();
+        const totalField = structured[6]?.trim();
 
         if (percentMatch) {
           const p = parseFloat(percentMatch[1]);
@@ -588,16 +602,26 @@ export class DownloadManager {
         }
 
         const etaSec = parseInt(etaField, 10);
-        if (Number.isFinite(etaSec) && etaSec >= 0) {
-          const mm = Math.floor(etaSec / 60);
-          const ss = etaSec % 60;
-          payload.eta = `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+        if (Number.isFinite(etaSec) && etaSec >= 0 && !/^n\/?a$/i.test(etaField)) {
+          payload.eta = DownloadManager.formatEtaSeconds(etaSec);
         } else if (/^\d+:\d+/.test(etaField)) {
-          payload.eta = etaField;
+          payload.eta = etaField.trim();
+        } else if (/^(n\/?a|na|none|-|unknown)?$/i.test(etaField)) {
+          // Keep prior ETA when yt-dlp reports NA (common at start / finish)
+        }
+
+        const downloaded = downloadedField ? parseFloat(downloadedField) : NaN;
+        const total = totalField ? parseFloat(totalField) : NaN;
+        if (Number.isFinite(downloaded) && downloaded >= 0) {
+          payload.downloadedBytes = downloaded;
+        }
+        if (Number.isFinite(total) && total > 0) {
+          payload.totalBytes = total;
         }
 
         if (progressStatus === 'finished') {
           payload.speed = '';
+          payload.percent = 100;
         } else {
           payload.status = 'downloading';
         }
@@ -605,7 +629,7 @@ export class DownloadManager {
         return;
       }
 
-      // Fallback: legacy template / default yt-dlp [download] progress (usually stderr)
+      // Fallback: default yt-dlp [download] progress (usually stdout/stderr)
       const isProgress =
         trimmed.startsWith('download:[download]') ||
         /^\[download\]\s+[0-9.]+%/.test(trimmed) ||
@@ -707,6 +731,7 @@ export class DownloadManager {
                   payload.status = 'removing_vocals';
                 } else if (phase === 'remuxing') {
                   payload.status = 'remuxing';
+                  payload.eta = '--:--';
                 } else {
                   payload.status = 'processing';
                 }
@@ -714,6 +739,12 @@ export class DownloadManager {
                 const p = Number.isFinite(percent) ? percent : 0;
                 payload.percent = Math.max(0, Math.min(100, p));
                 payload.speed = '';
+                this.emitProgress({ ...payload });
+              },
+              onAiEta: (etaSec) => {
+                if (payload.status === 'cancelled') return;
+                if (payload.status !== 'removing_vocals') return;
+                payload.eta = DownloadManager.formatEtaSeconds(etaSec);
                 this.emitProgress({ ...payload });
               }
             });
@@ -807,6 +838,19 @@ export class DownloadManager {
     }
     const digits = value >= 100 ? 0 : value >= 10 ? 1 : 2;
     return `${value.toFixed(digits)} ${units[unit]}`;
+  }
+
+  /** Format ETA seconds as mm:ss (or h:mm:ss when ≥ 1 hour). */
+  private static formatEtaSeconds(etaSec: number): string {
+    if (!Number.isFinite(etaSec) || etaSec < 0) return '--:--';
+    const total = Math.floor(etaSec);
+    const hh = Math.floor(total / 3600);
+    const mm = Math.floor((total % 3600) / 60);
+    const ss = total % 60;
+    if (hh > 0) {
+      return `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    }
+    return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
   }
 
   /**
