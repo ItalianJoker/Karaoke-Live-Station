@@ -313,7 +313,7 @@ Confirm with **Confirm deactivation** (`Conferma disattivazione`).
 - Files in `queue_cache` **survive restarts** if the track is still in the queue.
 - **GC on dequeue:** the file is deleted from disk only when no queue entry references it anymore (end of performance, single removal, clear queue).
 - **Salva in Libreria** promotes the file from cache to the library folder and updates paths/`uri` for offline use.
-- Download deduplication: before downloading again, the app looks for matches in library / `queue_cache` / catalog (YouTube id, fingerprint, `Artist - Title`). On hit: **«Brano già presente in locale...»** (Italian UI) with no new network download.
+- Download deduplication: before downloading again, the app looks for matches in library / `queue_cache` / catalog (YouTube id, fingerprint, `Artist - Title`). On hit: **«Brano già presente in locale...»** (localized) appears in the **Downloads** menu (not as an out-of-queue toast), with no new network download.
 
 ---
 

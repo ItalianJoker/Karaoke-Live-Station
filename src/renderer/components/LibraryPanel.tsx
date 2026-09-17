@@ -197,11 +197,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
           if (pending) {
             delete pendingArchiveEnqueueRef.current[payload.downloadId];
           }
-          showToast(
-            t('errors.downloadFailed', { error: payload.errorMessage || 'Unknown error' }),
-            'error',
-            0
-          );
+          // Failures surface in the header Downloads menu (errorMessage on the row) —
+          // do not toast outside the download queue for in-flight jobs.
           // Drop non-playable YouTube queue items that never got a local file
           const queue = useKaraokeStore.getState().queue;
           for (const item of queue) {
@@ -664,19 +661,15 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
           source: result.location === 'library' ? 'local_library' : track.source,
           ...(instrumental ? { title: mappedTrack.title } : {})
         });
-        showToast(
-          t('library.alreadyLocal', {
-            path: result.localFilePath,
-            defaultValue:
-              'Brano già presente in locale. Collegato il file esistente senza riscaricare:\n{{path}}'
-          })
-        );
+        // Reuse notice is shown in the header Downloads menu (alreadyExists payload),
+        // same channel as Instrumental phase / concurrency "queued" labels — no toast.
         if (result.location === 'library') {
           await loadLocalCatalog();
           window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
         }
       }
     } catch (err) {
+      // Pre-queue start failures (IPC/bridge) never get a Downloads menu row
       showToast(t('errors.downloadFailed', { error: String(err) }));
     }
   };
