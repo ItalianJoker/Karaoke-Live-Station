@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **staging Download Instrumental** (`userData/temp`) + fix AI saltata se l’MP4 originale non veniva risolto + path media locale `//home/...` + SoundFont + progresso ~45% + **Carica altri video** + **Pulisci coda** + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **log debug AI strumentale** + naming WAV extract corretto + **Actions Node 24** + staging Download Instrumental (`userData/temp`) + path media locale `//home/...` + SoundFont + progresso ~45% + **Carica altri video** + **Pulisci coda** + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,13 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **staging Download In
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### 🧪 Scarica strumentale AI — log debug + naming WAV
+- Log `debug` più ricchi lungo la pipeline Instrumental (extract / modello / ORT / remux / cleanup), senza segreti.
+- Extract demux: `{id}.extract.wav` (stem dell’MP4 sorgente); output AI: `{id}.instrumental.extract.wav`; cleanup temp per `downloadId`.
+
+### 🛠️ CI — Actions su runtime Node 24
+- `actions/checkout`, `setup-node`, `upload-artifact` aggiornati a major Node 24; toolchain app resta su Node 20.
 
 ### 📥 Scarica strumentale — staging originale affidabile
 - yt-dlp scrive l’MP4 originale in **`userData/temp`** (su Linux AppImage: `~/.config/karaoke-live-station/temp/`), non nella cartella libreria.
@@ -108,7 +115,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **staging Download In
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **Download Instrumental staging** (`userData/temp`) + fix for AI skipped when the original MP4 was not resolved + local media path `//home/...` + SoundFont + ~45% progress + YouTube **Load more videos** + Download **Clear downloads** + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
+GitHub Release **v1.1.0** overwrite: **Instrumental AI debug logs** + correct extract WAV naming + **Actions Node 24** + Download Instrumental staging (`userData/temp`) + local media path `//home/...` + SoundFont + ~45% progress + YouTube **Load more videos** + Download **Clear downloads** + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
 
 ## 📦 Installers
 
@@ -121,6 +128,13 @@ GitHub Release **v1.1.0** overwrite: **Download Instrumental staging** (`userDat
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### 🧪 Instrumental AI — debug logs + WAV naming
+- Richer `debug` logs across the Instrumental pipeline (extract / model / ORT / remux / cleanup), no secrets.
+- Demux extract: `{id}.extract.wav` (source MP4 stem); AI output: `{id}.instrumental.extract.wav`; per-`downloadId` temp cleanup.
+
+### 🛠️ CI — Actions on Node 24 runtimes
+- Bumped `actions/checkout`, `setup-node`, `upload-artifact` to Node 24 majors; app toolchain stays on Node 20.
 
 ### 📥 Download Instrumental — reliable original staging
 - yt-dlp writes the original MP4 under **`userData/temp`** (Linux AppImage: `~/.config/karaoke-live-station/temp/`), not the library folder.

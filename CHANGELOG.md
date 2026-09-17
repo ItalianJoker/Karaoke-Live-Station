@@ -8,6 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+## [1.1.0] — AI instrumental debug logs + Actions Node 24 (refresh) — 2026-09-17
+
+Overwrite of GitHub Release `v1.1.0` after PR #25 (Actions Node 24) + PR #26 (Instrumental AI debug / WAV naming).
+
+### Fixed
+- **Instrumental extract WAV naming** — demux extract is `{id}.extract.wav` from the source MP4 stem (not `{id}.instrumental.extract.wav`); AI output remains `{id}.instrumental.extract.wav`; per-`downloadId` temp cleanup covers source MP4 + both WAVs.
+
+### Changed
+- **Instrumental AI debug logging** — richer `debug`-level stages/fields across extract, model ensure, ORT separate, remux, and cleanup (no secrets).
+- **GitHub Actions Node 24** — `actions/checkout`, `setup-node`, `upload-artifact` bumped to Node 24-compatible majors; app `node-version` stays 20.
+
 ## [1.1.0] — Instrumental download staging under userData/temp (refresh) — 2026-09-17
 
 Overwrite of GitHub Release `v1.1.0` after PR #24 (reliable yt-dlp original staging before Instrumental AI).
