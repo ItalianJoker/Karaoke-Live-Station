@@ -3,11 +3,12 @@
  *
  * Why this model:
  * - ~53 MB — lightest of the offline AI options; recommended default among AI methods
- * - Primary stem is "other" (instrumental) so we get karaoke backing directly
+ * - UVR primary_stem is "Instrumental" (is_karaoke) — ONNX output is karaoke backing directly
  * - Runs entirely in-process via onnxruntime-web WASM (no cloud, no native rebuild)
  *
  * Pipeline: decode → resample 44.1 kHz → chunked STFT → ORT → iSTFT → AudioBuffer
- * Config matches UVR_MDXNET_KARA_2.yaml (dim_f=2048, dim_t=256, n_fft=5120, hop=1024).
+ * Config matches UVR model_data.json entry MD5 1d64a6d2… (dim_f=2048, dim_t=2^8=256,
+ * n_fft=5120, hop=1024, compensate=1.065).
  *
  * Heavy work yields to the event loop between frames/chunks (and prefers a Web Worker
  * in a utility worker for Download Instrumental).
@@ -207,6 +208,16 @@ export class MdxNetSeparator {
       // Yield every 32 STFT frames so long chunk builds cannot freeze the UI thread.
       if ((t & 31) === 31) {
         await yieldToMainThread();
+      }
+    }
+
+    // UVR separate.py run_model: spek[:, :, :3, :] *= 0 — mute the lowest 3 bins
+    // before ONNX (matches Anjok07/ultimatevocalremovergui MDX path).
+    for (let t = 0; t < DIM_T; t++) {
+      for (let f = 0; f < 3; f++) {
+        for (let c = 0; c < 4; c++) {
+          input[c * DIM_F * DIM_T + f * DIM_T + t] = 0;
+        }
       }
     }
 

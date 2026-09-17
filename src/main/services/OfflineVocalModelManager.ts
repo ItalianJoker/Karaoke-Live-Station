@@ -106,7 +106,15 @@ export class OfflineVocalModelManager {
    * Ensures the model file exists on disk (download + integrity when missing/corrupt/outdated).
    * Concurrent callers share one in-flight promise per model id.
    */
-  public async ensureModel(modelId: OfflineVocalModelId): Promise<string> {
+  public async ensureModel(
+    modelId: OfflineVocalModelId,
+    opts?: { signal?: AbortSignal }
+  ): Promise<string> {
+    if (opts?.signal?.aborted) {
+      const err = new Error('Aborted');
+      err.name = 'AbortError';
+      throw err;
+    }
     if (await this.isModelCached(modelId)) {
       // Backfill sidecar for installs that predate meta.json (no re-download).
       const modelPath = this.getModelPath(modelId);
@@ -120,9 +128,30 @@ export class OfflineVocalModelManager {
       return modelPath;
     }
     const existing = this.inFlight.get(modelId);
-    if (existing) return existing;
+    if (existing) {
+      // Shared in-flight download — still honor abort of this caller by racing.
+      if (!opts?.signal) return existing;
+      return await new Promise<string>((resolve, reject) => {
+        const onAbort = () => {
+          const err = new Error('Aborted');
+          err.name = 'AbortError';
+          reject(err);
+        };
+        opts.signal!.addEventListener('abort', onAbort, { once: true });
+        existing.then(
+          (path) => {
+            opts.signal!.removeEventListener('abort', onAbort);
+            resolve(path);
+          },
+          (err) => {
+            opts.signal!.removeEventListener('abort', onAbort);
+            reject(err);
+          }
+        );
+      });
+    }
 
-    const work = this.downloadModel(modelId);
+    const work = this.downloadModel(modelId, opts?.signal);
     this.inFlight.set(modelId, work);
     try {
       return await work;
@@ -184,7 +213,7 @@ export class OfflineVocalModelManager {
     }
   }
 
-  private async downloadModel(modelId: OfflineVocalModelId): Promise<string> {
+  private async downloadModel(modelId: OfflineVocalModelId, signal?: AbortSignal): Promise<string> {
     const meta = OFFLINE_VOCAL_MODELS[modelId];
     const modelPath = this.getModelPath(modelId);
     const modelsDir = path.dirname(modelPath);
@@ -201,6 +230,13 @@ export class OfflineVocalModelManager {
     });
 
     await new Promise<void>((resolve, reject) => {
+      if (signal?.aborted) {
+        const err = new Error('Aborted');
+        err.name = 'AbortError';
+        reject(err);
+        return;
+      }
+
       const request = net.request(meta.url);
       const writeStream = fs.createWriteStream(tempPath);
       let settled = false;
@@ -210,6 +246,12 @@ export class OfflineVocalModelManager {
       const fail = (err: Error) => {
         if (settled) return;
         settled = true;
+        signal?.removeEventListener('abort', onAbort);
+        try {
+          request.abort();
+        } catch {
+          /* ignore */
+        }
         try {
           writeStream.close();
         } catch {
@@ -230,6 +272,13 @@ export class OfflineVocalModelManager {
         reject(err);
       };
 
+      const onAbort = () => {
+        const err = new Error('Aborted');
+        err.name = 'AbortError';
+        fail(err);
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+
       request.on('response', (response) => {
         const status = response.statusCode || 0;
         if (status >= 400) {
@@ -241,6 +290,7 @@ export class OfflineVocalModelManager {
         total = lenRaw ? parseInt(String(lenRaw), 10) || 0 : 0;
 
         response.on('data', (chunk: Buffer) => {
+          if (settled) return;
           loaded += chunk.length;
           writeStream.write(chunk);
           this.emitProgress({
@@ -259,6 +309,7 @@ export class OfflineVocalModelManager {
           writeStream.end(() => {
             if (settled) return;
             settled = true;
+            signal?.removeEventListener('abort', onAbort);
             try {
               const size = fs.statSync(tempPath).size;
               if (size < meta.minBytes) {

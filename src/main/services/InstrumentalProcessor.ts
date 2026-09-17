@@ -9,10 +9,9 @@
  *
  * Live Rimozione Vocale stays algorithmic in the renderer — this module is download-only.
  */
-import { execFile } from 'child_process';
+import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { promisify } from 'util';
 import {
   coerceAlgorithmicVocalRemoverMethod,
   coerceVocalRemoverMethod,
@@ -23,11 +22,10 @@ import {
 } from '../../shared/vocalRemover';
 import { resolveFfmpegPath } from './BinaryResolver';
 import { separateInstrumentalWithAi } from './InstrumentalAiSeparator';
+import { isAbortError, killProcessTree, throwIfAborted } from './processKill';
 import type { OfflineVocalModelManager } from './OfflineVocalModelManager';
 import type { OrtWasmManager } from './OrtWasmManager';
 import type { Logger } from './Logger';
-
-const execFileAsync = promisify(execFile);
 
 export type InstrumentalProcessPhase =
   | 'extracting'
@@ -46,6 +44,13 @@ export type InstrumentalProcessOptions = {
   vocalModelManager?: OfflineVocalModelManager;
   ortWasmManager?: OrtWasmManager;
   logger?: Logger;
+  /** When aborted, ffmpeg/AI jobs are killed and the pipeline returns cancelled. */
+  signal?: AbortSignal;
+  /**
+   * Test/DI hook: replace the real utility-process AI separator.
+   * Production callers omit this — {@link separateInstrumentalWithAi} is used.
+   */
+  aiSeparate?: typeof separateInstrumentalWithAi;
 };
 
 export type InstrumentalProcessResult = {
@@ -53,6 +58,7 @@ export type InstrumentalProcessResult = {
   outputPath?: string;
   lyricsBurned?: boolean;
   error?: string;
+  cancelled?: boolean;
 };
 
 /**
@@ -99,11 +105,71 @@ export function buildAlgorithmicVocalRemoverFilter(
   ].join(';');
 }
 
-async function runFfmpeg(args: string[], timeoutMs = 20 * 60 * 1000): Promise<void> {
+/**
+ * Spawn ffmpeg so cancel can kill the process tree (execFile cannot be aborted mid-run).
+ */
+async function runFfmpeg(
+  args: string[],
+  options?: { timeoutMs?: number; signal?: AbortSignal }
+): Promise<void> {
+  const timeoutMs = options?.timeoutMs ?? 20 * 60 * 1000;
+  const signal = options?.signal;
+  throwIfAborted(signal);
+
   const ffmpegBin = resolveFfmpegPath();
-  await execFileAsync(ffmpegBin, args, {
-    timeout: timeoutMs,
-    maxBuffer: 4 * 1024 * 1024
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(ffmpegBin, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32'
+    });
+
+    let settled = false;
+    let stderr = '';
+    const timer = setTimeout(() => {
+      killProcessTree(child);
+      fail(new Error(`ffmpeg timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    const fail = (err: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      reject(err);
+    };
+
+    const succeed = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    };
+
+    const onAbort = () => {
+      killProcessTree(child);
+      const err = new Error('Aborted');
+      err.name = 'AbortError';
+      fail(err);
+    };
+
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) {
+      onAbort();
+      return;
+    }
+
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString('utf8');
+      if (stderr.length > 64 * 1024) stderr = stderr.slice(-32 * 1024);
+    });
+
+    child.on('error', (err) => fail(err));
+    child.on('close', (code) => {
+      if (settled) return;
+      if (code === 0) succeed();
+      else fail(new Error(`ffmpeg exited with code ${code}: ${stderr.trim().slice(-500)}`));
+    });
   });
 }
 
@@ -140,25 +206,29 @@ export function findSiblingSubtitle(videoPath: string): string | null {
 async function removeVocalsAlgorithmic(
   extractedWav: string,
   instrumentalWav: string,
-  algorithm: AlgorithmicVocalRemoverMethod
+  algorithm: AlgorithmicVocalRemoverMethod,
+  signal?: AbortSignal
 ): Promise<void> {
   const filter = buildAlgorithmicVocalRemoverFilter(algorithm);
-  await runFfmpeg([
-    '-y',
-    '-i',
-    extractedWav,
-    '-filter_complex',
-    filter,
-    '-map',
-    '[aout]',
-    '-ac',
-    '2',
-    '-ar',
-    '44100',
-    '-c:a',
-    'pcm_s16le',
-    instrumentalWav
-  ]);
+  await runFfmpeg(
+    [
+      '-y',
+      '-i',
+      extractedWav,
+      '-filter_complex',
+      filter,
+      '-map',
+      '[aout]',
+      '-ac',
+      '2',
+      '-ar',
+      '44100',
+      '-c:a',
+      'pcm_s16le',
+      instrumentalWav
+    ],
+    { signal }
+  );
 }
 
 async function removeVocalsAi(
@@ -174,22 +244,27 @@ async function removeVocalsAi(
   }
 
   const modelId = methodToModelId(method);
+  throwIfAborted(options.signal);
   report('ensuring_model', 20);
   // ensureModel skips download when local userData/models copy is already current
   // (URL/SHA/version match); only fetches when missing, corrupt, or newer remote.
-  const modelPath = await vocalModelManager.ensureModel(modelId);
+  const modelPath = await vocalModelManager.ensureModel(modelId, { signal: options.signal });
+  throwIfAborted(options.signal);
   report('ensuring_model', 40);
   const ortPaths = await ortWasmManager.ensureOrtWasm();
   const ortDir = ortPaths.ortDir || ortWasmManager.getOrtDir();
 
+  throwIfAborted(options.signal);
   report('removing_vocals', 45);
-  await separateInstrumentalWithAi(
+  const aiSeparate = options.aiSeparate || separateInstrumentalWithAi;
+  await aiSeparate(
     {
       method,
       modelPath,
       ortDir,
       inputWav: extractedWav,
       outputWav: instrumentalWav,
+      signal: options.signal,
       onProgress: (info) => {
         const pct = 45 + Math.max(0, Math.min(1, info.progress)) * 25;
         report('removing_vocals', pct);
@@ -228,24 +303,31 @@ export async function processInstrumentalVideo(
     }
   };
 
-  try {
-    report('extracting', 5);
-    await runFfmpeg([
-      '-y',
-      '-i',
-      input,
-      '-vn',
-      '-ac',
-      '2',
-      '-ar',
-      '44100',
-      '-c:a',
-      'pcm_s16le',
-      '-f',
-      'wav',
-      extractedWav
-    ]);
+  const signal = options.signal;
 
+  try {
+    throwIfAborted(signal);
+    report('extracting', 5);
+    await runFfmpeg(
+      [
+        '-y',
+        '-i',
+        input,
+        '-vn',
+        '-ac',
+        '2',
+        '-ar',
+        '44100',
+        '-c:a',
+        'pcm_s16le',
+        '-f',
+        'wav',
+        extractedWav
+      ],
+      { signal }
+    );
+
+    throwIfAborted(signal);
     if (useAi) {
       await removeVocalsAi(
         extractedWav,
@@ -259,10 +341,12 @@ export async function processInstrumentalVideo(
       await removeVocalsAlgorithmic(
         extractedWav,
         instrumentalWav,
-        coerceAlgorithmicVocalRemoverMethod(selected)
+        coerceAlgorithmicVocalRemoverMethod(selected),
+        signal
       );
     }
 
+    throwIfAborted(signal);
     report('remuxing', 75);
     const subtitlePath =
       options.subtitlePath && fs.existsSync(options.subtitlePath)
@@ -276,37 +360,68 @@ export async function processInstrumentalVideo(
         .replace(/:/g, '\\:')
         .replace(/'/g, "\\'");
       try {
-        await runFfmpeg([
-          '-y',
-          '-i',
-          input,
-          '-i',
-          instrumentalWav,
-          '-vf',
-          `subtitles='${escapedSub}'`,
-          '-map',
-          '0:v:0',
-          '-map',
-          '1:a:0',
-          '-c:v',
-          'libx264',
-          '-preset',
-          'veryfast',
-          '-crf',
-          '20',
-          '-c:a',
-          'aac',
-          '-b:a',
-          '192k',
-          '-shortest',
-          '-movflags',
-          '+faststart',
-          stagingOut
-        ]);
+        await runFfmpeg(
+          [
+            '-y',
+            '-i',
+            input,
+            '-i',
+            instrumentalWav,
+            '-vf',
+            `subtitles='${escapedSub}'`,
+            '-map',
+            '0:v:0',
+            '-map',
+            '1:a:0',
+            '-c:v',
+            'libx264',
+            '-preset',
+            'veryfast',
+            '-crf',
+            '20',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '192k',
+            '-shortest',
+            '-movflags',
+            '+faststart',
+            stagingOut
+          ],
+          { signal }
+        );
         lyricsBurned = true;
-      } catch {
+      } catch (err) {
+        if (isAbortError(err)) throw err;
         lyricsBurned = false;
-        await runFfmpeg([
+        await runFfmpeg(
+          [
+            '-y',
+            '-i',
+            input,
+            '-i',
+            instrumentalWav,
+            '-map',
+            '0:v:0',
+            '-map',
+            '1:a:0',
+            '-c:v',
+            'copy',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '192k',
+            '-shortest',
+            '-movflags',
+            '+faststart',
+            stagingOut
+          ],
+          { signal }
+        );
+      }
+    } else {
+      await runFfmpeg(
+        [
           '-y',
           '-i',
           input,
@@ -326,32 +441,12 @@ export async function processInstrumentalVideo(
           '-movflags',
           '+faststart',
           stagingOut
-        ]);
-      }
-    } else {
-      await runFfmpeg([
-        '-y',
-        '-i',
-        input,
-        '-i',
-        instrumentalWav,
-        '-map',
-        '0:v:0',
-        '-map',
-        '1:a:0',
-        '-c:v',
-        'copy',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '192k',
-        '-shortest',
-        '-movflags',
-        '+faststart',
-        stagingOut
-      ]);
+        ],
+        { signal }
+      );
     }
 
+    throwIfAborted(signal);
     const staged = await fs.promises.stat(stagingOut);
     if (staged.size < 1024) {
       safeUnlink(stagingOut);
@@ -367,6 +462,9 @@ export async function processInstrumentalVideo(
     return { success: true, outputPath: output, lyricsBurned };
   } catch (err) {
     safeUnlink(stagingOut);
+    if (isAbortError(err) || signal?.aborted) {
+      return { success: false, cancelled: true, error: 'Cancelled' };
+    }
     const message = err instanceof Error ? err.message : String(err);
     return { success: false, error: `Instrumental processing failed: ${message}` };
   } finally {

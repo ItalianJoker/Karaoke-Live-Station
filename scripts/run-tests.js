@@ -646,6 +646,25 @@ assert(
   'Settings split live algo vs Instrumental AI; Download menu; no Separazione; no alert list'
 );
 
+assert(
+  downloadManagerSourceVocal.includes('activeJobs') &&
+    downloadManagerSourceVocal.includes('abortController') &&
+    downloadManagerSourceVocal.includes('killProcessTree') &&
+    downloadManagerSourceVocal.includes('signal') &&
+    instrumentalProcessorSource.includes('signal?: AbortSignal') &&
+    instrumentalProcessorSource.includes('cancelled') &&
+    controlSource.includes('downloads.cancel') &&
+    fs.existsSync(path.resolve(__dirname, '../src/main/services/processKill.ts')),
+  'Download cancel aborts yt-dlp/ffmpeg/AI via AbortController through instrumental phase'
+);
+
+assert(
+  fs
+    .readFileSync(path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'), 'utf8')
+    .includes("instrumentalVocalRemoverMethod: 'aiMdxKaraoke2'"),
+  'Default Download Instrumental method is AI (aiMdxKaraoke2)'
+);
+
 const mainSourceForDialogs = fs.readFileSync(
   path.resolve(__dirname, '../src/main/index.ts'),
   'utf8'

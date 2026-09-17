@@ -1012,7 +1012,11 @@ export const ControlWindow: React.FC = () => {
                         dl.status === 'remuxing') && (
                         <button
                           type="button"
-                          onClick={() => window.karaokeApi?.downloads.cancel(dl.downloadId)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void window.karaokeApi?.downloads.cancel(dl.downloadId);
+                          }}
                           className="text-slate-500 hover:text-red-400 p-1 rounded-full hover:bg-slate-800"
                           title={t('common.cancel', 'Cancel')}
                         >

@@ -13,6 +13,7 @@ import {
   findSiblingSubtitle,
   processInstrumentalVideo
 } from './InstrumentalProcessor';
+import { killProcessTree } from './processKill';
 import type { OfflineVocalModelManager } from './OfflineVocalModelManager';
 import type { OrtWasmManager } from './OrtWasmManager';
 import type { Logger } from './Logger';
@@ -72,6 +73,18 @@ type PendingDownloadJob = {
 };
 
 /**
+ * Tracks a download for its full lifetime — including instrumental post-process
+ * after yt-dlp exits — so cancel works from the Download menu at any phase.
+ */
+type ActiveDownloadJob = {
+  /** yt-dlp child while downloading; null during instrumental conversion. */
+  process: ChildProcess | null;
+  payload: DownloadProgressPayload;
+  url: string;
+  abortController: AbortController;
+};
+
+/**
  * Background Download Manager wrapping yt-dlp child processes.
  * Handles progress parsing, audio conversion via ffmpeg, download cancellation,
  * local-file deduplication, and moving files to the karaoke library / queue cache.
@@ -81,8 +94,7 @@ export class DownloadManager {
   private queueCacheDir: string;
   private ffmpegPath: string;
   private ytdlpPath: string;
-  private activeProcesses: Map<string, { process: ChildProcess; payload: DownloadProgressPayload; url: string }> =
-    new Map();
+  private activeJobs: Map<string, ActiveDownloadJob> = new Map();
   private activeUrls: Map<string, string> = new Map();
   private progressListeners: Set<DownloadProgressCallback> = new Set();
   /** Shared pool limit for normal + instrumental yt-dlp children. */
@@ -140,11 +152,11 @@ export class DownloadManager {
     }
   }
 
-  /** Count of active yt-dlp children (excludes queued pending jobs). */
+  /** Count of active yt-dlp children (instrumental conversion does not hold a pool slot). */
   private getRunningCount(): number {
     let count = 0;
-    for (const entry of this.activeProcesses.values()) {
-      if (entry.payload.status !== 'queued') count++;
+    for (const entry of this.activeJobs.values()) {
+      if (entry.process && entry.payload.status !== 'queued') count++;
     }
     return count;
   }
@@ -425,7 +437,7 @@ export class DownloadManager {
 
     const existingDownloadId = this.activeUrls.get(dedupUrlKey);
     if (existingDownloadId) {
-      const active = this.activeProcesses.get(existingDownloadId);
+      const active = this.activeJobs.get(existingDownloadId);
       if (active) {
         this.emitProgress({ ...active.payload });
         return { downloadId: existingDownloadId, alreadyExists: false };
@@ -524,10 +536,18 @@ export class DownloadManager {
 
     const child = spawn(this.ytdlpPath, args, {
       cwd: this.tempDir,
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      // Own process group on Unix so cancel can SIGKILL yt-dlp + nested ffmpeg.
+      detached: process.platform !== 'win32'
     });
 
-    this.activeProcesses.set(downloadId, { process: child, payload, url: dedupUrlKey });
+    const abortController = new AbortController();
+    this.activeJobs.set(downloadId, {
+      process: child,
+      payload,
+      url: dedupUrlKey,
+      abortController
+    });
 
     let detectedOutputFile: string | null = null;
     // Chunk boundaries can split mid-line — buffer until newline/CR
@@ -636,8 +656,18 @@ export class DownloadManager {
 
     child.on('close', (code: number | null) => {
       void (async () => {
-        this.activeProcesses.delete(downloadId);
-        this.activeUrls.delete(dedupUrlKey);
+        const job = this.activeJobs.get(downloadId);
+        if (job) job.process = null;
+
+        // Cancel already cleaned up and emitted — do not continue post-process.
+        if (payload.status === 'cancelled') {
+          this.activeJobs.delete(downloadId);
+          this.activeUrls.delete(dedupUrlKey);
+          this.pumpQueue();
+          return;
+        }
+
+        // Free the yt-dlp pool slot while instrumental conversion may still run.
         this.pumpQueue();
 
         if (code === 0) {
@@ -659,6 +689,7 @@ export class DownloadManager {
             payload.eta = '--:--';
             this.emitProgress({ ...payload });
 
+            const signal = job?.abortController.signal;
             const result = await processInstrumentalVideo({
               inputVideoPath: detectedOutputFile,
               outputPath: instrumentalOut,
@@ -667,6 +698,7 @@ export class DownloadManager {
               vocalModelManager: this.vocalModelManager,
               ortWasmManager: this.ortWasmManager,
               logger: this.logger,
+              signal,
               onProgress: (phase, percent) => {
                 if (payload.status === 'cancelled') return;
                 if (phase === 'ensuring_model') {
@@ -686,13 +718,28 @@ export class DownloadManager {
               }
             });
 
-            // Cancel may have flipped status while ffmpeg ran
-            if ((payload.status as DownloadProgressPayload['status']) === 'cancelled') return;
+            // Cancel may have flipped status while ffmpeg/AI ran
+            if ((payload.status as DownloadProgressPayload['status']) === 'cancelled') {
+              this.activeJobs.delete(downloadId);
+              this.activeUrls.delete(dedupUrlKey);
+              return;
+            }
+
+            if (result.cancelled) {
+              payload.status = 'cancelled';
+              payload.errorMessage = 'Download cancelled by user';
+              this.emitProgress({ ...payload });
+              this.activeJobs.delete(downloadId);
+              this.activeUrls.delete(dedupUrlKey);
+              return;
+            }
 
             if (!result.success || !result.outputPath) {
               payload.status = 'error';
               payload.errorMessage = result.error || 'Instrumental processing failed';
               this.emitProgress({ ...payload });
+              this.activeJobs.delete(downloadId);
+              this.activeUrls.delete(dedupUrlKey);
               return;
             }
 
@@ -707,26 +754,43 @@ export class DownloadManager {
             detectedOutputFile = result.outputPath;
           }
 
+          if ((payload.status as DownloadProgressPayload['status']) === 'cancelled') {
+            this.activeJobs.delete(downloadId);
+            this.activeUrls.delete(dedupUrlKey);
+            return;
+          }
+
           payload.status = 'completed';
           payload.percent = 100;
           payload.speed = '';
           payload.eta = '00:00';
           payload.outputFilePath = detectedOutputFile || undefined;
           this.emitProgress({ ...payload });
-        } else if (payload.status !== 'cancelled') {
+          this.activeJobs.delete(downloadId);
+          this.activeUrls.delete(dedupUrlKey);
+        } else if ((payload.status as DownloadProgressPayload['status']) !== 'cancelled') {
           payload.status = 'error';
           payload.errorMessage = `yt-dlp exited with error code ${code}`;
           this.emitProgress({ ...payload });
+          this.activeJobs.delete(downloadId);
+          this.activeUrls.delete(dedupUrlKey);
+        } else {
+          this.activeJobs.delete(downloadId);
+          this.activeUrls.delete(dedupUrlKey);
         }
       })();
     });
 
     child.on('error', (err: Error) => {
-      this.activeProcesses.delete(downloadId);
+      const job = this.activeJobs.get(downloadId);
+      if (job) job.process = null;
+      this.activeJobs.delete(downloadId);
       this.activeUrls.delete(dedupUrlKey);
-      payload.status = 'error';
-      payload.errorMessage = err.message;
-      this.emitProgress({ ...payload });
+      if (payload.status !== 'cancelled') {
+        payload.status = 'error';
+        payload.errorMessage = err.message;
+        this.emitProgress({ ...payload });
+      }
       this.pumpQueue();
     });
   }
@@ -766,6 +830,10 @@ export class DownloadManager {
     return `${trimmed} (Instrumental)`;
   }
 
+  /**
+   * Cancel a queued or in-flight download (traditional or instrumental).
+   * Aborts yt-dlp process trees, ffmpeg remux, model download, and AI workers.
+   */
   public cancelDownload(downloadId: string): boolean {
     const pendingIdx = this.pendingQueue.findIndex((job) => job.downloadId === downloadId);
     if (pendingIdx >= 0) {
@@ -777,15 +845,26 @@ export class DownloadManager {
       return true;
     }
 
-    const active = this.activeProcesses.get(downloadId);
+    const active = this.activeJobs.get(downloadId);
     if (!active) return false;
+    if (active.payload.status === 'cancelled') return true;
 
     active.payload.status = 'cancelled';
     active.payload.errorMessage = 'Download cancelled by user';
     this.emitProgress({ ...active.payload });
 
-    active.process.kill('SIGTERM');
-    this.activeProcesses.delete(downloadId);
+    try {
+      active.abortController.abort();
+    } catch {
+      /* ignore */
+    }
+
+    if (active.process) {
+      killProcessTree(active.process);
+      active.process = null;
+    }
+
+    this.activeJobs.delete(downloadId);
     this.activeUrls.delete(active.url);
 
     try {
