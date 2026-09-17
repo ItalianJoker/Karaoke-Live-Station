@@ -73,6 +73,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     setLocalSearching,
     setWebSearching,
     patchTrackInAllResults,
+    revertLibraryMembershipInResults,
     listRef: resultsListRef,
     onListScroll,
     localQuery,
@@ -1309,13 +1310,44 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                     if (res?.success) {
                       showToast(t('library.deleteSuccess'));
                       const deletedId = trackPendingDelete.id;
-                      setLocalTracks((prev) => prev.filter((x) => x.id !== deletedId));
+                      const deletedPath = (trackPendingDelete.localFilePath || '').trim().toLowerCase();
+                      // Drop from Local catalog + local search; also clear path aliases.
+                      setLocalTracks((prev) =>
+                        prev.filter((x) => {
+                          if (x.id === deletedId) return false;
+                          if (
+                            deletedPath &&
+                            (x.localFilePath || '').trim().toLowerCase() === deletedPath
+                          ) {
+                            return false;
+                          }
+                          return true;
+                        })
+                      );
+                      setLocalResults((prev) =>
+                        prev.filter((x) => {
+                          if (x.id === deletedId) return false;
+                          if (
+                            deletedPath &&
+                            (x.localFilePath || '').trim().toLowerCase() === deletedPath
+                          ) {
+                            return false;
+                          }
+                          return true;
+                        })
+                      );
+                      // Web results keep a patched local_library row after download —
+                      // revert so Download (+ Instrumental) show again without re-search.
+                      revertLibraryMembershipInResults({
+                        id: trackPendingDelete.id,
+                        uri: trackPendingDelete.uri,
+                        localFilePath: trackPendingDelete.localFilePath
+                      });
                       setTrackMap((prev) => {
                         const next = { ...prev };
                         delete next[deletedId];
                         return next;
                       });
-                      setLocalResults((prev) => prev.filter((x) => x.id !== deletedId));
                       if (previewTrack?.id === deletedId) setPreviewTrack(null);
                     } else {
                       showToast(t('library.deleteFailed'));
