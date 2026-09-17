@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **impostazioni separate** live DSP vs Scarica strumentale AI (default UVR-MDX) + **annulla download** (menu Download, yt-dlp/ffmpeg/AI) + AI strumentale + menu Download + pool simultanei + ricerca senza accenti + fix storici.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix velocità/ETA download** + **timeout AI «Rimozione voce»** (timeout scalato, heartbeat, ORT wasmBinary) + impostazioni separate live/strumentale + annulla download + AI strumentale + menu Download + ricerca senza accenti.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,14 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **impostazioni separa
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### 📶 Velocità e tempo rimanente nel menu Download
+- Progresso yt-dlp corretto (`KLSPROG` / `--progress`): il menu mostra **velocità** e **ETA** durante il download.
+
+### ⏱️ Scarica strumentale — AI senza false timeout
+- Timeout AI scalato sulla durata del brano; watchdog idle su heartbeat di progresso.
+- ORT WASM caricato in memoria nel utility worker (evita hang `file://`).
+- ETA di conversione durante «Rimozione voce»; **Annulla** invariato; modelli aggiornati solo se più nuovi in `userData/models`.
 
 ### 🎛️ Impostazioni vocali separate (live vs strumentale)
 - **Rimozione Vocale live** (`V`): solo algoritmi DSP in Impostazioni.
@@ -79,7 +87,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **impostazioni separa
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **split Settings** for live DSP vs Download Instrumental AI (default UVR-MDX) + **working download cancel** (Download menu, yt-dlp/ffmpeg/AI) + Instrumental AI + Download menu + concurrency pool + accent-insensitive search + retained fixes.
+GitHub Release **v1.1.0** overwrite: **download speed/ETA fix** + **Instrumental AI “Rimozione voce” timeout** (scaled timeout, heartbeats, ORT wasmBinary) + split Settings live/instrumental + working cancel + Instrumental AI + Download menu + accent-insensitive search.
 
 ## 📦 Installers
 
@@ -92,6 +100,14 @@ GitHub Release **v1.1.0** overwrite: **split Settings** for live DSP vs Download
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### 📶 Download menu speed + remaining time
+- Correct yt-dlp progress parsing (`KLSPROG` / `--progress`): the Download menu shows **speed** and **ETA** while downloading.
+
+### ⏱️ Download Instrumental — AI without false timeouts
+- AI hard timeout scales with track length; idle watchdog resets on progress heartbeats.
+- ORT WASM loaded in-memory in the utility worker (avoids `file://` hangs).
+- Conversion ETA during “Removing vocals…”; **Cancel** unchanged; models update only if newer under `userData/models`.
 
 ### 🎛️ Split vocal settings (live vs instrumental)
 - **Live Rimozione Vocale** (`V`): algorithmic DSP methods only in Settings.
