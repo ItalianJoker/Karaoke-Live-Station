@@ -140,7 +140,11 @@
     "downloadsMenu": "Téléchargements",
     "downloadsEmpty": "Aucun téléchargement actif",
     "downloadingModel": "Téléchargement du modèle…",
-    "queued": "En file"
+    "queued": "En file",
+    "downloading": "Téléchargement…",
+    "converting": "Conversion…",
+    "convertingInstrumental": "Conversion instrumentale…",
+    "downloadCompleted": "Terminé"
   },
   "settings": {
     "title": "Paramètres Système",

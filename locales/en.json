@@ -140,7 +140,11 @@
     "downloadsMenu": "Downloads",
     "downloadsEmpty": "No active downloads",
     "downloadingModel": "Downloading model…",
-    "queued": "Queued"
+    "queued": "Queued",
+    "downloading": "Downloading…",
+    "converting": "Converting…",
+    "convertingInstrumental": "Converting instrumental…",
+    "downloadCompleted": "Completed"
   },
   "settings": {
     "title": "System Settings",

@@ -443,7 +443,7 @@ export class DownloadManager {
     const payload: DownloadProgressPayload = {
       downloadId,
       percent: 0,
-      speed: '0 KiB/s',
+      speed: '',
       eta: '--:--',
       downloadedBytes: 0,
       totalBytes: 0,
@@ -495,8 +495,9 @@ export class DownloadManager {
       '--no-mtime',
       '-o',
       outputTemplate,
+      // Machine-friendly progress (status|percent|speed_Bps|eta_s) — parsed from stderr/stdout
       '--progress-template',
-      'download:[%(progress.status)s] %(progress._percent_str)s of %(progress._total_bytes_str)s at %(progress._speed_str)s ETA %(progress._eta_str)s'
+      'download:%(progress.status)s|%(progress._percent_str)s|%(progress.speed)s|%(progress.eta)s'
     ];
 
     if (options.isAudioOnly) {
@@ -529,36 +530,109 @@ export class DownloadManager {
     this.activeProcesses.set(downloadId, { process: child, payload, url: dedupUrlKey });
 
     let detectedOutputFile: string | null = null;
+    // Chunk boundaries can split mid-line — buffer until newline/CR
+    let lineBuffer = '';
 
-    child.stdout.on('data', (chunk: Buffer) => {
-      const text = chunk.toString('utf8');
-      for (const line of text.split(/\r?\n/)) {
-        if (!line.trim()) continue;
+    const ingestYtDlpLine = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
 
-        if (line.includes('[download] Destination:') || line.includes('[Merger] Merging formats into')) {
-          const match = line.match(/(?:Destination: |Merging formats into ")([^"]+)/);
-          if (match?.[1]) detectedOutputFile = match[1].trim();
-        }
-
-        if (line.startsWith('download:[download]')) {
-          const percentMatch = line.match(/([0-9.]+)%/);
-          const speedMatch = line.match(/at\s+([^\s]+)/);
-          const etaMatch = line.match(/ETA\s+([0-9:]+)/);
-          if (percentMatch) payload.percent = parseFloat(percentMatch[1]);
-          if (speedMatch) payload.speed = speedMatch[1];
-          if (etaMatch) payload.eta = etaMatch[1];
-          payload.status = 'downloading';
-          this.emitProgress({ ...payload });
-        } else if (line.includes('[ExtractAudio]') || line.includes('[ffmpeg]')) {
-          payload.status = 'converting';
-          this.emitProgress({ ...payload });
-        }
+      if (
+        trimmed.includes('[download] Destination:') ||
+        trimmed.includes('[Merger] Merging formats into')
+      ) {
+        const match = trimmed.match(/(?:Destination:\s+|Merging formats into ")([^"]+)/);
+        if (match?.[1]) detectedOutputFile = match[1].trim().replace(/"$/, '');
       }
-    });
 
-    child.stderr.on('data', (chunk: Buffer) => {
-      console.warn(`[yt-dlp stderr ${downloadId}]: ${chunk.toString('utf8')}`);
-    });
+      // Preferred: structured --progress-template (status|percent|speedBps|etaSec)
+      const structured = trimmed.match(
+        /^download:([^|]+)\|([^|]*)\|([^|]*)\|([^|]*)$/i
+      );
+      if (structured) {
+        const progressStatus = structured[1].trim().toLowerCase();
+        const percentMatch = structured[2].match(/([0-9.]+)\s*%?/);
+        const speedField = structured[3].trim();
+        const etaField = structured[4].trim();
+
+        if (percentMatch) {
+          const p = parseFloat(percentMatch[1]);
+          if (Number.isFinite(p)) payload.percent = Math.max(0, Math.min(100, p));
+        }
+
+        const speedNum = parseFloat(speedField);
+        if (Number.isFinite(speedNum) && speedNum > 0) {
+          payload.speed = DownloadManager.formatBytesPerSecond(speedNum);
+        } else {
+          payload.speed = DownloadManager.sanitizeDownloadSpeed(speedField);
+        }
+
+        const etaSec = parseInt(etaField, 10);
+        if (Number.isFinite(etaSec) && etaSec >= 0) {
+          const mm = Math.floor(etaSec / 60);
+          const ss = etaSec % 60;
+          payload.eta = `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+        } else if (/^\d+:\d+/.test(etaField)) {
+          payload.eta = etaField;
+        }
+
+        if (progressStatus === 'finished') {
+          payload.speed = '';
+        } else {
+          payload.status = 'downloading';
+        }
+        this.emitProgress({ ...payload });
+        return;
+      }
+
+      // Fallback: legacy template / default yt-dlp [download] progress (usually stderr)
+      const isProgress =
+        trimmed.startsWith('download:[download]') ||
+        /^\[download\]\s+[0-9.]+%/.test(trimmed) ||
+        /^download:\[download\]/.test(trimmed);
+      if (isProgress) {
+        const percentMatch = trimmed.match(/([0-9.]+)\s*%/);
+        // Speed sits between "at" and "ETA" — may include spaces ("1.23 MiB/s")
+        const speedMatch = trimmed.match(/\bat\s+(.+?)\s+ETA\b/i);
+        const etaMatch = trimmed.match(/\bETA\s+([0-9:]+)/i);
+        if (percentMatch) {
+          const p = parseFloat(percentMatch[1]);
+          if (Number.isFinite(p)) payload.percent = Math.max(0, Math.min(100, p));
+        }
+        if (speedMatch) {
+          const raw = speedMatch[1].trim().replace(/\s+/g, ' ');
+          payload.speed = DownloadManager.sanitizeDownloadSpeed(raw);
+        }
+        if (etaMatch) payload.eta = etaMatch[1];
+        payload.status = 'downloading';
+        this.emitProgress({ ...payload });
+        return;
+      }
+
+      if (
+        /\[ExtractAudio\]/i.test(trimmed) ||
+        /\[Merger\]/i.test(trimmed) ||
+        /\[ffmpeg\]/i.test(trimmed)
+      ) {
+        payload.status = 'converting';
+        // Mux/convert has no reliable byte speed from yt-dlp — clear stale download speed
+        payload.speed = '';
+        this.emitProgress({ ...payload });
+      }
+    };
+
+    const feed = (chunk: Buffer) => {
+      lineBuffer += chunk.toString('utf8');
+      const parts = lineBuffer.split(/\r\n|\n|\r/);
+      lineBuffer = parts.pop() ?? '';
+      for (const part of parts) {
+        ingestYtDlpLine(part);
+      }
+    };
+
+    // yt-dlp writes progress to stderr by default; destination/merger may appear on either stream
+    child.stdout.on('data', feed);
+    child.stderr.on('data', feed);
 
     child.on('close', (code: number | null) => {
       void (async () => {
@@ -577,8 +651,12 @@ export class DownloadManager {
           if (instrumental && detectedOutputFile && fs.existsSync(detectedOutputFile)) {
             const instrumentalOut = path.join(this.tempDir, `${downloadId}.instrumental.mp4`);
             const subtitlePath = findSiblingSubtitle(detectedOutputFile);
-            payload.status = 'removing_vocals';
-            payload.percent = 85;
+
+            // Conversion bar replaces the download bar (fresh 0→100%) for instrumental only
+            payload.status = 'processing';
+            payload.percent = 0;
+            payload.speed = '';
+            payload.eta = '--:--';
             this.emitProgress({ ...payload });
 
             const result = await processInstrumentalVideo({
@@ -600,7 +678,10 @@ export class DownloadManager {
                 } else {
                   payload.status = 'processing';
                 }
-                payload.percent = Math.max(payload.percent, 80 + percent * 0.2);
+                // InstrumentalProcessor reports 0–100 within the conversion pipeline
+                const p = Number.isFinite(percent) ? percent : 0;
+                payload.percent = Math.max(0, Math.min(100, p));
+                payload.speed = '';
                 this.emitProgress({ ...payload });
               }
             });
@@ -628,6 +709,7 @@ export class DownloadManager {
 
           payload.status = 'completed';
           payload.percent = 100;
+          payload.speed = '';
           payload.eta = '00:00';
           payload.outputFilePath = detectedOutputFile || undefined;
           this.emitProgress({ ...payload });
@@ -647,6 +729,34 @@ export class DownloadManager {
       this.emitProgress({ ...payload });
       this.pumpQueue();
     });
+  }
+
+  /** Format raw bytes/s from yt-dlp `progress.speed` for the Download menu. */
+  private static formatBytesPerSecond(bytesPerSec: number): string {
+    if (!Number.isFinite(bytesPerSec) || bytesPerSec <= 0) return '';
+    const units = ['B/s', 'KiB/s', 'MiB/s', 'GiB/s'];
+    let value = bytesPerSec;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit += 1;
+    }
+    const digits = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+    return `${value.toFixed(digits)} ${units[unit]}`;
+  }
+
+  /**
+   * Normalize yt-dlp speed strings; hide unknown/placeholder values so the UI
+   * does not show "N/A" or "UnknownB/s" as if they were real throughput.
+   */
+  private static sanitizeDownloadSpeed(raw: string): string {
+    const s = (raw || '').trim().replace(/\s+/g, ' ');
+    if (!s) return '';
+    if (/^(n\/?a|na|none|-|~)$/i.test(s)) return '';
+    if (/unknown/i.test(s)) return '';
+    // Expect something like 1.2MiB/s, 320KiB/s, 1.23 MB/s
+    if (!/[0-9]/.test(s) || !/\/s\b/i.test(s)) return '';
+    return s;
   }
 
   /** Ensures library/display title marks instrumental versions distinctly. */

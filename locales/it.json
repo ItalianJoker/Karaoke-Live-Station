@@ -140,7 +140,11 @@
     "downloadsMenu": "Download",
     "downloadsEmpty": "Nessun download attivo",
     "downloadingModel": "Download modello…",
-    "queued": "In coda"
+    "queued": "In coda",
+    "downloading": "Download in corso…",
+    "converting": "Conversione…",
+    "convertingInstrumental": "Conversione strumentale…",
+    "downloadCompleted": "Completato"
   },
   "settings": {
     "title": "Impostazioni di Sistema",

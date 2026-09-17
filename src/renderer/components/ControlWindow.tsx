@@ -470,8 +470,17 @@ export const ControlWindow: React.FC = () => {
           }
           return next;
         });
-        if (payload.status === 'downloading' || payload.status === 'converting') {
-          setDownloadProgress({ percent: payload.percent, speed: payload.speed });
+        if (payload.status === 'downloading') {
+          setDownloadProgress({ percent: payload.percent, speed: payload.speed || '' });
+        } else if (
+          payload.status === 'converting' ||
+          payload.status === 'processing' ||
+          payload.status === 'downloading_model' ||
+          payload.status === 'removing_vocals' ||
+          payload.status === 'remuxing'
+        ) {
+          // Conversion phase: keep percent for any legacy UI, clear speed
+          setDownloadProgress({ percent: payload.percent, speed: '' });
         } else if (payload.status === 'completed' && payload.outputFilePath) {
           setDownloadProgress(null);
           const cur = useKaraokeStore.getState().queue[0]?.track;
@@ -586,7 +595,7 @@ export const ControlWindow: React.FC = () => {
     // If it's a YouTube track and has no local file, initiate download (with local dedup)
     if (currentTrack.source === 'youtube' && !currentTrack.localFilePath) {
       if (!downloadProgress && window.karaokeApi) {
-        setDownloadProgress({ percent: 0, speed: '0 KiB/s' });
+        setDownloadProgress({ percent: 0, speed: '' });
         const settingsSnapshot = useKaraokeStore.getState().settings;
         window.karaokeApi.downloads
           .start({
@@ -935,7 +944,39 @@ export const ControlWindow: React.FC = () => {
                 {Object.keys(headerDownloads).length === 0 ? (
                   <p className="text-[11px] text-slate-500 py-2">{t('library.downloadsEmpty')}</p>
                 ) : (
-                  Object.values(headerDownloads).map((dl) => (
+                  Object.values(headerDownloads).map((dl) => {
+                    const isConversionPhase =
+                      dl.instrumental === true &&
+                      (dl.status === 'processing' ||
+                        dl.status === 'downloading_model' ||
+                        dl.status === 'removing_vocals' ||
+                        dl.status === 'remuxing' ||
+                        dl.status === 'converting');
+                    const showSpeed = dl.status === 'downloading' && Boolean(dl.speed);
+                    const statusLabel =
+                      dl.status === 'downloading_model'
+                        ? t('library.downloadingModel')
+                        : dl.status === 'queued'
+                          ? t('library.queued')
+                          : dl.status === 'removing_vocals'
+                            ? t('library.removingVocals')
+                            : dl.status === 'remuxing'
+                              ? t('library.remuxingInstrumental')
+                              : dl.status === 'processing' ||
+                                  (dl.status === 'converting' && dl.instrumental)
+                                ? t('library.convertingInstrumental')
+                                : dl.status === 'converting'
+                                  ? t('library.converting')
+                                  : dl.status === 'downloading'
+                                    ? t('library.downloading')
+                                    : dl.status === 'completed'
+                                      ? t('library.downloadCompleted')
+                                      : dl.status === 'error'
+                                        ? t('common.error', 'Error')
+                                        : dl.status === 'cancelled'
+                                          ? t('common.cancelled', 'Cancelled')
+                                          : String(dl.status);
+                    return (
                     <div key={dl.downloadId} className="flex items-center gap-2 text-xs">
                       <div className="flex-1 min-w-0">
                         <div className="text-[10px] text-slate-300 truncate mb-0.5">
@@ -944,23 +985,19 @@ export const ControlWindow: React.FC = () => {
                         </div>
                         <div className="flex justify-between text-[10px] text-slate-500 mb-1 font-mono">
                           <span>
-                            {dl.status === 'downloading_model'
-                              ? t('library.downloadingModel')
-                              : dl.status === 'queued'
-                                ? t('library.queued')
-                                : dl.status === 'removing_vocals'
-                                  ? t('library.removingVocals')
-                                  : dl.status === 'remuxing'
-                                    ? t('library.remuxingInstrumental')
-                                    : dl.status.toUpperCase()}
-                            {dl.speed ? ` · ${dl.speed}` : ''}
+                            {statusLabel}
+                            {showSpeed ? ` · ${dl.speed}` : ''}
                           </span>
                           <span>{dl.percent.toFixed(0)}%</span>
                         </div>
                         <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
                           <div
                             className={`h-full transition-all duration-300 ${
-                              dl.status === 'completed' ? 'bg-emerald-500' : 'bg-cyan-500'
+                              dl.status === 'completed'
+                                ? 'bg-emerald-500'
+                                : isConversionPhase
+                                  ? 'bg-amber-500'
+                                  : 'bg-cyan-500'
                             }`}
                             style={{ width: `${Math.min(100, Math.max(0, dl.percent))}%` }}
                           />
@@ -983,7 +1020,8 @@ export const ControlWindow: React.FC = () => {
                         </button>
                       )}
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}
