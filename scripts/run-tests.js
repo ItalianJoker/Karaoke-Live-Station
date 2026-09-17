@@ -1746,6 +1746,97 @@ assert(
   'Bundled SoundFont prefers resources/ (extraResources) before asar app path'
 );
 
+// -------------------------------------------------------------
+// Suite: Instrumental download staging (userData/temp → remux → library)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Instrumental download staging paths\x1b[0m');
+
+const downloadStagingSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/downloadStaging.ts'),
+  'utf8'
+);
+const downloadManagerStagingSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+  'utf8'
+);
+const mainStagingSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+
+assert(
+  fs.existsSync(path.resolve(__dirname, '../src/main/services/downloadStaging.ts')) &&
+    downloadStagingSource.includes('resolveDownloadedMediaPath') &&
+    downloadStagingSource.includes('parseYtDlpOutputPath') &&
+    downloadStagingSource.includes('isYtDlpTransientMediaName'),
+  'downloadStaging.ts exports yt-dlp path parse + media resolve helpers'
+);
+
+assert(
+  mainStagingSrc.includes("path.join(userDataPath, 'temp')") &&
+    mainStagingSrc.includes('new DownloadManager(tempDownloadDir'),
+  'Main process stages downloads under userData/temp (AppImage-writable)'
+);
+
+assert(
+  downloadManagerStagingSrc.includes('resolveDownloadedMediaPath') &&
+    downloadManagerStagingSrc.includes('Downloaded video not found in staging folder') &&
+    downloadManagerStagingSrc.includes('${downloadId}.instrumental.mp4') &&
+    downloadManagerStagingSrc.includes('processInstrumentalVideo') &&
+    downloadManagerStagingSrc.includes('originalVideoPath') &&
+    downloadManagerStagingSrc.includes('Instrumental staging:'),
+  'Instrumental path fails clearly when original missing; remux uses *.instrumental.mp4'
+);
+
+// Runtime: pure staging helpers via Node strip-types (no Electron)
+{
+  const { spawnSync } = require('child_process');
+  const probe = spawnSync(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      '--no-warnings',
+      '-e',
+      `
+      import {
+        parseYtDlpOutputPath,
+        isYtDlpTransientMediaName,
+        resolveDownloadedMediaPath,
+        resolvePathAgainstTempDir
+      } from ${JSON.stringify(path.resolve(__dirname, '../src/main/services/downloadStaging.ts'))};
+      import fs from 'fs';
+      import pathMod from 'path';
+      import os from 'os';
+      const assert = (c, m) => { if (!c) { console.error('PROBE_FAIL', m); process.exit(2); } };
+      assert(parseYtDlpOutputPath('[download] Destination: /tmp/a.mp4') === '/tmp/a.mp4', 'dest');
+      assert(
+        parseYtDlpOutputPath('[Merger] Merging formats into "/tmp/b.mp4"') === '/tmp/b.mp4',
+        'merger-quoted'
+      );
+      assert(
+        parseYtDlpOutputPath('[Merger] Merging formats into /tmp/c.mp4') === '/tmp/c.mp4',
+        'merger-bare'
+      );
+      assert(isYtDlpTransientMediaName('dl_1.f137.mp4'), 'fragment');
+      assert(!isYtDlpTransientMediaName('dl_1.mp4'), 'final');
+      const dir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'kls-stage-'));
+      fs.writeFileSync(pathMod.join(dir, 'dl_1.f137.mp4'), Buffer.alloc(2048));
+      fs.writeFileSync(pathMod.join(dir, 'dl_1.mp4'), Buffer.alloc(4096));
+      fs.writeFileSync(pathMod.join(dir, 'dl_1.en.srt'), 'x');
+      const resolved = resolveDownloadedMediaPath(dir, 'dl_1', pathMod.join(dir, 'dl_1.f137.mp4'));
+      assert(resolved === pathMod.join(dir, 'dl_1.mp4'), 'prefer final over fragment hint');
+      const rel = resolvePathAgainstTempDir(dir, 'dl_1.mp4');
+      assert(rel === pathMod.join(dir, 'dl_1.mp4'), 'relative against temp');
+      fs.rmSync(dir, { recursive: true, force: true });
+      console.log('PROBE_OK');
+      `
+    ],
+    { encoding: 'utf8' }
+  );
+  assert(
+    probe.status === 0 && (probe.stdout || '').includes('PROBE_OK'),
+    'downloadStaging runtime: Destination/Merger parse + prefer final MP4 over fragment',
+    (probe.stderr || probe.stdout || `exit ${probe.status}`).slice(0, 400)
+  );
+}
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');
