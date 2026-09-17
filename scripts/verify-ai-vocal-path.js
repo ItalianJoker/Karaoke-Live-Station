@@ -77,6 +77,14 @@ assert(
   'yt-dlp progress template uses KLSPROG marker; Download menu shows ETA'
 );
 
+assert(
+  fs.existsSync(path.join(root, 'src/main/services/downloadStaging.ts')) &&
+    dmSrc.includes('resolveDownloadedMediaPath') &&
+    dmSrc.includes('Downloaded video not found in staging folder') &&
+    dmSrc.includes('originalVideoPath'),
+  'Instrumental staging resolves userData/temp original before AI; errors if missing'
+);
+
 const aiSepSrc = fs.readFileSync(
   path.join(root, 'src/main/services/InstrumentalAiSeparator.ts'),
   'utf8'

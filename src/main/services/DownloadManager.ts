@@ -18,6 +18,12 @@ import type { OfflineVocalModelManager } from './OfflineVocalModelManager';
 import type { OrtWasmManager } from './OrtWasmManager';
 import type { Logger } from './Logger';
 import { buildKaraokeLocalUri } from '../../shared/karaokeLocalPath';
+import {
+  isYtDlpTransientMediaName,
+  parseYtDlpOutputPath,
+  resolveDownloadedMediaPath as resolveDownloadedMediaInTemp,
+  resolvePathAgainstTempDir
+} from './downloadStaging';
 
 /** Media extensions considered when matching existing local karaoke files. */
 const MEDIA_EXTENSIONS = new Set([
@@ -31,6 +37,14 @@ const MEDIA_EXTENSIONS = new Set([
   '.mid',
   '.kar'
 ]);
+
+// Re-export staging helpers for tests / diagnostics
+export {
+  isYtDlpTransientMediaName,
+  parseYtDlpOutputPath,
+  resolvePathAgainstTempDir
+};
+export { resolveDownloadedMediaInTemp as resolveDownloadedMediaPath };
 
 /**
  * Options passed to start a media download via yt-dlp.
@@ -134,6 +148,35 @@ export class DownloadManager {
     this.vocalModelManager = deps.vocalModelManager;
     this.ortWasmManager = deps.ortWasmManager;
     this.logger = deps.logger;
+  }
+
+  /**
+   * Staging directory for yt-dlp originals and instrumental remuxes before
+   * library/queue promotion. Always under Electron userData (AppImage-safe),
+   * never the user library folder and never OS /tmp as the durable home.
+   */
+  public getTempDir(): string {
+    return this.tempDir;
+  }
+
+  /**
+   * Resolve a yt-dlp-reported path against {@link tempDir} when relative
+   * (Electron main cwd is not the download folder).
+   */
+  private resolvePathAgainstTemp(candidate: string | null | undefined): string | null {
+    return resolvePathAgainstTempDir(this.tempDir, candidate);
+  }
+
+  /**
+   * Pick the final muxed media for a downloadId after yt-dlp exits.
+   * Prefers a non-transient hint when it exists; otherwise scans tempDir for
+   * `${downloadId}.ext` media, ignoring fragments / .part / sidecars.
+   */
+  public resolveDownloadedMediaPath(
+    downloadId: string,
+    detectedHint?: string | null
+  ): string | null {
+    return resolveDownloadedMediaInTemp(this.tempDir, downloadId, detectedHint);
   }
 
   public subscribeProgress(cb: DownloadProgressCallback): () => void {
@@ -563,10 +606,14 @@ export class DownloadManager {
 
       if (
         trimmed.includes('[download] Destination:') ||
-        trimmed.includes('[Merger] Merging formats into')
+        trimmed.includes('[Merger] Merging formats into') ||
+        /Destination:/i.test(trimmed)
       ) {
-        const match = trimmed.match(/(?:Destination:\s+|Merging formats into ")([^"]+)/);
-        if (match?.[1]) detectedOutputFile = match[1].trim().replace(/"$/, '');
+        const parsed = parseYtDlpOutputPath(trimmed);
+        if (parsed) {
+          const resolved = this.resolvePathAgainstTemp(parsed);
+          if (resolved) detectedOutputFile = resolved;
+        }
       }
 
       // Preferred: structured --progress-template lines
@@ -696,16 +743,40 @@ export class DownloadManager {
         this.pumpQueue();
 
         if (code === 0) {
-          if (!detectedOutputFile || !fs.existsSync(detectedOutputFile)) {
-            const found = fs.readdirSync(this.tempDir).find(
-              (f) => f.startsWith(downloadId) && !/\.(srt|ass|vtt|info\.json)$/i.test(f)
-            );
-            if (found) detectedOutputFile = path.join(this.tempDir, found);
-          }
+          // Always re-resolve against userData/temp: yt-dlp may report relative
+          // paths or leave format-fragment Destination lines before Merger.
+          detectedOutputFile = this.resolveDownloadedMediaPath(
+            downloadId,
+            detectedOutputFile
+          );
 
-          if (instrumental && detectedOutputFile && fs.existsSync(detectedOutputFile)) {
+          if (instrumental) {
+            if (!detectedOutputFile || !fs.existsSync(detectedOutputFile)) {
+              payload.status = 'error';
+              payload.errorMessage =
+                `Downloaded video not found in staging folder after yt-dlp ` +
+                `(expected under ${this.tempDir} for ${downloadId}). ` +
+                `Instrumental AI cannot run without the original MP4.`;
+              this.logger?.error('DownloadManager', payload.errorMessage, {
+                downloadId,
+                tempDir: this.tempDir,
+                detectedHint: detectedOutputFile
+              });
+              this.emitProgress({ ...payload });
+              this.activeJobs.delete(downloadId);
+              this.activeUrls.delete(dedupUrlKey);
+              return;
+            }
+
+            const originalVideoPath = detectedOutputFile;
             const instrumentalOut = path.join(this.tempDir, `${downloadId}.instrumental.mp4`);
-            const subtitlePath = findSiblingSubtitle(detectedOutputFile);
+            const subtitlePath = findSiblingSubtitle(originalVideoPath);
+
+            this.logger?.info(
+              'DownloadManager',
+              `Instrumental staging: original=${originalVideoPath} → remux=${instrumentalOut}`,
+              { downloadId, tempDir: this.tempDir }
+            );
 
             // Conversion bar replaces the download bar (fresh 0→100%) for instrumental only
             payload.status = 'processing';
@@ -716,7 +787,7 @@ export class DownloadManager {
 
             const signal = job?.abortController.signal;
             const result = await processInstrumentalVideo({
-              inputVideoPath: detectedOutputFile,
+              inputVideoPath: originalVideoPath,
               outputPath: instrumentalOut,
               algorithm: options.vocalRemoverAlgorithm,
               subtitlePath,
@@ -766,24 +837,35 @@ export class DownloadManager {
               return;
             }
 
-            if (!result.success || !result.outputPath) {
+            if (!result.success || !result.outputPath || !fs.existsSync(result.outputPath)) {
               payload.status = 'error';
-              payload.errorMessage = result.error || 'Instrumental processing failed';
+              payload.errorMessage =
+                result.error ||
+                `Instrumental processing failed (original left in ${originalVideoPath})`;
               this.emitProgress({ ...payload });
               this.activeJobs.delete(downloadId);
               this.activeUrls.delete(dedupUrlKey);
               return;
             }
 
-            // Drop the original muxed download; keep instrumental remux as the artifact
+            // Drop the original muxed download only after remux exists; keep
+            // `${downloadId}.instrumental.mp4` as the artifact for library save.
             try {
-              if (path.resolve(detectedOutputFile) !== path.resolve(result.outputPath)) {
-                await fs.promises.unlink(detectedOutputFile).catch(() => undefined);
+              if (path.resolve(originalVideoPath) !== path.resolve(result.outputPath)) {
+                await fs.promises.unlink(originalVideoPath).catch(() => undefined);
               }
             } catch {
               /* ignore */
             }
             detectedOutputFile = result.outputPath;
+          } else if (!detectedOutputFile) {
+            payload.status = 'error';
+            payload.errorMessage =
+              `Download finished but no media file was found under ${this.tempDir}`;
+            this.emitProgress({ ...payload });
+            this.activeJobs.delete(downloadId);
+            this.activeUrls.delete(dedupUrlKey);
+            return;
           }
 
           if ((payload.status as DownloadProgressPayload['status']) === 'cancelled') {
