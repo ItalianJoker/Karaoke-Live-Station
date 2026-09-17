@@ -527,12 +527,12 @@ assert(
     vocalRemoverShared.includes('aiMdxKaraoke2') &&
     vocalRemoverShared.includes('OFFLINE_VOCAL_MODELS') &&
     vocalRemoverShared.includes('isAiVocalRemoverMethod') &&
-    vocalRemoverShared.includes('coerceAlgorithmicVocalRemoverMethod') &&
+    vocalRemoverShared.includes('coerceInstrumentalVocalRemoverMethod') &&
     vocalRemoverShared.includes('isInstrumentalDownloadEligibleTitle') &&
     vocalRemoverShared.includes('version:') &&
     offlineModelManagerSource.includes('install.version') &&
     offlineModelManagerSource.includes('isModelCached'),
-  'Shared catalog restores AI methods; model cache checks URL/SHA/version'
+  'Shared catalog restores AI methods; instrumental coerce + model URL/SHA/version checks'
 );
 
 assert(
@@ -634,12 +634,16 @@ assert(
     !controlSource.includes('EXTRACTING_AND_SEPARATING') &&
     controlSource.includes('showDownloadsMenu') &&
     controlSource.includes('headerDownloads') &&
+    settingsModalSourceVocal.includes('instrumentalVocalRemoverMethod') &&
     settingsModalSourceVocal.includes('aiMdxKaraoke2') &&
+    settingsModalSourceVocal.includes('coerceAlgorithmicVocalRemoverMethod') &&
+    settingsModalSourceVocal.includes('coerceInstrumentalVocalRemoverMethod') &&
     settingsModalSourceVocal.includes('maxSimultaneousDownloads') &&
     settingsModalSourceVocal.includes('centerCancelBassKeep') &&
     settingsModalSourceVocal.includes('softMid') &&
-    !libraryPanelSourceVocal.includes('downloadsActive'),
-  'Settings expose AI for Instrumental; Download menu in header; no Separazione; no alert list above rows'
+    !libraryPanelSourceVocal.includes('downloadsActive') &&
+    libraryPanelSourceVocal.includes('instrumentalVocalRemoverMethod'),
+  'Settings split live algo vs Instrumental AI; Download menu; no Separazione; no alert list'
 );
 
 const mainSourceForDialogs = fs.readFileSync(
@@ -660,10 +664,14 @@ assert(
     itLocaleVocal.library.downloadInstrumental &&
     enLocaleVocal.settings.vocalAiMdxKaraoke2 &&
     enLocaleVocal.settings.maxSimultaneousDownloads &&
+    enLocaleVocal.settings.instrumentalVocalRemover &&
     enLocaleVocal.library.instrumentalDownloadWarning &&
     enLocaleVocal.library.downloadsMenu &&
-    /Download Instrumental|userData\/models/i.test(enLocaleVocal.settings.vocalRemoverAlgorithmDesc),
-  'EN/IT locales: Instrumental AI + download menu + concurrency copy present'
+    /Live|Regia|Control/i.test(enLocaleVocal.settings.vocalRemoverAlgorithmDesc) &&
+    /Download Instrumental|userData\/models/i.test(
+      enLocaleVocal.settings.instrumentalVocalRemoverDesc
+    ),
+  'EN/IT locales: split live vs Instrumental method copy present'
 );
 
 // -------------------------------------------------------------

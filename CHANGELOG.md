@@ -8,6 +8,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+### Changed
+- **Settings split**: live Rimozione Vocale dropdown is algorithmic-only; **Download Instrumental Method** is a separate setting (AI + DSP). Default instrumental method is UVR-MDX Karaoke 2. AI never drives the live `V` button.
+
 ### Added
 - **Download Instrumental — offline AI vocal removal** (Settings: UVR-MDX Karaoke 2 / HTDemucs / BS-Roformer). Models persist under `userData/models/` and update only when missing, corrupt, or catalog URL/SHA/version is newer. Live Rimozione Vocale stays algorithmic (no Separazione dual-stem).
 - **Download menu** (header, left of Settings) for active/queued progress; removed alert-style list above library rows.

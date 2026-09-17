@@ -106,11 +106,15 @@ export interface AppSettings {
   /** Enable DSP mid/side guide-vocal attenuation (algorithmic only) */
   enableVocalRemover: boolean;
   /**
-   * Vocal remover method selected in Settings.
-   * Algorithmic ids drive live Rimozione Vocale DSP; AI ids apply to Download Instrumental.
-   * See `src/shared/vocalRemover.ts` for the catalog.
+   * Live Rimozione Vocale / Control `V` — algorithmic mid/side DSP only.
+   * AI methods must never be stored here (see `instrumentalVocalRemoverMethod`).
    */
-  vocalRemoverAlgorithm:
+  vocalRemoverAlgorithm: 'centerCancelBassKeep' | 'centerCancel' | 'softMid';
+  /**
+   * Method used by YouTube Download Instrumental (algorithmic DSP and/or offline AI).
+   * Independent from live Rimozione Vocale — AI here never drives the live graph.
+   */
+  instrumentalVocalRemoverMethod:
     | 'centerCancelBassKeep'
     | 'centerCancel'
     | 'softMid'
@@ -337,7 +341,7 @@ export interface StartDownloadOptions {
   libraryPath?: string;
   /** When true, apply vocal removal (AI or algorithmic) and remux instrumental A/V after download */
   instrumental?: boolean;
-  /** Vocal-remover method for instrumental post-process (AI or algorithmic) */
+  /** Method for instrumental post-process — from `instrumentalVocalRemoverMethod` (may be AI) */
   vocalRemoverAlgorithm?: string;
 }
 

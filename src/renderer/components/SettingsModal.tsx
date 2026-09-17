@@ -40,7 +40,8 @@ import {
 import { APP_SHORTCUTS } from '../data/appShortcuts';
 import { FirewallGuideCard } from './FirewallGuideCard';
 import {
-  coerceVocalRemoverMethod
+  coerceAlgorithmicVocalRemoverMethod,
+  coerceInstrumentalVocalRemoverMethod
 } from '../../shared/vocalRemover';
 import appLogo from '../assets/logo.png';
 
@@ -335,10 +336,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     'side',
     'center',
     'bass',
+    'live'
+  );
+  const matchInstrumentalVocal = matchesSearch(
+    t('settings.instrumentalVocalRemover'),
+    t('settings.instrumentalVocalRemoverDesc'),
+    'instrumental',
+    'strumentale',
     'ai',
     'mdx',
     'demucs',
-    'instrumental'
+    'roformer',
+    'download'
   );
   const matchMaxDownloads = matchesSearch(
     t('settings.maxSimultaneousDownloads'),
@@ -420,7 +429,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     matchSupport || matchThemeLang || matchFairQueue || matchGuestPortal || matchSiae || matchLogs;
   const libraryHasMatches = matchLibraryPath || matchAutoArchive || matchYtdlp || matchMaxDownloads;
   const audioHasMatches =
-    matchSoundfont || matchDevices || matchAvSync || matchVocalRemoverAlgo || matchNormalization || matchAutoAdvance;
+    matchSoundfont ||
+    matchDevices ||
+    matchAvSync ||
+    matchVocalRemoverAlgo ||
+    matchInstrumentalVocal ||
+    matchNormalization ||
+    matchAutoAdvance;
   const stageHasMatches =
     matchBannerIntro ||
     matchBannerOutro ||
@@ -1021,16 +1036,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     {t('settings.vocalRemoverAlgorithmDesc')}
                   </p>
                   <select
-                    value={coerceVocalRemoverMethod(settings.vocalRemoverAlgorithm)}
+                    value={coerceAlgorithmicVocalRemoverMethod(settings.vocalRemoverAlgorithm)}
                     onChange={(e) => {
-                      const next = coerceVocalRemoverMethod(e.target.value);
-                      const prev = coerceVocalRemoverMethod(settings.vocalRemoverAlgorithm);
+                      const next = coerceAlgorithmicVocalRemoverMethod(e.target.value);
+                      const prev = coerceAlgorithmicVocalRemoverMethod(
+                        settings.vocalRemoverAlgorithm
+                      );
                       updateSettings({ vocalRemoverAlgorithm: next });
                       if (prev !== next && window.karaokeApi?.logger?.log) {
                         window.karaokeApi.logger.log(
                           'info',
                           'SettingsModal',
-                          `Vocal remover method → ${next}`
+                          `Live vocal remover method → ${next}`
+                        );
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs"
+                  >
+                    <option value="centerCancelBassKeep">{t('settings.vocalAlgoCenterBass')}</option>
+                    <option value="centerCancel">{t('settings.vocalAlgoCenter')}</option>
+                    <option value="softMid">{t('settings.vocalAlgoSoftMid')}</option>
+                  </select>
+                </div>
+              )}
+
+              {(!isSearching || matchInstrumentalVocal) && (
+                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2">
+                  <label className="block font-semibold text-white text-xs">
+                    {t('settings.instrumentalVocalRemover')}
+                  </label>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    {t('settings.instrumentalVocalRemoverDesc')}
+                  </p>
+                  <select
+                    value={coerceInstrumentalVocalRemoverMethod(
+                      settings.instrumentalVocalRemoverMethod
+                    )}
+                    onChange={(e) => {
+                      const next = coerceInstrumentalVocalRemoverMethod(e.target.value);
+                      const prev = coerceInstrumentalVocalRemoverMethod(
+                        settings.instrumentalVocalRemoverMethod
+                      );
+                      updateSettings({ instrumentalVocalRemoverMethod: next });
+                      if (prev !== next && window.karaokeApi?.logger?.log) {
+                        window.karaokeApi.logger.log(
+                          'info',
+                          'SettingsModal',
+                          `Instrumental vocal remover method → ${next}`
                         );
                       }
                     }}

@@ -47,21 +47,32 @@ export function isVocalRemoverMethod(method: string): method is VocalRemoverMeth
   return (ALL_VOCAL_REMOVER_METHODS as string[]).includes(method);
 }
 
-/** Persist Settings values; accepts algorithmic + AI ids. */
+/** Persist Settings values for Download Instrumental; accepts algorithmic + AI ids. */
 export function coerceVocalRemoverMethod(method: string | undefined | null): VocalRemoverMethod {
   if (method && isVocalRemoverMethod(method)) return method;
   return 'centerCancelBassKeep';
 }
 
 /**
- * Live Rimozione Vocale stays algorithmic-only (no Separazione / dual-stem).
- * When Settings selects an AI method, live DSP uses the default algorithmic path.
+ * Live Rimozione Vocale stays algorithmic-only (no Separazione / dual-stem / AI).
+ * Unknown or AI ids coerce to centerCancelBassKeep.
  */
 export function coerceAlgorithmicVocalRemoverMethod(
   method: string | undefined | null
 ): AlgorithmicVocalRemoverMethod {
   if (method && isAlgorithmicVocalRemoverMethod(method)) return method;
   return 'centerCancelBassKeep';
+}
+
+/**
+ * Download Instrumental method. Defaults to recommended AI (UVR-MDX Karaoke 2).
+ * Accepts algorithmic + AI catalog ids.
+ */
+export function coerceInstrumentalVocalRemoverMethod(
+  method: string | undefined | null
+): VocalRemoverMethod {
+  if (method && isVocalRemoverMethod(method)) return method;
+  return 'aiMdxKaraoke2';
 }
 
 /** Stable model ids used for on-disk filenames and IPC. */

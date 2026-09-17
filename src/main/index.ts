@@ -1050,7 +1050,9 @@ class KaraokeMainProcess {
           titleHint,
           instrumental,
           vocalRemoverAlgorithm:
-            options.vocalRemoverAlgorithm || this.currentSettings?.vocalRemoverAlgorithm,
+            options.vocalRemoverAlgorithm ||
+            this.currentSettings?.instrumentalVocalRemoverMethod ||
+            this.currentSettings?.vocalRemoverAlgorithm,
           libraryPath,
           catalogTracks
         });

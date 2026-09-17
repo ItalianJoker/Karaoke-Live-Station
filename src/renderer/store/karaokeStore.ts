@@ -12,7 +12,11 @@ import {
   createDefaultStageMessages,
   patchStageMessages
 } from '../../shared/stageMessages';
-import { coerceVocalRemoverMethod } from '../../shared/vocalRemover';
+import {
+  coerceAlgorithmicVocalRemoverMethod,
+  coerceInstrumentalVocalRemoverMethod,
+  isAiVocalRemoverMethod
+} from '../../shared/vocalRemover';
 
 export interface MissingFileModalState {
   isOpen: boolean;
@@ -84,6 +88,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   enableFairQueue: true,
   enableVocalRemover: false,
   vocalRemoverAlgorithm: 'centerCancelBassKeep',
+  instrumentalVocalRemoverMethod: 'aiMdxKaraoke2',
   maxSimultaneousDownloads: 2,
   enableAutoDuckingBGM: false,
   enableAudioNormalization: true,
@@ -222,8 +227,21 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
             );
           }
           if (partial.vocalRemoverAlgorithm !== undefined || updated.vocalRemoverAlgorithm) {
-            updated.vocalRemoverAlgorithm = coerceVocalRemoverMethod(
-              updated.vocalRemoverAlgorithm
+            // Live setting: algorithmic only — migrate legacy AI ids onto instrumental method
+            const rawLive = updated.vocalRemoverAlgorithm as string;
+            if (isAiVocalRemoverMethod(rawLive)) {
+              if (!partial.instrumentalVocalRemoverMethod) {
+                updated.instrumentalVocalRemoverMethod = coerceInstrumentalVocalRemoverMethod(rawLive);
+              }
+            }
+            updated.vocalRemoverAlgorithm = coerceAlgorithmicVocalRemoverMethod(rawLive);
+          }
+          if (
+            partial.instrumentalVocalRemoverMethod !== undefined ||
+            updated.instrumentalVocalRemoverMethod
+          ) {
+            updated.instrumentalVocalRemoverMethod = coerceInstrumentalVocalRemoverMethod(
+              updated.instrumentalVocalRemoverMethod
             );
           }
           updatedSettings = updated;
@@ -882,8 +900,16 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           current.settings.stageMessages,
           p.settings?.stageMessages || {}
         );
-        mergedSettings.vocalRemoverAlgorithm = coerceVocalRemoverMethod(
-          mergedSettings.vocalRemoverAlgorithm
+        // Live: algorithmic only. If a pre-split persist had AI on vocalRemoverAlgorithm, move it.
+        const rawLive = mergedSettings.vocalRemoverAlgorithm as string;
+        if (isAiVocalRemoverMethod(rawLive) && !p.settings?.instrumentalVocalRemoverMethod) {
+          mergedSettings.instrumentalVocalRemoverMethod =
+            coerceInstrumentalVocalRemoverMethod(rawLive);
+        }
+        mergedSettings.vocalRemoverAlgorithm =
+          coerceAlgorithmicVocalRemoverMethod(mergedSettings.vocalRemoverAlgorithm);
+        mergedSettings.instrumentalVocalRemoverMethod = coerceInstrumentalVocalRemoverMethod(
+          mergedSettings.instrumentalVocalRemoverMethod
         );
         const maxDl = Number(mergedSettings.maxSimultaneousDownloads);
         mergedSettings.maxSimultaneousDownloads =
