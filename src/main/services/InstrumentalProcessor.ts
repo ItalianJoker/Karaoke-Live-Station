@@ -8,6 +8,11 @@
  * 3. Remux original video with instrumental audio (optional subtitle burn-in)
  *
  * Live Rimozione Vocale stays algorithmic in the renderer — this module is download-only.
+ *
+ * AI path contract: ORT/MDX/HTDemucs always receive the demuxed PCM WAV
+ * (`{downloadId}.extract.wav`), never the source MP4 and never the AI output
+ * (`{downloadId}.instrumental.extract.wav`). Remux muxes that AI WAV onto the
+ * original video → `{downloadId}.instrumental.mp4`.
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
@@ -17,6 +22,7 @@ import {
   coerceVocalRemoverMethod,
   isAiVocalRemoverMethod,
   methodToModelId,
+  OFFLINE_VOCAL_MODELS,
   type AlgorithmicVocalRemoverMethod,
   type AiVocalRemoverMethod
 } from '../../shared/vocalRemover';
@@ -27,6 +33,66 @@ import type { OfflineVocalModelManager } from './OfflineVocalModelManager';
 import type { OrtWasmManager } from './OrtWasmManager';
 import type { Logger } from './Logger';
 import { readPcmWavDurationSec } from '../ai/wavPcm';
+
+/** Safe size probe for debug logs (null when missing/unreadable). */
+export function safeFileSizeBytes(filePath: string | null | undefined): number | null {
+  if (!filePath) return null;
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    return fs.statSync(filePath).size;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Temp sidecar names for Download Instrumental.
+ * Stem = basename of the staged source MP4 (e.g. `dl_1789681690871_jczi8o`):
+ *   - demux / AI input:  `{stem}.extract.wav`
+ *   - AI/algo output:    `{stem}.instrumental.extract.wav`
+ * Never derive the demux path from the remux basename (`{stem}.instrumental.mp4`) —
+ * that wrongly produced `{stem}.instrumental.extract.wav` as the extract step.
+ */
+export function resolveInstrumentalTempWavPaths(
+  sourceMp4: string,
+  workDir?: string
+): { sourceStem: string; extractedWav: string; instrumentalExtractWav: string } {
+  const dir = workDir || path.dirname(path.resolve(sourceMp4));
+  const sourceStem = path.basename(path.resolve(sourceMp4), path.extname(sourceMp4));
+  return {
+    sourceStem,
+    extractedWav: path.join(dir, `${sourceStem}.extract.wav`),
+    instrumentalExtractWav: path.join(dir, `${sourceStem}.instrumental.extract.wav`)
+  };
+}
+
+/**
+ * Basename check for the demux extract WAV (`*.extract.wav`).
+ * Rejects the AI output name (`*.instrumental.extract.wav`) and video paths.
+ */
+export function isDemuxExtractWavName(filePath: string): boolean {
+  const base = path.basename(filePath || '').toLowerCase();
+  if (!base.endsWith('.extract.wav')) return false;
+  if (base.endsWith('.instrumental.extract.wav')) return false;
+  return true;
+}
+
+/**
+ * True when `candidate` is the demuxed extract WAV for this pipeline (not the MP4
+ * and not the AI output `*.instrumental.extract.wav`).
+ */
+export function isExtractedWavPath(
+  candidate: string,
+  extractedWav: string,
+  sourceMp4: string
+): boolean {
+  const resolvedCandidate = path.resolve(candidate);
+  const resolvedExtract = path.resolve(extractedWav);
+  const resolvedMp4 = path.resolve(sourceMp4);
+  if (resolvedCandidate === resolvedMp4) return false;
+  if (resolvedCandidate !== resolvedExtract) return false;
+  return isDemuxExtractWavName(resolvedCandidate);
+}
 
 export type InstrumentalProcessPhase =
   | 'extracting'
@@ -238,27 +304,71 @@ async function removeVocalsAlgorithmic(
 }
 
 async function removeVocalsAi(
+  sourceMp4: string,
   extractedWav: string,
   instrumentalWav: string,
   method: AiVocalRemoverMethod,
   options: InstrumentalProcessOptions,
-  report: (phase: InstrumentalProcessPhase, percent: number) => void
+  report: (phase: InstrumentalProcessPhase, percent: number) => void,
+  stageClock: { mark: (stage: string, data?: Record<string, unknown>) => void }
 ): Promise<void> {
   const { vocalModelManager, ortWasmManager, logger } = options;
   if (!vocalModelManager || !ortWasmManager) {
     throw new Error('AI instrumental separation requires OfflineVocalModelManager + OrtWasmManager');
   }
 
+  // Hard guard: AI must consume demuxed WAV (`{stem}.extract.wav`), never the
+  // source MP4 and never the AI output (`{stem}.instrumental.extract.wav`).
+  if (!isExtractedWavPath(extractedWav, extractedWav, sourceMp4)) {
+    throw new Error(
+      `AI vocal separation refused non-extract input (expected {stem}.extract.wav). ` +
+        `sourceMp4=${sourceMp4} extractedWav=${extractedWav}`
+    );
+  }
+  if (!isDemuxExtractWavName(extractedWav)) {
+    throw new Error(
+      `AI input must be named {stem}.extract.wav (not instrumental.extract): ${extractedWav}`
+    );
+  }
+  if (!fs.existsSync(extractedWav)) {
+    throw new Error(`Extracted WAV missing before AI separation: ${extractedWav}`);
+  }
+
   const modelId = methodToModelId(method);
+  const catalog = OFFLINE_VOCAL_MODELS[modelId];
   throwIfAborted(options.signal);
   report('ensuring_model', 20);
+  stageClock.mark('ensuring_model_start', {
+    method,
+    modelId,
+    modelVersion: catalog?.version,
+    modelLabel: catalog?.label,
+    sourceMp4,
+    extractedWav,
+    extractedWavBytes: safeFileSizeBytes(extractedWav),
+    aiInputPath: extractedWav,
+    aiInputIsExtractWav: true,
+    aiInputMatchesSourceMp4: false
+  });
   // ensureModel skips download when local userData/models copy is already current
   // (URL/SHA/version match); only fetches when missing, corrupt, or newer remote.
   const modelPath = await vocalModelManager.ensureModel(modelId, { signal: options.signal });
   throwIfAborted(options.signal);
   report('ensuring_model', 40);
+  stageClock.mark('ensuring_model_ready', {
+    modelId,
+    modelPath,
+    modelBytes: safeFileSizeBytes(modelPath),
+    modelVersion: catalog?.version
+  });
   const ortPaths = await ortWasmManager.ensureOrtWasm();
   const ortDir = ortPaths.ortDir || ortWasmManager.getOrtDir();
+  stageClock.mark('ort_ready', {
+    ortDir,
+    ortWasmBytes: safeFileSizeBytes(path.join(ortDir, 'ort-wasm-simd-threaded.wasm')),
+    ortBackend: 'wasm',
+    ortNumThreads: 1
+  });
 
   throwIfAborted(options.signal);
   report('removing_vocals', 45);
@@ -273,11 +383,44 @@ async function removeVocalsAi(
   // Phase-aware floors so model-ready (progress=1) then separate(0) never snaps the bar
   // back to 45% — that reset made Rimozione voce look frozen during the first MDX chunk.
   let lastAiPct = 45;
+  let lastLoggedPhase: string | null = null;
+  let lastLoggedPctBucket = -1;
+
+  logger?.debug('InstrumentalProcessor', 'AI separation input path check', {
+    sourceMp4,
+    sourceMp4Bytes: safeFileSizeBytes(sourceMp4),
+    extractedWav,
+    extractedWavBytes: safeFileSizeBytes(extractedWav),
+    aiInputPath: extractedWav,
+    aiOutputWav: instrumentalWav,
+    aiInputEqualsExtractedWav: path.resolve(extractedWav) === path.resolve(extractedWav),
+    aiInputEqualsSourceMp4: path.resolve(extractedWav) === path.resolve(sourceMp4),
+    aiInputIsDemuxExtractName: isDemuxExtractWavName(extractedWav),
+    aiOutputIsInstrumentalExtractName: path
+      .basename(instrumentalWav)
+      .toLowerCase()
+      .endsWith('.instrumental.extract.wav'),
+    durationSec: durationSec || null
+  });
+
+  stageClock.mark('ai_separate_start', {
+    method,
+    modelId,
+    modelPath,
+    ortDir,
+    sourceMp4,
+    extractedWav,
+    aiInputPath: extractedWav,
+    outputWav: instrumentalWav,
+    durationSec: durationSec || null
+  });
+
   await aiSeparate(
     {
       method,
       modelPath,
       ortDir,
+      // Explicit: demuxed extract WAV only — never sourceMp4.
       inputWav: extractedWav,
       outputWav: instrumentalWav,
       signal: options.signal,
@@ -304,6 +447,24 @@ async function removeVocalsAi(
         }
         lastAiPct = Math.max(lastAiPct, mapped);
         report('removing_vocals', lastAiPct);
+
+        // Debug: phase transitions + ~10% separate buckets (avoid flooding every chunk).
+        const pctBucket = Math.floor(ratio * 10);
+        const phaseChanged = info.phase !== lastLoggedPhase;
+        const bucketChanged = info.phase === 'separate' && pctBucket !== lastLoggedPctBucket;
+        if (phaseChanged || bucketChanged) {
+          lastLoggedPhase = info.phase;
+          if (info.phase === 'separate') lastLoggedPctBucket = pctBucket;
+          logger?.debug('InstrumentalProcessor', 'AI separation progress', {
+            phase: info.phase,
+            progress: ratio,
+            mappedPercent: lastAiPct,
+            message: info.message,
+            elapsedMs: Date.now() - aiStartedAt,
+            aiInputPath: extractedWav
+          });
+        }
+
         // Surface conversion ETA from observed separate-phase velocity
         if (
           info.phase === 'separate' &&
@@ -320,6 +481,13 @@ async function removeVocalsAi(
     },
     logger
   );
+
+  stageClock.mark('ai_separate_done', {
+    method,
+    outputWav: instrumentalWav,
+    outputWavBytes: safeFileSizeBytes(instrumentalWav),
+    aiElapsedMs: Date.now() - aiStartedAt
+  });
 }
 
 /**
@@ -332,16 +500,31 @@ export async function processInstrumentalVideo(
   const output = path.resolve(options.outputPath);
   const selected = coerceVocalRemoverMethod(options.algorithm);
   const useAi = isAiVocalRemoverMethod(selected);
+  const logger = options.logger;
 
   if (!fs.existsSync(input)) {
     return { success: false, error: `Input video not found: ${input}` };
   }
 
   const workDir = path.dirname(output);
-  const id = path.basename(output, path.extname(output));
-  const extractedWav = path.join(workDir, `${id}.extract.wav`);
-  const instrumentalWav = path.join(workDir, `${id}.instrumental.wav`);
+  // Paths keyed off the source MP4 stem (downloadId), not the remux basename.
+  const { sourceStem, extractedWav, instrumentalExtractWav: instrumentalWav } =
+    resolveInstrumentalTempWavPaths(input, workDir);
   const stagingOut = `${output}.partial.mp4`;
+
+  const pipelineStartedAt = Date.now();
+  let stageStartedAt = pipelineStartedAt;
+  const stageClock = {
+    mark: (stage: string, data?: Record<string, unknown>) => {
+      const now = Date.now();
+      logger?.debug('InstrumentalProcessor', `stage=${stage}`, {
+        ...data,
+        stageMs: now - stageStartedAt,
+        totalMs: now - pipelineStartedAt
+      });
+      stageStartedAt = now;
+    }
+  };
 
   const report = (phase: InstrumentalProcessPhase, percent: number) => {
     try {
@@ -353,9 +536,29 @@ export async function processInstrumentalVideo(
 
   const signal = options.signal;
 
+  logger?.debug('InstrumentalProcessor', 'Instrumental pipeline start', {
+    sourceStem,
+    sourceMp4: input,
+    sourceMp4Bytes: safeFileSizeBytes(input),
+    outputPath: output,
+    extractedWav,
+    aiInputPath: extractedWav,
+    aiOutputWav: instrumentalWav,
+    stagingOut,
+    algorithm: selected,
+    useAi,
+    vocalPathReason: useAi
+      ? 'ai_method_selected'
+      : 'algorithmic_method_selected_ai_skipped',
+    // Guard against the old bug: extract must NOT be `{stem}.instrumental.extract.wav`.
+    extractNameOk: isDemuxExtractWavName(extractedWav),
+    cancelled: Boolean(signal?.aborted)
+  });
+
   try {
     throwIfAborted(signal);
     report('extracting', 5);
+    stageClock.mark('extract_start', { sourceMp4: input, extractedWav });
     await runFfmpeg(
       [
         '-y',
@@ -374,24 +577,47 @@ export async function processInstrumentalVideo(
       ],
       { signal }
     );
+    stageClock.mark('extract_done', {
+      sourceMp4: input,
+      extractedWav,
+      extractedWavBytes: safeFileSizeBytes(extractedWav)
+    });
 
     throwIfAborted(signal);
     if (useAi) {
       await removeVocalsAi(
+        input,
         extractedWav,
         instrumentalWav,
         selected as AiVocalRemoverMethod,
         options,
-        report
+        report,
+        stageClock
       );
     } else {
+      logger?.debug(
+        'InstrumentalProcessor',
+        'AI vocal separation skipped — using algorithmic mid/side DSP',
+        {
+          algorithm: selected,
+          reason: 'algorithmic_method_selected',
+          sourceMp4: input,
+          extractedWav,
+          extractedWavBytes: safeFileSizeBytes(extractedWav)
+        }
+      );
       report('removing_vocals', 35);
+      stageClock.mark('algo_remove_start', { algorithm: selected, extractedWav });
       await removeVocalsAlgorithmic(
         extractedWav,
         instrumentalWav,
         coerceAlgorithmicVocalRemoverMethod(selected),
         signal
       );
+      stageClock.mark('algo_remove_done', {
+        instrumentalWav,
+        instrumentalWavBytes: safeFileSizeBytes(instrumentalWav)
+      });
     }
 
     throwIfAborted(signal);
@@ -400,6 +626,14 @@ export async function processInstrumentalVideo(
       options.subtitlePath && fs.existsSync(options.subtitlePath)
         ? options.subtitlePath
         : findSiblingSubtitle(input);
+
+    stageClock.mark('remux_start', {
+      sourceMp4: input,
+      instrumentalWav,
+      instrumentalWavBytes: safeFileSizeBytes(instrumentalWav),
+      stagingOut,
+      subtitlePath: subtitlePath || null
+    });
 
     let lyricsBurned = false;
     if (subtitlePath) {
@@ -442,6 +676,11 @@ export async function processInstrumentalVideo(
       } catch (err) {
         if (isAbortError(err)) throw err;
         lyricsBurned = false;
+        logger?.warn(
+          'InstrumentalProcessor',
+          'Subtitle burn-in failed; remuxing without lyrics',
+          { subtitlePath, error: err instanceof Error ? err.message : String(err) }
+        );
         await runFfmpeg(
           [
             '-y',
@@ -498,6 +737,10 @@ export async function processInstrumentalVideo(
     const staged = await fs.promises.stat(stagingOut);
     if (staged.size < 1024) {
       safeUnlink(stagingOut);
+      logger?.error('InstrumentalProcessor', 'Remux produced empty instrumental video', {
+        stagingOut,
+        stagedBytes: staged.size
+      });
       return { success: false, error: 'ffmpeg produced an empty instrumental video' };
     }
 
@@ -507,13 +750,35 @@ export async function processInstrumentalVideo(
     await fs.promises.rename(stagingOut, output);
 
     report('remuxing', 100);
+    stageClock.mark('pipeline_done', {
+      outputPath: output,
+      outputBytes: safeFileSizeBytes(output),
+      lyricsBurned,
+      useAi,
+      algorithm: selected
+    });
     return { success: true, outputPath: output, lyricsBurned };
   } catch (err) {
     safeUnlink(stagingOut);
     if (isAbortError(err) || signal?.aborted) {
+      logger?.info('InstrumentalProcessor', 'Instrumental pipeline cancelled', {
+        sourceMp4: input,
+        extractedWav,
+        algorithm: selected,
+        useAi,
+        totalMs: Date.now() - pipelineStartedAt
+      });
       return { success: false, cancelled: true, error: 'Cancelled' };
     }
     const message = err instanceof Error ? err.message : String(err);
+    logger?.error('InstrumentalProcessor', 'Instrumental processing failed', {
+      error: message,
+      sourceMp4: input,
+      extractedWav,
+      algorithm: selected,
+      useAi,
+      totalMs: Date.now() - pipelineStartedAt
+    });
     return { success: false, error: `Instrumental processing failed: ${message}` };
   } finally {
     safeUnlink(extractedWav);

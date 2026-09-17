@@ -80,25 +80,33 @@ export class OfflineVocalModelManager {
    * Async (streaming hash) so large ONNX files never block the Electron main process.
    */
   public async isModelCached(modelId: OfflineVocalModelId): Promise<boolean> {
+    return (await this.explainCacheMiss(modelId)) === null;
+  }
+
+  /**
+   * Returns null when the model is usable locally; otherwise a short reason string
+   * for debug logs (missing / too_small / sha_mismatch / url_changed / …).
+   */
+  public async explainCacheMiss(modelId: OfflineVocalModelId): Promise<string | null> {
     const meta = OFFLINE_VOCAL_MODELS[modelId];
     const modelPath = this.getModelPath(modelId);
     try {
-      if (!fs.existsSync(modelPath)) return false;
+      if (!fs.existsSync(modelPath)) return 'missing';
       const size = (await fs.promises.stat(modelPath)).size;
-      if (size < meta.minBytes) return false;
+      if (size < meta.minBytes) return `too_small:${size}`;
       if (meta.sha256) {
         const hash = await this.hashFile(modelPath);
-        if (hash !== meta.sha256) return false;
+        if (hash !== meta.sha256) return `sha_mismatch:${hash.slice(0, 12)}`;
       }
       const install = this.readInstallMeta(modelId);
       if (install) {
-        if (install.url !== meta.url) return false;
-        if ((install.sha256 || '') !== (meta.sha256 || '')) return false;
-        if ((install.version || '') !== (meta.version || '')) return false;
+        if (install.url !== meta.url) return 'url_changed';
+        if ((install.sha256 || '') !== (meta.sha256 || '')) return 'sha_catalog_changed';
+        if ((install.version || '') !== (meta.version || '')) return 'version_changed';
       }
-      return true;
-    } catch {
-      return false;
+      return null;
+    } catch (err) {
+      return `stat_error:${err instanceof Error ? err.message : String(err)}`;
     }
   }
 
@@ -115,7 +123,8 @@ export class OfflineVocalModelManager {
       err.name = 'AbortError';
       throw err;
     }
-    if (await this.isModelCached(modelId)) {
+    const missReason = await this.explainCacheMiss(modelId);
+    if (missReason === null) {
       // Backfill sidecar for installs that predate meta.json (no re-download).
       const modelPath = this.getModelPath(modelId);
       if (!this.readInstallMeta(modelId) && fs.existsSync(modelPath)) {
@@ -125,8 +134,32 @@ export class OfflineVocalModelManager {
           /* ignore */
         }
       }
+      const catalog = OFFLINE_VOCAL_MODELS[modelId];
+      const install = this.readInstallMeta(modelId);
+      let size: number | null = null;
+      try {
+        size = (await fs.promises.stat(modelPath)).size;
+      } catch {
+        size = null;
+      }
+      this.logger.debug('OfflineVocalModelManager', 'Model cache hit — skip download', {
+        modelId,
+        modelPath,
+        sizeBytes: size,
+        version: catalog.version,
+        label: catalog.label,
+        installVersion: install?.version || null,
+        reason: 'cached_url_sha_version_match'
+      });
       return modelPath;
     }
+
+    this.logger.debug('OfflineVocalModelManager', 'Model cache miss — will download', {
+      modelId,
+      modelPath: this.getModelPath(modelId),
+      version: OFFLINE_VOCAL_MODELS[modelId].version,
+      reason: missReason
+    });
     const existing = this.inFlight.get(modelId);
     if (existing) {
       // Shared in-flight download — still honor abort of this caller by racing.

@@ -1,6 +1,9 @@
 /**
  * Spawns a utility process (or Node fork fallback) to run offline AI vocal
  * separation for Download Instrumental — keeps ORT/STFT off the Control UI thread.
+ *
+ * Contract: `inputWav` must be a demuxed PCM WAV (from InstrumentalProcessor
+ * extract), never the source MP4. The worker reads PCM via readPcmWavFile.
  */
 import { utilityProcess, type UtilityProcess } from 'electron';
 import { fork, type ChildProcess } from 'child_process';
@@ -9,6 +12,7 @@ import path from 'path';
 import { app } from 'electron';
 import { Logger } from './Logger';
 import type { AiVocalRemoverMethod } from '../../shared/vocalRemover';
+import { methodToModelId, OFFLINE_VOCAL_MODELS } from '../../shared/vocalRemover';
 
 export type InstrumentalAiProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
@@ -20,6 +24,7 @@ export type InstrumentalAiSeparateOptions = {
   method: AiVocalRemoverMethod;
   modelPath: string;
   ortDir: string;
+  /** Demuxed extract WAV path — must not be the source MP4. */
   inputWav: string;
   outputWav: string;
   onProgress?: (info: InstrumentalAiProgress) => void;
@@ -62,6 +67,41 @@ export function computeAiSeparationTimeoutMs(durationSec?: number): number {
   return Math.min(AI_SEPARATION_MAX_TIMEOUT_MS, Math.max(AI_SEPARATION_MIN_TIMEOUT_MS, scaled));
 }
 
+function safeSize(filePath: string): number | null {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    return fs.statSync(filePath).size;
+  } catch {
+    return null;
+  }
+}
+
+/** Reject video / non-demux-extract paths before spawning the ORT worker. */
+export function assertAiInputIsWav(inputWav: string): void {
+  const base = path.basename(inputWav || '').toLowerCase();
+  const ext = path.extname(inputWav).toLowerCase();
+  if (ext !== '.wav') {
+    throw new Error(
+      `Instrumental AI input must be a demuxed .wav (got ${ext || 'no-ext'}): ${inputWav}`
+    );
+  }
+  // Common mis-wire: feeding the staged MP4 (or .partial.mp4) into AI.
+  if (base.endsWith('.mp4') || base.endsWith('.webm') || base.endsWith('.mkv')) {
+    throw new Error(`Instrumental AI refused video path as input: ${inputWav}`);
+  }
+  // AI output name must not be fed back as input.
+  if (base.endsWith('.instrumental.extract.wav')) {
+    throw new Error(
+      `Instrumental AI input must be {stem}.extract.wav, not AI output: ${inputWav}`
+    );
+  }
+  if (!base.endsWith('.extract.wav')) {
+    throw new Error(
+      `Instrumental AI input should be named {stem}.extract.wav (got ${base})`
+    );
+  }
+}
+
 function resolveWorkerScript(): string {
   // Packaged / vite-plugin-electron: sibling of main bundle
   const candidates = [
@@ -79,8 +119,8 @@ function resolveWorkerScript(): string {
 }
 
 type WorkerHandle =
-  | { kind: 'utility'; proc: UtilityProcess }
-  | { kind: 'fork'; proc: ChildProcess };
+  | { kind: 'utility'; proc: UtilityProcess; script: string }
+  | { kind: 'fork'; proc: ChildProcess; script: string };
 
 function spawnWorker(): WorkerHandle {
   const script = resolveWorkerScript();
@@ -89,13 +129,13 @@ function spawnWorker(): WorkerHandle {
       serviceName: 'instrumental-ai',
       stdio: 'pipe'
     });
-    return { kind: 'utility', proc };
+    return { kind: 'utility', proc, script };
   }
   const proc = fork(script, [], {
     stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
   });
-  return { kind: 'fork', proc };
+  return { kind: 'fork', proc, script };
 }
 
 /**
@@ -113,12 +153,27 @@ export async function separateInstrumentalWithAi(
     throw err;
   }
 
+  assertAiInputIsWav(inputWav);
+  if (!fs.existsSync(inputWav)) {
+    throw new Error(`Instrumental AI input WAV not found: ${inputWav}`);
+  }
+  if (!fs.existsSync(modelPath)) {
+    throw new Error(`Instrumental AI model not found: ${modelPath}`);
+  }
+  if (!fs.existsSync(ortDir)) {
+    throw new Error(`Instrumental AI ORT dir not found: ${ortDir}`);
+  }
+
+  const modelId = methodToModelId(method);
+  const catalog = OFFLINE_VOCAL_MODELS[modelId];
   const worker = spawnWorker();
   let requestId = 1;
   let settled = false;
   let hardTimer: ReturnType<typeof setTimeout> | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   const hardTimeoutMs = computeAiSeparationTimeoutMs(options.durationSec);
+  const startedAt = Date.now();
+  let lastPhase: string | null = null;
 
   const kill = () => {
     try {
@@ -141,12 +196,30 @@ export async function separateInstrumentalWithAi(
   };
 
   return new Promise<void>((resolve, reject) => {
-    const fail = (message: string, asAbort = false) => {
+    const fail = (message: string, asAbort = false, reason = 'error') => {
       if (settled) return;
       settled = true;
       clearTimers();
       signal?.removeEventListener('abort', onAbort);
       kill();
+      logger?.warn('InstrumentalAiSeparator', `AI separate end reason=${reason}`, {
+        method,
+        modelId,
+        modelPath,
+        modelVersion: catalog?.version,
+        ortDir,
+        ortBackend: 'wasm',
+        ortNumThreads: 1,
+        inputWav,
+        inputWavBytes: safeSize(inputWav),
+        outputWav,
+        workerKind: worker.kind,
+        elapsedMs: Date.now() - startedAt,
+        hardTimeoutMs,
+        lastPhase,
+        message,
+        cancelled: asAbort
+      });
       if (asAbort) {
         const err = new Error('Aborted');
         err.name = 'AbortError';
@@ -162,10 +235,23 @@ export async function separateInstrumentalWithAi(
       clearTimers();
       signal?.removeEventListener('abort', onAbort);
       kill();
+      logger?.info('InstrumentalAiSeparator', 'AI separate completed', {
+        method,
+        modelId,
+        modelPath,
+        modelVersion: catalog?.version,
+        ortDir,
+        inputWav,
+        inputWavBytes: safeSize(inputWav),
+        outputWav,
+        outputWavBytes: safeSize(outputWav),
+        workerKind: worker.kind,
+        elapsedMs: Date.now() - startedAt
+      });
       resolve();
     };
 
-    const onAbort = () => fail('Aborted', true);
+    const onAbort = () => fail('Aborted', true, 'cancel');
 
     const armIdleWatchdog = () => {
       if (idleTimer) clearTimeout(idleTimer);
@@ -173,7 +259,9 @@ export async function separateInstrumentalWithAi(
         fail(
           `Instrumental AI separation stalled (no progress for ${Math.round(
             AI_SEPARATION_IDLE_TIMEOUT_MS / 60000
-          )} min). Try again or pick an algorithmic Download Instrumental method.`
+          )} min). Try again or pick an algorithmic Download Instrumental method.`,
+          false,
+          'idle_timeout'
         );
       }, AI_SEPARATION_IDLE_TIMEOUT_MS);
     };
@@ -186,12 +274,31 @@ export async function separateInstrumentalWithAi(
         progress?: number;
         message?: string;
         outputWav?: string;
+        ortBackend?: string;
+        ortNumThreads?: number;
       };
       if (!msg?.type) return;
       if (msg.type === 'progress') {
         // Any progress (including worker-ready ping) proves the child is alive.
         armIdleWatchdog();
-        if (msg.requestId === 0) return; // worker ready ping
+        if (msg.requestId === 0) {
+          logger?.debug('InstrumentalAiSeparator', 'AI worker ready ping', {
+            workerKind: worker.kind,
+            script: worker.script
+          });
+          return;
+        }
+        if (msg.phase && msg.phase !== lastPhase) {
+          lastPhase = msg.phase;
+          logger?.debug('InstrumentalAiSeparator', `AI worker phase=${msg.phase}`, {
+            progress: msg.progress,
+            message: msg.message,
+            ortBackend: msg.ortBackend || 'wasm',
+            ortNumThreads: msg.ortNumThreads ?? 1,
+            inputWav,
+            elapsedMs: Date.now() - startedAt
+          });
+        }
         onProgress?.({
           phase: msg.phase || 'separate',
           progress: typeof msg.progress === 'number' ? msg.progress : 0,
@@ -204,14 +311,14 @@ export async function separateInstrumentalWithAi(
         return;
       }
       if (msg.type === 'error' && msg.requestId === requestId) {
-        fail(msg.message || 'AI separation failed');
+        fail(msg.message || 'AI separation failed', false, 'worker_error');
       }
     };
 
     if (worker.kind === 'utility') {
       worker.proc.on('message', onMsg);
       worker.proc.on('exit', (code) => {
-        if (!settled) fail(`Instrumental AI worker exited early (code ${code})`);
+        if (!settled) fail(`Instrumental AI worker exited early (code ${code})`, false, 'worker_exit');
       });
       // Give the worker a tick to bind parentPort
       setTimeout(() => {
@@ -228,9 +335,9 @@ export async function separateInstrumentalWithAi(
     } else {
       worker.proc.on('message', onMsg);
       worker.proc.on('exit', (code) => {
-        if (!settled) fail(`Instrumental AI worker exited early (code ${code})`);
+        if (!settled) fail(`Instrumental AI worker exited early (code ${code})`, false, 'worker_exit');
       });
-      worker.proc.on('error', (err) => fail(err.message));
+      worker.proc.on('error', (err) => fail(err.message, false, 'worker_spawn_error'));
       worker.proc.send({
         type: 'separate',
         requestId,
@@ -248,17 +355,35 @@ export async function separateInstrumentalWithAi(
       return;
     }
 
-    logger?.info(
-      'InstrumentalAiSeparator',
-      `AI separate start method=${method} model=${modelPath} timeoutMs=${hardTimeoutMs} durationSec=${options.durationSec ?? 'n/a'}`
-    );
+    logger?.info('InstrumentalAiSeparator', 'AI separate start', {
+      method,
+      modelId,
+      modelPath,
+      modelVersion: catalog?.version,
+      modelLabel: catalog?.label,
+      modelBytes: safeSize(modelPath),
+      ortDir,
+      ortBackend: 'wasm',
+      ortNumThreads: 1,
+      inputWav,
+      inputWavBytes: safeSize(inputWav),
+      inputExt: path.extname(inputWav).toLowerCase(),
+      outputWav,
+      workerKind: worker.kind,
+      workerScript: worker.script,
+      timeoutMs: hardTimeoutMs,
+      idleTimeoutMs: AI_SEPARATION_IDLE_TIMEOUT_MS,
+      durationSec: options.durationSec ?? null
+    });
 
     armIdleWatchdog();
     hardTimer = setTimeout(() => {
       fail(
         `Instrumental AI separation timed out after ${Math.round(hardTimeoutMs / 60000)} min (track ~${Math.round(
           options.durationSec || 240
-        )}s). CPU WASM can be slow; retry or use an algorithmic instrumental method.`
+        )}s). CPU WASM can be slow; retry or use an algorithmic instrumental method.`,
+        false,
+        'hard_timeout'
       );
     }, hardTimeoutMs);
   });

@@ -30,8 +30,10 @@ export function isYtDlpTransientMediaName(fileName: string): boolean {
   if (/\.(part|ytdl|tmp|temp)$/i.test(base)) return true;
   // Format fragments: dl_xxx.f137.mp4 / dl_xxx.f140.m4a
   if (/\.f\d+\.[a-z0-9]+$/i.test(base)) return true;
-  // Instrumental pipeline sidecars under the same downloadId prefix
+  // Instrumental pipeline sidecars under the same downloadId prefix:
+  //   {id}.instrumental.mp4 / .wav, {id}.extract.wav, {id}.instrumental.extract.wav
   if (/\.instrumental(\.mp4|\.wav)?$/i.test(base)) return true;
+  if (/\.instrumental\.extract\.wav$/i.test(base)) return true;
   if (/\.extract\.wav$/i.test(base)) return true;
   if (/\.partial\.mp4$/i.test(base)) return true;
   if (/\.(srt|ass|vtt|info\.json|description|jpg|jpeg|webp|png)$/i.test(base)) {
