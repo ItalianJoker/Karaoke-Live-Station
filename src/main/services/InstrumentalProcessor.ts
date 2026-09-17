@@ -26,6 +26,7 @@ import { isAbortError, killProcessTree, throwIfAborted } from './processKill';
 import type { OfflineVocalModelManager } from './OfflineVocalModelManager';
 import type { OrtWasmManager } from './OrtWasmManager';
 import type { Logger } from './Logger';
+import { readPcmWavDurationSec } from '../ai/wavPcm';
 
 export type InstrumentalProcessPhase =
   | 'extracting'
@@ -40,6 +41,11 @@ export type InstrumentalProcessOptions = {
   /** Optional .srt / .ass / .vtt for burn-in */
   subtitlePath?: string | null;
   onProgress?: (phase: InstrumentalProcessPhase, percent: number) => void;
+  /**
+   * Optional ETA (seconds remaining) during AI vocal removal, derived from
+   * observed chunk progress — Download menu binds this to `payload.eta`.
+   */
+  onAiEta?: (etaSec: number) => void;
   /** Required when algorithm is an AI method */
   vocalModelManager?: OfflineVocalModelManager;
   ortWasmManager?: OrtWasmManager;
@@ -256,7 +262,14 @@ async function removeVocalsAi(
 
   throwIfAborted(options.signal);
   report('removing_vocals', 45);
+  let durationSec = 0;
+  try {
+    durationSec = readPcmWavDurationSec(extractedWav);
+  } catch {
+    durationSec = 0;
+  }
   const aiSeparate = options.aiSeparate || separateInstrumentalWithAi;
+  const aiStartedAt = Date.now();
   await aiSeparate(
     {
       method,
@@ -265,9 +278,19 @@ async function removeVocalsAi(
       inputWav: extractedWav,
       outputWav: instrumentalWav,
       signal: options.signal,
+      durationSec: durationSec > 0 ? durationSec : undefined,
       onProgress: (info) => {
-        const pct = 45 + Math.max(0, Math.min(1, info.progress)) * 25;
+        const ratio = Math.max(0, Math.min(1, info.progress));
+        const pct = 45 + ratio * 25;
         report('removing_vocals', pct);
+        // Surface conversion ETA from observed progress velocity (Download menu binds eta)
+        if (ratio > 0.02 && typeof options.onAiEta === 'function') {
+          const elapsed = (Date.now() - aiStartedAt) / 1000;
+          const remaining = elapsed * ((1 - ratio) / ratio);
+          if (Number.isFinite(remaining) && remaining >= 0) {
+            options.onAiEta(remaining);
+          }
+        }
       }
     },
     logger

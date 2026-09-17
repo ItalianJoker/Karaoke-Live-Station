@@ -25,7 +25,38 @@ export type InstrumentalAiSeparateOptions = {
   onProgress?: (info: InstrumentalAiProgress) => void;
   /** When aborted, the utility/fork worker is killed immediately. */
   signal?: AbortSignal;
+  /**
+   * Audio duration in seconds (used to scale the hard timeout).
+   * Prefer reading from the demuxed WAV; defaults to a conservative mid-length track.
+   */
+  durationSec?: number;
 };
+
+/** Minimum hard ceiling so short tracks still get a full CPU WASM run. */
+export const AI_SEPARATION_MIN_TIMEOUT_MS = 30 * 60 * 1000;
+/** Cap so a bad hang cannot run forever. */
+export const AI_SEPARATION_MAX_TIMEOUT_MS = 3 * 60 * 60 * 1000;
+/**
+ * Wall-clock budget per second of audio for ORT WASM on CPU.
+ * ~3 min track → ~30 + 135 = 165 min; ~5 min → ~30 + 225 = 255 min (capped at 3h).
+ * Prefer finishing over false timeouts; idle watchdog still catches true hangs.
+ */
+export const AI_SEPARATION_MS_PER_AUDIO_SEC = 45 * 1000;
+/** Fail if the worker goes silent this long (no progress heartbeat). */
+export const AI_SEPARATION_IDLE_TIMEOUT_MS = 8 * 60 * 1000;
+
+/**
+ * Scale the hard timeout with track length so a ~3–5 min song on CPU is not
+ * cut by a fixed short deadline, while still bounding runaway hangs.
+ */
+export function computeAiSeparationTimeoutMs(durationSec?: number): number {
+  const dur =
+    typeof durationSec === 'number' && Number.isFinite(durationSec) && durationSec > 0
+      ? durationSec
+      : 240;
+  const scaled = AI_SEPARATION_MIN_TIMEOUT_MS + dur * AI_SEPARATION_MS_PER_AUDIO_SEC;
+  return Math.min(AI_SEPARATION_MAX_TIMEOUT_MS, Math.max(AI_SEPARATION_MIN_TIMEOUT_MS, scaled));
+}
 
 function resolveWorkerScript(): string {
   // Packaged / vite-plugin-electron: sibling of main bundle
@@ -81,6 +112,9 @@ export async function separateInstrumentalWithAi(
   const worker = spawnWorker();
   let requestId = 1;
   let settled = false;
+  let hardTimer: ReturnType<typeof setTimeout> | null = null;
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  const hardTimeoutMs = computeAiSeparationTimeoutMs(options.durationSec);
 
   const kill = () => {
     try {
@@ -91,10 +125,22 @@ export async function separateInstrumentalWithAi(
     }
   };
 
+  const clearTimers = () => {
+    if (hardTimer) {
+      clearTimeout(hardTimer);
+      hardTimer = null;
+    }
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+      idleTimer = null;
+    }
+  };
+
   return new Promise<void>((resolve, reject) => {
     const fail = (message: string, asAbort = false) => {
       if (settled) return;
       settled = true;
+      clearTimers();
       signal?.removeEventListener('abort', onAbort);
       kill();
       if (asAbort) {
@@ -109,12 +155,24 @@ export async function separateInstrumentalWithAi(
     const succeed = () => {
       if (settled) return;
       settled = true;
+      clearTimers();
       signal?.removeEventListener('abort', onAbort);
       kill();
       resolve();
     };
 
     const onAbort = () => fail('Aborted', true);
+
+    const armIdleWatchdog = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        fail(
+          `Instrumental AI separation stalled (no progress for ${Math.round(
+            AI_SEPARATION_IDLE_TIMEOUT_MS / 60000
+          )} min). Try again or pick an algorithmic Download Instrumental method.`
+        );
+      }, AI_SEPARATION_IDLE_TIMEOUT_MS);
+    };
 
     const onMsg = (raw: unknown) => {
       const msg = raw as {
@@ -127,6 +185,8 @@ export async function separateInstrumentalWithAi(
       };
       if (!msg?.type) return;
       if (msg.type === 'progress') {
+        // Any progress (including worker-ready ping) proves the child is alive.
+        armIdleWatchdog();
         if (msg.requestId === 0) return; // worker ready ping
         onProgress?.({
           phase: msg.phase || 'separate',
@@ -186,13 +246,16 @@ export async function separateInstrumentalWithAi(
 
     logger?.info(
       'InstrumentalAiSeparator',
-      `AI separate start method=${method} model=${modelPath}`
+      `AI separate start method=${method} model=${modelPath} timeoutMs=${hardTimeoutMs} durationSec=${options.durationSec ?? 'n/a'}`
     );
 
-    // Hard timeout (long tracks + large models)
-    setTimeout(
-      () => fail('Instrumental AI separation timed out'),
-      45 * 60 * 1000
-    );
+    armIdleWatchdog();
+    hardTimer = setTimeout(() => {
+      fail(
+        `Instrumental AI separation timed out after ${Math.round(hardTimeoutMs / 60000)} min (track ~${Math.round(
+          options.durationSec || 240
+        )}s). CPU WASM can be slow; retry or use an algorithmic instrumental method.`
+      );
+    }, hardTimeoutMs);
   });
 }

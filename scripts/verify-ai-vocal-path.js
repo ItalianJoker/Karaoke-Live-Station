@@ -70,6 +70,28 @@ assert(
   'coerceInstrumentalVocalRemoverMethod defaults to AI'
 );
 
+assert(
+  dmSrc.includes('KLSPROG|') &&
+    dmSrc.includes('--progress') &&
+    /showEta/.test(fs.readFileSync(path.join(root, 'src/renderer/components/ControlWindow.tsx'), 'utf8')),
+  'yt-dlp progress template uses KLSPROG marker; Download menu shows ETA'
+);
+
+const aiSepSrc = fs.readFileSync(
+  path.join(root, 'src/main/services/InstrumentalAiSeparator.ts'),
+  'utf8'
+);
+assert(
+  aiSepSrc.includes('computeAiSeparationTimeoutMs') &&
+    aiSepSrc.includes('AI_SEPARATION_IDLE_TIMEOUT_MS') &&
+    procSrc.includes('durationSec') &&
+    procSrc.includes('onAiEta') &&
+    fs
+      .readFileSync(path.join(root, 'src/main/workers/instrumentalAiWorker.ts'), 'utf8')
+      .includes('wasmBinary'),
+  'AI timeout scales with duration; idle heartbeats; ORT wasmBinary load'
+);
+
 // --- Runtime: compile TS helpers via requiring built paths is hard; use dynamic import of shared via ts-node-less approach ---
 // Inline minimal mirrors of shared helpers for routing proof:
 function isAi(method) {

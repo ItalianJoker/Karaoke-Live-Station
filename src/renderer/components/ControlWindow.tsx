@@ -953,6 +953,11 @@ export const ControlWindow: React.FC = () => {
                         dl.status === 'remuxing' ||
                         dl.status === 'converting');
                     const showSpeed = dl.status === 'downloading' && Boolean(dl.speed);
+                    const showEta =
+                      (dl.status === 'downloading' || dl.status === 'removing_vocals') &&
+                      Boolean(dl.eta) &&
+                      dl.eta !== '--:--' &&
+                      !/^n\/?a$/i.test(dl.eta);
                     const statusLabel =
                       dl.status === 'downloading_model'
                         ? t('library.downloadingModel')
@@ -987,6 +992,7 @@ export const ControlWindow: React.FC = () => {
                           <span>
                             {statusLabel}
                             {showSpeed ? ` · ${dl.speed}` : ''}
+                            {showEta ? ` · ETA ${dl.eta}` : ''}
                           </span>
                           <span>{dl.percent.toFixed(0)}%</span>
                         </div>

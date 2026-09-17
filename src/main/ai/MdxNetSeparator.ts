@@ -23,6 +23,15 @@ export type MdxProgress = {
   message: string;
 };
 
+export type OrtWasmPathConfig =
+  | string
+  | {
+      wasm?: string;
+      mjs?: string;
+      /** Prefer embedding the .wasm bytes — avoids file:// fetch hangs in utilityProcess. */
+      wasmBinary?: ArrayBuffer | Uint8Array;
+    };
+
 type ProgressListener = (info: MdxProgress) => void;
 
 const SAMPLE_RATE = 44100;
@@ -58,21 +67,37 @@ export class MdxNetSeparator {
   }
 
   /** Apply ORT WASM paths (file:// or karaoke://). Required in main/utility workers. */
-  private async configureOrt(
-    wasmPaths?: string | { wasm: string; mjs: string }
-  ): Promise<void> {
+  private async configureOrt(wasmPaths?: OrtWasmPathConfig): Promise<void> {
     if (!wasmPaths) {
       throw new Error('ORT WASM paths required for instrumental AI separation');
     }
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.simd = true;
     ort.env.wasm.proxy = false;
-    ort.env.wasm.wasmPaths = wasmPaths;
+    if (typeof wasmPaths === 'string') {
+      ort.env.wasm.wasmPaths = wasmPaths.endsWith('/') ? wasmPaths : `${wasmPaths}/`;
+      return;
+    }
+    if (wasmPaths.wasmBinary) {
+      const bin = wasmPaths.wasmBinary;
+      ort.env.wasm.wasmBinary =
+        bin instanceof ArrayBuffer
+          ? bin
+          : bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength);
+      if (wasmPaths.mjs || wasmPaths.wasm) {
+        ort.env.wasm.wasmPaths = { mjs: wasmPaths.mjs, wasm: wasmPaths.wasm };
+      }
+      return;
+    }
+    ort.env.wasm.wasmPaths = {
+      wasm: wasmPaths.wasm,
+      mjs: wasmPaths.mjs
+    };
   }
 
   public async loadModel(
     modelBuffer: ArrayBuffer,
-    wasmPaths?: string | { wasm: string; mjs: string }
+    wasmPaths?: OrtWasmPathConfig
   ): Promise<void> {
     if (this.modelReady && this.session) return;
     if (this.loadPromise) return this.loadPromise;
@@ -82,6 +107,7 @@ export class MdxNetSeparator {
       await this.configureOrt(wasmPaths);
       // Yield so Control UI can paint before the heavy session create.
       await yieldToMainThread();
+      this.emit({ phase: 'model', progress: 0.15, message: 'Creating ORT WASM session…' });
       this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
         executionProviders: ['wasm'],
         graphOptimizationLevel: 'basic'
@@ -118,6 +144,15 @@ export class MdxNetSeparator {
     const step = Math.floor(CHUNK_SIZE / 2); // num_overlap ≈ 2
     const totalChunks = Math.max(1, Math.ceil((paddedL.length - CHUNK_SIZE) / step) + 1);
     let chunkIndex = 0;
+
+    // Heartbeat before the first heavy ORT chunk so the parent idle watchdog arms.
+    this.emit({
+      phase: 'separate',
+      progress: 0,
+      message: `MDX separating… 0% (${totalChunks} chunks)`
+    });
+    onChunk?.(0);
+    await yieldToMainThread();
 
     for (let start = 0; start + CHUNK_SIZE <= paddedL.length; start += step) {
       const chunkL = paddedL.subarray(start, start + CHUNK_SIZE);
@@ -228,7 +263,7 @@ export class MdxNetSeparator {
     const outTensor = results[outName];
     const outData = outTensor.data as Float32Array;
 
-    // Inverse STFT from predicted "other" (instrumental) spectrogram
+    // Inverse STFT from predicted instrumental spectrogram (UVR Karaoke 2 primary)
     const outL = new Float32Array(CHUNK_SIZE);
     const outR = new Float32Array(CHUNK_SIZE);
     const accL = new Float32Array(CHUNK_SIZE + N_FFT);
