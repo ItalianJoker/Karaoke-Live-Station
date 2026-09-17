@@ -8,6 +8,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+### Fixed
+- **Web search still “in library” after delete** — deleting a track cleared the DB/file and Local list, but Web results kept the post-download `local_library` patch, so only Delete showed. Delete now reverts matching web rows (YouTube id / path / `${ytId}_` filename) back to `youtube` so Download (+ Instrumental) reappear without restart or re-search.
+
 ## [1.1.0] — AI instrumental debug logs + Actions Node 24 (refresh) — 2026-09-17
 
 Overwrite of GitHub Release `v1.1.0` after PR #25 (Actions Node 24) + PR #26 (Instrumental AI debug / WAV naming).

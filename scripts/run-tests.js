@@ -1389,6 +1389,131 @@ assert(
 );
 
 assert(
+  scopedSearchHookSource.includes('revertLibraryMembershipInResults') &&
+    scopedSearchHookSource.includes('revertLibraryMembershipInTrackList') &&
+    libraryPanelScopedSource.includes('revertLibraryMembershipInResults') &&
+    /db\.deleteTrack[\s\S]*revertLibraryMembershipInResults/.test(libraryPanelScopedSource),
+  'Library delete reverts web-search local_library patches so Download reappears'
+);
+
+// -------------------------------------------------------------
+// Suite: Web search ↔ library delete membership sync (pure helper)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Web search library-delete membership sync\x1b[0m');
+
+{
+  const { spawnSync } = require('child_process');
+  const membershipPath = path.resolve(__dirname, '../src/shared/libraryMembership.ts');
+  const probe = spawnSync(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      '--no-warnings',
+      '-e',
+      `
+      import {
+        extractYouTubeVideoId,
+        extractYouTubeIdFromLibraryPath,
+        buildYouTubeWatchUri,
+        revertLibraryMembershipOnTrack,
+        revertLibraryMembershipInTrackList
+      } from ${JSON.stringify(membershipPath)};
+
+      const assert = (c, m) => { if (!c) { console.error('PROBE_FAIL', m); process.exit(2); } };
+
+      assert(extractYouTubeVideoId('dQw4w9WgXcQ') === 'dQw4w9WgXcQ', 'bare-id');
+      assert(
+        extractYouTubeVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ') === 'dQw4w9WgXcQ',
+        'watch-url'
+      );
+      assert(
+        extractYouTubeIdFromLibraryPath('/lib/dQw4w9WgXcQ_Artist - Title.mp4') === 'dQw4w9WgXcQ',
+        'path-prefix'
+      );
+      assert(buildYouTubeWatchUri('dQw4w9WgXcQ').includes('dQw4w9WgXcQ'), 'watch-uri');
+
+      const patchedWeb = {
+        id: 'dQw4w9WgXcQ',
+        source: 'local_library',
+        title: 'Song Karaoke',
+        artist: 'Artist',
+        durationSec: 180,
+        uri: 'karaoke://local/' + encodeURIComponent('/lib/dQw4w9WgXcQ_Artist - Song Karaoke.mp4'),
+        localFilePath: '/lib/dQw4w9WgXcQ_Artist - Song Karaoke.mp4',
+        isEmbeddable: true
+      };
+      const otherWeb = {
+        id: 'aaaaaaaaaaa',
+        source: 'youtube',
+        title: 'Other',
+        artist: 'X',
+        durationSec: 10,
+        uri: 'https://www.youtube.com/watch?v=aaaaaaaaaaa',
+        isEmbeddable: true
+      };
+
+      // Delete by YouTube id (web-tab delete after download)
+      const reverted = revertLibraryMembershipOnTrack(patchedWeb, {
+        id: 'dQw4w9WgXcQ',
+        uri: patchedWeb.uri,
+        localFilePath: patchedWeb.localFilePath
+      });
+      assert(reverted.source === 'youtube', 'source-youtube');
+      assert(!reverted.localFilePath, 'cleared-path');
+      assert(reverted.uri === 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'restored-uri');
+      assert(reverted.id === 'dQw4w9WgXcQ', 'kept-yt-id');
+
+      // Delete from Local with path-hash id — match via filename YouTube prefix
+      const deletedLocalAlias = {
+        id: 'track_pathhash',
+        uri: patchedWeb.uri,
+        localFilePath: patchedWeb.localFilePath
+      };
+      const list = revertLibraryMembershipInTrackList([patchedWeb, otherWeb], deletedLocalAlias);
+      assert(list[0].source === 'youtube' && !list[0].localFilePath, 'list-revert-by-path');
+      assert(list[1] === otherWeb || list[1].source === 'youtube', 'other-untouched');
+      assert(list[1].id === 'aaaaaaaaaaa', 'other-id');
+
+      // Pure midi / non-YouTube local should not become youtube
+      const midi = {
+        id: 'midi_1',
+        source: 'local_library',
+        title: 'Piano',
+        artist: 'Local',
+        durationSec: 60,
+        uri: 'karaoke://local/' + encodeURIComponent('/lib/piano.mid'),
+        localFilePath: '/lib/piano.mid'
+      };
+      const midiOut = revertLibraryMembershipOnTrack(midi, {
+        id: 'midi_1',
+        localFilePath: '/lib/piano.mid'
+      });
+      assert(midiOut === midi || midiOut.source === 'local_library', 'midi-unchanged');
+
+      console.log('PROBE_OK');
+      `
+    ],
+    { encoding: 'utf8' }
+  );
+  assert(
+    probe.status === 0 && (probe.stdout || '').includes('PROBE_OK'),
+    'libraryMembership: delete clears web in-library patch (id/path/YouTube keys)',
+    (probe.stderr || probe.stdout || `exit ${probe.status}`).slice(0, 400)
+  );
+}
+
+const libraryMembershipSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/libraryMembership.ts'),
+  'utf8'
+);
+assert(
+  libraryMembershipSource.includes('revertLibraryMembershipInTrackList') &&
+    libraryMembershipSource.includes('extractYouTubeIdFromLibraryPath') &&
+    libraryMembershipSource.includes('collectDeletedLibraryMatchKeys'),
+  'Shared libraryMembership exports revert + identity match helpers'
+);
+
+assert(
   libraryPanelScopedSource.includes('setLocalResults') &&
     libraryPanelScopedSource.includes('localQuery') &&
     /searchMode\s*===\s*'web'/.test(libraryPanelScopedSource) &&

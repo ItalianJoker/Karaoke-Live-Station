@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  revertLibraryMembershipInTrackList,
+  type DeletedLibraryIdentity
+} from '../../shared/libraryMembership';
 import type { KaraokeMediaTrack } from '../../shared/types';
 
 /** Sub-tabs under Libreria & Ricerca */
@@ -145,6 +149,22 @@ export function useScopedLibrarySearch() {
     []
   );
 
+  /**
+   * After library delete: restore matching web (and local-scoped) rows that were
+   * patched to local_library so Download / Download Instrumental reappear.
+   */
+  const revertLibraryMembershipInResults = useCallback((deleted: DeletedLibraryIdentity) => {
+    setScopes((prev) => {
+      const nextLocal = revertLibraryMembershipInTrackList(prev.local.results, deleted);
+      const nextWeb = revertLibraryMembershipInTrackList(prev.web.results, deleted);
+      if (nextLocal === prev.local.results && nextWeb === prev.web.results) return prev;
+      return {
+        local: { ...prev.local, results: nextLocal },
+        web: { ...prev.web, results: nextWeb }
+      };
+    });
+  }, []);
+
   const setIsSearching = useCallback(
     (isSearching: boolean) => {
       patchScope(searchModeRef.current, { isSearching });
@@ -205,6 +225,7 @@ export function useScopedLibrarySearch() {
     isSearching: active.isSearching,
     setIsSearching,
     patchTrackInAllResults,
+    revertLibraryMembershipInResults,
     listRef,
     onListScroll,
     scopes
