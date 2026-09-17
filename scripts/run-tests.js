@@ -1591,6 +1591,161 @@ assert(
   'All in-app search/filter surfaces use shared accent folding'
 );
 
+// -------------------------------------------------------------
+// Suite: karaoke://local path encode/decode (POSIX // collapse + Windows drives)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: karaoke://local media path normalization\x1b[0m');
+
+/** Mirrors src/shared/karaokeLocalPath.ts — keep in sync. */
+function buildKaraokeLocalUriTest(absolutePath) {
+  const p = (absolutePath || '').trim();
+  if (!p) return '';
+  if (
+    p.startsWith('karaoke://') ||
+    p.startsWith('http://') ||
+    p.startsWith('https://') ||
+    p.startsWith('data:')
+  ) {
+    return p;
+  }
+  return `karaoke://local/${encodeURIComponent(p)}`;
+}
+
+function resolveKaraokeLocalFilePathTest(urlPathname, platform) {
+  let filePath = decodeURIComponent(urlPathname || '');
+  if (platform === 'win32') {
+    if (/^\/[A-Za-z]:[\\/]/.test(filePath)) {
+      return filePath.slice(1);
+    }
+    if (filePath.startsWith('/\\')) {
+      return filePath.slice(1);
+    }
+    return filePath;
+  }
+  if (filePath.startsWith('//')) {
+    return `/${filePath.replace(/^\/+/, '')}`;
+  }
+  return filePath;
+}
+
+function roundTripLocalPath(absolutePath, platform) {
+  const uri = buildKaraokeLocalUriTest(absolutePath);
+  const url = new URL(uri);
+  return resolveKaraokeLocalFilePathTest(url.pathname, platform);
+}
+
+const unicodeInstrumentalPath = path.join(
+  os.homedir(),
+  'Scaricati',
+  'Karaoke',
+  'iywXK9Dj2o4_Måneskin Official - Måneskin - Morirò da Re (Instrumental).mp4'
+);
+
+assert(
+  roundTripLocalPath(unicodeInstrumentalPath, 'linux') === unicodeInstrumentalPath ||
+    // On Windows hosts the fixture is a drive path; still verify POSIX collapse separately.
+    (process.platform === 'win32' &&
+      roundTripLocalPath(unicodeInstrumentalPath, 'win32') === unicodeInstrumentalPath),
+  'Absolute path with Unicode (å, ò) round-trips without double slash'
+);
+
+// Explicit POSIX absolute fixture (not a real user-home literal — synthetic /var path)
+const posixUnicodePath =
+  '/var/karaoke-library/iywXK9Dj2o4_Måneskin Official - Måneskin - Morirò da Re (Instrumental).mp4';
+
+assert(
+  roundTripLocalPath(posixUnicodePath, 'linux') === posixUnicodePath,
+  'POSIX absolute path with Unicode (å, ò) round-trips without double slash'
+);
+
+assert(
+  !roundTripLocalPath(posixUnicodePath, 'linux').startsWith('//'),
+  'POSIX round-trip must not yield //var/...'
+);
+
+// Reproduce the pre-fix decode bug shape and show the helper repairs it
+{
+  const buggyDecoded = decodeURIComponent(
+    new URL(buildKaraokeLocalUriTest(posixUnicodePath)).pathname
+  );
+  assert(
+    buggyDecoded === `/${posixUnicodePath}` || buggyDecoded.startsWith('//'),
+    'URL pathname + decode of encoded absolute path yields double leading slash (bug shape)'
+  );
+  assert(
+    resolveKaraokeLocalFilePathTest(
+      new URL(buildKaraokeLocalUriTest(posixUnicodePath)).pathname,
+      'linux'
+    ) === posixUnicodePath,
+    'Helper collapses //var/... back to /var/...'
+  );
+}
+
+assert(
+  roundTripLocalPath('C:\\KaraokeData\\track.mp4', 'win32') === 'C:\\KaraokeData\\track.mp4',
+  'Windows drive letter path round-trips'
+);
+
+assert(
+  roundTripLocalPath('C:/KaraokeData/track.mp4', 'win32') === 'C:/KaraokeData/track.mp4',
+  'Windows forward-slash drive path round-trips'
+);
+
+assert(
+  roundTripLocalPath('\\\\server\\share\\karaoke\\track.mp4', 'win32') ===
+    '\\\\server\\share\\karaoke\\track.mp4',
+  'Windows UNC path round-trips'
+);
+
+assert(
+  buildKaraokeLocalUriTest('karaoke://local/already') === 'karaoke://local/already',
+  'buildKaraokeLocalUri passes through existing karaoke:// URIs'
+);
+
+assert(
+  buildKaraokeLocalUriTest(posixUnicodePath).includes(encodeURIComponent(posixUnicodePath)),
+  'Instrumental library URI encodes the same absolute path the file was written to'
+);
+
+const karaokeLocalPathSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/karaokeLocalPath.ts'),
+  'utf8'
+);
+const mainProtocolSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/index.ts'),
+  'utf8'
+);
+const downloadManagerSourcePath = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+  'utf8'
+);
+
+assert(
+  karaokeLocalPathSource.includes('resolveKaraokeLocalFilePath') &&
+    karaokeLocalPathSource.includes('buildKaraokeLocalUri') &&
+    karaokeLocalPathSource.includes("filePath.startsWith('//')"),
+  'Shared karaokeLocalPath exports resolve + build and collapses POSIX //'
+);
+
+assert(
+  mainProtocolSource.includes('resolveKaraokeLocalFilePath') &&
+    mainProtocolSource.includes("url.hostname === 'local'"),
+  'Protocol handler uses resolveKaraokeLocalFilePath for karaoke://local'
+);
+
+assert(
+  downloadManagerSourcePath.includes('buildKaraokeLocalUri') &&
+    downloadManagerSourcePath.includes('destinationPath'),
+  'DownloadManager builds library/cache URIs via buildKaraokeLocalUri(destinationPath)'
+);
+
+assert(
+  mainProtocolSource.includes("path.join(process.resourcesPath || '', 'soundfonts/GeneralUser-GS.sf2')") &&
+    mainProtocolSource.indexOf("path.join(process.resourcesPath || '', 'soundfonts/GeneralUser-GS.sf2')") <
+      mainProtocolSource.indexOf("path.join(app.getAppPath(), 'public/soundfonts/GeneralUser-GS.sf2')"),
+  'Bundled SoundFont prefers resources/ (extraResources) before asar app path'
+);
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');

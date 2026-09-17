@@ -26,6 +26,7 @@ import {
   type OfflineVocalModelId
 } from '../shared/vocalRemover';
 import { ORT_WASM_ASSET_FILES } from '../shared/ortWasm';
+import { resolveKaraokeLocalFilePath, buildKaraokeLocalUri } from '../shared/karaokeLocalPath';
 
 /**
  * Returns the corresponding MIME content-type for audio/video media files.
@@ -83,14 +84,16 @@ function getMediaMimeType(filePath: string): string {
  * @returns Absolute path to a valid system SoundFont bank if found, otherwise null
  */
 function getDefaultSystemSoundFont(): string | null {
-  // 1. Prioritize bundled GeneralUser GS SoundFont for pristine out-of-the-box MIDI/KAR playback
+  // 1. Prioritize bundled GeneralUser GS SoundFont for pristine out-of-the-box MIDI/KAR playback.
+  // Prefer extraResources (outside asar) first — createReadStream via karaoke://local fails
+  // for files that only exist inside the asar archive on some Electron builds.
   const appPath = app.isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath();
   const bundledCandidates = [
-    path.join(app.getAppPath(), 'public/soundfonts/GeneralUser-GS.sf2'),
-    path.join(app.getAppPath(), 'dist/soundfonts/GeneralUser-GS.sf2'),
     path.join(process.resourcesPath || '', 'soundfonts/GeneralUser-GS.sf2'),
     path.join(appPath, 'soundfonts/GeneralUser-GS.sf2'),
-    path.join(process.cwd(), 'public/soundfonts/GeneralUser-GS.sf2')
+    path.join(process.cwd(), 'public/soundfonts/GeneralUser-GS.sf2'),
+    path.join(app.getAppPath(), 'public/soundfonts/GeneralUser-GS.sf2'),
+    path.join(app.getAppPath(), 'dist/soundfonts/GeneralUser-GS.sf2')
   ];
 
   for (const bCandidate of bundledCandidates) {
@@ -285,14 +288,11 @@ class KaraokeMainProcess {
             });
           }
 
-          // Format expected: karaoke://local/path/to/media.mp4
+          // Format expected: karaoke://local/${encodeURIComponent(absolutePath)}
+          // URL pathname always has a leading "/", so POSIX "/home/..." becomes "//home/..."
+          // after decode — normalize via shared helper (also handles Windows drives / UNC).
           if (url.hostname === 'local') {
-            const rawPath = decodeURIComponent(url.pathname);
-            // On Windows pathname starts with /C:/... so trim leading slash if needed
-            const filePath =
-              process.platform === 'win32' && rawPath.startsWith('/')
-                ? rawPath.slice(1)
-                : rawPath;
+            const filePath = resolveKaraokeLocalFilePath(url.pathname);
 
             if (!fs.existsSync(filePath)) {
               this.logger.warn('Protocol', 'Media file not found on disk', { filePath });
@@ -1347,7 +1347,7 @@ class KaraokeMainProcess {
               title,
               artist,
               durationSec: 0,
-              uri: `karaoke://local/${encodeURIComponent(fullFilePath)}`,
+              uri: buildKaraokeLocalUri(fullFilePath),
               localFilePath: fullFilePath,
               thumbnailUrl: thumb,
               hasEmbeddedLyrics: hasCdg || hasKar,
@@ -1395,7 +1395,7 @@ class KaraokeMainProcess {
       const thumbPath = path.join(thumbsDir, thumbFileName);
 
       if (fs.existsSync(thumbPath)) {
-        return `karaoke://local/${encodeURIComponent(thumbPath)}`;
+        return buildKaraokeLocalUri(thumbPath);
       }
 
       const ffmpegBin = resolveFfmpegPath();
@@ -1413,7 +1413,7 @@ class KaraokeMainProcess {
         ], { timeout: 4000, stdio: 'ignore' });
 
         if (fs.existsSync(thumbPath)) {
-          return `karaoke://local/${encodeURIComponent(thumbPath)}`;
+          return buildKaraokeLocalUri(thumbPath);
         }
       } catch {
         // If 4s failed (e.g. short file), try at 1 second
@@ -1429,7 +1429,7 @@ class KaraokeMainProcess {
           ], { timeout: 4000, stdio: 'ignore' });
 
           if (fs.existsSync(thumbPath)) {
-            return `karaoke://local/${encodeURIComponent(thumbPath)}`;
+            return buildKaraokeLocalUri(thumbPath);
           }
         } catch {
           // ffmpeg unavailable or video decode error
