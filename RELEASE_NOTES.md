@@ -9,9 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix velocità/ETA download** + **timeout AI «Rimozione voce»** (timeout scalato, heartbeat, ORT wasmBinary) + impostazioni separate live/strumentale + annulla download + AI strumentale + menu Download + ricerca senza accenti.
-
-> **In corso (prossimo refresh):** fix barra «Rimozione voce» bloccata al ~45%, **Carica altri video** in ricerca YouTube, **Pulisci coda** nel menu Download.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix «Rimozione voce» bloccata al ~45%** + **Carica altri video** + **Pulisci coda** download + velocità/ETA + timeout AI + impostazioni separate live/strumentale + annulla + AI strumentale + ricerca senza accenti.
 
 ## 📦 File di Installazione
 
@@ -24,6 +22,17 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix velocità/ETA d
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### 🎚️ «Rimozione voce» AI — progresso oltre il 45%
+- Mapping di progresso monotono per fase (niente reset al 45% dopo il load del modello).
+- Heartbeat intra-chunk durante STFT/ORT/iSTFT; piani FFT Bluestein in cache per `n_fft=5120`.
+- Watchdog idle a 20 min; copie ONNX/WASM più sicure.
+
+### 📺 YouTube — Carica altri video
+- Pulsante **Carica altri video** in ricerca Web: pagina successiva via yt-dlp (`ytsearch` + playlist-start/end).
+
+### 🧹 Menu Download — Pulisci coda
+- **Pulisci coda** annulla i download in corso/in coda e svuota l’elenco (conferma se attivi).
 
 ### 📶 Velocità e tempo rimanente nel menu Download
 - Progresso yt-dlp corretto (`KLSPROG` / `--progress`): il menu mostra **velocità** e **ETA** durante il download.
@@ -89,9 +98,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix velocità/ETA d
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **download speed/ETA fix** + **Instrumental AI “Rimozione voce” timeout** (scaled timeout, heartbeats, ORT wasmBinary) + split Settings live/instrumental + working cancel + Instrumental AI + Download menu + accent-insensitive search.
-
-> **Upcoming refresh:** fix AI progress stuck at ~45%, YouTube **Load more videos**, Download menu **Clear downloads**.
+GitHub Release **v1.1.0** overwrite: **Instrumental AI progress stuck at ~45%** fix + YouTube **Load more videos** + Download menu **Clear downloads** + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
 
 ## 📦 Installers
 
@@ -104,6 +111,17 @@ GitHub Release **v1.1.0** overwrite: **download speed/ETA fix** + **Instrumental
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### 🎚️ Instrumental AI “Rimozione voce” — progress past 45%
+- Phase-aware monotonic progress (no snap-back to 45% after model load).
+- Intra-chunk STFT/ORT/iSTFT heartbeats; cached Bluestein FFT plans for `n_fft=5120`.
+- Idle watchdog 20 min; safer ONNX/WASM buffer copies.
+
+### 📺 YouTube — Load more videos
+- **Load more videos** / **Carica altri video** in Web search: next page via yt-dlp (`ytsearch` + playlist-start/end).
+
+### 🧹 Download menu — Clear downloads
+- **Clear downloads** cancels in-flight/queued jobs and empties the list (confirm when active).
 
 ### 📶 Download menu speed + remaining time
 - Correct yt-dlp progress parsing (`KLSPROG` / `--progress`): the Download menu shows **speed** and **ETA** while downloading.

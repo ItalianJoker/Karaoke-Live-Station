@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+## [1.1.0] — AI 45% progress + YouTube load more + clear downloads (refresh) — 2026-09-17
+
+Overwrite of GitHub Release `v1.1.0` after PR #22 (Instrumental AI progress, YouTube pagination, Download clear-all).
+
 ### Fixed
 - **Instrumental AI stuck at ~45% (“Rimozione voce”)** — phase-aware monotonic progress (no snap-back after model load); intra-chunk STFT/ORT heartbeats; cached Bluestein FFT plans for UVR MDX `n_fft=5120`; safer ONNX/WASM `ArrayBuffer` copies; idle watchdog 20 min.
 
