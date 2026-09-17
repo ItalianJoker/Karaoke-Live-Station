@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix «Rimozione voce» bloccata al ~45%** + **Carica altri video** + **Pulisci coda** download + velocità/ETA + timeout AI + impostazioni separate live/strumentale + annulla + AI strumentale + ricerca senza accenti.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix path media locale `//home/...`** (AppImage Linux) + SoundFont da `resources/` + fix «Rimozione voce» al ~45% + **Carica altri video** + **Pulisci coda** + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,11 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix «Rimozione voc
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### 📂 Path media locale (`karaoke://local`)
+- Correzione del doppio slash `//home/...` dopo `encodeURIComponent` di path assoluti POSIX: playback Instrumental e file locali non falliscono più con `Media file not found` / `DEMUXER_ERROR_COULD_NOT_OPEN`.
+- Nomi Unicode (å, ò, …) invariati; Windows drive letter / UNC gestiti.
+- SoundFont bundled: priorità a `resources/soundfonts/` (extraResources, fuori asar).
 
 ### 🎚️ «Rimozione voce» AI — progresso oltre il 45%
 - Mapping di progresso monotono per fase (niente reset al 45% dopo il load del modello).
@@ -98,7 +103,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix «Rimozione voc
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **Instrumental AI progress stuck at ~45%** fix + YouTube **Load more videos** + Download menu **Clear downloads** + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
+GitHub Release **v1.1.0** overwrite: **local media path `//home/...` fix** (Linux AppImage) + SoundFont from `resources/` + Instrumental AI ~45% progress fix + YouTube **Load more videos** + Download **Clear downloads** + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
 
 ## 📦 Installers
 
@@ -111,6 +116,11 @@ GitHub Release **v1.1.0** overwrite: **Instrumental AI progress stuck at ~45%** 
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### 📂 Local media path (`karaoke://local`)
+- Fixed double-slash `//home/...` after `encodeURIComponent` of POSIX absolute paths — Instrumental and local files no longer fail with `Media file not found` / `DEMUXER_ERROR_COULD_NOT_OPEN`.
+- Unicode filenames (å, ò, …) unchanged; Windows drive letters / UNC handled.
+- Bundled SoundFont: prefer `resources/soundfonts/` (extraResources, outside asar).
 
 ### 🎚️ Instrumental AI “Rimozione voce” — progress past 45%
 - Phase-aware monotonic progress (no snap-back to 45% after model load).
