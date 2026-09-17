@@ -459,17 +459,22 @@ export const ControlWindow: React.FC = () => {
             payload.status === 'error' ||
             payload.status === 'cancelled'
           ) {
-            // Keep terminal rows briefly then drop so the menu stays tidy
+            // Keep terminal rows longer for reuse/error notices so operators can read them
+            const holdMs = payload.alreadyExists || payload.status === 'error' ? 8000 : 4000;
             setTimeout(() => {
               setHeaderDownloads((cur) => {
                 const copy = { ...cur };
                 delete copy[payload.downloadId];
                 return copy;
               });
-            }, 4000);
+            }, holdMs);
           }
           return next;
         });
+        // Open Downloads menu for operator-facing notices that used to toast outside the queue
+        if (payload.alreadyExists || payload.status === 'error' || payload.status === 'queued') {
+          setShowDownloadsMenu(true);
+        }
         if (payload.status === 'downloading') {
           setDownloadProgress({ percent: payload.percent, speed: payload.speed || '' });
         } else if (
@@ -1004,8 +1009,16 @@ export const ControlWindow: React.FC = () => {
                       Boolean(dl.eta) &&
                       dl.eta !== '--:--' &&
                       !/^n\/?a$/i.test(dl.eta);
-                    const statusLabel =
-                      dl.status === 'downloading_model'
+                    const reuseNotice = dl.alreadyExists
+                      ? t('library.alreadyLocal', {
+                          path: dl.outputFilePath || '',
+                          defaultValue:
+                            'Track already available locally. Linked existing file without re-downloading:\n{{path}}'
+                        }).replace(/\n+/g, ' ')
+                      : null;
+                    const statusLabel = reuseNotice
+                      ? reuseNotice
+                      : dl.status === 'downloading_model'
                         ? t('library.downloadingModel')
                         : dl.status === 'queued'
                           ? t('library.queued')
@@ -1023,10 +1036,18 @@ export const ControlWindow: React.FC = () => {
                                     : dl.status === 'completed'
                                       ? t('library.downloadCompleted')
                                       : dl.status === 'error'
-                                        ? t('common.error', 'Error')
+                                        ? dl.errorMessage
+                                          ? t('errors.downloadFailed', {
+                                              error: dl.errorMessage
+                                            })
+                                          : t('common.error', 'Error')
                                         : dl.status === 'cancelled'
                                           ? t('common.cancelled', 'Cancelled')
                                           : String(dl.status);
+                    const statusTone =
+                      dl.alreadyExists || dl.status === 'error'
+                        ? 'text-amber-400'
+                        : 'text-slate-500';
                     return (
                     <div key={dl.downloadId} className="flex items-center gap-2 text-xs">
                       <div className="flex-1 min-w-0">
@@ -1034,22 +1055,26 @@ export const ControlWindow: React.FC = () => {
                           {dl.titleHint || dl.downloadId}
                           {dl.instrumental ? ' · Inst.' : ''}
                         </div>
-                        <div className="flex justify-between text-[10px] text-slate-500 mb-1 font-mono">
-                          <span>
+                        <div
+                          className={`flex justify-between gap-2 text-[10px] mb-1 font-mono ${statusTone}`}
+                        >
+                          <span className="min-w-0 break-words whitespace-normal">
                             {statusLabel}
                             {showSpeed ? ` · ${dl.speed}` : ''}
                             {showEta ? ` · ETA ${dl.eta}` : ''}
                           </span>
-                          <span>{dl.percent.toFixed(0)}%</span>
+                          <span className="shrink-0">{dl.percent.toFixed(0)}%</span>
                         </div>
                         <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
                           <div
                             className={`h-full transition-all duration-300 ${
                               dl.status === 'completed'
                                 ? 'bg-emerald-500'
-                                : isConversionPhase
+                                : dl.status === 'error'
                                   ? 'bg-amber-500'
-                                  : 'bg-cyan-500'
+                                  : isConversionPhase
+                                    ? 'bg-amber-500'
+                                    : 'bg-cyan-500'
                             }`}
                             style={{ width: `${Math.min(100, Math.max(0, dl.percent))}%` }}
                           />

@@ -969,9 +969,15 @@ assert(
 );
 assert(
   libraryPanelSource.includes('alreadyExists') &&
-    (libraryPanelSource.includes('library.alreadyLocal') ||
-      libraryPanelSource.includes('alreadyLocal')),
-  'LibraryPanel notifies user and relinks when a local copy already exists'
+    !/showToast\(\s*t\(\s*['"]library\.alreadyLocal/.test(libraryPanelSource) &&
+    controlWindowSource.includes('library.alreadyLocal') &&
+    controlWindowSource.includes('alreadyExists') &&
+    controlWindowSource.includes('errorMessage') &&
+    controlWindowSource.includes('errors.downloadFailed') &&
+    !/showToast\(\s*\n?\s*t\(\s*['"]errors\.downloadFailed['"].*payload\.errorMessage/.test(
+      libraryPanelSource
+    ),
+  'Manual/Instrumental reuse + download errors surface in Downloads menu, not out-of-queue toasts'
 );
 assert(
   mainIndexSourceForPhase2.includes('requestSingleInstanceLock') &&

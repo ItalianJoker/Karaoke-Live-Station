@@ -312,7 +312,7 @@ Confirmez avec **Confirmer la désactivation** (`Conferma disattivazione`).
 - Les fichiers dans `queue_cache` **survivent aux redémarrages** si le morceau est encore en file.
 - **GC au retrait de file :** le fichier est effacé du disque seulement lorsqu’aucune entrée de file ne le référence plus (fin de prestation, suppression individuelle, vidage de file).
 - **Salva in Libreria** promeut le fichier du cache vers le dossier bibliothèque et met à jour les chemins/`uri` pour un usage hors ligne.
-- Déduplication des téléchargements : avant de retélécharger, l’app cherche des correspondances dans bibliothèque / `queue_cache` / catalogue (id YouTube, fingerprint, `Artiste - Titre`). En cas de hit : **«Brano già presente in locale...»** (texte d’UI en italien) sans nouveau téléchargement réseau.
+- Déduplication des téléchargements : avant de retélécharger, l’app cherche des correspondances dans bibliothèque / `queue_cache` / catalogue (id YouTube, fingerprint, `Artiste - Titre`). En cas de hit : l’avis **«Brano già presente in locale...»** (texte localisé) apparaît dans le menu **Téléchargements** (pas en toast hors file), sans nouveau téléchargement réseau.
 
 ---
 

@@ -313,7 +313,7 @@ Conferma con **Conferma disattivazione**.
 - File in `queue_cache` **sopravvivono ai riavvii** se il brano è ancora in coda.
 - **GC allo scodamento:** il file viene cancellato dal disco solo quando nessuna voce in coda lo referenzia più (fine esecuzione, rimozione singola, svuota coda).
 - **Salva in Libreria** promuove il file dalla cache alla cartella libreria e aggiorna percorsi/`uri` per uso offline.
-- Deduplicazione download: prima di scaricare di nuovo, l’app cerca corrispondenze in libreria / `queue_cache` / catalogo (id YouTube, fingerprint, `Artista - Titolo`). In caso di hit: **«Brano già presente in locale...»** senza nuovo download di rete.
+- Deduplicazione download: prima di scaricare di nuovo, l’app cerca corrispondenze in libreria / `queue_cache` / catalogo (id YouTube, fingerprint, `Artista - Titolo`). In caso di hit: avviso **«Brano già presente in locale...»** nel menu **Download** (non come toast fuori dalla coda), senza nuovo download di rete.
 
 ---
 

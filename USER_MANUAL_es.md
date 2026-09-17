@@ -312,7 +312,7 @@ Confirma con **Confirmar desactivación** (`Conferma disattivazione`).
 - Los archivos en `queue_cache` **sobreviven a los reinicios** si el tema sigue en cola.
 - **GC al sacar de cola:** el archivo se borra del disco solo cuando ninguna entrada de cola lo referencia (fin de actuación, eliminación individual, vaciar cola).
 - **Salva in Libreria** promueve el archivo de la caché a la carpeta de biblioteca y actualiza rutas/`uri` para uso sin conexión.
-- Deduplicación de descargas: antes de volver a descargar, la app busca coincidencias en biblioteca / `queue_cache` / catálogo (id de YouTube, fingerprint, `Artista - Título`). En caso de acierto: **«Brano già presente in locale...»** (texto de UI en italiano) sin nueva descarga de red.
+- Deduplicación de descargas: antes de volver a descargar, la app busca coincidencias en biblioteca / `queue_cache` / catálogo (id de YouTube, fingerprint, `Artista - Título`). En caso de acierto: el aviso **«Brano già presente in locale...»** (texto localizado) aparece en el menú **Descargas** (no como toast fuera de la cola), sin nueva descarga de red.
 
 ---
 
