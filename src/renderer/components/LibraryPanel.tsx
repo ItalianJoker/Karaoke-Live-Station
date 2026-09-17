@@ -605,7 +605,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         trackId: track.id,
         libraryPath: settings.libraryPath || undefined,
         instrumental,
-        vocalRemoverAlgorithm: settings.vocalRemoverAlgorithm
+        vocalRemoverAlgorithm: settings.instrumentalVocalRemoverMethod
       });
 
       const mappedTrack: KaraokeMediaTrack = instrumental

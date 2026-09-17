@@ -23,6 +23,8 @@ export type InstrumentalAiSeparateOptions = {
   inputWav: string;
   outputWav: string;
   onProgress?: (info: InstrumentalAiProgress) => void;
+  /** When aborted, the utility/fork worker is killed immediately. */
+  signal?: AbortSignal;
 };
 
 function resolveWorkerScript(): string {
@@ -69,7 +71,13 @@ export async function separateInstrumentalWithAi(
   options: InstrumentalAiSeparateOptions,
   logger?: Logger
 ): Promise<void> {
-  const { method, modelPath, ortDir, inputWav, outputWav, onProgress } = options;
+  const { method, modelPath, ortDir, inputWav, outputWav, onProgress, signal } = options;
+  if (signal?.aborted) {
+    const err = new Error('Aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
+
   const worker = spawnWorker();
   let requestId = 1;
   let settled = false;
@@ -84,19 +92,29 @@ export async function separateInstrumentalWithAi(
   };
 
   return new Promise<void>((resolve, reject) => {
-    const fail = (message: string) => {
+    const fail = (message: string, asAbort = false) => {
       if (settled) return;
       settled = true;
+      signal?.removeEventListener('abort', onAbort);
       kill();
+      if (asAbort) {
+        const err = new Error('Aborted');
+        err.name = 'AbortError';
+        reject(err);
+        return;
+      }
       reject(new Error(message));
     };
 
     const succeed = () => {
       if (settled) return;
       settled = true;
+      signal?.removeEventListener('abort', onAbort);
       kill();
       resolve();
     };
+
+    const onAbort = () => fail('Aborted', true);
 
     const onMsg = (raw: unknown) => {
       const msg = raw as {
@@ -158,6 +176,12 @@ export async function separateInstrumentalWithAi(
         inputWav,
         outputWav
       });
+    }
+
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) {
+      onAbort();
+      return;
     }
 
     logger?.info(

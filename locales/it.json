@@ -140,7 +140,11 @@
     "downloadsMenu": "Download",
     "downloadsEmpty": "Nessun download attivo",
     "downloadingModel": "Download modello…",
-    "queued": "In coda"
+    "queued": "In coda",
+    "downloading": "Download in corso…",
+    "converting": "Conversione…",
+    "convertingInstrumental": "Conversione strumentale…",
+    "downloadCompleted": "Completato"
   },
   "settings": {
     "title": "Impostazioni di Sistema",
@@ -231,18 +235,20 @@
     "stageMessageBackgroundImagePlaceholder": "Nessuna immagine selezionata",
     "stageMessageBackgroundBrowse": "Sfoglia…",
     "stageMessageBackgroundClear": "Cancella",
-    "vocalRemoverAlgorithm": "Metodo Rimozione Voce (Sperimentale)",
-    "vocalRemoverAlgorithmDesc": "Il DSP algoritmico è usato dalla Rimozione Vocale live. I metodi AI offline valgono per Download Strumentale (i modelli si scaricano una volta in userData/models, poi restano offline).",
+    "vocalRemoverAlgorithm": "Metodo Rimozione Vocale Live (Sperimentale)",
+    "vocalRemoverAlgorithmDesc": "Usato solo dal pulsante Rimozione Vocale in Regia (`V`). DSP mid/side classico — nessuna AI / nessun download modelli.",
     "vocalAlgoCenterBass": "Cancel mid (mantieni bassi)",
     "vocalAlgoCenter": "Cancel mid completo (classico L−R)",
     "vocalAlgoSoftMid": "Attenuazione mid soft (meno artefatti)",
     "vocalGroupAlgorithmic": "DSP in tempo reale",
-    "vocalGroupAi": "AI offline — Download Strumentale",
+    "vocalGroupAi": "AI offline (solo Download Strumentale)",
     "vocalAiMdxKaraoke2": "UVR-MDX-NET Karaoke 2 — ~53 MB — AI consigliata",
     "vocalAiHtDemucs": "HTDemucs v4 — ~172 MB (Sperimentale)",
     "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 MB — avanzato (Sperimentale)",
     "maxSimultaneousDownloads": "Download simultanei massimi",
-    "maxSimultaneousDownloadsDesc": "Limite condiviso tra Download normale e Download Strumentale. I job in eccesso restano in coda nel menu Download."
+    "maxSimultaneousDownloadsDesc": "Limite condiviso tra Download normale e Download Strumentale. I job in eccesso restano in coda nel menu Download.",
+    "instrumentalVocalRemover": "Metodo Download Strumentale",
+    "instrumentalVocalRemoverDesc": "Usato solo da Scarica strumentale (YouTube). Scegli AI offline (modelli una volta in userData/models) oppure DSP classico. Mai applicato alla Rimozione Vocale live."
   },
   "history": {
     "title": "Storico Esecuzioni",

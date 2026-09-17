@@ -8,11 +8,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+### Fixed
+- **Download cancel** — interrupt from the Download menu now aborts yt-dlp (process tree), instrumental ffmpeg, model download, and AI utility workers; UI clears for traditional and instrumental jobs.
+- **MDX Karaoke 2** — zero lowest 3 STFT bins before ONNX (matches UVR `separate.py`), improving low-end behavior.
+
+### Changed
+- **Settings split**: live Rimozione Vocale dropdown is algorithmic-only; **Download Instrumental Method** is a separate setting (AI + DSP). Default instrumental method is UVR-MDX Karaoke 2. AI never drives the live `V` button.
+
 ### Added
 - **Download Instrumental — offline AI vocal removal** (Settings: UVR-MDX Karaoke 2 / HTDemucs / BS-Roformer). Models persist under `userData/models/` and update only when missing, corrupt, or catalog URL/SHA/version is newer. Live Rimozione Vocale stays algorithmic (no Separazione dual-stem).
 - **Download menu** (header, left of Settings) for active/queued progress; removed alert-style list above library rows.
 - **Max simultaneous downloads** setting (shared pool for normal + instrumental).
 - Non-blocking toast warning when starting Download Instrumental (longer / heavier than a normal download).
+- `scripts/verify-ai-vocal-path.js` — automated AI routing + abort check for Download Instrumental.
 
 ## [1.1.0] — Algorithmic vocal remover + Download Instrumental (refresh) — 2026-09-16
 

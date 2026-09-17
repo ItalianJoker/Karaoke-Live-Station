@@ -140,7 +140,11 @@
     "downloadsMenu": "Downloads",
     "downloadsEmpty": "No active downloads",
     "downloadingModel": "Downloading model…",
-    "queued": "Queued"
+    "queued": "Queued",
+    "downloading": "Downloading…",
+    "converting": "Converting…",
+    "convertingInstrumental": "Converting instrumental…",
+    "downloadCompleted": "Completed"
   },
   "settings": {
     "title": "System Settings",
@@ -231,10 +235,10 @@
     "stageMessageBackgroundImagePlaceholder": "No image selected",
     "stageMessageBackgroundBrowse": "Browse…",
     "stageMessageBackgroundClear": "Clear",
-    "vocalRemoverAlgorithm": "Vocal Remover Method (Experimental)",
-    "vocalRemoverAlgorithmDesc": "Algorithmic DSP is used by live Rimozione Vocale. Offline AI methods apply to Download Instrumental (models download once into app data / userData/models, then stay offline).",
+    "vocalRemoverAlgorithm": "Live Vocal Remover Method (Experimental)",
+    "vocalRemoverAlgorithmDesc": "Used only by the Control Rimozione Vocale button (`V`). Classical mid/side DSP — no AI / no model download.",
     "vocalGroupAlgorithmic": "Realtime DSP",
-    "vocalGroupAi": "Offline AI — Download Instrumental",
+    "vocalGroupAi": "Offline AI (Download Instrumental only)",
     "vocalAlgoCenterBass": "Center cancel (keep bass)",
     "vocalAlgoCenter": "Full center cancel (classic L−R)",
     "vocalAlgoSoftMid": "Soft mid attenuation (fewer artifacts)",
@@ -242,7 +246,9 @@
     "vocalAiHtDemucs": "HTDemucs v4 — ~172 MB (Experimental)",
     "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 MB — advanced (Experimental)",
     "maxSimultaneousDownloads": "Max simultaneous downloads",
-    "maxSimultaneousDownloadsDesc": "Shared limit for traditional Download and Download Instrumental. Extra jobs wait in the Download menu queue."
+    "maxSimultaneousDownloadsDesc": "Shared limit for traditional Download and Download Instrumental. Extra jobs wait in the Download menu queue.",
+    "instrumentalVocalRemover": "Download Instrumental Method",
+    "instrumentalVocalRemoverDesc": "Used only by YouTube Download Instrumental. Choose offline AI (models download once into userData/models) or classical DSP. Never applied to live Rimozione Vocale."
   },
   "history": {
     "title": "Playback History",

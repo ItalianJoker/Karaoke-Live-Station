@@ -140,7 +140,11 @@
     "downloadsMenu": "Descargas",
     "downloadsEmpty": "No hay descargas activas",
     "downloadingModel": "Descargando modelo…",
-    "queued": "En cola"
+    "queued": "En cola",
+    "downloading": "Descargando…",
+    "converting": "Convirtiendo…",
+    "convertingInstrumental": "Convirtiendo instrumental…",
+    "downloadCompleted": "Completado"
   },
   "settings": {
     "title": "Ajustes del Sistema",
@@ -231,18 +235,20 @@
     "stageMessageBackgroundImagePlaceholder": "Ninguna imagen seleccionada",
     "stageMessageBackgroundBrowse": "Examinar…",
     "stageMessageBackgroundClear": "Borrar",
-    "vocalRemoverAlgorithm": "Método de eliminación de voz (Experimental)",
-    "vocalRemoverAlgorithmDesc": "El DSP algorítmico se usa en la eliminación de voz en vivo. Los métodos de IA offline se aplican a Descargar Instrumental (los modelos se descargan una vez en userData/models).",
+    "vocalRemoverAlgorithm": "Método de eliminación de voz en vivo (Experimental)",
+    "vocalRemoverAlgorithmDesc": "Solo para el botón de eliminación de voz en Control (`V`). DSP mid/side clásico — sin IA / sin descarga de modelos.",
     "vocalAlgoCenterBass": "Cancelación mid (mantener bajos)",
     "vocalAlgoCenter": "Cancelación mid completa (clásico L−R)",
     "vocalAlgoSoftMid": "Atenuación mid suave (menos artefactos)",
     "vocalGroupAlgorithmic": "DSP en tiempo real",
-    "vocalGroupAi": "IA offline — Descargar Instrumental",
+    "vocalGroupAi": "IA offline (solo Descargar Instrumental)",
     "vocalAiMdxKaraoke2": "UVR-MDX-NET Karaoke 2 — ~53 MB — IA recomendada",
     "vocalAiHtDemucs": "HTDemucs v4 — ~172 MB (Experimental)",
     "vocalAiBsRoformer": "BS-Roformer (ViperX) — ~158 MB — avanzado (Experimental)",
     "maxSimultaneousDownloads": "Descargas simultáneas máximas",
-    "maxSimultaneousDownloadsDesc": "Límite compartido entre Descarga normal y Descargar Instrumental. Los trabajos extra esperan en el menú Descargas."
+    "maxSimultaneousDownloadsDesc": "Límite compartido entre Descarga normal y Descargar Instrumental. Los trabajos extra esperan en el menú Descargas.",
+    "instrumentalVocalRemover": "Método Descargar Instrumental",
+    "instrumentalVocalRemoverDesc": "Solo para Descargar Instrumental (YouTube). Elige IA offline (modelos una vez en userData/models) o DSP clásico. Nunca se aplica a la eliminación en vivo."
   },
   "history": {
     "title": "Historial de Reproducción",
