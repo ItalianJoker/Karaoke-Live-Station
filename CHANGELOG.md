@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+### Fixed
+- **Local media path `//home/...` (Linux AppImage)** — `karaoke://local/${encodeURIComponent('/abs/...')}` decoded to a double-leading-slash path; POSIX treats `//` as implementation-defined so `existsSync` failed and Chromium reported `DEMUXER_ERROR_COULD_NOT_OPEN`. Shared `resolveKaraokeLocalFilePath` now keeps a single leading slash on POSIX and still strips `/C:/` (and UNC) correctly on Windows. Unicode filenames (å, ò, …) round-trip via `encodeURIComponent` unchanged. Instrumental downloads already register `uri` from the same `destinationPath` written to disk; they now share `buildKaraokeLocalUri`.
+- **Bundled SoundFont preference** — prefer `resources/soundfonts/` (extraResources, outside asar) before `app.getAppPath()` asar candidates so MIDI SF2 loads via `karaoke://local` on packaged builds.
+
 ## [1.1.0] — AI 45% progress + YouTube load more + clear downloads (refresh) — 2026-09-17
 
 Overwrite of GitHub Release `v1.1.0` after PR #22 (Instrumental AI progress, YouTube pagination, Download clear-all).

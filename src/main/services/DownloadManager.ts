@@ -17,6 +17,7 @@ import { killProcessTree } from './processKill';
 import type { OfflineVocalModelManager } from './OfflineVocalModelManager';
 import type { OrtWasmManager } from './OrtWasmManager';
 import type { Logger } from './Logger';
+import { buildKaraokeLocalUri } from '../../shared/karaokeLocalPath';
 
 /** Media extensions considered when matching existing local karaoke files. */
 const MEDIA_EXTENSIONS = new Set([
@@ -269,7 +270,7 @@ export class DownloadManager {
         if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
           return {
             localFilePath: resolved,
-            uri: `karaoke://local/${encodeURIComponent(resolved)}`,
+            uri: buildKaraokeLocalUri(resolved),
             location,
             matchedBy
           };
@@ -306,7 +307,7 @@ export class DownloadManager {
       if (libHit) {
         return {
           localFilePath: libHit.localFilePath,
-          uri: `karaoke://local/${encodeURIComponent(libHit.localFilePath)}`,
+          uri: buildKaraokeLocalUri(libHit.localFilePath),
           location: 'library',
           matchedBy: libHit.matchedBy
         };
@@ -321,7 +322,7 @@ export class DownloadManager {
     if (cacheHit) {
       return {
         localFilePath: cacheHit.localFilePath,
-        uri: `karaoke://local/${encodeURIComponent(cacheHit.localFilePath)}`,
+        uri: buildKaraokeLocalUri(cacheHit.localFilePath),
         location: 'queue_cache',
         matchedBy: cacheHit.matchedBy
       };
@@ -987,7 +988,7 @@ export class DownloadManager {
       title: trackMetadata.title,
       artist: trackMetadata.artist,
       durationSec: trackMetadata.durationSec || 0,
-      uri: `karaoke://local/${encodeURIComponent(destinationPath)}`,
+      uri: buildKaraokeLocalUri(destinationPath),
       localFilePath: destinationPath,
       hasEmbeddedLyrics: false,
       isMultiplex: false,
@@ -1039,7 +1040,7 @@ export class DownloadManager {
 
     return {
       localFilePath: destinationPath,
-      uri: `karaoke://local/${encodeURIComponent(destinationPath)}`
+      uri: buildKaraokeLocalUri(destinationPath)
     };
   }
 

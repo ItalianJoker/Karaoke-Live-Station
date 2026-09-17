@@ -12,6 +12,7 @@
  */
 import type { CSSProperties } from 'react';
 import type { StageMessageBackgroundMode, StageMessageStyle, StageMessagesSettings } from './types';
+import { buildKaraokeLocalUri } from './karaokeLocalPath';
 
 export const STAGE_MESSAGE_KEYS = [
   'nowSinging',
@@ -174,12 +175,7 @@ export const STAGE_MESSAGE_BACKGROUND_PRIORITY: StageMessageKey[] = [
 
 /** Convert an absolute disk path into the karaoke://local media URL Stage can paint. */
 export function stageBackgroundImageUrl(absolutePath: string): string {
-  const p = (absolutePath || '').trim();
-  if (!p) return '';
-  if (p.startsWith('karaoke://') || p.startsWith('http://') || p.startsWith('https://') || p.startsWith('data:')) {
-    return p;
-  }
-  return `karaoke://local/${encodeURIComponent(p)}`;
+  return buildKaraokeLocalUri(absolutePath);
 }
 
 /**
