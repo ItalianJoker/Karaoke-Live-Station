@@ -19,7 +19,7 @@ import fs from 'fs';
 import path from 'path';
 import {
   coerceAlgorithmicVocalRemoverMethod,
-  coerceVocalRemoverMethod,
+  coerceInstrumentalVocalRemoverMethod,
   isAiVocalRemoverMethod,
   methodToModelId,
   OFFLINE_VOCAL_MODELS,
@@ -482,11 +482,19 @@ async function removeVocalsAi(
     logger
   );
 
+  const outBytes = safeFileSizeBytes(instrumentalWav);
+  if (outBytes === null || outBytes < 1024) {
+    throw new Error(
+      `AI separation finished but ${path.basename(instrumentalWav)} was not written ` +
+        `(expected instrumental extract WAV at ${instrumentalWav})`
+    );
+  }
   stageClock.mark('ai_separate_done', {
     method,
     outputWav: instrumentalWav,
-    outputWavBytes: safeFileSizeBytes(instrumentalWav),
-    aiElapsedMs: Date.now() - aiStartedAt
+    outputWavBytes: outBytes,
+    aiElapsedMs: Date.now() - aiStartedAt,
+    aiOutputExists: true
   });
 }
 
@@ -498,7 +506,9 @@ export async function processInstrumentalVideo(
 ): Promise<InstrumentalProcessResult> {
   const input = path.resolve(options.inputVideoPath);
   const output = path.resolve(options.outputPath);
-  const selected = coerceVocalRemoverMethod(options.algorithm);
+  // Download Instrumental defaults to AI (UVR-MDX Karaoke 2) — do not use the
+  // live-DSP coerceVocalRemoverMethod default (centerCancelBassKeep).
+  const selected = coerceInstrumentalVocalRemoverMethod(options.algorithm);
   const useAi = isAiVocalRemoverMethod(selected);
   const logger = options.logger;
 
@@ -536,6 +546,20 @@ export async function processInstrumentalVideo(
 
   const signal = options.signal;
 
+  // Explain AI vs algo routing so debug logs show skip reasons clearly.
+  let vocalPathReason: string;
+  if (useAi) {
+    if (!options.vocalModelManager || !options.ortWasmManager) {
+      vocalPathReason = 'ai_method_selected_but_managers_missing';
+    } else if (options.aiSeparate) {
+      vocalPathReason = 'ai_method_selected_di_hook';
+    } else {
+      vocalPathReason = 'ai_method_selected';
+    }
+  } else {
+    vocalPathReason = `algorithmic_method_selected_ai_skipped:${selected}`;
+  }
+
   logger?.debug('InstrumentalProcessor', 'Instrumental pipeline start', {
     sourceStem,
     sourceMp4: input,
@@ -545,15 +569,34 @@ export async function processInstrumentalVideo(
     aiInputPath: extractedWav,
     aiOutputWav: instrumentalWav,
     stagingOut,
+    algorithmRaw: options.algorithm ?? null,
     algorithm: selected,
     useAi,
-    vocalPathReason: useAi
-      ? 'ai_method_selected'
-      : 'algorithmic_method_selected_ai_skipped',
+    vocalPathReason,
+    hasVocalModelManager: Boolean(options.vocalModelManager),
+    hasOrtWasmManager: Boolean(options.ortWasmManager),
     // Guard against the old bug: extract must NOT be `{stem}.instrumental.extract.wav`.
     extractNameOk: isDemuxExtractWavName(extractedWav),
+    aiOutputNameOk: path
+      .basename(instrumentalWav)
+      .toLowerCase()
+      .endsWith('.instrumental.extract.wav'),
     cancelled: Boolean(signal?.aborted)
   });
+
+  if (useAi && (!options.vocalModelManager || !options.ortWasmManager)) {
+    logger?.error(
+      'InstrumentalProcessor',
+      'AI instrumental selected but OfflineVocalModelManager/OrtWasmManager not wired — cannot run AI',
+      { algorithm: selected, vocalPathReason }
+    );
+    return {
+      success: false,
+      error:
+        'AI instrumental separation requires OfflineVocalModelManager + OrtWasmManager ' +
+        '(DownloadManager.setInstrumentalAiDeps was not called)'
+    };
+  }
 
   try {
     throwIfAborted(signal);
@@ -600,10 +643,12 @@ export async function processInstrumentalVideo(
         'AI vocal separation skipped — using algorithmic mid/side DSP',
         {
           algorithm: selected,
-          reason: 'algorithmic_method_selected',
+          algorithmRaw: options.algorithm ?? null,
+          reason: vocalPathReason,
           sourceMp4: input,
           extractedWav,
-          extractedWavBytes: safeFileSizeBytes(extractedWav)
+          extractedWavBytes: safeFileSizeBytes(extractedWav),
+          aiOutputWav: instrumentalWav
         }
       );
       report('removing_vocals', 35);
@@ -618,6 +663,24 @@ export async function processInstrumentalVideo(
         instrumentalWav,
         instrumentalWavBytes: safeFileSizeBytes(instrumentalWav)
       });
+    }
+
+    const instrumentalBytes = safeFileSizeBytes(instrumentalWav);
+    if (instrumentalBytes === null || instrumentalBytes < 1024) {
+      logger?.error('InstrumentalProcessor', 'Instrumental extract WAV missing before remux', {
+        instrumentalWav,
+        useAi,
+        algorithm: selected,
+        vocalPathReason,
+        extractedWav,
+        extractedWavBytes: safeFileSizeBytes(extractedWav)
+      });
+      return {
+        success: false,
+        error:
+          `Instrumental extract WAV was not produced (${path.basename(instrumentalWav)}). ` +
+          `AI/algo step did not write output.`
+      };
     }
 
     throwIfAborted(signal);

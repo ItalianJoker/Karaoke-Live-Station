@@ -685,15 +685,21 @@ const instrumentalAiSepSource = fs.readFileSync(
 assert(
   instrumentalAiSepSource.includes('computeAiSeparationTimeoutMs') &&
     instrumentalAiSepSource.includes('AI_SEPARATION_IDLE_TIMEOUT_MS') &&
+    instrumentalAiSepSource.includes('AI_WORKER_READY_TIMEOUT_MS') &&
     instrumentalAiSepSource.includes('armIdleWatchdog') &&
+    instrumentalAiSepSource.includes('sendSeparate') &&
+    instrumentalAiSepSource.includes('separateSent') &&
     instrumentalAiSepSource.includes('durationSec') &&
     instrumentalAiSepSource.includes('assertAiInputIsWav') &&
+    instrumentalAiSepSource.includes('output_missing') &&
     instrumentalProcessorSource.includes('onAiEta') &&
     instrumentalProcessorSource.includes('readPcmWavDurationSec') &&
     instrumentalProcessorSource.includes('lastAiPct') &&
     instrumentalProcessorSource.includes("case 'separate'") &&
     instrumentalProcessorSource.includes('AI separation input path check') &&
     instrumentalProcessorSource.includes('stage=') &&
+    instrumentalProcessorSource.includes('coerceInstrumentalVocalRemoverMethod') &&
+    instrumentalProcessorSource.includes('Instrumental extract WAV was not produced') &&
     offlineModelManagerSource.includes('Model cache hit') &&
     offlineModelManagerSource.includes('explainCacheMiss') &&
     fs
@@ -711,7 +717,7 @@ assert(
     fs
       .readFileSync(path.resolve(__dirname, '../src/main/ai/audioFft.ts'), 'utf8')
       .includes('getBluesteinPlan'),
-  'AI separation: debug stages, WAV-input guard, timeout, heartbeats, Bluestein, wasmBinary'
+  'AI separation: ready-ping gate, output verify, debug stages, WAV guard, timeouts'
 );
 
 assert(
@@ -1859,6 +1865,28 @@ assert(
     probe.status === 0 && (probe.stdout || '').includes('PROBE_OK'),
     'downloadStaging runtime: Destination/Merger parse + prefer final MP4 over fragment',
     (probe.stderr || probe.stdout || `exit ${probe.status}`).slice(0, 400)
+  );
+}
+
+// -------------------------------------------------------------
+// Suite: AI instrumental extract WAV orchestration (mock ORT)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: AI instrumental extract WAV pipeline\x1b[0m');
+
+{
+  const { spawnSync } = require('child_process');
+  const extractVerify = path.resolve(__dirname, 'verify-ai-instrumental-extract.js');
+  assert(fs.existsSync(extractVerify), 'verify-ai-instrumental-extract.js exists');
+  const extractRun = spawnSync(process.execPath, [extractVerify], {
+    cwd: path.resolve(__dirname, '..'),
+    encoding: 'utf8',
+    timeout: 180000
+  });
+  assert(
+    extractRun.status === 0 &&
+      (extractRun.stdout || '').includes('All AI instrumental extract checks passed'),
+    'verify-ai-instrumental-extract: naming + AI invoke + write + cleanup',
+    (extractRun.stderr || extractRun.stdout || `exit ${extractRun.status}`).slice(0, 600)
   );
 }
 
