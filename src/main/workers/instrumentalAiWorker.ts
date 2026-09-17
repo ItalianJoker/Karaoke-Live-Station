@@ -38,6 +38,8 @@ type OutMessage =
       phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
       progress: number;
       message: string;
+      ortBackend?: string;
+      ortNumThreads?: number;
     }
   | { type: 'done'; requestId: number; outputWav: string }
   | { type: 'error'; requestId: number; message: string };
@@ -207,6 +209,18 @@ async function handleSeparate(req: SeparateRequest): Promise<void> {
   if (!fs.existsSync(inputWav)) throw new Error(`Input WAV not found: ${inputWav}`);
   if (!fs.existsSync(ortDir)) throw new Error(`ORT dir not found: ${ortDir}`);
 
+  // Parent must pass demux extract (`{stem}.extract.wav`), never source MP4 /
+  // never AI output (`{stem}.instrumental.extract.wav`).
+  const inputBase = path.basename(inputWav).toLowerCase();
+  if (!inputBase.endsWith('.extract.wav') || inputBase.endsWith('.instrumental.extract.wav')) {
+    throw new Error(
+      `AI worker refused non-demux input (expected {stem}.extract.wav): ${inputWav}`
+    );
+  }
+  if (path.extname(inputWav).toLowerCase() !== '.wav') {
+    throw new Error(`AI worker input must be .wav: ${inputWav}`);
+  }
+
   const aiMethod = method as AiVocalRemoverMethod;
   const expectedId = methodToModelId(aiMethod);
   post({
@@ -214,7 +228,9 @@ async function handleSeparate(req: SeparateRequest): Promise<void> {
     requestId,
     phase: 'model',
     progress: 0,
-    message: `Preparing ${expectedId}…`
+    message: `Preparing ${expectedId}…`,
+    ortBackend: 'wasm',
+    ortNumThreads: 1
   });
 
   switch (aiMethod) {

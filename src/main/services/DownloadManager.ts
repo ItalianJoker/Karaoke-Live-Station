@@ -770,12 +770,65 @@ export class DownloadManager {
 
             const originalVideoPath = detectedOutputFile;
             const instrumentalOut = path.join(this.tempDir, `${downloadId}.instrumental.mp4`);
+            const extractWavPath = path.join(this.tempDir, `${downloadId}.extract.wav`);
+            const aiOutputWavPath = path.join(
+              this.tempDir,
+              `${downloadId}.instrumental.extract.wav`
+            );
             const subtitlePath = findSiblingSubtitle(originalVideoPath);
+
+            // Delete only this downloadId's conversion temps (never wipe unrelated temp files).
+            const cleanupInstrumentalRunTemps = (keepRemuxArtifact: boolean) => {
+              // Only this downloadId's conversion temps — never wipe unrelated files in temp.
+              const victims = [
+                originalVideoPath,
+                extractWavPath,
+                aiOutputWavPath,
+                `${instrumentalOut}.partial.mp4`,
+                // Legacy misnamed sidecars from older builds (safe no-op if absent).
+                path.join(this.tempDir, `${downloadId}.instrumental.wav`),
+                path.join(this.tempDir, `${downloadId}.instrumental.instrumental.wav`)
+              ];
+              if (!keepRemuxArtifact) {
+                victims.push(instrumentalOut);
+              }
+              const removed: string[] = [];
+              const seen = new Set<string>();
+              for (const p of victims) {
+                if (!p) continue;
+                const resolved = path.resolve(p);
+                if (seen.has(resolved)) continue;
+                seen.add(resolved);
+                try {
+                  if (fs.existsSync(resolved)) {
+                    fs.unlinkSync(resolved);
+                    removed.push(resolved);
+                  }
+                } catch {
+                  /* ignore cleanup races */
+                }
+              }
+              this.logger?.debug('DownloadManager', 'Instrumental run temp cleanup', {
+                downloadId,
+                keepRemuxArtifact,
+                removed,
+                extractWavPath,
+                aiOutputWavPath,
+                sourceMp4: originalVideoPath
+              });
+            };
 
             this.logger?.info(
               'DownloadManager',
               `Instrumental staging: original=${originalVideoPath} → remux=${instrumentalOut}`,
-              { downloadId, tempDir: this.tempDir }
+              {
+                downloadId,
+                tempDir: this.tempDir,
+                sourceMp4: originalVideoPath,
+                extractWav: extractWavPath,
+                aiOutputWav: aiOutputWavPath,
+                vocalRemoverAlgorithm: options.vocalRemoverAlgorithm || null
+              }
             );
 
             // Conversion bar replaces the download bar (fresh 0→100%) for instrumental only
@@ -823,12 +876,14 @@ export class DownloadManager {
 
             // Cancel may have flipped status while ffmpeg/AI ran
             if ((payload.status as DownloadProgressPayload['status']) === 'cancelled') {
+              cleanupInstrumentalRunTemps(false);
               this.activeJobs.delete(downloadId);
               this.activeUrls.delete(dedupUrlKey);
               return;
             }
 
             if (result.cancelled) {
+              cleanupInstrumentalRunTemps(false);
               payload.status = 'cancelled';
               payload.errorMessage = 'Download cancelled by user';
               this.emitProgress({ ...payload });
@@ -838,25 +893,18 @@ export class DownloadManager {
             }
 
             if (!result.success || !result.outputPath || !fs.existsSync(result.outputPath)) {
+              cleanupInstrumentalRunTemps(false);
               payload.status = 'error';
               payload.errorMessage =
-                result.error ||
-                `Instrumental processing failed (original left in ${originalVideoPath})`;
+                result.error || `Instrumental processing failed for ${downloadId}`;
               this.emitProgress({ ...payload });
               this.activeJobs.delete(downloadId);
               this.activeUrls.delete(dedupUrlKey);
               return;
             }
 
-            // Drop the original muxed download only after remux exists; keep
-            // `${downloadId}.instrumental.mp4` as the artifact for library save.
-            try {
-              if (path.resolve(originalVideoPath) !== path.resolve(result.outputPath)) {
-                await fs.promises.unlink(originalVideoPath).catch(() => undefined);
-              }
-            } catch {
-              /* ignore */
-            }
+            // Success: keep `${downloadId}.instrumental.mp4`; drop source MP4 + WAV temps.
+            cleanupInstrumentalRunTemps(true);
             detectedOutputFile = result.outputPath;
           } else if (!detectedOutputFile) {
             payload.status = 'error';

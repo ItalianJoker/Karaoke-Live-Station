@@ -575,14 +575,22 @@ assert(
     instrumentalProcessorSource.includes('isAiVocalRemoverMethod') &&
     instrumentalProcessorSource.includes('separateInstrumentalWithAi') &&
     instrumentalProcessorSource.includes('ensuring_model') &&
+    instrumentalProcessorSource.includes('resolveInstrumentalTempWavPaths') &&
+    instrumentalProcessorSource.includes('isDemuxExtractWavName') &&
+    instrumentalProcessorSource.includes('${sourceStem}.extract.wav') &&
+    instrumentalProcessorSource.includes('${sourceStem}.instrumental.extract.wav') &&
+    !instrumentalProcessorSource.includes("basename(output, path.extname(output))") &&
     downloadManagerSourceVocal.includes('instrumental') &&
     downloadManagerSourceVocal.includes('processInstrumentalVideo') &&
     downloadManagerSourceVocal.includes('setMaxSimultaneousDownloads') &&
     downloadManagerSourceVocal.includes('downloading_model') &&
+    downloadManagerSourceVocal.includes('cleanupInstrumentalRunTemps') &&
+    downloadManagerSourceVocal.includes('${downloadId}.extract.wav') &&
+    downloadManagerSourceVocal.includes('${downloadId}.instrumental.extract.wav') &&
     libraryPanelSourceVocal.includes('downloadInstrumental') &&
     libraryPanelSourceVocal.includes('isInstrumentalDownloadEligibleTitle') &&
     libraryPanelSourceVocal.includes('instrumentalDownloadWarning'),
-  'Download Instrumental: AI/algo pipeline + concurrency + start warning'
+  'Download Instrumental: AI/algo pipeline + {stem}.extract.wav naming + cleanup + concurrency'
 );
 
 assert(
@@ -679,10 +687,15 @@ assert(
     instrumentalAiSepSource.includes('AI_SEPARATION_IDLE_TIMEOUT_MS') &&
     instrumentalAiSepSource.includes('armIdleWatchdog') &&
     instrumentalAiSepSource.includes('durationSec') &&
+    instrumentalAiSepSource.includes('assertAiInputIsWav') &&
     instrumentalProcessorSource.includes('onAiEta') &&
     instrumentalProcessorSource.includes('readPcmWavDurationSec') &&
     instrumentalProcessorSource.includes('lastAiPct') &&
     instrumentalProcessorSource.includes("case 'separate'") &&
+    instrumentalProcessorSource.includes('AI separation input path check') &&
+    instrumentalProcessorSource.includes('stage=') &&
+    offlineModelManagerSource.includes('Model cache hit') &&
+    offlineModelManagerSource.includes('explainCacheMiss') &&
     fs
       .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
       .includes('wasmBinary') &&
@@ -690,12 +703,15 @@ assert(
       .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
       .includes('toArrayBuffer') &&
     fs
+      .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
+      .includes('ortBackend') &&
+    fs
       .readFileSync(path.resolve(__dirname, '../src/main/ai/MdxNetSeparator.ts'), 'utf8')
       .includes('onIntra') &&
     fs
       .readFileSync(path.resolve(__dirname, '../src/main/ai/audioFft.ts'), 'utf8')
       .includes('getBluesteinPlan'),
-  'AI separation: duration timeout, phase-aware monotonic %, intra-chunk heartbeats, Bluestein plan cache, wasmBinary'
+  'AI separation: debug stages, WAV-input guard, timeout, heartbeats, Bluestein, wasmBinary'
 );
 
 assert(
@@ -1779,10 +1795,16 @@ assert(
   downloadManagerStagingSrc.includes('resolveDownloadedMediaPath') &&
     downloadManagerStagingSrc.includes('Downloaded video not found in staging folder') &&
     downloadManagerStagingSrc.includes('${downloadId}.instrumental.mp4') &&
+    downloadManagerStagingSrc.includes('${downloadId}.extract.wav') &&
+    downloadManagerStagingSrc.includes('${downloadId}.instrumental.extract.wav') &&
+    downloadManagerStagingSrc.includes('cleanupInstrumentalRunTemps') &&
     downloadManagerStagingSrc.includes('processInstrumentalVideo') &&
     downloadManagerStagingSrc.includes('originalVideoPath') &&
-    downloadManagerStagingSrc.includes('Instrumental staging:'),
-  'Instrumental path fails clearly when original missing; remux uses *.instrumental.mp4'
+    downloadManagerStagingSrc.includes('Instrumental staging:') &&
+    fs
+      .readFileSync(path.resolve(__dirname, '../src/main/services/InstrumentalProcessor.ts'), 'utf8')
+      .includes('resolveInstrumentalTempWavPaths'),
+  'Instrumental path: {id}.extract.wav → AI → {id}.instrumental.extract.wav → remux; temps cleaned'
 );
 
 // Runtime: pure staging helpers via Node strip-types (no Electron)
@@ -1816,6 +1838,9 @@ assert(
       );
       assert(isYtDlpTransientMediaName('dl_1.f137.mp4'), 'fragment');
       assert(!isYtDlpTransientMediaName('dl_1.mp4'), 'final');
+      assert(isYtDlpTransientMediaName('dl_1.extract.wav'), 'extract-wav');
+      assert(isYtDlpTransientMediaName('dl_1.instrumental.extract.wav'), 'ai-out-wav');
+      assert(isYtDlpTransientMediaName('dl_1.instrumental.mp4'), 'remux-sidecar');
       const dir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'kls-stage-'));
       fs.writeFileSync(pathMod.join(dir, 'dl_1.f137.mp4'), Buffer.alloc(2048));
       fs.writeFileSync(pathMod.join(dir, 'dl_1.mp4'), Buffer.alloc(4096));

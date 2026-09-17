@@ -89,6 +89,28 @@ const aiSepSrc = fs.readFileSync(
   path.join(root, 'src/main/services/InstrumentalAiSeparator.ts'),
   'utf8'
 );
+
+assert(
+  procSrc.includes('resolveInstrumentalTempWavPaths') &&
+    procSrc.includes('${sourceStem}.extract.wav') &&
+    procSrc.includes('${sourceStem}.instrumental.extract.wav') &&
+    procSrc.includes('isDemuxExtractWavName') &&
+    procSrc.includes('AI separation input path check') &&
+    !procSrc.includes('basename(output, path.extname(output))'),
+  'Extract WAV is {stem}.extract.wav from source MP4 stem (not remux basename)'
+);
+assert(
+  dmSrc.includes('cleanupInstrumentalRunTemps') &&
+    dmSrc.includes('${downloadId}.extract.wav') &&
+    dmSrc.includes('${downloadId}.instrumental.extract.wav'),
+  'DownloadManager cleans source MP4 + extract + AI output temps per downloadId'
+);
+assert(
+  aiSepSrc.includes('assertAiInputIsWav') &&
+    aiSepSrc.includes('instrumental.extract.wav'),
+  'AI separator rejects non-demux / AI-output WAV names'
+);
+
 assert(
   aiSepSrc.includes('computeAiSeparationTimeoutMs') &&
     aiSepSrc.includes('AI_SEPARATION_IDLE_TIMEOUT_MS') &&
@@ -146,9 +168,13 @@ async function runIntegration() {
 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kls-ai-vocal-'));
   const wav = path.join(tmp, 'tone.wav');
-  const mp4 = path.join(tmp, 'clip.mp4');
-  const outAlgo = path.join(tmp, 'out-algo.mp4');
-  const outAi = path.join(tmp, 'out-ai.mp4');
+  // Use downloadId-style names so path derivation matches production.
+  const downloadId = 'dl_1789681690871_jczi8o';
+  const mp4 = path.join(tmp, `${downloadId}.mp4`);
+  const outAlgo = path.join(tmp, `${downloadId}.instrumental-algo.mp4`);
+  const outAi = path.join(tmp, `${downloadId}.instrumental.mp4`);
+  const expectedExtract = path.join(tmp, `${downloadId}.extract.wav`);
+  const expectedAiOut = path.join(tmp, `${downloadId}.instrumental.extract.wav`);
 
   const mkWav = spawnSync(
     ffmpeg,
@@ -304,6 +330,8 @@ async function runIntegration() {
 
   let ensureCalled = null;
   let aiCalled = null;
+  let aiInputPath = null;
+  let aiOutputPath = null;
   const mockManager = {
     ensureModel: async (modelId) => {
       ensureCalled = modelId;
@@ -323,6 +351,8 @@ async function runIntegration() {
     ortWasmManager: mockOrt,
     aiSeparate: async (opts) => {
       aiCalled = opts.method;
+      aiInputPath = opts.inputWav;
+      aiOutputPath = opts.outputWav;
       // Write a short stereo silence WAV as "instrumental"
       const silence = spawnSync(
         ffmpeg,
@@ -336,6 +366,18 @@ async function runIntegration() {
   assert(aiResult.success === true, 'AI-routed processInstrumentalVideo succeeded with mock');
   assert(ensureCalled === 'mdxKaraoke2', 'OfflineVocalModelManager.ensureModel(mdxKaraoke2) invoked');
   assert(aiCalled === 'aiMdxKaraoke2', 'aiSeparate invoked with aiMdxKaraoke2 (not mid/side)');
+  assert(
+    path.resolve(aiInputPath) === path.resolve(expectedExtract),
+    `AI input is demux extract WAV (${expectedExtract}), not MP4`
+  );
+  assert(
+    path.resolve(aiOutputPath) === path.resolve(expectedAiOut),
+    `AI output is ${downloadId}.instrumental.extract.wav`
+  );
+  assert(
+    path.resolve(aiInputPath) !== path.resolve(mp4),
+    'AI input path is not the source MP4'
+  );
   assert(fs.existsSync(outAi) && fs.statSync(outAi).size > 1024, 'AI mock pipeline produced instrumental MP4');
 
   // Abort mid-pipeline
