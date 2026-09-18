@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **impostazioni avanzate UVR-MDX-NET (ETA)** per Scarica strumentale + revert restyle Indigo Regia (#36) + **Interrompi ricerca** Web (yt-dlp) + **fix IPC MessageEvent** utility worker AI + scan libreria ricorsivo + AI UVR / keep-alive ORT + race worker extract WAV + sync Web dopo Elimina + avvisi Download + log debug AI + naming WAV + Actions Node 24 + staging Instrumental + path `//home/...` + SoundFont + progresso ~45% + Carica altri / Pulisci coda + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix yt-dlp error -1** (Scarica strumentale) + **impostazioni avanzate UVR-MDX-NET (ETA)** + revert restyle Indigo Regia (#36) + **Interrompi ricerca** Web (yt-dlp) + **fix IPC MessageEvent** utility worker AI + scan libreria ricorsivo + AI UVR / keep-alive ORT + race worker extract WAV + sync Web dopo Elimina + avvisi Download + log debug AI + naming WAV + Actions Node 24 + staging Instrumental + path `//home/...` + SoundFont + progresso ~45% + Carica altri / Pulisci coda + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,11 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **impostazioni avanza
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### 📥 Scarica strumentale — yt-dlp error -1
+- Messaggio opaco `yt-dlp exited with error code -1`: i fallimenti di **spawn** (errno OS; EPERM → `-1`) non sovrascrivono più l’errore reale.
+- Template `-o` relativo `{downloadId}.%(ext)s` con `cwd=userData/temp` (stesso staging AI; niente titolo YouTube nel path).
+- Superficie delle righe `ERROR:` di yt-dlp sugli exit non zero.
 
 ### 🎛️ Scarica strumentale — Impostazioni avanzate UVR-MDX-NET (ETA)
 - Con metodo **UVR-MDX-NET Karaoke 2**, Impostazioni → Audio mostra **Impostazioni Avanzate UVR-MDX-NET (Ottimizzazione ETA)**: dimensione segmento (default **256**), overlap frazionario (default **0.25**), toggle accelerazione ORT WASM (graph opts + SIMD; ORT resta obbligatorio).
@@ -149,7 +154,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **impostazioni avanza
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **UVR-MDX-NET advanced ETA settings** for Download Instrumental + revert Indigo Regia restyle (#36) + **Stop web search** (yt-dlp cancel) + **AI utility-worker MessageEvent IPC unwrap** + recursive library scan + UVR / ORT keep-alive + Instrumental AI worker ready race (extract WAV) + Web search after library delete + manual download warnings + AI debug logs + WAV naming + Actions Node 24 + Instrumental staging + path `//home/...` + SoundFont + ~45% progress + Load more / Clear downloads + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
+GitHub Release **v1.1.0** overwrite: **yt-dlp error -1 fix** (Download Instrumental) + **UVR-MDX-NET advanced ETA settings** + revert Indigo Regia restyle (#36) + **Stop web search** (yt-dlp cancel) + **AI utility-worker MessageEvent IPC unwrap** + recursive library scan + UVR / ORT keep-alive + Instrumental AI worker ready race (extract WAV) + Web search after library delete + manual download warnings + AI debug logs + WAV naming + Actions Node 24 + Instrumental staging + path `//home/...` + SoundFont + ~45% progress + Load more / Clear downloads + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
 
 ## 📦 Installers
 
@@ -162,6 +167,11 @@ GitHub Release **v1.1.0** overwrite: **UVR-MDX-NET advanced ETA settings** for D
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### 📥 Download Instrumental — yt-dlp error -1
+- Opaque `yt-dlp exited with error code -1`: **spawn** failures (OS errno; EPERM → `-1`) no longer overwrite the real error message.
+- Relative `-o` template `{downloadId}.%(ext)s` with `cwd=userData/temp` (same AI staging; no YouTube title in the path).
+- Surface yt-dlp `ERROR:` lines on non-zero exits.
 
 ### 🎛️ Download Instrumental — UVR-MDX-NET advanced ETA settings
 - When method is **UVR-MDX-NET Karaoke 2**, Settings → Audio shows **Advanced UVR-MDX-NET Settings (ETA Optimization)**: segment size (default **256**), fractional overlap (default **0.25**), honest ORT WASM CPU acceleration toggle (graph opts + SIMD; ORT still required).
