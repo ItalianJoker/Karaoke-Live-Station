@@ -13,7 +13,6 @@ import {
   Headphones,
   UserPlus,
   X,
-  User,
   Eye,
   Film,
   Play,
@@ -100,7 +99,6 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     });
   }, [storeSingers]);
 
-  const [selectedSinger, setSelectedSinger] = useState<string>('');
   const [pendingTrackForQueue, setPendingTrackForQueue] = useState<KaraokeMediaTrack | null>(null);
   const [modalSingerInput, setModalSingerInput] = useState<string>('');
   const [placementMode, setPlacementMode] = useState<'auto' | 'end'>('auto');
@@ -851,78 +849,44 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         )}
       </div>
 
-      {/* Search Form with Singer Quick Selector */}
-      <div className="grid grid-cols-12 gap-2.5 mb-4">
-        <form onSubmit={handleSearch} className="col-span-7 sm:col-span-8 flex gap-2">
-          <div className="relative flex-1">
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={
-                searchMode === 'web'
-                  ? t('library.searchWebPlaceholder')
-                  : t('library.searchPlaceholder')
-              }
-              className="w-full bg-slate-950/80 border border-slate-800/80 rounded-full pl-9 pr-4 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all"
-            />
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-          </div>
-          <button
-            type="submit"
-            disabled={isSearching || webLoadingMore}
-            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:opacity-50 text-white font-semibold rounded-full text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/25 transition-all"
-          >
-            {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : t('library.searchBtn')}
-          </button>
-          {searchMode === 'web' && (isSearching || webLoadingMore) && (
-            <button
-              type="button"
-              onClick={() => void handleStopWebSearch()}
-              className="px-3 py-2 bg-slate-800/90 hover:bg-slate-700 text-slate-100 font-semibold rounded-full text-xs flex items-center gap-1.5 border border-slate-700/80 shadow-sm transition-all"
-              title={t('library.stopSearch')}
-              aria-label={t('library.stopSearch')}
-              data-testid="youtube-stop-search"
-            >
-              <Square className="w-3.5 h-3.5 fill-current" />
-              {t('library.stopSearch')}
-            </button>
-          )}
-        </form>
-
-        {/* Singer Assign Quick Selector with datalist */}
-        <div className="col-span-5 sm:col-span-4 relative flex items-center">
-          <div className="relative w-full">
-            <input
-              type="text"
-              list="library-known-singers"
-              value={selectedSinger}
-              onChange={(e) => setSelectedSinger(e.target.value)}
-              placeholder="Cantante assegnato..."
-              className="w-full bg-slate-950/80 border border-slate-800/80 rounded-full pl-8 pr-7 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all"
-            />
-            <User className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
-            {selectedSinger && (
-              <button
-                type="button"
-                onClick={() => setSelectedSinger('')}
-                className="absolute right-2.5 top-2.5 text-slate-500 hover:text-slate-300"
-                title="Rimuovi cantante selezionato"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          <datalist id="library-known-singers">
-            {singers.map((s) => (
-              <option key={s.id} value={s.name}>
-                {s.name} {s.isPermanentFavorite ? '★' : ''}
-              </option>
-            ))}
-          </datalist>
+      {/* Search form — singer is chosen only in the enqueue assign modal */}
+      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
+        <div className="relative flex-1">
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={
+              searchMode === 'web'
+                ? t('library.searchWebPlaceholder')
+                : t('library.searchPlaceholder')
+            }
+            className="w-full bg-slate-950/80 border border-slate-800/80 rounded-full pl-9 pr-4 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition-all"
+          />
+          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
         </div>
-      </div>
+        <button
+          type="submit"
+          disabled={isSearching || webLoadingMore}
+          className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:opacity-50 text-white font-semibold rounded-full text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/25 transition-all"
+        >
+          {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : t('library.searchBtn')}
+        </button>
+        {searchMode === 'web' && (isSearching || webLoadingMore) && (
+          <button
+            type="button"
+            onClick={() => void handleStopWebSearch()}
+            className="px-3 py-2 bg-slate-800/90 hover:bg-slate-700 text-slate-100 font-semibold rounded-full text-xs flex items-center gap-1.5 border border-slate-700/80 shadow-sm transition-all"
+            title={t('library.stopSearch')}
+            aria-label={t('library.stopSearch')}
+            data-testid="youtube-stop-search"
+          >
+            <Square className="w-3.5 h-3.5 fill-current" />
+            {t('library.stopSearch')}
+          </button>
+        )}
+      </form>
 
       {/* Results List */}
       <div
@@ -1076,14 +1040,10 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                   <button
                     type="button"
                     onClick={() => {
-                      if (selectedSinger.trim()) {
-                        executeAddToQueue(track, selectedSinger);
-                      } else {
-                        useKaraokeStore.getState().loadSingersFromDb();
-                        setModalSingerInput('');
-                        setPlacementMode('auto');
-                        setPendingTrackForQueue(track);
-                      }
+                      useKaraokeStore.getState().loadSingersFromDb();
+                      setModalSingerInput('');
+                      setPlacementMode('auto');
+                      setPendingTrackForQueue(track);
                     }}
                     className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/25 transition-all"
                   >
