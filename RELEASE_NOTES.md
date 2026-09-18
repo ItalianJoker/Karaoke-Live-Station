@@ -9,7 +9,7 @@
 <a name="v120-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.2.0
 
-Nuova release GitHub **v1.2.0** (tag dedicato; **non** sovrascrive `v1.1.0`): batch **#40–#44 + #46–#47** — Drag & Drop filesystem, scan libreria ~16k più reattivo, SoundFont AppImage + dropdown Altro, Safety-First slice 1, fix yt-dlp `--sub-langs`, rimozione toast «Download completato» e preselect Cantante assegnato. (#45 saltata)
+Sovrascrittura della release GitHub **v1.2.0** (stesso tag; **non** tocca `v1.1.0`) dopo **#48** + **#49**, sopra il batch **#40–#44 + #46–#47** (#45 saltata): file locali mancanti (USB), yt-dlp `--sub-langs .*-orig` (anti-429), Drag & Drop filesystem, scan libreria ~16k, SoundFont AppImage + Altro, Safety-First slice 1, rimozione toast «Download completato» e preselect Cantante assegnato.
 
 ## 📦 File di Installazione
 
@@ -50,8 +50,8 @@ Nuova release GitHub **v1.2.0** (tag dedicato; **non** sovrascrive `v1.1.0`): ba
 - TSDoc / Why-comment sui path critici. **Nessun breaking change** di comportamento Control↔Stage.
 
 ### 📥 Scarica strumentale — `--sub-langs` yt-dlp + logging
-- Sostituito `--sub-langs en.*,it.*,es.*,fr.*,*-orig` (regex invalida → `Wrong regex for subtitlelangs`) con un selettore valido; fallimenti yt-dlp / spawn anche sul Logger strutturato (`karaoke-station.log`).
-- **Hotfix post-1.2.0 (in PR):** `all,-live_chat` richiedeva ~130 lingue sottotitolo → HTTP 429 YouTube. Ora `.*-orig` (solo auto-sub lingua originale; non usare `*-orig`).
+- Prima fix della regex invalida `en.*,it.*,es.*,fr.*,*-orig` (`Wrong regex for subtitlelangs`); logging fallimenti yt-dlp / spawn anche su `karaoke-station.log`.
+- **#48:** `all,-live_chat` richiedeva ~130 lingue → HTTP 429 YouTube. Ora `--sub-langs .*-orig` (solo auto-sub lingua originale; non usare bare `*-orig`).
 
 ### 🧹 UI Regia — toast e cantante
 - Rimosso il badge overlay verde **Download completato**; stato/errori restano nel menu **Downloads**.
@@ -69,7 +69,7 @@ Include tutto quanto già in **v1.1.0** (fix yt-dlp error -1, impostazioni UVR-M
 <a name="v120-english"></a>
 # 🇬🇧 Release Notes — Version 1.2.0
 
-New GitHub release **v1.2.0** (dedicated tag; does **not** overwrite `v1.1.0`): batch **#40–#44 + #46–#47** — filesystem Drag & Drop, faster ~16k library scan, AppImage SoundFont seed + Settings Altro dropdown, Safety-First slice 1, yt-dlp `--sub-langs` fix, remove Download-completed overlay toast and assigned-singer preselect. (#45 skipped)
+Overwrite of GitHub release **v1.2.0** (same tag; does **not** touch `v1.1.0`) after **#48** + **#49**, on top of batch **#40–#44 + #46–#47** (#45 skipped): missing local files (USB), yt-dlp `--sub-langs .*-orig` (anti-429), filesystem Drag & Drop, faster ~16k library scan, AppImage SoundFont + Settings Altro, Safety-First slice 1, remove Download-completed overlay and assigned-singer preselect.
 
 ## 📦 Installers
 
@@ -110,8 +110,8 @@ New GitHub release **v1.2.0** (dedicated tag; does **not** overwrite `v1.1.0`): 
 - TSDoc / Why-comments on critical paths. **No Control↔Stage behavior breaking changes.**
 
 ### 📥 Download Instrumental — yt-dlp `--sub-langs` + logging
-- Replaced invalid `--sub-langs en.*,it.*,es.*,fr.*,*-orig` (`Wrong regex for subtitlelangs`) with a valid selector; yt-dlp / spawn failures also write to the structured Logger (`karaoke-station.log`).
-- **Post-1.2.0 hotfix (in PR):** `all,-live_chat` requested ~130 subtitle languages → YouTube HTTP 429. Now `.*-orig` (original-language auto-subs only; do not use bare `*-orig`).
+- First fixed invalid `en.*,it.*,es.*,fr.*,*-orig` (`Wrong regex for subtitlelangs`); yt-dlp / spawn failures also write to `karaoke-station.log`.
+- **#48:** `all,-live_chat` requested ~130 languages → YouTube HTTP 429. Now `--sub-langs .*-orig` (original-language auto-subs only; do not use bare `*-orig`).
 
 ### 🧹 Control UI — toast and singer
 - Removed the green **Download completed** overlay badge; status/errors remain in the **Downloads** menu.
