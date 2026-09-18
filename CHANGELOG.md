@@ -15,7 +15,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - None yet.
 
 ### Fixed
-- None yet.
+- **Download Instrumental yt-dlp “error code -1”** — spawn OS failures (libuv negated errno; EPERM → `-1`) were overwritten by the `close` handler’s opaque message. Preserve the real spawn error; surface yt-dlp `ERROR:` lines on non-zero exits. Use a **relative** `-o` template (`{downloadId}.%(ext)s`) with existing `cwd=userData/temp` (same staging files / AI handoff; no YouTube title in the template).
 
 ### Breaking Changes
 - None yet.

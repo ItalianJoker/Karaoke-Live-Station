@@ -20,6 +20,7 @@ import type { Logger } from './Logger';
 import { buildKaraokeLocalUri } from '../../shared/karaokeLocalPath';
 import { findMediaMatchInTree } from '../../shared/libraryScanner';
 import {
+  buildYtDlpOutputTemplate,
   isYtDlpTransientMediaName,
   parseYtDlpOutputPath,
   resolveDownloadedMediaPath as resolveDownloadedMediaInTemp,
@@ -41,6 +42,7 @@ const MEDIA_EXTENSIONS = new Set([
 
 // Re-export staging helpers for tests / diagnostics
 export {
+  buildYtDlpOutputTemplate,
   isYtDlpTransientMediaName,
   parseYtDlpOutputPath,
   resolvePathAgainstTempDir
@@ -517,7 +519,9 @@ export class DownloadManager {
     dedupUrlKey: string
   ): void {
     const instrumental = options.instrumental === true;
-    const outputTemplate = path.join(this.tempDir, `${downloadId}.%(ext)s`);
+    // Relative -o + cwd=tempDir (same staging files as absolute join). Avoids
+    // Windows drive-letter / TYPES: colon edge cases on absolute -o paths.
+    const outputTemplate = buildYtDlpOutputTemplate(downloadId);
 
     const args: string[] = [
       options.url,
@@ -576,10 +580,18 @@ export class DownloadManager {
     let detectedOutputFile: string | null = null;
     // Chunk boundaries can split mid-line — buffer until newline/CR
     let lineBuffer = '';
+    /** Set when spawn itself fails (ENOENT/EPERM/…); close must not clobber that message. */
+    let spawnFailed = false;
+    /** Last yt-dlp `ERROR:` line for opaque non-zero exits (e.g. code 1). */
+    let lastYtDlpErrorLine = '';
 
     const ingestYtDlpLine = (line: string) => {
       const trimmed = line.trim();
       if (!trimmed) return;
+
+      if (/^ERROR:/i.test(trimmed) || /\bERROR:\s/i.test(trimmed)) {
+        lastYtDlpErrorLine = trimmed.slice(0, 500);
+      }
 
       if (
         trimmed.includes('[download] Destination:') ||
@@ -705,6 +717,13 @@ export class DownloadManager {
 
     child.on('close', (code: number | null) => {
       void (async () => {
+        // Spawn `error` already emitted a real OS message (ENOENT/EPERM/…).
+        // libuv then delivers close with a negative errno (EPERM → -1); do not
+        // replace that with the opaque "yt-dlp exited with error code -1".
+        if (spawnFailed) {
+          return;
+        }
+
         const job = this.activeJobs.get(downloadId);
         if (job) job.process = null;
 
@@ -912,7 +931,12 @@ export class DownloadManager {
           this.activeUrls.delete(dedupUrlKey);
         } else if ((payload.status as DownloadProgressPayload['status']) !== 'cancelled') {
           payload.status = 'error';
-          payload.errorMessage = `yt-dlp exited with error code ${code}`;
+          const errnoHint =
+            typeof code === 'number' && code < 0
+              ? ` (OS errno ${-code}; often spawn/permission — not a YouTube filename)`
+              : '';
+          const detail = lastYtDlpErrorLine ? `: ${lastYtDlpErrorLine}` : errnoHint;
+          payload.errorMessage = `yt-dlp exited with error code ${code}${detail}`;
           this.emitProgress({ ...payload });
           this.activeJobs.delete(downloadId);
           this.activeUrls.delete(dedupUrlKey);
@@ -924,6 +948,7 @@ export class DownloadManager {
     });
 
     child.on('error', (err: Error) => {
+      spawnFailed = true;
       const job = this.activeJobs.get(downloadId);
       if (job) job.process = null;
       this.activeJobs.delete(downloadId);

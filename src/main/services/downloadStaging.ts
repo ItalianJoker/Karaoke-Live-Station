@@ -21,6 +21,27 @@ export const DOWNLOAD_MEDIA_EXTENSIONS = new Set([
 ]);
 
 /**
+ * yt-dlp `-o` template for a staged download.
+ *
+ * Returns a **relative** basename only (`{downloadId}.%(ext)s`). Callers must
+ * spawn yt-dlp with `cwd` (or `-P`) set to `userData/temp` so the file lands in
+ * the same staging folder as before. Relative templates avoid Windows
+ * drive-letter / `[TYPES:]TEMPLATE` colon parsing and keep `%` out of absolute
+ * path strings passed on the argv.
+ *
+ * Do not put YouTube titles in this template — titles are applied later in
+ * saveToLibrary / queue cache with {@link sanitizeFilenamePart}-style rules.
+ */
+export function buildYtDlpOutputTemplate(downloadId: string): string {
+  const id = String(downloadId || '')
+    .replace(/[/\\?%*:|"<>]/g, '')
+    .replace(/[\x00-\x1f\x7f]/g, '')
+    .trim();
+  const safeId = id || 'dl_unknown';
+  return `${safeId}.%(ext)s`;
+}
+
+/**
  * True when a basename is a yt-dlp intermediate (format fragments, part files,
  * instrumental work products) rather than the final muxed download.
  */

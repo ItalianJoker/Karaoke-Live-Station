@@ -2126,7 +2126,8 @@ assert(
   fs.existsSync(path.resolve(__dirname, '../src/main/services/downloadStaging.ts')) &&
     downloadStagingSource.includes('resolveDownloadedMediaPath') &&
     downloadStagingSource.includes('parseYtDlpOutputPath') &&
-    downloadStagingSource.includes('isYtDlpTransientMediaName'),
+    downloadStagingSource.includes('isYtDlpTransientMediaName') &&
+    downloadStagingSource.includes('buildYtDlpOutputTemplate'),
   'downloadStaging.ts exports yt-dlp path parse + media resolve helpers'
 );
 
@@ -2137,7 +2138,12 @@ assert(
 );
 
 assert(
-  downloadManagerStagingSrc.includes('resolveDownloadedMediaPath') &&
+  downloadManagerStagingSrc.includes('buildYtDlpOutputTemplate') &&
+    downloadManagerStagingSrc.includes('cwd: this.tempDir') &&
+    !downloadManagerStagingSrc.includes('path.join(this.tempDir, `${downloadId}.%(ext)s`)') &&
+    downloadManagerStagingSrc.includes('spawnFailed') &&
+    downloadManagerStagingSrc.includes('lastYtDlpErrorLine') &&
+    downloadManagerStagingSrc.includes('resolveDownloadedMediaPath') &&
     downloadManagerStagingSrc.includes('Downloaded video not found in staging folder') &&
     downloadManagerStagingSrc.includes('${downloadId}.instrumental.mp4') &&
     downloadManagerStagingSrc.includes('${downloadId}.extract.wav') &&
@@ -2149,7 +2155,7 @@ assert(
     fs
       .readFileSync(path.resolve(__dirname, '../src/main/services/InstrumentalProcessor.ts'), 'utf8')
       .includes('resolveInstrumentalTempWavPaths'),
-  'Instrumental path: {id}.extract.wav → AI → {id}.instrumental.extract.wav → remux; temps cleaned'
+  'Instrumental path: relative yt-dlp -o + {id}.extract.wav → AI → remux; spawn error not clobbered'
 );
 
 // Runtime: pure staging helpers via Node strip-types (no Electron)
@@ -2166,12 +2172,18 @@ assert(
         parseYtDlpOutputPath,
         isYtDlpTransientMediaName,
         resolveDownloadedMediaPath,
-        resolvePathAgainstTempDir
+        resolvePathAgainstTempDir,
+        buildYtDlpOutputTemplate
       } from ${JSON.stringify(path.resolve(__dirname, '../src/main/services/downloadStaging.ts'))};
       import fs from 'fs';
       import pathMod from 'path';
       import os from 'os';
       const assert = (c, m) => { if (!c) { console.error('PROBE_FAIL', m); process.exit(2); } };
+      assert(buildYtDlpOutputTemplate('dl_1') === 'dl_1.%(ext)s', 'relative-outtmpl');
+      assert(buildYtDlpOutputTemplate('dl_1/../x') === 'dl_1..x.%(ext)s', 'sanitize-id');
+      assert(!buildYtDlpOutputTemplate('dl_abc').includes(pathMod.sep), 'no-abs-sep');
+      assert(!buildYtDlpOutputTemplate('dl_abc').includes(':'), 'no-type-colon');
+      assert(buildYtDlpOutputTemplate('dl_abc').includes('%(ext)s'), 'keeps-ext-field');
       assert(parseYtDlpOutputPath('[download] Destination: /tmp/a.mp4') === '/tmp/a.mp4', 'dest');
       assert(
         parseYtDlpOutputPath('[Merger] Merging formats into "/tmp/b.mp4"') === '/tmp/b.mp4',
