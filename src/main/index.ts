@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, protocol, dialog, Menu, shell, session } f
 import path from 'path';
 import fs from 'fs';
 import { Readable } from 'stream';
-import { execFileSync } from 'child_process';
+import { execFileSync, type ChildProcess } from 'child_process';
 import crypto from 'crypto';
 import { DatabaseManager } from './db/database';
 import { GuestPortalServer } from './server/guestServer';
@@ -13,6 +13,7 @@ import { YtDlpUpdater } from './services/YtDlpUpdater';
 import { FirewallHelper } from './services/FirewallHelper';
 import { OfflineVocalModelManager } from './services/OfflineVocalModelManager';
 import { OrtWasmManager } from './services/OrtWasmManager';
+import { killProcessTree } from './services/processKill';
 import {
   ActivePlaybackState,
   AppSettings,
@@ -170,6 +171,9 @@ class KaraokeMainProcess {
   private currentMasterState: ActivePlaybackState | null = null;
   private currentQueue: QueueItem[] = [];
   private currentSettings: AppSettings | null = null;
+  /** In-flight yt-dlp web search process (single slot; cancel kills it). */
+  private youtubeSearchChild: ChildProcess | null = null;
+  private youtubeSearchCancelled = false;
 
   constructor() {
     const userDataPath = app.getPath('userData');
@@ -892,6 +896,11 @@ class KaraokeMainProcess {
       }
     );
 
+    /** Abort in-flight YouTube/web search; safe no-op when idle. */
+    ipcMain.handle('search:youtube:cancel', () => {
+      return this.cancelYouTubeSearch();
+    });
+
     ipcMain.handle('library:get-track-thumbnail', (_event, filePath: string) => {
       return this.getOrGenerateThumbnail(filePath);
     });
@@ -1394,17 +1403,35 @@ class KaraokeMainProcess {
   }
 
   /**
+   * Kills any in-flight yt-dlp web search. Safe when idle (returns false).
+   */
+  private cancelYouTubeSearch(): boolean {
+    const child = this.youtubeSearchChild;
+    if (!child) return false;
+    this.youtubeSearchCancelled = true;
+    this.logger.info('YouTube', 'Cancelling in-flight web search');
+    killProcessTree(child);
+    this.youtubeSearchChild = null;
+    return true;
+  }
+
+  /**
    * Performs an asynchronous YouTube search query using yt-dlp metadata extraction.
    * Appends 'karaoke' to the query to prioritize instrumental/backing video results.
    *
    * @param query - Search term entered by user
-   * @returns Array of YouTube media track candidates
+   * @returns Array of YouTube media track candidates (empty if cancelled or failed)
    */
   private searchYouTube(
     query: string,
     options?: { offset?: number; limit?: number }
   ): Promise<KaraokeMediaTrack[]> {
     return new Promise((resolve) => {
+      // One search at a time: abort any previous yt-dlp so UI cannot stick forever.
+      if (this.youtubeSearchChild) {
+        this.cancelYouTubeSearch();
+      }
+
       const sanitizedQuery = `${query.trim()} karaoke`;
       const pageSize =
         typeof options?.limit === 'number' && Number.isFinite(options.limit) && options.limit > 0
@@ -1418,33 +1445,57 @@ class KaraokeMainProcess {
       const { spawn } = require('child_process');
       const ytdlpPath = resolveYtDlpPath();
 
-      let child: any;
+      this.youtubeSearchCancelled = false;
+      let child: ChildProcess;
       try {
         // yt-dlp search is a synthetic playlist of N items; window with playlist-start/end.
-        child = spawn(ytdlpPath, [
-          `ytsearch${playlistEnd}:${sanitizedQuery}`,
-          '--playlist-start',
-          String(offset + 1),
-          '--playlist-end',
-          String(playlistEnd),
-          '--dump-json',
-          '--flat-playlist',
-          '--no-warnings'
-        ]);
+        child = spawn(
+          ytdlpPath,
+          [
+            `ytsearch${playlistEnd}:${sanitizedQuery}`,
+            '--playlist-start',
+            String(offset + 1),
+            '--playlist-end',
+            String(playlistEnd),
+            '--dump-json',
+            '--flat-playlist',
+            '--no-warnings'
+          ],
+          {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            // Own process group on Unix so cancel can SIGKILL the tree cleanly.
+            detached: process.platform !== 'win32'
+          }
+        );
       } catch (spawnErr) {
         this.logger.warn('YouTube', `yt-dlp could not be spawned at "${ytdlpPath}".`, { error: String(spawnErr) });
         resolve([]);
         return;
       }
 
+      this.youtubeSearchChild = child;
       let stdout = '';
+      let settled = false;
+      const finish = (tracks: KaraokeMediaTrack[]) => {
+        if (settled) return;
+        settled = true;
+        if (this.youtubeSearchChild === child) {
+          this.youtubeSearchChild = null;
+        }
+        resolve(tracks);
+      };
+
       child.stdout?.on('data', (chunk: Buffer) => {
         stdout += chunk.toString('utf8');
       });
 
-      child.on('close', (code: number) => {
+      child.on('close', (code: number | null) => {
+        if (this.youtubeSearchCancelled) {
+          finish([]);
+          return;
+        }
         if (code !== 0 || !stdout.trim()) {
-          resolve([]);
+          finish([]);
           return;
         }
 
@@ -1479,12 +1530,14 @@ class KaraokeMainProcess {
           }
         }
 
-        resolve(tracks);
+        finish(tracks);
       });
 
-      child.on('error', (err: any) => {
-        this.logger.warn('YouTube', `yt-dlp execution error: ${err.message}`, { error: String(err) });
-        resolve([]);
+      child.on('error', (err: Error) => {
+        if (!this.youtubeSearchCancelled) {
+          this.logger.warn('YouTube', `yt-dlp execution error: ${err.message}`, { error: String(err) });
+        }
+        finish([]);
       });
     });
   }

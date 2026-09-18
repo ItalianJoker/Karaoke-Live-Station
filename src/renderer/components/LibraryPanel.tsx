@@ -19,7 +19,8 @@ import {
   Play,
   Sparkles,
   ArrowDownToLine,
-  Trash2
+  Trash2,
+  Square
 } from 'lucide-react';
 import { KaraokeMediaTrack, DownloadProgressPayload } from '../../shared/types';
 import { isInstrumentalDownloadEligibleTitle } from '../../shared/vocalRemover';
@@ -83,6 +84,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   const [webHasMore, setWebHasMore] = useState(false);
   const [webLoadingMore, setWebLoadingMore] = useState(false);
   const webSearchOffsetRef = useRef(0);
+  /** Bumped on cancel so late yt-dlp results are ignored and loading flags stay clear. */
+  const webSearchGenRef = useRef(0);
   const [completedDownloads, setCompletedDownloads] = useState<
     Array<{ id: string; title: string; artist: string }>
   >([]);
@@ -533,6 +536,17 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
 
   const YOUTUBE_PAGE_SIZE = 10;
 
+  const handleStopWebSearch = async () => {
+    webSearchGenRef.current += 1;
+    setWebSearching(false);
+    setWebLoadingMore(false);
+    try {
+      await window.karaokeApi?.library?.cancelYouTubeSearch?.();
+    } catch (err) {
+      console.error('Cancel YouTube search error:', err);
+    }
+  };
+
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     // Web search only runs on explicit submit while Web tab is active.
@@ -544,6 +558,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         setWebHasMore(false);
         return;
       }
+      const gen = ++webSearchGenRef.current;
       setWebSearching(true);
       setWebHasMore(false);
       webSearchOffsetRef.current = 0;
@@ -553,12 +568,15 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
             offset: 0,
             limit: YOUTUBE_PAGE_SIZE
           });
+          if (gen !== webSearchGenRef.current) return;
           setWebResults(ytTracks);
           webSearchOffsetRef.current = ytTracks.length > 0 ? YOUTUBE_PAGE_SIZE : 0;
           setWebHasMore(ytTracks.length >= YOUTUBE_PAGE_SIZE);
         }
       } finally {
-        setWebSearching(false);
+        if (gen === webSearchGenRef.current) {
+          setWebSearching(false);
+        }
       }
       return;
     }
@@ -589,6 +607,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     if (searchMode !== 'web' || webLoadingMore || !webHasMore) return;
     const q = webQuery.trim();
     if (!q || !window.karaokeApi) return;
+    const gen = ++webSearchGenRef.current;
     setWebLoadingMore(true);
     try {
       const offset = webSearchOffsetRef.current;
@@ -596,6 +615,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         offset,
         limit: YOUTUBE_PAGE_SIZE
       });
+      if (gen !== webSearchGenRef.current) return;
       setWebResults((prev) => {
         const seen = new Set(prev.map((t) => t.id));
         const appended = next.filter((t) => t.id && !seen.has(t.id));
@@ -604,7 +624,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       webSearchOffsetRef.current = offset + YOUTUBE_PAGE_SIZE;
       setWebHasMore(next.length >= YOUTUBE_PAGE_SIZE);
     } finally {
-      setWebLoadingMore(false);
+      if (gen === webSearchGenRef.current) {
+        setWebLoadingMore(false);
+      }
     }
   };
 
@@ -852,11 +874,24 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
           </div>
           <button
             type="submit"
-            disabled={isSearching}
+            disabled={isSearching || webLoadingMore}
             className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:opacity-50 text-white font-semibold rounded-full text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/25 transition-all"
           >
             {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : t('library.searchBtn')}
           </button>
+          {searchMode === 'web' && (isSearching || webLoadingMore) && (
+            <button
+              type="button"
+              onClick={() => void handleStopWebSearch()}
+              className="px-3 py-2 bg-slate-800/90 hover:bg-slate-700 text-slate-100 font-semibold rounded-full text-xs flex items-center gap-1.5 border border-slate-700/80 shadow-sm transition-all"
+              title={t('library.stopSearch')}
+              aria-label={t('library.stopSearch')}
+              data-testid="youtube-stop-search"
+            >
+              <Square className="w-3.5 h-3.5 fill-current" />
+              {t('library.stopSearch')}
+            </button>
+          )}
         </form>
 
         {/* Singer Assign Quick Selector with datalist */}

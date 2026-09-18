@@ -82,6 +82,8 @@ export interface KaraokeAPI {
       query: string,
       options?: { offset?: number; limit?: number }
     ) => Promise<KaraokeMediaTrack[]>;
+    /** Aborts an in-flight YouTube/web search (safe no-op when idle) */
+    cancelYouTubeSearch: () => Promise<boolean>;
     /** Generates or retrieves a cached video thumbnail for a local video file */
     getTrackThumbnail: (filePath: string) => Promise<string | undefined>;
   };
@@ -315,6 +317,7 @@ const karaokeApi: KaraokeAPI = {
     scanFolder: (folderPath: string) => ipcRenderer.invoke('library:scan-folder', folderPath),
     searchYouTube: (query: string, options?: { offset?: number; limit?: number }) =>
       ipcRenderer.invoke('search:youtube', query, options),
+    cancelYouTubeSearch: () => ipcRenderer.invoke('search:youtube:cancel'),
     getTrackThumbnail: (filePath: string) => ipcRenderer.invoke('library:get-track-thumbnail', filePath)
   },
 
