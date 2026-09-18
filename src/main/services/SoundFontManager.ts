@@ -4,10 +4,21 @@ import { app } from 'electron';
 import { Logger } from './Logger';
 import {
   BUNDLED_SOUNDFONT_FILENAME,
-  isEphemeralSoundFontPath
+  isEphemeralSoundFontPath,
+  soundFontDisplayName,
+  type SoundFontCatalogEntry
 } from '../../shared/soundFontPath';
 
-export { BUNDLED_SOUNDFONT_FILENAME, isEphemeralSoundFontPath } from '../../shared/soundFontPath';
+export {
+  BUNDLED_SOUNDFONT_FILENAME,
+  isEphemeralSoundFontPath,
+  SOUND_FONT_OTHER_OPTION_ID,
+  soundFontDisplayName,
+  soundFontPathsEqual
+} from '../../shared/soundFontPath';
+export type { SoundFontCatalogEntry } from '../../shared/soundFontPath';
+
+const MIN_SOUNDFONT_BYTES = 1024 * 1024;
 
 /**
  * Seeds the bundled GeneralUser GS SoundFont into `<userData>/soundfonts/`.
@@ -61,13 +72,30 @@ export class SoundFontManager {
     ].filter((p): p is string => Boolean(p));
   }
 
+  /** Directories that may contain packaged .sf2 banks (scan for dropdown). */
+  private listBundledSoundFontDirs(): string[] {
+    const resources = process.resourcesPath || '';
+    const appPath = typeof app?.getAppPath === 'function' ? app.getAppPath() : process.cwd();
+    const exeDir = app.isPackaged ? path.dirname(app.getPath('exe')) : appPath;
+    return [
+      this.getSoundFontsDir(),
+      path.join(resources, 'soundfonts'),
+      path.join(resources, 'app.asar.unpacked', 'dist', 'soundfonts'),
+      path.join(resources, 'app.asar.unpacked', 'public', 'soundfonts'),
+      path.join(exeDir, 'soundfonts'),
+      path.join(exeDir, 'resources', 'soundfonts'),
+      path.join(process.cwd(), 'public', 'soundfonts'),
+      path.join(appPath, 'public', 'soundfonts'),
+      path.join(appPath, 'dist', 'soundfonts')
+    ].filter(Boolean);
+  }
+
   public findBundledSource(): string | null {
     for (const candidate of this.listBundledSourceCandidates()) {
       try {
         if (candidate && fs.existsSync(candidate)) {
           const size = fs.statSync(candidate).size;
-          // GeneralUser GS is ~31 MB; reject empty/corrupt stubs
-          if (size > 1024 * 1024) {
+          if (size > MIN_SOUNDFONT_BYTES) {
             return candidate;
           }
         }
@@ -76,6 +104,120 @@ export class SoundFontManager {
       }
     }
     return null;
+  }
+
+  private isUsableSoundFontFile(filePath: string): boolean {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) return false;
+      const st = fs.statSync(filePath);
+      if (!st.isFile()) return false;
+      // .sf2 banks are large; .dls system banks (Windows gm.dls) can be smaller
+      const ext = path.extname(filePath).toLowerCase();
+      if (ext === '.dls') return st.size > 64 * 1024;
+      return st.size > MIN_SOUNDFONT_BYTES;
+    } catch {
+      return false;
+    }
+  }
+
+  private collectSf2FromDir(dir: string): string[] {
+    const out: string[] = [];
+    try {
+      if (!dir || !fs.existsSync(dir)) return out;
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (!/\.(sf2|sf3)$/i.test(entry.name)) continue;
+        const full = path.join(dir, entry.name);
+        if (this.isUsableSoundFontFile(full)) {
+          out.push(full);
+        }
+      }
+    } catch {
+      // ignore unreadable dirs
+    }
+    return out;
+  }
+
+  private listOsSoundFontCandidates(): string[] {
+    if (process.platform === 'win32') {
+      return [path.join(process.env.WINDIR || 'C:\\Windows', 'System32\\drivers\\gm.dls')];
+    }
+    if (process.platform === 'darwin') {
+      return [
+        '/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls',
+        '/Library/Audio/Sounds/Banks/default.sf2'
+      ];
+    }
+    return [
+      '/usr/share/sounds/sf2/default-GM.sf2',
+      '/usr/share/sounds/sf2/FluidR3_GM.sf2',
+      '/usr/share/soundfonts/default.sf2',
+      '/usr/share/sounds/sf2/TimGM6mb.sf2',
+      '/usr/share/soundfonts/FluidR3_GM.sf2'
+    ];
+  }
+
+  /**
+   * Catalog of present bundled + system SoundFonts for the Settings dropdown.
+   * Always seeds the bundled GeneralUser bank first so AppImage installs show it.
+   * Dedupes by basename; prefers managed userData copy over package/mount paths.
+   */
+  public listCatalog(): SoundFontCatalogEntry[] {
+    this.ensureBundledSoundFont();
+
+    const byKey = new Map<string, SoundFontCatalogEntry>();
+    const managedDir = this.getSoundFontsDir();
+
+    const rank = (filePath: string, kind: 'bundled' | 'system'): number => {
+      if (kind === 'system') return 10;
+      if (filePath.startsWith(managedDir)) return 0;
+      if (isEphemeralSoundFontPath(filePath)) return 50;
+      return 5;
+    };
+
+    const add = (filePath: string, kind: 'bundled' | 'system') => {
+      if (!this.isUsableSoundFontFile(filePath)) return;
+      if (kind === 'bundled' && isEphemeralSoundFontPath(filePath)) return;
+
+      const fileName = path.basename(filePath);
+      const key = fileName.toLowerCase();
+      const next: SoundFontCatalogEntry = {
+        id: `${kind}:${fileName}`,
+        path: filePath,
+        fileName,
+        displayName: soundFontDisplayName(fileName),
+        kind
+      };
+      const existing = byKey.get(key);
+      if (!existing || rank(filePath, kind) < rank(existing.path, existing.kind)) {
+        byKey.set(key, next);
+      }
+    };
+
+    for (const dir of this.listBundledSoundFontDirs()) {
+      for (const file of this.collectSf2FromDir(dir)) {
+        add(file, 'bundled');
+      }
+    }
+
+    const managed = this.getManagedBundledPath();
+    if (this.isUsableSoundFontFile(managed)) {
+      add(managed, 'bundled');
+    }
+
+    for (const osPath of this.listOsSoundFontCandidates()) {
+      add(osPath, 'system');
+    }
+
+    const entries = Array.from(byKey.values());
+    entries.sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === 'bundled' ? -1 : 1;
+      if (a.fileName === BUNDLED_SOUNDFONT_FILENAME) return -1;
+      if (b.fileName === BUNDLED_SOUNDFONT_FILENAME) return 1;
+      return a.displayName.localeCompare(b.displayName);
+    });
+    return entries;
   }
 
   /**
@@ -90,7 +232,7 @@ export class SoundFontManager {
     if (!source) {
       if (fs.existsSync(managed)) {
         try {
-          if (fs.statSync(managed).size > 1024 * 1024) {
+          if (fs.statSync(managed).size > MIN_SOUNDFONT_BYTES) {
             return managed;
           }
         } catch {
@@ -134,7 +276,6 @@ export class SoundFontManager {
         }`,
         { source }
       );
-      // Prefer a non-ephemeral packaged path when possible
       if (!isEphemeralSoundFontPath(source) && fs.existsSync(source)) {
         return source;
       }

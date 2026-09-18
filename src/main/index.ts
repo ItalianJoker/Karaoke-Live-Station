@@ -782,6 +782,10 @@ class KaraokeMainProcess {
       return this.resolveDefaultSoundFont();
     });
 
+    ipcMain.handle('system:list-soundfonts', () => {
+      return this.soundFontManager.listCatalog();
+    });
+
     ipcMain.handle('system:open-external', async (_event, url: string) => {
       if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
         await shell.openExternal(url);

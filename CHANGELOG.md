@@ -11,6 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ### Added
 - **Critical domain invariants source-lock** — `scripts/verify-critical-invariants.js` (pitch-0 SoundTouch bypass, volume², AI MessageEvent unwrap, SIAE ≥120s, queue_cache-only GC, SpessaSynth 5 ms + `latencyHint: 'playback'`, ASAR unpack for `better-sqlite3` / `ffmpeg-static`); wired into `npm test` together with `verify-ai-vocal-path.js`.
 - **README AI Context & Critical Invariants** — dual-audience block (human + agents) documenting frozen IPC/Zustand/SQLite contracts and the six absolute guardrails; expanded library citation table (ORT, demucs-web, fft.js, qrcode, clsx, tailwind-merge).
+- **SoundFont dropdown** — Settings → Audio lists bundled/present banks; **Altro…** opens a file picker for an external `.sf2` / `.sf3`. Selection persists in `midiSoundFontPath` and loads via existing AudioGraphManager / SpessaSynth path (scheduler / latencyHint unchanged).
 
 ### Changed
 - **Library / Web search** — Removed the “Cantante assegnato…” preselect field. Singer assignment happens only in the add-to-queue modal (enqueue / assign). Regia theme chrome unchanged.

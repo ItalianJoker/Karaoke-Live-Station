@@ -2119,7 +2119,8 @@ assert(
   soundFontManagerSource.includes('ensureBundledSoundFont') &&
     soundFontManagerSource.includes("path.join(resources, 'soundfonts'") &&
     soundFontManagerSource.includes('userData') &&
-    soundFontManagerSource.includes('isEphemeralSoundFontPath'),
+    soundFontManagerSource.includes('isEphemeralSoundFontPath') &&
+    soundFontManagerSource.includes('listCatalog'),
   'SoundFontManager seeds userData from resources/soundfonts (extraResources)'
 );
 
@@ -2128,7 +2129,9 @@ assert(
     soundFontPathSharedSource.includes('.mount_') &&
     soundFontPathSharedSource.includes('AppData') &&
     soundFontPathSharedSource.includes('Local') &&
-    soundFontPathSharedSource.includes('Temp'),
+    soundFontPathSharedSource.includes('Temp') &&
+    soundFontPathSharedSource.includes('SOUND_FONT_OTHER_OPTION_ID') &&
+    soundFontPathSharedSource.includes('soundFontDisplayName'),
   'Shared soundFontPath detects AppImage .mount_ and Windows Temp extracts'
 );
 
@@ -2136,7 +2139,8 @@ assert(
   mainProtocolSource.includes('SoundFontManager') &&
     mainProtocolSource.includes('isEphemeralSoundFontPath') &&
     mainProtocolSource.includes('ensureBundledSoundFont') &&
-    mainProtocolSource.includes('resolveDefaultSoundFont'),
+    mainProtocolSource.includes('resolveDefaultSoundFont') &&
+    mainProtocolSource.includes('system:list-soundfonts'),
   'Main process wires SoundFontManager for default/init-paths resolution'
 );
 
@@ -2176,6 +2180,44 @@ assert(
     'C:/AppData/Local/Temp/KaraokeLiveStation/resources/soundfonts/GeneralUser-GS.sf2'
   ),
   'Windows Temp extract SoundFont path is ephemeral'
+);
+
+/** Mirrors src/shared/soundFontPath.ts soundFontDisplayName — keep in sync. */
+function soundFontDisplayNameTest(fileName) {
+  const base = (fileName || '').replace(/\.(sf2|sf3|dls)$/i, '');
+  return base.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim() || fileName;
+}
+assert(
+  soundFontDisplayNameTest('GeneralUser-GS.sf2') === 'GeneralUser GS',
+  'Display name strips extension and hyphenates for GeneralUser-GS.sf2'
+);
+
+const settingsModalSfSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+  'utf8'
+);
+const preloadSfSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/preload/index.ts'),
+  'utf8'
+);
+assert(
+  settingsModalSfSrc.includes('SOUND_FONT_OTHER_OPTION_ID') &&
+    settingsModalSfSrc.includes('listSoundFonts') &&
+    settingsModalSfSrc.includes('soundFontCatalog') &&
+    settingsModalSfSrc.includes('handleSoundFontSelectChange'),
+  'Settings Audio tab uses SoundFont dropdown with Altro/Other option'
+);
+assert(
+  preloadSfSrc.includes('listSoundFonts') &&
+    preloadSfSrc.includes('system:list-soundfonts'),
+  'Preload exposes system.listSoundFonts IPC'
+);
+assert(
+  enLocale.settings.soundfontOther &&
+    itLocale.settings.soundfontOther === 'Altro…' &&
+    esLocale.settings.soundfontOther &&
+    frLocale.settings.soundfontOther,
+  'Locales define soundfontOther (IT: Altro…)'
 );
 
 // Packaging: SoundFont extraResources on all platforms + asarUnpack

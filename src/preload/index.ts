@@ -216,6 +216,16 @@ export interface KaraokeAPI {
   system: {
     /** Auto-detects the operating system's default General MIDI SoundFont path */
     getDefaultSoundFont: () => Promise<string | null>;
+    /** Lists bundled + present system SoundFonts for the Settings dropdown */
+    listSoundFonts: () => Promise<
+      Array<{
+        id: string;
+        path: string;
+        fileName: string;
+        displayName: string;
+        kind: 'bundled' | 'system';
+      }>
+    >;
     /** Validates paths, prompts for library folder on first run or falls back to ~/Karaoke, and sets soundfont */
     initPaths: (clientSettings: { libraryPath?: string; midiSoundFontPath?: string }) => Promise<{
       libraryPath: string;
@@ -400,7 +410,7 @@ const karaokeApi: KaraokeAPI = {
   dialog: {
     openSoundFontFile: () =>
       ipcRenderer.invoke('dialog:open-file', [
-        { name: 'SoundFont Bank (*.sf2)', extensions: ['sf2'] }
+        { name: 'SoundFont Bank (*.sf2, *.sf3)', extensions: ['sf2', 'sf3'] }
       ]),
     openMediaFile: () =>
       ipcRenderer.invoke('dialog:open-file', [
@@ -416,6 +426,7 @@ const karaokeApi: KaraokeAPI = {
   // System Defaults
   system: {
     getDefaultSoundFont: () => ipcRenderer.invoke('system:get-default-soundfont'),
+    listSoundFonts: () => ipcRenderer.invoke('system:list-soundfonts'),
     initPaths: (clientSettings: { libraryPath?: string; midiSoundFontPath?: string }) =>
       ipcRenderer.invoke('system:init-paths', clientSettings),
     openExternal: (url: string) => ipcRenderer.invoke('system:open-external', url),
