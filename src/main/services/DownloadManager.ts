@@ -570,7 +570,7 @@ export class DownloadManager {
     }
 
     // Best-effort auto-subs for optional lyric burn-in on instrumental remux.
-    // --sub-langs tokens are Python regexes; a leading "*" quantifier is invalid.
+    // --sub-langs tokens are Python regexes; prefer .*-orig (never a leading * quantifier).
     if (instrumental && !options.isAudioOnly) {
       args.push(
         '--write-auto-sub',

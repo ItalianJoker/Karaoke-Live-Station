@@ -2330,7 +2330,7 @@ assert(
     downloadStagingSource.includes('isYtDlpTransientMediaName') &&
     downloadStagingSource.includes('buildYtDlpOutputTemplate') &&
     downloadStagingSource.includes('YTDLP_INSTRUMENTAL_SUB_LANGS') &&
-    downloadStagingSource.includes("YTDLP_INSTRUMENTAL_SUB_LANGS = 'all,-live_chat'"),
+    downloadStagingSource.includes("YTDLP_INSTRUMENTAL_SUB_LANGS = '.*-orig'"),
   'downloadStaging.ts exports yt-dlp path parse + media resolve helpers'
 );
 
@@ -2358,7 +2358,9 @@ assert(
     downloadManagerStagingSrc.includes('YTDLP_INSTRUMENTAL_SUB_LANGS') &&
     downloadManagerStagingSrc.includes("'--sub-langs'") &&
     !downloadManagerStagingSrc.includes("'en.*,it.*,es.*,fr.*,*-orig'") &&
-    !/['"][^'"]*\*-orig[^'"]*['"]/.test(downloadManagerStagingSrc) &&
+    // No bare *-orig string literal in DownloadManager (constant lives in downloadStaging).
+    !/['"]\*-orig['"]/.test(downloadManagerStagingSrc) &&
+    !/['"][^'"]*,\*-orig/.test(downloadManagerStagingSrc) &&
     downloadManagerStagingSrc.includes('logDownloadFailure') &&
     downloadManagerStagingSrc.includes("yt-dlp exited with error code") &&
     downloadManagerStagingSrc.includes('logger?.warn') &&
@@ -2398,11 +2400,13 @@ assert(
       assert(!buildYtDlpOutputTemplate('dl_abc').includes(pathMod.sep), 'no-abs-sep');
       assert(!buildYtDlpOutputTemplate('dl_abc').includes(':'), 'no-type-colon');
       assert(buildYtDlpOutputTemplate('dl_abc').includes('%(ext)s'), 'keeps-ext-field');
-      assert(YTDLP_INSTRUMENTAL_SUB_LANGS === 'all,-live_chat', 'sub-langs-documented');
-      assert(!YTDLP_INSTRUMENTAL_SUB_LANGS.includes('*-orig'), 'no-star-orig-glob');
+      assert(YTDLP_INSTRUMENTAL_SUB_LANGS === '.*-orig', 'sub-langs-orig-only');
+      // Forbid bare *-orig / tokens that start with * (no preceding .); allow .*-orig.
       assert(
-        !YTDLP_INSTRUMENTAL_SUB_LANGS.split(',').some((t) => t === '*' || t.startsWith('*')),
-        'no-leading-star-token'
+        !YTDLP_INSTRUMENTAL_SUB_LANGS.split(',').some(
+          (t) => t === '*-orig' || t === '*' || (t.startsWith('*') && !t.startsWith('.*'))
+        ),
+        'no-bare-star-orig-or-leading-star-token'
       );
       // Each comma-separated token must compile as a JS RegExp (same constraint as yt-dlp/Python re).
       for (const token of YTDLP_INSTRUMENTAL_SUB_LANGS.split(',')) {
