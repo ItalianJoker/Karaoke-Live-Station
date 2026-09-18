@@ -2220,30 +2220,40 @@ assert(
   'Locales define soundfontOther (IT: Altro…)'
 );
 
-// Packaging: SoundFont extraResources on all platforms + asarUnpack
+// Packaging: SoundFont/ORT once at top-level; platforms only add bin/
 {
   const packageJsonSf = JSON.parse(
     fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
   );
   const buildCfg = packageJsonSf.build || {};
+  const topRes = buildCfg.extraResources || [];
   assert(
-    Array.isArray(buildCfg.extraResources) &&
-      buildCfg.extraResources.some(
-        (e) => e && e.from === 'public/soundfonts' && e.to === 'soundfonts'
-      ),
-    'Top-level electron-builder extraResources includes public/soundfonts → soundfonts'
+    Array.isArray(topRes) &&
+      topRes.some((e) => e && e.from === 'public/soundfonts' && e.to === 'soundfonts') &&
+      topRes.some((e) => e && e.from === 'public/ort' && e.to === 'ort'),
+    'Top-level electron-builder extraResources includes public/soundfonts + public/ort once'
   );
+  const topSfCount = topRes.filter(
+    (e) => e && e.from === 'public/soundfonts' && e.to === 'soundfonts'
+  ).length;
+  const topOrtCount = topRes.filter((e) => e && e.from === 'public/ort' && e.to === 'ort').length;
+  assert(topSfCount === 1 && topOrtCount === 1, 'SoundFont and ORT appear exactly once at top-level');
+
   for (const plat of ['linux', 'win', 'mac']) {
     const platRes = (buildCfg[plat] && buildCfg[plat].extraResources) || [];
     assert(
-      platRes.some((e) => e && e.from === 'public/soundfonts' && e.to === 'soundfonts'),
-      `Platform ${plat} extraResources includes soundfonts (AppImage/win/mac consistency)`
+      !platRes.some((e) => e && (e.from === 'public/soundfonts' || e.from === 'public/ort')),
+      `Platform ${plat} extraResources must NOT re-list soundfonts/ort (avoids EEXIST/EBUSY double-copy)`
+    );
+    assert(
+      platRes.some((e) => e && String(e.from || '').includes('bin/')),
+      `Platform ${plat} extraResources still includes platform bin/`
     );
   }
   assert(
     Array.isArray(buildCfg.asarUnpack) &&
-      buildCfg.asarUnpack.some((p) => String(p).includes('soundfonts')),
-    'asarUnpack includes soundfonts/*.sf2 fallback for protocol streaming'
+      !buildCfg.asarUnpack.some((p) => String(p).includes('soundfonts')),
+    'asarUnpack does not double-unpack soundfonts (extraResources is the single ship path)'
   );
 
   assert(

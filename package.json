@@ -54,8 +54,7 @@
     ],
     "asarUnpack": [
       "**/better-sqlite3/**",
-      "**/ffmpeg-static/**",
-      "**/soundfonts/**/*.sf2"
+      "**/ffmpeg-static/**"
     ],
     "linux": {
       "target": [
@@ -66,20 +65,6 @@
       "category": "AudioVideo",
       "maintainer": "Karaoke Live Station Team <dev@karaokelivestation.local>",
       "extraResources": [
-        {
-          "from": "public/soundfonts",
-          "to": "soundfonts",
-          "filter": [
-            "**/*"
-          ]
-        },
-        {
-          "from": "public/ort",
-          "to": "ort",
-          "filter": [
-            "**/*"
-          ]
-        },
         {
           "from": "bin/linux",
           "to": "bin",
@@ -98,20 +83,6 @@
       "signAndEditExecutable": false,
       "extraResources": [
         {
-          "from": "public/soundfonts",
-          "to": "soundfonts",
-          "filter": [
-            "**/*"
-          ]
-        },
-        {
-          "from": "public/ort",
-          "to": "ort",
-          "filter": [
-            "**/*"
-          ]
-        },
-        {
           "from": "bin/win",
           "to": "bin",
           "filter": [
@@ -127,20 +98,6 @@
       "icon": "build/icon.png",
       "category": "public.app-category.music",
       "extraResources": [
-        {
-          "from": "public/soundfonts",
-          "to": "soundfonts",
-          "filter": [
-            "**/*"
-          ]
-        },
-        {
-          "from": "public/ort",
-          "to": "ort",
-          "filter": [
-            "**/*"
-          ]
-        },
         {
           "from": "bin/mac",
           "to": "bin",
