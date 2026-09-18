@@ -1,124 +1,224 @@
 @import "tailwindcss";
 
-/* Theme Definitions (9 Palettes) */
+/*
+ * Karaoke Live Station — visual theme tokens
+ * Direction: Dark Stage Indigo (default) — deep navy stage (#070b14), indigo accent (#6366f1).
+ * Typography: Outfit (display) + Source Sans 3 (UI). Self-hosted for offline Electron.
+ * Functional layout/controls are unchanged; this file styles surfaces across all themes.
+ */
+
+/* Self-hosted fonts (offline Electron-safe; bundled via Vite) */
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/Outfit-500.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/Outfit-600.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/Outfit-700.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("./assets/fonts/Outfit-800.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/SourceSans3-400.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/SourceSans3-500.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/SourceSans3-600.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/SourceSans3-700.ttf") format("truetype");
+}
+
+@theme {
+  --font-sans: "Source Sans 3", "Segoe UI", sans-serif;
+  --font-display: "Outfit", "Source Sans 3", sans-serif;
+  --radius-control: 0.75rem;
+  --shadow-elevated: 0 8px 28px rgba(0, 0, 0, 0.38);
+  --shadow-soft: 0 2px 10px rgba(0, 0, 0, 0.22);
+}
+
+/* ── Theme palettes (9) — shared chrome tokens, per-theme accent ── */
 :root.dark-stage, html.dark-stage {
   --bg-app: #070b14;
   --bg-card: #0f172a;
   --bg-subtle: #1e293b;
-  --border-color: #334155;
-  --border-subtle: #1e293b;
+  --border-color: rgba(148, 163, 184, 0.22);
+  --border-subtle: rgba(148, 163, 184, 0.12);
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --accent: #6366f1;
   --accent-hover: #4f46e5;
   --accent-glow: rgba(99, 102, 241, 0.35);
+  --accent-on: #ffffff;
+  --atmosphere-a: rgba(99, 102, 241, 0.09);
+  --atmosphere-b: rgba(79, 70, 229, 0.05);
 }
 
 :root.midnight-neon, html.midnight-neon {
-  --bg-app: #070210;
-  --bg-card: #140827;
-  --bg-subtle: #240e42;
-  --border-color: #4a1d7c;
-  --border-subtle: #2d1352;
-  --text-main: #fdf4ff;
-  --text-muted: #d8b4fe;
-  --accent: #ec4899;
-  --accent-hover: #db2777;
-  --accent-glow: rgba(236, 72, 153, 0.4);
+  --bg-app: #0a0612;
+  --bg-card: #140c1f;
+  --bg-subtle: #1e1430;
+  --border-color: rgba(216, 180, 254, 0.18);
+  --border-subtle: rgba(216, 180, 254, 0.1);
+  --text-main: #faf5ff;
+  --text-muted: #c4b5d8;
+  --accent: #f472b6;
+  --accent-hover: #ec4899;
+  --accent-glow: rgba(244, 114, 182, 0.35);
+  --accent-on: #3b0720;
+  --atmosphere-a: rgba(244, 114, 182, 0.08);
+  --atmosphere-b: rgba(167, 139, 250, 0.06);
 }
 
 :root.club-gold, html.club-gold {
   --bg-app: #0c0a09;
-  --bg-card: #1c1917;
-  --bg-subtle: #292524;
-  --border-color: #44403c;
-  --border-subtle: #292524;
+  --bg-card: #1a1614;
+  --bg-subtle: #26211e;
+  --border-color: rgba(214, 211, 209, 0.16);
+  --border-subtle: rgba(214, 211, 209, 0.09);
   --text-main: #fef3c7;
-  --text-muted: #d6d3d1;
-  --accent: #f59e0b;
+  --text-muted: #c4b8a8;
+  --accent: #f0b429;
   --accent-hover: #d97706;
-  --accent-glow: rgba(245, 158, 11, 0.35);
+  --accent-glow: rgba(240, 180, 41, 0.32);
+  --accent-on: #2a1d00;
+  --atmosphere-a: rgba(240, 180, 41, 0.07);
+  --atmosphere-b: rgba(245, 158, 11, 0.04);
 }
 
 :root.ocean-breeze, html.ocean-breeze {
-  --bg-app: #02101a;
-  --bg-card: #082030;
-  --bg-subtle: #0d3249;
-  --border-color: #134e70;
-  --border-subtle: #0f3954;
+  --bg-app: #031018;
+  --bg-card: #071c28;
+  --bg-subtle: #0c2a3c;
+  --border-color: rgba(165, 243, 252, 0.16);
+  --border-subtle: rgba(165, 243, 252, 0.09);
   --text-main: #ecfeff;
-  --text-muted: #a5f3fc;
-  --accent: #06b6d4;
-  --accent-hover: #0891b2;
-  --accent-glow: rgba(6, 182, 212, 0.35);
+  --text-muted: #8ecad4;
+  --accent: #22d3ee;
+  --accent-hover: #06b6d4;
+  --accent-glow: rgba(34, 211, 238, 0.32);
+  --accent-on: #083344;
+  --atmosphere-a: rgba(34, 211, 238, 0.07);
+  --atmosphere-b: rgba(14, 165, 233, 0.05);
 }
 
 :root.sunset-crimson, html.sunset-crimson {
-  --bg-app: #120407;
-  --bg-card: #220b12;
-  --bg-subtle: #38121d;
-  --border-color: #5a1928;
-  --border-subtle: #3d131d;
+  --bg-app: #10060a;
+  --bg-card: #1c0c12;
+  --bg-subtle: #2a121a;
+  --border-color: rgba(254, 205, 211, 0.16);
+  --border-subtle: rgba(254, 205, 211, 0.09);
   --text-main: #fff1f2;
-  --text-muted: #fecdd3;
-  --accent: #f43f5e;
-  --accent-hover: #e11d48;
-  --accent-glow: rgba(244, 63, 94, 0.35);
+  --text-muted: #d4a0a8;
+  --accent: #fb7185;
+  --accent-hover: #f43f5e;
+  --accent-glow: rgba(251, 113, 133, 0.32);
+  --accent-on: #4c0519;
+  --atmosphere-a: rgba(251, 113, 133, 0.07);
+  --atmosphere-b: rgba(251, 146, 60, 0.05);
 }
 
 :root.emerald-matrix, html.emerald-matrix {
-  --bg-app: #02120a;
-  --bg-card: #062315;
-  --bg-subtle: #0c3620;
-  --border-color: #134e2c;
-  --border-subtle: #0f3e24;
+  --bg-app: #04120a;
+  --bg-card: #0a1f14;
+  --bg-subtle: #11301f;
+  --border-color: rgba(167, 243, 208, 0.16);
+  --border-subtle: rgba(167, 243, 208, 0.09);
   --text-main: #ecfdf5;
-  --text-muted: #a7f3d0;
-  --accent: #10b981;
-  --accent-hover: #059669;
-  --accent-glow: rgba(16, 185, 129, 0.35);
+  --text-muted: #8fcbb0;
+  --accent: #34d399;
+  --accent-hover: #10b981;
+  --accent-glow: rgba(52, 211, 153, 0.32);
+  --accent-on: #022c22;
+  --atmosphere-a: rgba(52, 211, 153, 0.07);
+  --atmosphere-b: rgba(16, 185, 129, 0.04);
 }
 
 :root.royal-amethyst, html.royal-amethyst {
-  --bg-app: #0d041a;
-  --bg-card: #1c0b33;
-  --bg-subtle: #2c124e;
-  --border-color: #4a1d80;
-  --border-subtle: #35165f;
+  --bg-app: #0c0614;
+  --bg-card: #160c24;
+  --bg-subtle: #221236;
+  --border-color: rgba(233, 213, 255, 0.16);
+  --border-subtle: rgba(233, 213, 255, 0.09);
   --text-main: #faf5ff;
-  --text-muted: #e9d5ff;
-  --accent: #a855f7;
-  --accent-hover: #9333ea;
-  --accent-glow: rgba(168, 85, 247, 0.35);
+  --text-muted: #c4b0d9;
+  --accent: #c084fc;
+  --accent-hover: #a855f7;
+  --accent-glow: rgba(192, 132, 252, 0.32);
+  --accent-on: #3b0764;
+  --atmosphere-a: rgba(192, 132, 252, 0.07);
+  --atmosphere-b: rgba(129, 140, 248, 0.05);
 }
 
 :root.high-contrast, html.high-contrast {
   --bg-app: #000000;
-  --bg-card: #0d0d0d;
-  --bg-subtle: #1a1a1a;
-  --border-color: #666666;
-  --border-subtle: #333333;
+  --bg-card: #0a0a0a;
+  --bg-subtle: #171717;
+  --border-color: #737373;
+  --border-subtle: #404040;
   --text-main: #ffffff;
   --text-muted: #e5e5e5;
   --accent: #facc15;
   --accent-hover: #eab308;
-  --accent-glow: rgba(250, 204, 21, 0.45);
+  --accent-glow: rgba(250, 204, 21, 0.4);
+  --accent-on: #000000;
+  --atmosphere-a: transparent;
+  --atmosphere-b: transparent;
 }
 
 :root.light, html.light {
-  --bg-app: #f8fafc;
+  --bg-app: #f4f7fb;
   --bg-card: #ffffff;
-  --bg-subtle: #f1f5f9;
-  --border-color: #cbd5e1;
-  --border-subtle: #e2e8f0;
+  --bg-subtle: #e8eef6;
+  --border-color: #c5d0db;
+  --border-subtle: #dce3ea;
   --text-main: #0f172a;
   --text-muted: #64748b;
   --accent: #4f46e5;
   --accent-hover: #4338ca;
-  --accent-glow: rgba(79, 70, 229, 0.25);
+  --accent-glow: rgba(79, 70, 229, 0.22);
+  --accent-on: #ffffff;
+  --atmosphere-a: rgba(99, 102, 241, 0.06);
+  --atmosphere-b: rgba(79, 70, 229, 0.04);
 }
 
-/* Global Smooth Transitions */
+/* Global smooth transitions */
 body,
 header,
 footer,
@@ -134,36 +234,75 @@ button,
 [class*="bg-slate-"],
 [class*="border-slate-"],
 [class*="bg-indigo-"] {
-  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+  transition:
+    background-color 0.22s ease,
+    border-color 0.22s ease,
+    color 0.22s ease,
+    box-shadow 0.22s ease,
+    opacity 0.22s ease;
 }
 
-/* Dynamic Theme Root Application */
-html, body {
+/* Dynamic theme root */
+html,
+body {
   background-color: var(--bg-app, #070b14);
   color: var(--text-main, #f8fafc);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01" on, "kern" on;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Stage screen container */
+/* Display weight for titles */
+h1,
+h2,
+h3,
+.app-control-container header h1 {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+/* Focus ring — keyboard/accessibility polish */
+:where(button, a, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+:where(button, a, input, select, textarea):focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Align native range controls with theme accent */
+input[type="range"] {
+  accent-color: var(--accent);
+}
+
+/* Stage screen */
 .stage-screen-container {
   background-color: var(--bg-app) !important;
   color: var(--text-main) !important;
 }
 
-/* App Control Container & Base Deep Backgrounds */
+/* Control shell + deep backgrounds with soft atmosphere */
 .app-control-container,
 html body div.bg-slate-950,
 html body .bg-slate-950 {
   background-color: var(--bg-app) !important;
+  background-image:
+    radial-gradient(1100px 520px at 8% -12%, var(--atmosphere-a), transparent 55%),
+    radial-gradient(900px 480px at 100% 0%, var(--atmosphere-b), transparent 50%) !important;
+  background-attachment: fixed !important;
 }
+
 html body .bg-slate-950\/90,
 html body .bg-slate-950\/80,
 html body .bg-slate-950\/60,
 html body .bg-slate-950\/50,
 html body .bg-slate-950\/40 {
-  background-color: color-mix(in srgb, var(--bg-app) 80%, transparent) !important;
+  background-color: color-mix(in srgb, var(--bg-app) 82%, transparent) !important;
 }
 
-/* Elevated Surfaces: Headers, Panels, Cards, Modals */
+/* Elevated surfaces */
 html body header.bg-slate-900\/90,
 html body .bg-slate-900 {
   background-color: var(--bg-card) !important;
@@ -174,10 +313,10 @@ html body .bg-slate-900\/70,
 html body .bg-slate-900\/60,
 html body .bg-slate-900\/50,
 html body .bg-slate-900\/40 {
-  background-color: color-mix(in srgb, var(--bg-card) 90%, transparent) !important;
+  background-color: color-mix(in srgb, var(--bg-card) 92%, transparent) !important;
 }
 
-/* Secondary Surfaces: Inactive Tabs, Input Controls, Table Rows */
+/* Secondary surfaces */
 html body .bg-slate-800 {
   background-color: var(--bg-subtle) !important;
 }
@@ -186,20 +325,20 @@ html body .bg-slate-800\/70,
 html body .bg-slate-800\/60,
 html body .bg-slate-800\/50,
 html body .bg-slate-800\/40 {
-  background-color: color-mix(in srgb, var(--bg-subtle) 80%, transparent) !important;
+  background-color: color-mix(in srgb, var(--bg-subtle) 82%, transparent) !important;
 }
 
-/* Hover states for secondary surfaces */
+/* Hover states */
 html body .hover\:bg-slate-800:hover,
 html body .hover\:bg-slate-800\/80:hover {
-  background-color: color-mix(in srgb, var(--bg-subtle) 120%, white 5%) !important;
+  background-color: color-mix(in srgb, var(--bg-subtle) 88%, white 8%) !important;
 }
 html body .hover\:bg-slate-700:hover,
 html body .hover\:bg-slate-700\/80:hover {
-  background-color: color-mix(in srgb, var(--bg-subtle) 140%, white 10%) !important;
+  background-color: color-mix(in srgb, var(--bg-subtle) 78%, white 12%) !important;
 }
 
-/* Borders across all cards, modals, headers, dividers */
+/* Borders */
 html body .border-slate-800,
 html body .border-slate-800\/80,
 html body .border-slate-800\/70,
@@ -211,10 +350,11 @@ html body .border-slate-700\/60 {
   border-color: var(--border-color) !important;
 }
 
-/* Accent Overrides (Buttons, Highlights, Badges) */
+/* Accent overrides (buttons, highlights, badges) */
 html body .bg-indigo-600,
 html body .bg-indigo-500 {
   background-color: var(--accent) !important;
+  color: var(--accent-on, #ffffff) !important;
 }
 html body .hover\:bg-indigo-500:hover,
 html body .hover\:bg-indigo-700:hover {
@@ -228,45 +368,148 @@ html body .text-indigo-500 {
 html body .border-indigo-600,
 html body .border-indigo-500,
 html body .border-indigo-400,
-html body .border-indigo-500\/50 {
-  border-color: var(--accent) !important;
+html body .border-indigo-500\/50,
+html body .border-indigo-700\/60 {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent) !important;
 }
 html body .shadow-indigo-600\/25,
-html body .shadow-indigo-500\/20 {
-  box-shadow: 0 4px 14px var(--accent-glow) !important;
+html body .shadow-indigo-500\/20,
+html body .shadow-indigo-600\/30 {
+  box-shadow: 0 4px 16px var(--accent-glow) !important;
+}
+html body .bg-indigo-950,
+html body .bg-indigo-950\/80,
+html body .bg-indigo-950\/70,
+html body .bg-indigo-950\/60,
+html body .bg-indigo-950\/40 {
+  background-color: color-mix(in srgb, var(--accent) 18%, var(--bg-card)) !important;
+}
+html body .hover\:bg-indigo-950\/70:hover,
+html body .hover\:bg-indigo-950\/60:hover,
+html body .hover\:bg-indigo-900:hover {
+  background-color: color-mix(in srgb, var(--accent) 28%, var(--bg-subtle)) !important;
+}
+html body .ring-indigo-500\/50 {
+  --tw-ring-color: var(--accent-glow) !important;
 }
 
-/* Accent-adaptive Gradient Overrides */
-html.midnight-neon .from-indigo-600.to-violet-500 { --tw-gradient-from: #ec4899; --tw-gradient-to: #a855f7; }
-html.club-gold .from-indigo-600.to-violet-500 { --tw-gradient-from: #f59e0b; --tw-gradient-to: #d97706; }
-html.ocean-breeze .from-indigo-600.to-violet-500 { --tw-gradient-from: #06b6d4; --tw-gradient-to: #0284c7; }
-html.sunset-crimson .from-indigo-600.to-violet-500 { --tw-gradient-from: #f43f5e; --tw-gradient-to: #e11d48; }
-html.emerald-matrix .from-indigo-600.to-violet-500 { --tw-gradient-from: #10b981; --tw-gradient-to: #059669; }
-html.royal-amethyst .from-indigo-600.to-violet-500 { --tw-gradient-from: #a855f7; --tw-gradient-to: #7c3aed; }
-html.high-contrast .from-indigo-600.to-violet-500 { --tw-gradient-from: #facc15; --tw-gradient-to: #eab308; color: #000000 !important; }
-html.light .from-indigo-600.to-violet-500 { --tw-gradient-from: #4f46e5; --tw-gradient-to: #6366f1; }
+/* Focus ring utilities used on inputs */
+html body .focus\:border-indigo-500:focus,
+html body .focus\:ring-indigo-500\/50:focus {
+  border-color: var(--accent) !important;
+  --tw-ring-color: var(--accent-glow) !important;
+}
 
-/* Light Mode Theme Special Handling */
+/* Accent-adaptive gradients (pill tabs, CTAs) */
+html.dark-stage .from-indigo-600.to-violet-500,
+html.dark-stage .from-indigo-600.to-indigo-500 {
+  --tw-gradient-from: #6366f1;
+  --tw-gradient-to: #4f46e5;
+  color: #ffffff !important;
+}
+html.midnight-neon .from-indigo-600.to-violet-500,
+html.midnight-neon .from-indigo-600.to-indigo-500 {
+  --tw-gradient-from: #f472b6;
+  --tw-gradient-to: #a855f7;
+}
+html.club-gold .from-indigo-600.to-violet-500,
+html.club-gold .from-indigo-600.to-indigo-500 {
+  --tw-gradient-from: #f0b429;
+  --tw-gradient-to: #d97706;
+  color: #1c1400 !important;
+}
+html.ocean-breeze .from-indigo-600.to-violet-500,
+html.ocean-breeze .from-indigo-600.to-indigo-500 {
+  --tw-gradient-from: #22d3ee;
+  --tw-gradient-to: #0284c7;
+  color: #083344 !important;
+}
+html.sunset-crimson .from-indigo-600.to-violet-500,
+html.sunset-crimson .from-indigo-600.to-indigo-500 {
+  --tw-gradient-from: #fb7185;
+  --tw-gradient-to: #e11d48;
+}
+html.emerald-matrix .from-indigo-600.to-violet-500,
+html.emerald-matrix .from-indigo-600.to-indigo-500 {
+  --tw-gradient-from: #34d399;
+  --tw-gradient-to: #059669;
+  color: #022c22 !important;
+}
+html.royal-amethyst .from-indigo-600.to-violet-500,
+html.royal-amethyst .from-indigo-600.to-indigo-500 {
+  --tw-gradient-from: #c084fc;
+  --tw-gradient-to: #7c3aed;
+}
+html.high-contrast .from-indigo-600.to-violet-500,
+html.high-contrast .from-indigo-600.to-indigo-500 {
+  --tw-gradient-from: #facc15;
+  --tw-gradient-to: #eab308;
+  color: #000000 !important;
+}
+html.light .from-indigo-600.to-violet-500,
+html.light .from-indigo-600.to-indigo-500 {
+  --tw-gradient-from: #4f46e5;
+  --tw-gradient-to: #6366f1;
+  color: #ffffff !important;
+}
+
+/* Refined elevation on panels / modals — subtle accent rim glow (Regia chrome) */
+html body .shadow-2xl {
+  box-shadow:
+    var(--shadow-elevated),
+    0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 0 24px color-mix(in srgb, var(--accent-glow) 35%, transparent) !important;
+}
+html body .shadow-xl {
+  box-shadow:
+    0 6px 22px rgba(0, 0, 0, 0.32),
+    0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent) !important;
+}
+html body .shadow-md,
+html body .shadow-sm {
+  box-shadow: var(--shadow-soft) !important;
+}
+
+/* Panel radii */
+html body .app-control-container .rounded-full {
+  border-radius: 9999px;
+}
+html body .app-control-container .rounded-3xl {
+  border-radius: 1.15rem;
+}
+html body .app-control-container .rounded-2xl {
+  border-radius: 0.9rem;
+}
+
+/* Muted text mapping */
+html body .text-slate-400 {
+  color: var(--text-muted) !important;
+}
+html body .text-slate-300,
+html body .text-slate-200 {
+  color: color-mix(in srgb, var(--text-main) 88%, var(--text-muted)) !important;
+}
+
+/* Light mode special handling */
 html.light body {
-  color: #0f172a !important;
+  color: var(--text-main) !important;
 }
 html.light body .text-white,
 html.light body .text-slate-100,
 html.light body .text-slate-200 {
-  color: #0f172a !important;
+  color: var(--text-main) !important;
 }
 html.light body .text-slate-300,
 html.light body .text-slate-400 {
-  color: #475569 !important;
+  color: var(--text-muted) !important;
 }
 html.light body input,
 html.light body select,
 html.light body textarea {
   background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-color: #cbd5e1 !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-color) !important;
 }
-/* Ensure solid action buttons retain crisp white text in light mode */
 html.light body button.bg-indigo-600,
 html.light body .bg-indigo-600,
 html.light body .bg-indigo-600 span,
@@ -275,7 +518,13 @@ html.light body [class*="bg-emerald-600"],
 html.light body [class*="bg-rose-600"],
 html.light body [class*="bg-red-600"],
 html.light body [class*="bg-amber-600"],
-html.light body .from-indigo-600.to-violet-500 {
+html.light body .from-indigo-600.to-violet-500,
+html.light body .from-indigo-600.to-indigo-500 {
   color: #ffffff !important;
 }
 
+/* High-contrast: keep accent text dark on yellow fills */
+html.high-contrast body .bg-indigo-600,
+html.high-contrast body .bg-indigo-500 {
+  color: #000000 !important;
+}
