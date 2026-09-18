@@ -1,4 +1,4 @@
-# 🎤 Karaoke Live Station v1.1.0 — Release Notes
+# 🎤 Karaoke Live Station v1.2.0 — Release Notes
 
 <p align="center">
   <a href="#-italiano">🇮🇹 <strong>Italiano</strong></a> • <a href="#-english">🇬🇧 <strong>English</strong></a>
@@ -6,22 +6,22 @@
 
 ---
 
-<a name="v110-italiano"></a>
-# 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
+<a name="v120-italiano"></a>
+# 🇮🇹 Note di Rilascio — Versione 1.2.0
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **Drag & Drop filesystem** + **Safety-First slice 1** + **fix yt-dlp error -1** (Scarica strumentale) + **impostazioni avanzate UVR-MDX-NET (ETA)** + revert restyle Indigo Regia (#36) + **Interrompi ricerca** Web (yt-dlp) + **fix IPC MessageEvent** utility worker AI + scan libreria ricorsivo + AI UVR / keep-alive ORT + race worker extract WAV + sync Web dopo Elimina + avvisi Download + log debug AI + naming WAV + Actions Node 24 + staging Instrumental + path `//home/...` + SoundFont + progresso ~45% + Carica altri / Pulisci coda + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
+Nuova release GitHub **v1.2.0** (tag dedicato; **non** sovrascrive `v1.1.0`): batch **#40–#44 + #46–#47** — Drag & Drop filesystem, scan libreria ~16k più reattivo, SoundFont AppImage + dropdown Altro, Safety-First slice 1, fix yt-dlp `--sub-langs`, rimozione toast «Download completato» e preselect Cantante assegnato. (#45 saltata)
 
 ## 📦 File di Installazione
 
 | Piattaforma | File | Descrizione |
 | :--- | :--- | :--- |
-| **Windows** | `Karaoke Live Station 1.1.0.exe` | Eseguibile portatile |
-| **Windows** | `Karaoke Live Station-1.1.0-win.zip` | Archivio completo Windows 64-bit |
-| **Linux** | `Karaoke Live Station-1.1.0.AppImage` | AppImage universale |
-| **Linux** | `karaoke-live-station_1.1.0_amd64.deb` | Pacchetto Debian/Ubuntu |
-| **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
+| **Windows** | `Karaoke Live Station 1.2.0.exe` | Eseguibile portatile |
+| **Windows** | `Karaoke Live Station-1.2.0-win.zip` | Archivio completo Windows 64-bit |
+| **Linux** | `Karaoke Live Station-1.2.0.AppImage` | AppImage universale |
+| **Linux** | `karaoke-live-station_1.2.0_amd64.deb` | Pacchetto Debian/Ubuntu |
+| **macOS** | `Karaoke Live Station-1.2.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
-## 🌟 Novità di questa refresh
+## 🌟 Novità di questa versione
 
 ### 📂 Libreria — Drag & Drop da filesystem
 - Trascina file karaoke (`.mp4` / `.webm` / `.mkv` / `.avi`, `.mp3`+`.cdg`, `.mid` / `.kar`) sulla **Libreria Locale** per catalogarli, o sulla **coda Regia** per importarli e metterli in scaletta.
@@ -29,155 +29,54 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **Drag & Drop filesys
 - Overlay solo per drop OS (`Files`); il riordino drag della coda resta invariato.
 - Thumbnail video solo per i file video importati, con yield tra un file e l’altro sul multi-drop; upsert multipli in una transazione SQLite.
 
+### ⚡ Libreria — scan grandi cataloghi (~16k)
+- **Aggiorna Libreria** fa upsert batch in una sola transazione SQLite (prepared statements riusati).
+- Niente FFmpeg sync per video sul thread principale: riusa thumb DB/cache; i thumb mancanti si generano in async (`execFile`) e aggiornano Local via `library:reindexed`.
+- Il salvataggio singolo `download:save-to-library` genera ancora un thumb sync.
+
+### 🎹 SoundFont — packaging AppImage + dropdown Impostazioni
+- Seed di `GeneralUser-GS.sf2` in `<userData>/soundfonts/` (stabile tra remount AppImage); path `/tmp/.mount_*` trattati come effimeri.
+- `extraResources` top-level spedisce `soundfonts` + `ort` **una sola volta** (i blocchi linux/win/mac aggiungono solo `bin/` — evita EEXIST/EBUSY).
+- Impostazioni → Audio: elenco banche bundled/presenti; **Altro…** apre il file picker `.sf2` / `.sf3` (persiste `midiSoundFontPath`). Scheduler MIDI 5 ms / `latencyHint` invariati.
+
 ### 🛡️ Safety-First / Zero Regression (slice 1)
-- Blocco **AI Context & Critical Invariants** in README (contratti IPC/Zustand/SQLite congelati + sei guardrail: pitch 0 bypass SoundTouch, gain = volume², unwrap MessageEvent AI, SIAE ≥120s, GC solo `queue_cache/`, SpessaSynth 5 ms + `latencyHint: 'playback'`).
-- Nuovo `scripts/verify-critical-invariants.js` + inclusione di `verify-ai-vocal-path.js` in `npm test`.
-- TSDoc / Why-comment sui path critici audio/store/download/preload (Watchlist: non eliminare handler dinamici). **Nessun breaking change**.
+- Blocco **AI Context & Critical Invariants** in README (contratti IPC/Zustand/SQLite congelati + sei guardrail).
+- Nuovo `scripts/verify-critical-invariants.js` + `verify-ai-vocal-path.js` in `npm test`.
+- TSDoc / Why-comment sui path critici. **Nessun breaking change** di comportamento Control↔Stage.
 
-### 📥 Scarica strumentale — yt-dlp error -1
-- Messaggio opaco `yt-dlp exited with error code -1`: i fallimenti di **spawn** (errno OS; EPERM → `-1`) non sovrascrivono più l’errore reale.
-- Template `-o` relativo `{downloadId}.%(ext)s` con `cwd=userData/temp` (stesso staging AI; niente titolo YouTube nel path).
-- Superficie delle righe `ERROR:` di yt-dlp sugli exit non zero.
+### 📥 Scarica strumentale — `--sub-langs` yt-dlp + logging
+- Sostituito `--sub-langs en.*,it.*,es.*,fr.*,*-orig` (regex invalida → `Wrong regex for subtitlelangs`) con `all,-live_chat`.
+- Fallimenti yt-dlp / spawn scritti anche sul Logger strutturato (`karaoke-station.log`), non solo nel pannello Download.
 
-### 🎛️ Scarica strumentale — Impostazioni avanzate UVR-MDX-NET (ETA)
-- Con metodo **UVR-MDX-NET Karaoke 2**, Impostazioni → Audio mostra **Impostazioni Avanzate UVR-MDX-NET (Ottimizzazione ETA)**: dimensione segmento (default **256**), overlap frazionario (default **0.25**), toggle accelerazione ORT WASM (graph opts + SIMD; ORT resta obbligatorio).
-- I knobs persistono in AppSettings e **non** vengono inviati al worker per Demucs / Roformer / DSP.
-- L’overlap runtime usa la frazione Impostazioni (`mdxStepSamples`); l’overlap UVR «Default» resta disponibile per helper/export.
+### 🧹 UI Regia — toast e cantante
+- Rimosso il badge overlay verde **Download completato**; stato/errori restano nel menu **Downloads**.
+- Rimosso il campo preselect **Cantante assegnato…** da Libreria / Web: l’assegnazione avviene solo nel modal di enqueue (chrome Regia invariato).
 
-### ↩️ UI — revert Dark Stage Indigo Regia
-- Annullato il restyle Indigo Regia e la rimozione del preselect **Cantante assegnato** introdotti da PR #36 (chrome Regia e UX cantante tornano al comportamento precedente).
+## ✅ Baseline 1.1.0
 
-### ⏹️ Ricerca Web — Interrompi ricerca
-- Pulsante **Interrompi ricerca** (IT/EN/ES/FR) mentre la ricerca Web o «Carica altri» è in corso: abort yt-dlp via IPC, azzera lo stato di loading, evita risultati in ritardo.
-- Nuova ricerca annulla eventuali child yt-dlp precedenti; cancel idle = no-op sicuro.
-
-### 🔧 Scarica strumentale AI — unwrap MessageEvent IPC
-- Il utility worker riceve `{ data, ports }` da `parentPort`, non il payload `separate` nudo: unwrap corretto così `handleSeparate` parte dopo il ready-ping (niente stall 45 min / `ort_silence_timeout` falsi).
-- Log stdout/stderr del worker; import lazy di `demucs-web` solo per HTDemucs; test `scripts/verify-ai-worker-ipc-unwrap.js`.
-
-### 📂 Libreria — scan ricorsivo sottocartelle
-- **Aggiorna Libreria** / reindex all’avvio e il match «già su disco» nei download percorrono tutte le sottocartelle relative sotto `libraryPath` (stessi filtri audio/video / Instrumental / file incompleti; id basati sul path evitano doppi conteggi).
-
-### ⏱️ Scarica strumentale AI — chunking UVR Default + keep-alive ORT
-- UVR-MDX Karaoke 2 usa overlap **Default** UVR (`step = chunk_size - n_fft`) con zero-pad/trim/Hann OLA al posto di finestre triangolari ~50% (~2× meno run ORT).
-- Keep-alive parent + tetto 45 min di silenzio ORT evitano false idle kill mentre WASM blocca l’IPC durante `session.run`; log stall/timeout più chiari.
-
-### 🎙️ Scarica strumentale AI — race worker / extract WAV
-- Il job `separate` parte solo dopo il ready-ping del utility worker (niente post prematuro durante l’import ORT).
-- Verifica che `{id}.instrumental.extract.wav` esista prima del remux; coerce metodo strumentale (non live DSP).
-- Test mock pipeline: `scripts/verify-ai-instrumental-extract.js`.
-
-### 🔍 Ricerca Web — Download di nuovo dopo Elimina
-- Dopo Elimina dalla libreria, le righe Web tornano a `youtube` (match id / path / prefisso filename) così ricompaiono Download / Scarica strumentale senza ri-cercare.
-
-### 📥 Menu Download — avvisi manuali in coda
-- «Già in libreria» e errori download manuali vanno sulle righe del menu Download (non toast fuori coda); tono ambra e auto-apertura menu.
-
-### 🧪 Scarica strumentale AI — log debug + naming WAV
-- Log `debug` più ricchi lungo la pipeline Instrumental (extract / modello / ORT / remux / cleanup), senza segreti.
-- Extract demux: `{id}.extract.wav` (stem dell’MP4 sorgente); output AI: `{id}.instrumental.extract.wav`; cleanup temp per `downloadId`.
-
-### 🛠️ CI — Actions su runtime Node 24
-- `actions/checkout`, `setup-node`, `upload-artifact` aggiornati a major Node 24; toolchain app resta su Node 20.
-
-### 📥 Scarica strumentale — staging originale affidabile
-- yt-dlp scrive l’MP4 originale in **`userData/temp`** (su Linux AppImage: `~/.config/karaoke-live-station/temp/`), non nella cartella libreria.
-- Risoluzione Destination/Merger più robusta (path relativi, Merger senza virgolette, niente frammenti `.f###`); se manca l’originale, errore chiaro invece di «completato» senza AI.
-- Sequenza: download → ensure modello (opz.) → AI/DSP → remux `*.instrumental.mp4` → cleanup originale → salvataggio libreria `(Instrumental)`.
-
-### 📂 Path media locale (`karaoke://local`)
-- Correzione del doppio slash `//home/...` dopo `encodeURIComponent` di path assoluti POSIX: playback Instrumental e file locali non falliscono più con `Media file not found` / `DEMUXER_ERROR_COULD_NOT_OPEN`.
-- Nomi Unicode (å, ò, …) invariati; Windows drive letter / UNC gestiti.
-- SoundFont bundled: priorità a `resources/soundfonts/` (extraResources, fuori asar).
-
-### 🎚️ «Rimozione voce» AI — progresso oltre il 45%
-- Mapping di progresso monotono per fase (niente reset al 45% dopo il load del modello).
-- Heartbeat intra-chunk durante STFT/ORT/iSTFT; piani FFT Bluestein in cache per `n_fft=5120`.
-- Watchdog idle a 20 min; copie ONNX/WASM più sicure.
-
-### 📺 YouTube — Carica altri video
-- Pulsante **Carica altri video** in ricerca Web: pagina successiva via yt-dlp (`ytsearch` + playlist-start/end).
-
-### 🧹 Menu Download — Pulisci coda
-- **Pulisci coda** annulla i download in corso/in coda e svuota l’elenco (conferma se attivi).
-
-### 📶 Velocità e tempo rimanente nel menu Download
-- Progresso yt-dlp corretto (`KLSPROG` / `--progress`): il menu mostra **velocità** e **ETA** durante il download.
-
-### ⏱️ Scarica strumentale — AI senza false timeout
-- Timeout AI scalato sulla durata del brano; watchdog idle su heartbeat di progresso.
-- ORT WASM caricato in memoria nel utility worker (evita hang `file://`).
-- ETA di conversione durante «Rimozione voce»; **Annulla** invariato; modelli aggiornati solo se più nuovi in `userData/models`.
-
-### 🎛️ Impostazioni vocali separate (live vs strumentale)
-- **Rimozione Vocale live** (`V`): solo algoritmi DSP in Impostazioni.
-- **Metodo Scarica strumentale**: menu dedicato (AI + DSP); default **UVR-MDX Karaoke 2**. L’AI non guida mai il live.
-
-### ⏹️ Annulla download
-- Il pulsante interrompi nel menu Download ferma yt-dlp (albero processi), conversione ffmpeg e job AI/modello, anche in fase strumentale.
-
-### 🎙️ Rimozione Vocale live — solo DSP
-- Pulsante Regia / tasto `V`: mid/side algoritmico (`centerCancelBassKeep`, `centerCancel`, `softMid`).
-- **Niente** spinner «Separazione…» né fader dual-stem live.
-
-### 🤖 Scarica strumentale — AI offline (selezionabile)
-- Impostazioni → Audio: UVR-MDX Karaoke 2 / HTDemucs / BS-Roformer (oltre al DSP).
-- Modelli in `userData/models/`; aggiornamento solo se mancanti, corrotti o catalogo più nuovo (URL/SHA/version).
-- Pipeline: yt-dlp → ensure modello → separazione AI (utility process) o DSP → remux (+ lyric burn se possibile) → libreria `(Instrumental)`.
-- Toast di avviso all’avvio (più lungo / più risorse di un download normale).
-
-### 📥 Menu Download + concorrenza
-- Progresso attivo/in coda nel menu Download a sinistra di Impostazioni (niente alert sopra le righe brani).
-- Impostazione **Download simultanei massimi** (pool condiviso normale + strumentale).
-
-### 🔎 Ricerca senza accenti
-- Query senza diacritici trovano titoli accentati (es. `moriro` → *morirò*) su Local, Web, coda, cronologia, Impostazioni e scorciatoie.
-
-### 🔇 Conferma unmute anteprima YouTube (stesso dispositivo)
-- Embed YouTube ricerca Web / Pre-Ascolto: stesso modale tematico se CUE === Uscita Principale.
-
-### 🖼️ Archiviazione automatica → thumbnail Local
-- Reindex completo Local (scan + cover ffmpeg) **prima** di accodare il file locale.
-
-### 🖼️ Icona ufficiale ovunque
-- Packaging Windows / Linux / macOS con logo ufficiale `public/logo.png`.
-
-### 📥 YouTube → coda con archiviazione automatica
-- Con archiviazione ON, **Metti in coda** attende download **e** archivio, aggiorna Locale, accoda il **file locale**.
-
-### 🎧 Pre-Ascolto tematico (CUE)
-- Modale anteprima tematico sul dispositivo CUE; avviso stesso-dispositivo all’unmute.
-
-### 🗑️ Elimina dalla libreria
-- Conferma tematica; rimozione catalogo; cancellazione disco solo sotto `libraryPath`.
-
-### 🎭 Stage & ricerca
-- Sfondi per-messaggio; scorciatoie allineate a **?** / F1; ricerca Local/Web separata; badge velocità Stage.
-
-### 🛠️ CI — retry install
-- Retry `npm ci` con backoff (bash su tutte le piattaforme) per download intermittenti di `ffmpeg-static`.
+Include tutto quanto già in **v1.1.0** (fix yt-dlp error -1, impostazioni UVR-MDX ETA, Interrompi ricerca, unwrap MessageEvent AI, scan ricorsivo, staging Instrumental, path `karaoke://local`, ecc.).
 
 ### 📜 Licenza
 - Progetto sotto **GNU AGPLv3 or later** (`AGPL-3.0-or-later`).
 
 ---
 
-<a name="v110-english"></a>
-# 🇬🇧 Release Notes — Version 1.1.0 (refresh)
+<a name="v120-english"></a>
+# 🇬🇧 Release Notes — Version 1.2.0
 
-GitHub Release **v1.1.0** overwrite: **OS filesystem Drag & Drop** + **Safety-First slice 1** + **yt-dlp error -1 fix** (Download Instrumental) + **UVR-MDX-NET advanced ETA settings** + revert Indigo Regia restyle (#36) + **Stop web search** (yt-dlp cancel) + **AI utility-worker MessageEvent IPC unwrap** + recursive library scan + UVR / ORT keep-alive + Instrumental AI worker ready race (extract WAV) + Web search after library delete + manual download warnings + AI debug logs + WAV naming + Actions Node 24 + Instrumental staging + path `//home/...` + SoundFont + ~45% progress + Load more / Clear downloads + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
+New GitHub release **v1.2.0** (dedicated tag; does **not** overwrite `v1.1.0`): batch **#40–#44 + #46–#47** — filesystem Drag & Drop, faster ~16k library scan, AppImage SoundFont seed + Settings Altro dropdown, Safety-First slice 1, yt-dlp `--sub-langs` fix, remove Download-completed overlay toast and assigned-singer preselect. (#45 skipped)
 
 ## 📦 Installers
 
 | Platform | File | Description |
 | :--- | :--- | :--- |
-| **Windows** | `Karaoke Live Station 1.1.0.exe` | Portable executable |
-| **Windows** | `Karaoke Live Station-1.1.0-win.zip` | Full Windows 64-bit archive |
-| **Linux** | `Karaoke Live Station-1.1.0.AppImage` | Universal AppImage |
-| **Linux** | `karaoke-live-station_1.1.0_amd64.deb` | Debian/Ubuntu package |
-| **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
+| **Windows** | `Karaoke Live Station 1.2.0.exe` | Portable executable |
+| **Windows** | `Karaoke Live Station-1.2.0-win.zip` | Full Windows 64-bit archive |
+| **Linux** | `Karaoke Live Station-1.2.0.AppImage` | Universal AppImage |
+| **Linux** | `karaoke-live-station_1.2.0_amd64.deb` | Debian/Ubuntu package |
+| **macOS** | `Karaoke Live Station-1.2.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
-## 🌟 What’s new in this refresh
+## 🌟 What’s new in this version
 
 ### 📂 Library — OS filesystem Drag & Drop
 - Drop karaoke files (`.mp4` / `.webm` / `.mkv` / `.avi`, `.mp3`+`.cdg`, `.mid` / `.kar`) onto **Local Library** to catalog them, or onto the **Control queue** to import and enqueue.
@@ -185,133 +84,32 @@ GitHub Release **v1.1.0** overwrite: **OS filesystem Drag & Drop** + **Safety-Fi
 - Overlay only for OS `Files` drops; in-app queue reorder is unchanged.
 - Video thumbnails only for imported video files, with yields between files on multi-drop; multi-row upsert in one SQLite transaction.
 
+### ⚡ Library — large catalog scan (~16k)
+- **Refresh Library** batch-upserts in a single SQLite transaction (reused prepared statements).
+- No sync FFmpeg per video on the main thread: reuse DB/cache thumbs; missing thumbs generate asynchronously (`execFile`) and refresh Local via `library:reindexed`.
+- Single-file `download:save-to-library` still generates a sync thumb.
+
+### 🎹 SoundFont — AppImage packaging + Settings dropdown
+- Seed `GeneralUser-GS.sf2` into `<userData>/soundfonts/` (stable across AppImage remounts); treat `/tmp/.mount_*` paths as ephemeral.
+- Top-level `extraResources` ships `soundfonts` + `ort` **once** (platform blocks only add `bin/` — avoids EEXIST/EBUSY).
+- Settings → Audio: list bundled/present banks; **Other…** opens `.sf2` / `.sf3` file picker (persists `midiSoundFontPath`). MIDI 5 ms scheduler / `latencyHint` unchanged.
+
 ### 🛡️ Safety-First / Zero Regression (slice 1)
-- README **AI Context & Critical Invariants** block (frozen IPC/Zustand/SQLite contracts + six guardrails: pitch-0 SoundTouch bypass, gain = volume², AI MessageEvent unwrap, SIAE ≥120s, GC only `queue_cache/`, SpessaSynth 5 ms + `latencyHint: 'playback'`).
+- README **AI Context & Critical Invariants** block (frozen IPC/Zustand/SQLite contracts + six guardrails).
 - New `scripts/verify-critical-invariants.js` and fold `verify-ai-vocal-path.js` into `npm test`.
-- TSDoc / Why-comments on critical audio/store/download/preload paths (Watchlist: never delete dynamic handlers). **No breaking changes**.
+- TSDoc / Why-comments on critical paths. **No Control↔Stage behavior breaking changes.**
 
-### 📥 Download Instrumental — yt-dlp error -1
-- Opaque `yt-dlp exited with error code -1`: **spawn** failures (OS errno; EPERM → `-1`) no longer overwrite the real error message.
-- Relative `-o` template `{downloadId}.%(ext)s` with `cwd=userData/temp` (same AI staging; no YouTube title in the path).
-- Surface yt-dlp `ERROR:` lines on non-zero exits.
+### 📥 Download Instrumental — yt-dlp `--sub-langs` + logging
+- Replaced invalid `--sub-langs en.*,it.*,es.*,fr.*,*-orig` (`Wrong regex for subtitlelangs`) with `all,-live_chat`.
+- yt-dlp / spawn failures also write to the structured Logger (`karaoke-station.log`), not only the Download panel.
 
-### 🎛️ Download Instrumental — UVR-MDX-NET advanced ETA settings
-- When method is **UVR-MDX-NET Karaoke 2**, Settings → Audio shows **Advanced UVR-MDX-NET Settings (ETA Optimization)**: segment size (default **256**), fractional overlap (default **0.25**), honest ORT WASM CPU acceleration toggle (graph opts + SIMD; ORT still required).
-- Knobs persist in AppSettings and are **omitted** from the AI worker payload for Demucs / Roformer / DSP.
-- Runtime overlap uses the Settings fraction (`mdxStepSamples`); UVR “Default” overlap remains available for helpers/exports.
+### 🧹 Control UI — toast and singer
+- Removed the green **Download completed** overlay badge; status/errors remain in the **Downloads** menu.
+- Removed Library / Web **Assigned singer…** preselect; assignment happens only in the enqueue modal (Regia chrome unchanged).
 
-### ↩️ UI — revert Dark Stage Indigo Regia
-- Undoes the Indigo Regia restyle and assigned-singer preselect removal from PR #36 (Regia chrome and singer UX restored to pre-#36 behavior).
+## ✅ 1.1.0 baseline
 
-### ⏹️ Web search — Stop search
-- **Stop search** button (IT/EN/ES/FR) while Web search or “Load more” is running: abort yt-dlp via IPC, clear loading UI, ignore late results.
-- A new search aborts any previous yt-dlp child; idle cancel is a safe no-op.
-
-### 🔧 Instrumental AI — MessageEvent IPC unwrap
-- Utility worker `parentPort` delivers `{ data, ports }`, not a bare `separate` payload — unwrap so `handleSeparate` runs after the ready ping (no false 45 min / `ort_silence_timeout` stalls).
-- Worker stdout/stderr logging; lazy `demucs-web` import for HTDemucs only; test `scripts/verify-ai-worker-ipc-unwrap.js`.
-
-### 📂 Library — recursive subfolder scan
-- **Refresh Library** / startup reindex and download “already on disk” matching walk all relative subdirectories under `libraryPath` (same audio/video / Instrumental / incomplete-file filters; path-based ids avoid double-count).
-
-### ⏱️ Instrumental AI — UVR Default chunking + ORT keep-alive
-- UVR-MDX Karaoke 2 uses UVR GUI **Default** overlap (`step = chunk_size - n_fft`) with zero-pad/trim/Hann OLA instead of ~50% triangular windows (~2× fewer ORT runs).
-- Parent keep-alive + 45 min ORT-silence ceiling avoid false idle kills while WASM blocks IPC during `session.run`; clearer stall/timeout logs.
-
-### 🎙️ Instrumental AI — worker ready race / extract WAV
-- `separate` is posted only after the utility-worker ready ping (no early post during ORT import).
-- Refuse success if `{id}.instrumental.extract.wav` is missing; use instrumental method coerce (not live DSP).
-- Mock pipeline test: `scripts/verify-ai-instrumental-extract.js`.
-
-### 🔍 Web search — Download again after library delete
-- After Delete from library, matching Web rows revert to `youtube` (id / path / filename prefix) so Download / Download Instrumental return without re-search.
-
-### 📥 Download menu — manual warnings in-queue
-- “Already in library” and manual download errors render on Downloads menu rows (not out-of-queue toasts); amber tone and auto-open menu.
-
-### 🧪 Instrumental AI — debug logs + WAV naming
-- Richer `debug` logs across the Instrumental pipeline (extract / model / ORT / remux / cleanup), no secrets.
-- Demux extract: `{id}.extract.wav` (source MP4 stem); AI output: `{id}.instrumental.extract.wav`; per-`downloadId` temp cleanup.
-
-### 🛠️ CI — Actions on Node 24 runtimes
-- Bumped `actions/checkout`, `setup-node`, `upload-artifact` to Node 24 majors; app toolchain stays on Node 20.
-
-### 📥 Download Instrumental — reliable original staging
-- yt-dlp writes the original MP4 under **`userData/temp`** (Linux AppImage: `~/.config/karaoke-live-station/temp/`), not the library folder.
-- Stronger Destination/Merger resolution (relative paths, unquoted Merger, ignore `.f###` fragments); clear error if the original is missing instead of “completed” without AI.
-- Sequence: download → optional model ensure → AI/DSP → remux `*.instrumental.mp4` → delete original → library save `(Instrumental)`.
-
-### 📂 Local media path (`karaoke://local`)
-- Fixed double-slash `//home/...` after `encodeURIComponent` of POSIX absolute paths — Instrumental and local files no longer fail with `Media file not found` / `DEMUXER_ERROR_COULD_NOT_OPEN`.
-- Unicode filenames (å, ò, …) unchanged; Windows drive letters / UNC handled.
-- Bundled SoundFont: prefer `resources/soundfonts/` (extraResources, outside asar).
-
-### 🎚️ Instrumental AI “Rimozione voce” — progress past 45%
-- Phase-aware monotonic progress (no snap-back to 45% after model load).
-- Intra-chunk STFT/ORT/iSTFT heartbeats; cached Bluestein FFT plans for `n_fft=5120`.
-- Idle watchdog 20 min; safer ONNX/WASM buffer copies.
-
-### 📺 YouTube — Load more videos
-- **Load more videos** / **Carica altri video** in Web search: next page via yt-dlp (`ytsearch` + playlist-start/end).
-
-### 🧹 Download menu — Clear downloads
-- **Clear downloads** cancels in-flight/queued jobs and empties the list (confirm when active).
-
-### 📶 Download menu speed + remaining time
-- Correct yt-dlp progress parsing (`KLSPROG` / `--progress`): the Download menu shows **speed** and **ETA** while downloading.
-
-### ⏱️ Download Instrumental — AI without false timeouts
-- AI hard timeout scales with track length; idle watchdog resets on progress heartbeats.
-- ORT WASM loaded in-memory in the utility worker (avoids `file://` hangs).
-- Conversion ETA during “Removing vocals…”; **Cancel** unchanged; models update only if newer under `userData/models`.
-
-### 🎛️ Split vocal settings (live vs instrumental)
-- **Live Rimozione Vocale** (`V`): algorithmic DSP methods only in Settings.
-- **Download Instrumental method**: separate dropdown (AI + DSP); default **UVR-MDX Karaoke 2**. AI never drives live playback.
-
-### ⏹️ Cancel download
-- The Download menu interrupt button stops yt-dlp (process tree), ffmpeg conversion, and AI/model jobs — including during instrumental post-process.
-
-### 🎙️ Live Vocal Remover — DSP only
-- Control button / `V`: algorithmic mid/side (`centerCancelBassKeep`, `centerCancel`, `softMid`).
-- **No** “Separating…” spinner or live dual-stem fader.
-
-### 🤖 Download Instrumental — selectable offline AI
-- Settings → Audio: UVR-MDX Karaoke 2 / HTDemucs / BS-Roformer (plus DSP options).
-- Models under `userData/models/`; update only when missing, corrupt, or catalog newer (URL/SHA/version).
-- Pipeline: yt-dlp → ensure model → AI (utility process) or DSP separate → remux (+ lyric burn when possible) → library `(Instrumental)`.
-- Non-blocking toast on start (longer / heavier than a normal download).
-
-### 📥 Download menu + concurrency
-- Active/queued progress in the Download menu left of Settings (no alert list above song rows).
-- **Max simultaneous downloads** setting (shared pool for normal + instrumental).
-
-### 🔎 Accent-insensitive search
-- Unaccented queries match accented titles (e.g. `moriro` → *morirò*) across Local, Web, queue, history, Settings, and shortcuts.
-
-### 🔇 YouTube preview unmute confirm (same device)
-- Web-search / Pre-Listen YouTube embed: same themed confirm when CUE === Main Output.
-
-### 🖼️ Auto-archive → Local thumbnails
-- Full Local reindex (scan + ffmpeg cover) before enqueueing the archived local file.
-
-### 🖼️ Official logo as app icon everywhere
-- Windows / Linux / macOS packaging use official `public/logo.png`.
-
-### 📥 YouTube → queue with auto-archive
-- With auto-archive ON, waits for download **and** archive, refreshes Local, enqueues the **local library file**.
-
-### 🎧 Themed Pre-Ascolto (CUE)
-- Themed preview modal on the CUE device; same-device unmute warning.
-
-### 🗑️ Delete from library
-- Themed confirm; catalog removal; disk delete only under `libraryPath`.
-
-### 🎭 Stage & search
-- Per-message backgrounds; shortcuts aligned with **?** / F1; scoped Local/Web search; Stage speed badge.
-
-### 🛠️ CI — install retries
-- `npm ci` retry with backoff (`shell: bash` on all platforms) for flaky `ffmpeg-static` downloads.
+Includes everything already in **v1.1.0** (yt-dlp error -1 fix, UVR-MDX ETA settings, Stop search, AI MessageEvent unwrap, recursive scan, Instrumental staging, `karaoke://local` path fix, etc.).
 
 ### 📜 License
-- Project licensed under **GNU AGPLv3 or later** (`AGPL-3.0-or-later`).
+- Project under **GNU AGPLv3 or later** (`AGPL-3.0-or-later`).

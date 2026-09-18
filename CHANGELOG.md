@@ -9,33 +9,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- **Critical domain invariants source-lock** — `scripts/verify-critical-invariants.js` (pitch-0 SoundTouch bypass, volume², AI MessageEvent unwrap, SIAE ≥120s, queue_cache-only GC, SpessaSynth 5 ms + `latencyHint: 'playback'`, ASAR unpack for `better-sqlite3` / `ffmpeg-static`); wired into `npm test` together with `verify-ai-vocal-path.js`.
-- **README AI Context & Critical Invariants** — dual-audience block (human + agents) documenting frozen IPC/Zustand/SQLite contracts and the six absolute guardrails; expanded library citation table (ORT, demucs-web, fft.js, qrcode, clsx, tailwind-merge).
-- **SoundFont dropdown** — Settings → Audio lists bundled/present banks; **Altro…** opens a file picker for an external `.sf2` / `.sf3`. Selection persists in `midiSoundFontPath` and loads via existing AudioGraphManager / SpessaSynth path (scheduler / latencyHint unchanged).
-- **OS filesystem Drag & Drop import** — Drop karaoke media onto Local Library (catalog) or Control queue (catalog + enqueue). Formats: `.mp4`/`.webm`/`.mkv`/`.avi`, `.mp3`+`.cdg`, `.mid`/`.kar`. IPC `library:import-files`, preload `library.importFiles` + `webUtils.getPathForFile`, batch SQLite transaction for multi-file, video thumbnails with yields between files. Overlay only when `dataTransfer.types` includes `Files` (queue reorder unchanged).
+- None yet.
 
 ### Changed
-- **Library / Web search** — Removed the “Cantante assegnato…” preselect field. Singer assignment happens only in the add-to-queue modal (enqueue / assign). Regia theme chrome unchanged.
-- **Safety-First documentation pass (slice 1)** — high-density Why/TSDoc on hot audio, store GC, DownloadManager delete guard, AI worker unwrap, and preload Watchlist surfaces. No IPC / Zustand / SQLite schema / Control↔Stage sync behavior changes.
-- **Large library scan latency** — Folder scan batch-upserts tracks in one SQLite transaction (prepared statements reused) and no longer runs sync FFmpeg per video on the main thread. Cached/DB thumbnails are reused; missing thumbs generate asynchronously via `execFile` and refresh Local via existing `library:reindexed`. Single-file `download:save-to-library` still generates a sync thumb. IPC contracts unchanged. (FS walk + Local list virtualization remain follow-ups.)
+- None yet.
 
 ### Fixed
-- **AppImage SoundFont path** — Bundled `GeneralUser-GS.sf2` is seeded to `<userData>/soundfonts/` (like ORT/yt-dlp). Persisted `/tmp/.mount_*` AppImage paths are treated as ephemeral and re-resolved on startup so `karaoke://local` no longer 404s. Packaging: top-level `extraResources` ships `public/soundfonts` + `public/ort` **once** (platform blocks only add `bin/` — avoids electron-builder EEXIST/EBUSY double-link).
+- None yet.
 
-### Performance
-- None in this slice (granular Zustand selectors deferred to Watchlist).
+### Breaking Changes
+- None yet.
 
-### Dependencies
-- Inventory only: `clsx` / `tailwind-merge` remain declared but unused in `src/` (Watchlist — do not remove without follow-up). Lucide imports already named/tree-shakeable; no packaging change.
+## [1.2.0] — Drag & Drop, scan latency, SoundFont, Safety-First — 2026-09-18
 
-### Refactoring
-- Conservative comments/TSDoc only; no dead-code deletions of dynamic/preload/Socket.IO/shortcut handlers.
+New GitHub Release `v1.2.0` after batch PRs #40–#44 + #46–#47 (#45 skipped). Does **not** overwrite `v1.1.0`.
 
-### Tests
-- `npm test` includes critical-invariants + AI vocal-path verifies; existing suites unchanged in semantics.
+### Added
+- **OS filesystem Drag & Drop import** — Drop karaoke media onto Local Library (catalog) or Control queue (catalog + enqueue). Formats: `.mp4`/`.webm`/`.mkv`/`.avi`, `.mp3`+`.cdg`, `.mid`/`.kar`. IPC `library:import-files`, preload `library.importFiles` + `webUtils.getPathForFile`, batch SQLite transaction for multi-file, video thumbnails with yields between files. Overlay only when `dataTransfer.types` includes `Files` (queue reorder unchanged). (PR #47)
+- **SoundFont dropdown** — Settings → Audio lists bundled/present banks; **Altro…** opens a file picker for an external `.sf2` / `.sf3`. Selection persists in `midiSoundFontPath` and loads via existing AudioGraphManager / SpessaSynth path (scheduler / latencyHint unchanged). (PR #44)
+- **Critical domain invariants source-lock** — `scripts/verify-critical-invariants.js` (pitch-0 SoundTouch bypass, volume², AI MessageEvent unwrap, SIAE ≥120s, queue_cache-only GC, SpessaSynth 5 ms + `latencyHint: 'playback'`, ASAR unpack for `better-sqlite3` / `ffmpeg-static`); wired into `npm test` together with `verify-ai-vocal-path.js`. (PR #41)
+- **README AI Context & Critical Invariants** — dual-audience block (human + agents) documenting frozen IPC/Zustand/SQLite contracts and the six absolute guardrails; expanded library citation table. (PR #41)
 
-### Documentation
-- README Critical Invariants + library table; CHANGELOG / RELEASE_NOTES (IT+EN) for this Safety-First slice.
+### Changed
+- **Large library scan latency** — Folder scan batch-upserts tracks in one SQLite transaction (prepared statements reused) and no longer runs sync FFmpeg per video on the main thread. Cached/DB thumbnails are reused; missing thumbs generate asynchronously via `execFile` and refresh Local via existing `library:reindexed`. Single-file `download:save-to-library` still generates a sync thumb. IPC contracts unchanged. (PR #46)
+- **Library / Web search** — Removed the “Cantante assegnato…” preselect field. Singer assignment happens only in the add-to-queue modal (enqueue / assign). Regia theme chrome unchanged. (PR #43)
+- **Safety-First documentation pass (slice 1)** — high-density Why/TSDoc on hot audio, store GC, DownloadManager delete guard, AI worker unwrap, and preload Watchlist surfaces. No IPC / Zustand / SQLite schema / Control↔Stage sync behavior changes. (PR #41)
+- **Download completed overlay** — Removed the green dismissible Library overlay badge; completion / errors remain in the header Downloads menu. (PR #42)
+
+### Fixed
+- **AppImage SoundFont path** — Bundled `GeneralUser-GS.sf2` is seeded to `<userData>/soundfonts/` (like ORT/yt-dlp). Persisted `/tmp/.mount_*` AppImage paths are treated as ephemeral and re-resolved on startup so `karaoke://local` no longer 404s. Packaging: top-level `extraResources` ships `public/soundfonts` + `public/ort` **once** (platform blocks only add `bin/` — avoids electron-builder EEXIST/EBUSY double-link). (PR #44)
+- **yt-dlp `--sub-langs` invalid regex** — Replaced `en.*,it.*,es.*,fr.*,*-orig` with documented `all,-live_chat` for instrumental auto-subs; log non-zero exit / spawn failures to the structured Logger as well as the Download panel. (PR #40)
 
 ### Breaking Changes
 - None.
