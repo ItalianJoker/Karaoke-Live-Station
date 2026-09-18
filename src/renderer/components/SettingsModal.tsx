@@ -31,6 +31,11 @@ import { useKaraokeStore } from '../store/karaokeStore';
 import { AppTheme, StageMessageStyle, YtDlpStatus } from '../../shared/types';
 import { textMatchesSearch } from '../../shared/textNormalize';
 import {
+  SOUND_FONT_OTHER_OPTION_ID,
+  soundFontPathsEqual,
+  type SoundFontCatalogEntry
+} from '../../shared/soundFontPath';
+import {
   STAGE_MESSAGE_KEYS,
   StageMessageKey,
   createDefaultStageMessages,
@@ -87,6 +92,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const updateSettings = useKaraokeStore((state) => state.updateSettings);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [defaultSystemSf, setDefaultSystemSf] = useState<string | null>(null);
+  const [soundFontCatalog, setSoundFontCatalog] = useState<SoundFontCatalogEntry[]>([]);
   const [logFilePath, setLogFilePath] = useState<string>('');
   const [portalInfo, setPortalInfo] = useState<{ enabled: boolean; url: string; port?: number; ip?: string } | null>(null);
   const [ytdlpStatus, setYtdlpStatus] = useState<YtDlpStatus | null>(null);
@@ -121,6 +127,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       window.karaokeApi.system.getDefaultSoundFont().then(setDefaultSystemSf);
     }
 
+    if (window.karaokeApi?.system?.listSoundFonts) {
+      window.karaokeApi.system.listSoundFonts().then((entries) => {
+        setSoundFontCatalog(Array.isArray(entries) ? entries : []);
+      });
+    }
+
     if (window.karaokeApi?.logger?.getLogFilePath) {
       window.karaokeApi.logger.getLogFilePath().then(setLogFilePath);
     }
@@ -144,9 +156,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     }
   };
 
+  const soundFontSelectValue = (() => {
+    const current = settings.midiSoundFontPath || '';
+    if (!current) {
+      return soundFontCatalog[0]?.id || SOUND_FONT_OTHER_OPTION_ID;
+    }
+    const match = soundFontCatalog.find((e) => soundFontPathsEqual(e.path, current));
+    if (match) return match.id;
+    return SOUND_FONT_OTHER_OPTION_ID;
+  })();
+
+  const handleSoundFontSelectChange = async (value: string) => {
+    if (value === SOUND_FONT_OTHER_OPTION_ID) {
+      await handleSelectSoundFont();
+      return;
+    }
+    const entry = soundFontCatalog.find((e) => e.id === value);
+    if (entry?.path) {
+      updateSettings({ midiSoundFontPath: entry.path });
+    }
+  };
+
   const handleResetDefaultSoundFont = () => {
     if (defaultSystemSf) {
       updateSettings({ midiSoundFontPath: defaultSystemSf });
+    } else if (soundFontCatalog[0]?.path) {
+      updateSettings({ midiSoundFontPath: soundFontCatalog[0].path });
     }
   };
 
@@ -315,11 +350,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const matchSoundfont = matchesSearch(
     t('settings.soundfont'),
+    t('settings.soundfontOther'),
+    t('settings.soundfontKindBundled'),
+    t('settings.soundfontKindSystem'),
     'soundfont',
     'sf2',
     'midi',
-    'Default di Sistema',
-    'Usa soundfont di sistema'
+    'altro'
   );
   const matchDevices = matchesSearch(
     t('settings.cueDevice'),
@@ -951,39 +988,67 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <label className="text-slate-400 font-medium">{t('settings.soundfont')}</label>
-                      {settings.midiSoundFontPath && defaultSystemSf && settings.midiSoundFontPath === defaultSystemSf && (
+                      {settings.midiSoundFontPath &&
+                        defaultSystemSf &&
+                        soundFontPathsEqual(settings.midiSoundFontPath, defaultSystemSf) && (
                         <span className="px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 text-[10px] font-semibold">
-                          Default di Sistema
+                          {t('settings.soundfontDefaultBadge')}
                         </span>
                       )}
                     </div>
-                    {defaultSystemSf && settings.midiSoundFontPath !== defaultSystemSf && (
+                    {defaultSystemSf &&
+                      settings.midiSoundFontPath &&
+                      !soundFontPathsEqual(settings.midiSoundFontPath, defaultSystemSf) && (
                       <button
                         type="button"
                         onClick={handleResetDefaultSoundFont}
                         className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-medium cursor-pointer"
                       >
-                        Usa soundfont di sistema
+                        {t('settings.soundfontUseDefault')}
                       </button>
                     )}
                   </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={settings.midiSoundFontPath || ''}
-                      placeholder={t('midi.noSoundfontSelected')}
-                      className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white text-xs font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSelectSoundFont}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center gap-1.5 font-semibold transition-colors"
-                    >
-                      <FolderOpen className="w-4 h-4 text-amber-400" />
-                      {t('settings.browse')}
-                    </button>
-                  </div>
+                  <select
+                    value={soundFontSelectValue}
+                    onChange={(e) => {
+                      void handleSoundFontSelectChange(e.target.value);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white text-sm"
+                    aria-label={t('settings.soundfont')}
+                  >
+                    {soundFontCatalog.map((entry) => (
+                      <option key={entry.id} value={entry.id}>
+                        {entry.displayName}
+                        {entry.kind === 'bundled'
+                          ? ` (${t('settings.soundfontKindBundled')})`
+                          : ` (${t('settings.soundfontKindSystem')})`}
+                      </option>
+                    ))}
+                    <option value={SOUND_FONT_OTHER_OPTION_ID}>
+                      {t('settings.soundfontOther')}
+                    </option>
+                  </select>
+                  {soundFontSelectValue === SOUND_FONT_OTHER_OPTION_ID && (
+                    <div className="mt-2 flex gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={settings.midiSoundFontPath || ''}
+                        placeholder={t('midi.noSoundfontSelected')}
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white text-xs font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleSelectSoundFont();
+                        }}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center gap-1.5 font-semibold transition-colors"
+                      >
+                        <FolderOpen className="w-4 h-4 text-amber-400" />
+                        {t('settings.browse')}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

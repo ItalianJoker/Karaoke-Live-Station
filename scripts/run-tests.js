@@ -2106,12 +2106,163 @@ assert(
   'DownloadManager builds library/cache URIs via buildKaraokeLocalUri(destinationPath)'
 );
 
-assert(
-  mainProtocolSource.includes("path.join(process.resourcesPath || '', 'soundfonts/GeneralUser-GS.sf2')") &&
-    mainProtocolSource.indexOf("path.join(process.resourcesPath || '', 'soundfonts/GeneralUser-GS.sf2')") <
-      mainProtocolSource.indexOf("path.join(app.getAppPath(), 'public/soundfonts/GeneralUser-GS.sf2')"),
-  'Bundled SoundFont prefers resources/ (extraResources) before asar app path'
+const soundFontManagerSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/SoundFontManager.ts'),
+  'utf8'
 );
+const soundFontPathSharedSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/soundFontPath.ts'),
+  'utf8'
+);
+
+assert(
+  soundFontManagerSource.includes('ensureBundledSoundFont') &&
+    soundFontManagerSource.includes("path.join(resources, 'soundfonts'") &&
+    soundFontManagerSource.includes('userData') &&
+    soundFontManagerSource.includes('isEphemeralSoundFontPath') &&
+    soundFontManagerSource.includes('listCatalog'),
+  'SoundFontManager seeds userData from resources/soundfonts (extraResources)'
+);
+
+assert(
+  soundFontPathSharedSource.includes('isEphemeralSoundFontPath') &&
+    soundFontPathSharedSource.includes('.mount_') &&
+    soundFontPathSharedSource.includes('AppData') &&
+    soundFontPathSharedSource.includes('Local') &&
+    soundFontPathSharedSource.includes('Temp') &&
+    soundFontPathSharedSource.includes('SOUND_FONT_OTHER_OPTION_ID') &&
+    soundFontPathSharedSource.includes('soundFontDisplayName'),
+  'Shared soundFontPath detects AppImage .mount_ and Windows Temp extracts'
+);
+
+assert(
+  mainProtocolSource.includes('SoundFontManager') &&
+    mainProtocolSource.includes('isEphemeralSoundFontPath') &&
+    mainProtocolSource.includes('ensureBundledSoundFont') &&
+    mainProtocolSource.includes('resolveDefaultSoundFont') &&
+    mainProtocolSource.includes('system:list-soundfonts'),
+  'Main process wires SoundFontManager for default/init-paths resolution'
+);
+
+assert(
+  mainProtocolSource.includes('isEphemeralSoundFontPath(resolvedSoundFont)'),
+  'init-paths re-resolves SoundFont when persisted path is AppImage-ephemeral'
+);
+
+/** Mirrors src/shared/soundFontPath.ts — keep in sync. */
+function isEphemeralSoundFontPathTest(filePath) {
+  const normalized = (filePath || '').replace(/\\/g, '/');
+  if (!normalized) return false;
+  if (normalized.includes('/.mount_')) return true;
+  if (/\/AppData\/Local\/Temp\//i.test(normalized)) return true;
+  if (/\/var\/folders\/[^/]+\/[^/]+\/T\//i.test(normalized)) return true;
+  return false;
+}
+
+assert(
+  isEphemeralSoundFontPathTest(
+    '/tmp/.mount_KaraokK6MA1R/resources/soundfonts/GeneralUser-GS.sf2'
+  ),
+  'AppImage FUSE mount SoundFont path is ephemeral'
+);
+assert(
+  !isEphemeralSoundFontPathTest(
+    path.join(os.homedir(), '.config', 'karaoke-live-station', 'soundfonts', 'GeneralUser-GS.sf2')
+  ),
+  'userData/soundfonts managed path is not ephemeral'
+);
+assert(
+  !isEphemeralSoundFontPathTest('/usr/share/sounds/sf2/FluidR3_GM.sf2'),
+  'System SoundFont path is not ephemeral'
+);
+assert(
+  isEphemeralSoundFontPathTest(
+    'C:/AppData/Local/Temp/KaraokeLiveStation/resources/soundfonts/GeneralUser-GS.sf2'
+  ),
+  'Windows Temp extract SoundFont path is ephemeral'
+);
+
+/** Mirrors src/shared/soundFontPath.ts soundFontDisplayName — keep in sync. */
+function soundFontDisplayNameTest(fileName) {
+  const base = (fileName || '').replace(/\.(sf2|sf3|dls)$/i, '');
+  return base.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim() || fileName;
+}
+assert(
+  soundFontDisplayNameTest('GeneralUser-GS.sf2') === 'GeneralUser GS',
+  'Display name strips extension and hyphenates for GeneralUser-GS.sf2'
+);
+
+const settingsModalSfSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+  'utf8'
+);
+const preloadSfSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/preload/index.ts'),
+  'utf8'
+);
+assert(
+  settingsModalSfSrc.includes('SOUND_FONT_OTHER_OPTION_ID') &&
+    settingsModalSfSrc.includes('listSoundFonts') &&
+    settingsModalSfSrc.includes('soundFontCatalog') &&
+    settingsModalSfSrc.includes('handleSoundFontSelectChange'),
+  'Settings Audio tab uses SoundFont dropdown with Altro/Other option'
+);
+assert(
+  preloadSfSrc.includes('listSoundFonts') &&
+    preloadSfSrc.includes('system:list-soundfonts'),
+  'Preload exposes system.listSoundFonts IPC'
+);
+assert(
+  enLocale.settings.soundfontOther &&
+    itLocale.settings.soundfontOther === 'Altro…' &&
+    esLocale.settings.soundfontOther &&
+    frLocale.settings.soundfontOther,
+  'Locales define soundfontOther (IT: Altro…)'
+);
+
+// Packaging: SoundFont/ORT once at top-level; platforms only add bin/
+{
+  const packageJsonSf = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
+  );
+  const buildCfg = packageJsonSf.build || {};
+  const topRes = buildCfg.extraResources || [];
+  assert(
+    Array.isArray(topRes) &&
+      topRes.some((e) => e && e.from === 'public/soundfonts' && e.to === 'soundfonts') &&
+      topRes.some((e) => e && e.from === 'public/ort' && e.to === 'ort'),
+    'Top-level electron-builder extraResources includes public/soundfonts + public/ort once'
+  );
+  const topSfCount = topRes.filter(
+    (e) => e && e.from === 'public/soundfonts' && e.to === 'soundfonts'
+  ).length;
+  const topOrtCount = topRes.filter((e) => e && e.from === 'public/ort' && e.to === 'ort').length;
+  assert(topSfCount === 1 && topOrtCount === 1, 'SoundFont and ORT appear exactly once at top-level');
+
+  for (const plat of ['linux', 'win', 'mac']) {
+    const platRes = (buildCfg[plat] && buildCfg[plat].extraResources) || [];
+    assert(
+      !platRes.some((e) => e && (e.from === 'public/soundfonts' || e.from === 'public/ort')),
+      `Platform ${plat} extraResources must NOT re-list soundfonts/ort (avoids EEXIST/EBUSY double-copy)`
+    );
+    assert(
+      platRes.some((e) => e && String(e.from || '').includes('bin/')),
+      `Platform ${plat} extraResources still includes platform bin/`
+    );
+  }
+  assert(
+    Array.isArray(buildCfg.asarUnpack) &&
+      !buildCfg.asarUnpack.some((p) => String(p).includes('soundfonts')),
+    'asarUnpack does not double-unpack soundfonts (extraResources is the single ship path)'
+  );
+
+  assert(
+    fs.existsSync(path.resolve(__dirname, '../public/soundfonts/GeneralUser-GS.sf2')) &&
+      fs.statSync(path.resolve(__dirname, '../public/soundfonts/GeneralUser-GS.sf2')).size >
+        1024 * 1024,
+    'Repo ships public/soundfonts/GeneralUser-GS.sf2 (>1MB) for electron-builder extraResources'
+  );
+}
 
 // -------------------------------------------------------------
 // Suite: Instrumental download staging (userData/temp → remux → library)

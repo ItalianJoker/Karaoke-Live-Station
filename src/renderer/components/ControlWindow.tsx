@@ -560,8 +560,13 @@ export const ControlWindow: React.FC = () => {
   ]);
 
   // Keep SoundFont in sync if changed from settings
+  // Load SoundFont when path is set — skip ephemeral AppImage mounts (initPaths re-seeds userData)
   useEffect(() => {
     if (settings.midiSoundFontPath && audioGraphRef.current) {
+      const sf = settings.midiSoundFontPath.replace(/\\/g, '/');
+      if (sf.includes('/.mount_')) {
+        return;
+      }
       audioGraphRef.current.loadSoundFont(settings.midiSoundFontPath);
     }
   }, [settings.midiSoundFontPath]);
