@@ -745,6 +745,52 @@ assert(
   'YouTube search supports offset/limit via ytsearch + playlist-start/end'
 );
 
+assert(
+  mainSourceForDialogs.includes('search:youtube:cancel') &&
+    mainSourceForDialogs.includes('cancelYouTubeSearch') &&
+    mainSourceForDialogs.includes('killProcessTree') &&
+    mainSourceForDialogs.includes('youtubeSearchChild'),
+  'YouTube search cancel IPC kills in-flight yt-dlp via killProcessTree'
+);
+
+const preloadSourceForYtCancel = fs.readFileSync(
+  path.resolve(__dirname, '../src/preload/index.ts'),
+  'utf8'
+);
+assert(
+  preloadSourceForYtCancel.includes('cancelYouTubeSearch') &&
+    preloadSourceForYtCancel.includes('search:youtube:cancel'),
+  'Preload exposes library.cancelYouTubeSearch'
+);
+
+const libraryPanelYtCancelSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+  'utf8'
+);
+assert(
+  libraryPanelYtCancelSource.includes('handleStopWebSearch') &&
+    libraryPanelYtCancelSource.includes('cancelYouTubeSearch') &&
+    libraryPanelYtCancelSource.includes('youtube-stop-search') &&
+    libraryPanelYtCancelSource.includes('webSearchGenRef') &&
+    libraryPanelYtCancelSource.includes("t('library.stopSearch'"),
+  'LibraryPanel shows Interrompi ricerca and ignores late results after cancel'
+);
+
+for (const localeFile of ['it.json', 'en.json', 'es.json', 'fr.json']) {
+  const locale = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, '../locales', localeFile), 'utf8')
+  );
+  assert(
+    typeof locale.library?.stopSearch === 'string' && locale.library.stopSearch.length > 0,
+    `Locale ${localeFile} has library.stopSearch`
+  );
+}
+assert(
+  JSON.parse(fs.readFileSync(path.resolve(__dirname, '../locales/it.json'), 'utf8')).library
+    .stopSearch === 'Interrompi ricerca',
+  'IT stopSearch label is Interrompi ricerca'
+);
+
 const enLocaleVocal = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../locales/en.json'), 'utf8'));
 const itLocaleVocal = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../locales/it.json'), 'utf8'));
 assert(
@@ -1671,8 +1717,10 @@ assert(
     libraryPanelScopedSource.includes('setWebSearching') &&
     libraryPanelScopedSource.includes('loadMoreVideos') &&
     libraryPanelScopedSource.includes('youtube-load-more') &&
-    libraryPanelScopedSource.includes('offset'),
-  'Local live search mutates local bucket; YouTube search only on web submit; Load more pagination'
+    libraryPanelScopedSource.includes('offset') &&
+    libraryPanelScopedSource.includes('youtube-stop-search') &&
+    libraryPanelScopedSource.includes('cancelYouTubeSearch'),
+  'Local live search mutates local bucket; YouTube search only on web submit; Load more pagination; stop search'
 );
 
 assert(
