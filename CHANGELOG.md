@@ -15,7 +15,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - None yet.
 
 ### Fixed
-- None yet.
+- **Download Instrumental yt-dlp HTTP 429** — `--sub-langs all,-live_chat` requested ~130 subtitle languages and YouTube rate-limited the whole download. Use `.*-orig` (original-language auto-subs only; valid Python regex — not bare `*-orig`).
 
 ### Breaking Changes
 - None yet.

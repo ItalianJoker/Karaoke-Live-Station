@@ -45,8 +45,8 @@ Nuova release GitHub **v1.2.0** (tag dedicato; **non** sovrascrive `v1.1.0`): ba
 - TSDoc / Why-comment sui path critici. **Nessun breaking change** di comportamento Control↔Stage.
 
 ### 📥 Scarica strumentale — `--sub-langs` yt-dlp + logging
-- Sostituito `--sub-langs en.*,it.*,es.*,fr.*,*-orig` (regex invalida → `Wrong regex for subtitlelangs`) con `all,-live_chat`.
-- Fallimenti yt-dlp / spawn scritti anche sul Logger strutturato (`karaoke-station.log`), non solo nel pannello Download.
+- Sostituito `--sub-langs en.*,it.*,es.*,fr.*,*-orig` (regex invalida → `Wrong regex for subtitlelangs`) con un selettore valido; fallimenti yt-dlp / spawn anche sul Logger strutturato (`karaoke-station.log`).
+- **Hotfix post-1.2.0 (in PR):** `all,-live_chat` richiedeva ~130 lingue sottotitolo → HTTP 429 YouTube. Ora `.*-orig` (solo auto-sub lingua originale; non usare `*-orig`).
 
 ### 🧹 UI Regia — toast e cantante
 - Rimosso il badge overlay verde **Download completato**; stato/errori restano nel menu **Downloads**.
@@ -100,8 +100,8 @@ New GitHub release **v1.2.0** (dedicated tag; does **not** overwrite `v1.1.0`): 
 - TSDoc / Why-comments on critical paths. **No Control↔Stage behavior breaking changes.**
 
 ### 📥 Download Instrumental — yt-dlp `--sub-langs` + logging
-- Replaced invalid `--sub-langs en.*,it.*,es.*,fr.*,*-orig` (`Wrong regex for subtitlelangs`) with `all,-live_chat`.
-- yt-dlp / spawn failures also write to the structured Logger (`karaoke-station.log`), not only the Download panel.
+- Replaced invalid `--sub-langs en.*,it.*,es.*,fr.*,*-orig` (`Wrong regex for subtitlelangs`) with a valid selector; yt-dlp / spawn failures also write to the structured Logger (`karaoke-station.log`).
+- **Post-1.2.0 hotfix (in PR):** `all,-live_chat` requested ~130 subtitle languages → YouTube HTTP 429. Now `.*-orig` (original-language auto-subs only; do not use bare `*-orig`).
 
 ### 🧹 Control UI — toast and singer
 - Removed the green **Download completed** overlay badge; status/errors remain in the **Downloads** menu.

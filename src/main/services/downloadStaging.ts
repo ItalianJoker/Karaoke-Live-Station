@@ -23,14 +23,15 @@ export const DOWNLOAD_MEDIA_EXTENSIONS = new Set([
 /**
  * yt-dlp `--sub-langs` value for Download Instrumental auto-subs (lyric burn-in).
  *
- * Documented selector: all languages except live chat. Must be a valid Python
- * regex per comma-separated token — do **not** use shell-style globs like
- * `*-orig` (leads with `*`, which is "nothing to repeat" and yt-dlp exits 1
- * with `Wrong regex for subtitlelangs`).
+ * Prefer original-language auto-subs only (`it-orig`, `en-orig`, …). Each
+ * comma-separated token is a **Python regex** — use `.*-orig`, never the
+ * shell-style glob `*-orig` (leading `*` → “nothing to repeat” → yt-dlp exit 1
+ * with `Wrong regex for subtitlelangs`). Avoid `all,-live_chat`: requesting
+ * ~130 subtitle languages triggers YouTube HTTP 429 and fails the whole download.
  *
  * @see https://github.com/yt-dlp/yt-dlp#subtitle-options
  */
-export const YTDLP_INSTRUMENTAL_SUB_LANGS = 'all,-live_chat';
+export const YTDLP_INSTRUMENTAL_SUB_LANGS = '.*-orig';
 
 /**
  * yt-dlp `-o` template for a staged download.
