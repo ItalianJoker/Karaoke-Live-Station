@@ -298,6 +298,22 @@ export class DatabaseManager {
   }
 
   /**
+   * Upserts many tracks inside one SQLite transaction.
+   * Why: multi-file OS drag-drop import must avoid N autocommits (latency + WAL churn).
+   *
+   * @param tracks - Tracks to insert/update (order preserved for callers)
+   */
+  public upsertTracksBatch(tracks: KaraokeMediaTrack[]): void {
+    if (!tracks.length) return;
+    const run = this.db.transaction((items: KaraokeMediaTrack[]) => {
+      for (const track of items) {
+        this.upsertTrack(track);
+      }
+    });
+    run(tracks);
+  }
+
+  /**
    * Deletes catalog rows that share a local file path but not the kept id.
    * Prevents ghost duplicates when a YouTube id row and a path-hash row point at the same file.
    */

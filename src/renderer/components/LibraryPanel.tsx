@@ -27,6 +27,7 @@ import { textMatchesSearch } from '../../shared/textNormalize';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { useScopedLibrarySearch } from '../hooks/useScopedLibrarySearch';
 import { VideoPreviewModal, extractVersionTags } from './VideoPreviewModal';
+import { dataTransferHasFiles, resolveDroppedAbsolutePaths } from '../utils/fsDragDrop';
 
 /** Intent to enqueue only after YouTube download + auto-archive succeed. */
 type PendingArchiveEnqueue = {
@@ -58,6 +59,9 @@ interface LibraryPanelProps {
  *    - Instant queue insertion with calculated fair-rotation order.
  * 4. Folder Importer:
  *    - Triggers directory picker and background scanner to index new media into the local SQLite database.
+ * 5. OS filesystem Drag & Drop:
+ *    - Drop media files onto the panel to catalog them (mp4/webm/mkv/avi, mp3+cdg, mid/kar)
+ *      via library.importFiles; overlay only when dataTransfer.types includes Files.
  */
 export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCue, onStopCue: _onStopCue, activeCueUri: _activeCueUri, searchInputRef }) => {
   const { t } = useTranslation();
@@ -80,6 +84,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     webQuery
   } = useScopedLibrarySearch();
   const [isScanning, setIsScanning] = useState(false);
+  /** OS file drag overlay — only when dataTransfer.types includes Files. */
+  const [fileDropActive, setFileDropActive] = useState(false);
+  const [isImportingDrop, setIsImportingDrop] = useState(false);
   const [webHasMore, setWebHasMore] = useState(false);
   const [webLoadingMore, setWebLoadingMore] = useState(false);
   const webSearchOffsetRef = useRef(0);
@@ -519,6 +526,49 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     }
   };
 
+  /**
+   * Catalog OS-dropped media files into SQLite and prepend them to the Local list.
+   * Why: success toast is intentional for import (download completion stays menu-only).
+   */
+  const handleOsFileDrop = async (fileList: FileList | null) => {
+    if (!window.karaokeApi?.library?.importFiles || isImportingDrop) return;
+    const paths = resolveDroppedAbsolutePaths(fileList);
+    if (!paths.length) {
+      showToast(t('library.importNoFiles'), 'warning');
+      return;
+    }
+    setIsImportingDrop(true);
+    try {
+      const imported = await window.karaokeApi.library.importFiles(paths);
+      if (!imported.length) {
+        showToast(t('library.importNoFiles'), 'warning');
+        return;
+      }
+      setLocalTracks((prev) => {
+        const filtered = prev.filter(
+          (t) =>
+            !imported.some(
+              (n) =>
+                n.id === t.id ||
+                (n.localFilePath && t.localFilePath && n.localFilePath === t.localFilePath) ||
+                n.uri === t.uri
+            )
+        );
+        return [...imported, ...filtered];
+      });
+      window.dispatchEvent(
+        new CustomEvent('karaoke:library-refreshed', { detail: { count: imported.length } })
+      );
+      showToast(t('library.importSuccess', { count: imported.length }), 'success');
+    } catch (err) {
+      console.error('Library OS drop import error:', err);
+      showToast(t('library.importFailed'), 'error');
+    } finally {
+      setIsImportingDrop(false);
+      setFileDropActive(false);
+    }
+  };
+
   const YOUTUBE_PAGE_SIZE = 10;
 
   const handleStopWebSearch = async () => {
@@ -797,7 +847,48 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   };
 
   return (
-    <div className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 md:p-5 shadow-2xl backdrop-blur-xl flex flex-col h-full min-h-0 overflow-hidden">
+    <div
+      className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 md:p-5 shadow-2xl backdrop-blur-xl flex flex-col h-full min-h-0 overflow-hidden relative"
+      data-testid="library-panel-drop-zone"
+      onDragEnter={(e) => {
+        if (!dataTransferHasFiles(e.dataTransfer)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setFileDropActive(true);
+      }}
+      onDragOver={(e) => {
+        if (!dataTransferHasFiles(e.dataTransfer)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+        if (!fileDropActive) setFileDropActive(true);
+      }}
+      onDragLeave={(e) => {
+        if (!dataTransferHasFiles(e.dataTransfer)) return;
+        // Only clear when leaving the panel root (not child bubbles)
+        if (e.currentTarget === e.target) {
+          setFileDropActive(false);
+        }
+      }}
+      onDrop={(e) => {
+        if (!dataTransferHasFiles(e.dataTransfer)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setFileDropActive(false);
+        void handleOsFileDrop(e.dataTransfer.files);
+      }}
+    >
+      {fileDropActive && (
+        <div
+          className="absolute inset-0 z-30 flex items-center justify-center rounded-3xl border-2 border-dashed border-emerald-400/70 bg-slate-950/80 pointer-events-none"
+          data-testid="library-file-drop-overlay"
+          aria-hidden
+        >
+          <span className="text-sm font-semibold text-emerald-200 px-4 text-center">
+            {t('library.dropToImport')}
+          </span>
+        </div>
+      )}
       {/* Search Header & Mode Toggle */}
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-full border border-slate-800/80 text-xs font-semibold shadow-inner">

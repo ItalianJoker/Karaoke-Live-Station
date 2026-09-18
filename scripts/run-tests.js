@@ -2579,6 +2579,203 @@ console.log('\n\x1b[36m▶ Suite: AI vocal path (Download Instrumental)\x1b[0m')
   );
 }
 
+// -------------------------------------------------------------
+// Suite 12: OS filesystem drag-drop import
+// (Suite 9 is already Portability / yt-dlp — this is the DnD suite.)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite 12: OS filesystem drag-drop import\x1b[0m');
+
+{
+  const mainIndexSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/index.ts'),
+    'utf8'
+  );
+  const preloadSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/preload/index.ts'),
+    'utf8'
+  );
+  const databaseSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/db/database.ts'),
+    'utf8'
+  );
+  const scannerSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/shared/libraryScanner.ts'),
+    'utf8'
+  );
+  const libraryPanelSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  const controlWindowSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+    'utf8'
+  );
+  const fsDragDropSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/utils/fsDragDrop.ts'),
+    'utf8'
+  );
+
+  assert(
+    scannerSource.includes('export function discoverLibraryFilesFromPaths') &&
+      scannerSource.includes('export function parseLibraryFilenameMeta') &&
+      scannerSource.includes('export function isIncompleteLibraryArtifact') &&
+      scannerSource.includes('.mkv') &&
+      scannerSource.includes('.avi'),
+    'libraryScanner exports path-list import + mkv/avi formats'
+  );
+  assert(
+    mainIndexSource.includes("ipcMain.handle('library:import-files'") &&
+      mainIndexSource.includes('discoverLibraryFilesFromPaths') &&
+      mainIndexSource.includes('importFiles') &&
+      mainIndexSource.includes('upsertTracksBatch'),
+    'Main exposes library:import-files with batch upsert'
+  );
+  assert(
+    databaseSource.includes('upsertTracksBatch') &&
+      databaseSource.includes('.transaction('),
+    'DatabaseManager upsertTracksBatch uses SQLite transaction'
+  );
+  assert(
+    preloadSource.includes('importFiles:') &&
+      preloadSource.includes("ipcRenderer.invoke('library:import-files'") &&
+      preloadSource.includes('getPathForFile') &&
+      preloadSource.includes('webUtils.getPathForFile'),
+    'Preload library.importFiles + webUtils.getPathForFile'
+  );
+  assert(
+    fsDragDropSource.includes('dataTransferHasFiles') &&
+      fsDragDropSource.includes("types.includes('Files')") &&
+      fsDragDropSource.includes('resolveDroppedAbsolutePaths'),
+    'fsDragDrop helpers gate on Files type'
+  );
+  assert(
+    libraryPanelSource.includes('library.importFiles') &&
+      libraryPanelSource.includes('library-panel-drop-zone') &&
+      libraryPanelSource.includes('dataTransferHasFiles') &&
+      libraryPanelSource.includes('importSuccess'),
+    'LibraryPanel OS drop → importFiles + success toast'
+  );
+  assert(
+    controlWindowSource.includes('library.importFiles') &&
+      controlWindowSource.includes('queue-panel-drop-zone') &&
+      controlWindowSource.includes('dataTransferHasFiles') &&
+      controlWindowSource.includes('addToQueue'),
+    'ControlWindow queue OS drop → importFiles + addToQueue'
+  );
+  assert(
+    /library:scan-folder/.test(mainIndexSource) &&
+      preloadSource.includes("ipcRenderer.invoke('library:scan-folder'"),
+    'Existing scanFolder IPC preserved alongside import-files'
+  );
+
+  const { spawnSync } = require('child_process');
+  const scannerPath = path.resolve(__dirname, '../src/shared/libraryScanner.ts');
+  const probe = spawnSync(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      '--no-warnings',
+      '-e',
+      `
+      import fs from 'fs';
+      import path from 'path';
+      import os from 'os';
+      import {
+        discoverLibraryFilesFromPaths,
+        parseLibraryFilenameMeta,
+        isIncompleteLibraryArtifact,
+        LIBRARY_SCAN_MIN_BYTES
+      } from ${JSON.stringify(scannerPath)};
+
+      const assert = (c, m) => { if (!c) { console.error('PROBE_FAIL', m); process.exit(2); } };
+      const pad = (n) => Buffer.alloc(Math.max(n, LIBRARY_SCAN_MIN_BYTES), 1);
+
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kls-dnd-import-'));
+      try {
+        fs.writeFileSync(path.join(root, 'Queen - Bohemian Rhapsody.mp4'), pad(4096));
+        fs.writeFileSync(path.join(root, 'SoloTitle.webm'), pad(4096));
+        fs.writeFileSync(path.join(root, 'Clip.mkv'), pad(4096));
+        fs.writeFileSync(path.join(root, 'Old.avi'), pad(4096));
+        fs.writeFileSync(path.join(root, 'Pair.mp3'), pad(4096));
+        fs.writeFileSync(path.join(root, 'Pair.cdg'), pad(4096));
+        fs.writeFileSync(path.join(root, 'OnlyCdg.cdg'), pad(4096));
+        fs.writeFileSync(path.join(root, 'OnlyCdg.mp3'), pad(4096));
+        fs.writeFileSync(path.join(root, 'Tune.mid'), pad(4096));
+        fs.writeFileSync(path.join(root, 'Song.kar'), pad(4096));
+        fs.writeFileSync(path.join(root, 'Bad.mp4.part'), pad(4096));
+        fs.writeFileSync(path.join(root, 'Tiny.mp4'), Buffer.alloc(100));
+
+        const meta = parseLibraryFilenameMeta('Artist - Title Extra');
+        assert(meta.artist === 'Artist' && meta.title === 'Title Extra', 'artist-title-split');
+        const unknown = parseLibraryFilenameMeta('JustATitle');
+        assert(unknown.artist === 'Unknown Artist' && unknown.title === 'JustATitle', 'unknown-artist');
+
+        assert(isIncompleteLibraryArtifact(path.join(root, 'Bad.mp4.part')), 'reject-part');
+
+        const found = discoverLibraryFilesFromPaths([
+          path.join(root, 'Queen - Bohemian Rhapsody.mp4'),
+          path.join(root, 'SoloTitle.webm'),
+          path.join(root, 'Clip.mkv'),
+          path.join(root, 'Old.avi'),
+          path.join(root, 'Pair.mp3'),
+          path.join(root, 'Pair.cdg'),
+          path.join(root, 'OnlyCdg.cdg'),
+          path.join(root, 'Tune.mid'),
+          path.join(root, 'Song.kar'),
+          path.join(root, 'Bad.mp4.part'),
+          path.join(root, 'Tiny.mp4')
+        ]);
+
+        const paths = found.map((t) => t.absolutePath);
+        assert(paths.some((p) => p.endsWith('Queen - Bohemian Rhapsody.mp4')), 'mp4');
+        assert(paths.some((p) => p.endsWith('SoloTitle.webm')), 'webm');
+        assert(paths.some((p) => p.endsWith('Clip.mkv')), 'mkv');
+        assert(paths.some((p) => p.endsWith('Old.avi')), 'avi');
+        assert(paths.some((p) => p.endsWith('Pair.mp3')), 'mp3');
+        assert(paths.some((p) => p.endsWith('Tune.mid')), 'mid');
+        assert(paths.some((p) => p.endsWith('Song.kar')), 'kar');
+        assert(!paths.some((p) => p.includes('.part')), 'no-part');
+        assert(!paths.some((p) => p.endsWith('Tiny.mp4')), 'no-tiny');
+
+        const queen = found.find((t) => t.title === 'Bohemian Rhapsody');
+        assert(queen && queen.artist === 'Queen', 'queen-meta');
+
+        const solo = found.find((t) => t.absolutePath.endsWith('SoloTitle.webm'));
+        assert(solo && solo.artist === 'Unknown Artist' && solo.title === 'SoloTitle', 'solo-unknown');
+
+        const pair = found.find((t) => t.absolutePath.endsWith('Pair.mp3'));
+        assert(pair && pair.hasEmbeddedLyrics === true, 'mp3-cdg-pair');
+
+        // Dropping only .cdg still imports the sibling .mp3 with lyrics flag
+        const onlyCdg = found.find((t) => t.absolutePath.endsWith('OnlyCdg.mp3'));
+        assert(onlyCdg && onlyCdg.hasEmbeddedLyrics === true, 'cdg-drop-pairs-mp3');
+
+        const kar = found.find((t) => t.absolutePath.endsWith('Song.kar'));
+        assert(kar && kar.source === 'midi' && kar.hasEmbeddedLyrics === true, 'kar-midi');
+
+        // Dedup: dropping mp3+cdg twice yields one track
+        const again = discoverLibraryFilesFromPaths([
+          path.join(root, 'Pair.mp3'),
+          path.join(root, 'Pair.cdg'),
+          path.join(root, 'Pair.mp3')
+        ]);
+        assert(again.length === 1, 'dedupe-pair');
+
+        console.log('PROBE_OK');
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+      `
+    ],
+    { encoding: 'utf8' }
+  );
+  assert(
+    probe.status === 0 && (probe.stdout || '').includes('PROBE_OK'),
+    'discoverLibraryFilesFromPaths: pairing, formats, .part reject, Artist-Title',
+    (probe.stderr || probe.stdout || `exit ${probe.status}`).slice(0, 500)
+  );
+}
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');

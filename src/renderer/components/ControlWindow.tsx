@@ -38,6 +38,7 @@ import { MidiChannelMixer } from './MidiChannelMixer';
 import { LibraryPanel } from './LibraryPanel';
 import { HistoryPanel } from './HistoryPanel';
 import { SettingsModal } from './SettingsModal';
+import { dataTransferHasFiles, resolveDroppedAbsolutePaths } from '../utils/fsDragDrop';
 import { ToastHost } from './ToastHost';
 import { showToast, confirmAsync } from '../utils/toast';
 import { SingersModal } from './SingersModal';
@@ -134,6 +135,9 @@ export const ControlWindow: React.FC = () => {
   const [downloadProgress, setDownloadProgress] = useState<{ percent: number; speed: string } | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  /** OS file drop onto the queue panel (distinct from in-app reorder). */
+  const [queueFileDropActive, setQueueFileDropActive] = useState(false);
+  const [isImportingQueueDrop, setIsImportingQueueDrop] = useState(false);
   const loadedTrackQueueIdRef = useRef<string | null>(null);
   /** Media identity for the currently loaded element (queueId + local path/uri). */
   const loadedTrackMediaKeyRef = useRef<string | null>(null);
@@ -151,6 +155,7 @@ export const ControlWindow: React.FC = () => {
 
   const queue = useKaraokeStore((state) => state.queue);
   const reorderQueue = useKaraokeStore((state) => state.reorderQueue);
+  const addToQueue = useKaraokeStore((state) => state.addToQueue);
   const restoreFairQueueOrder = useKaraokeStore((state) => state.restoreFairQueueOrder);
   const setQueueItemPitch = useKaraokeStore((state) => state.setQueueItemPitch);
   const updateTrackInQueue = useKaraokeStore((state) => state.updateTrackInQueue);
@@ -291,6 +296,37 @@ export const ControlWindow: React.FC = () => {
   };
 
   const [savingTrackIds, setSavingTrackIds] = useState<Set<string>>(new Set());
+
+  /**
+   * Import OS-dropped files into the catalog, then enqueue each track.
+   * Why: Files-type only — must not interfere with queue reorder DnD (text/plain index).
+   */
+  const handleOsQueueFileDrop = async (fileList: FileList | null) => {
+    if (!window.karaokeApi?.library?.importFiles || isImportingQueueDrop) return;
+    const paths = resolveDroppedAbsolutePaths(fileList);
+    if (!paths.length) {
+      showToast(t('library.importNoFiles'), 'warning');
+      return;
+    }
+    setIsImportingQueueDrop(true);
+    try {
+      const imported = await window.karaokeApi.library.importFiles(paths);
+      if (!imported.length) {
+        showToast(t('library.importNoFiles'), 'warning');
+        return;
+      }
+      for (const track of imported) {
+        addToQueue(track, undefined, false, 0, 'auto');
+      }
+      showToast(t('queue.importDropped', { count: imported.length }), 'success');
+    } catch (err) {
+      console.error('Queue OS drop import error:', err);
+      showToast(t('library.importFailed'), 'error');
+    } finally {
+      setIsImportingQueueDrop(false);
+      setQueueFileDropActive(false);
+    }
+  };
 
   const handleSaveToPermanentLibrary = async (track: any) => {
     if (!window.karaokeApi?.downloads?.saveToLibrary) return;
@@ -1480,7 +1516,47 @@ export const ControlWindow: React.FC = () => {
           {/* Tab 1: Queue (Fair Queue) */}
           {/* Tabs stay mounted so search/scroll/downloads persist across navigation */}
           <div className={activeRightTab === 'queue' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
-            <div className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 shadow-xl backdrop-blur-sm flex-1 min-h-0 flex flex-col overflow-hidden">
+            <div
+              className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 shadow-xl backdrop-blur-sm flex-1 min-h-0 flex flex-col overflow-hidden relative"
+              data-testid="queue-panel-drop-zone"
+              onDragEnter={(e) => {
+                if (!dataTransferHasFiles(e.dataTransfer)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setQueueFileDropActive(true);
+              }}
+              onDragOver={(e) => {
+                if (!dataTransferHasFiles(e.dataTransfer)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'copy';
+                if (!queueFileDropActive) setQueueFileDropActive(true);
+              }}
+              onDragLeave={(e) => {
+                if (!dataTransferHasFiles(e.dataTransfer)) return;
+                if (e.currentTarget === e.target) {
+                  setQueueFileDropActive(false);
+                }
+              }}
+              onDrop={(e) => {
+                if (!dataTransferHasFiles(e.dataTransfer)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setQueueFileDropActive(false);
+                void handleOsQueueFileDrop(e.dataTransfer.files);
+              }}
+            >
+              {queueFileDropActive && (
+                <div
+                  className="absolute inset-0 z-30 flex items-center justify-center rounded-3xl border-2 border-dashed border-indigo-400/70 bg-slate-950/80 pointer-events-none"
+                  data-testid="queue-file-drop-overlay"
+                  aria-hidden
+                >
+                  <span className="text-sm font-semibold text-indigo-200 px-4 text-center">
+                    {t('queue.dropToImport')}
+                  </span>
+                </div>
+              )}
               {/* Queue Header info */}
               <div className="mb-3 shrink-0 flex items-center justify-between px-3.5 py-2 bg-slate-950/70 rounded-full border border-slate-800/80">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
@@ -1543,6 +1619,8 @@ export const ControlWindow: React.FC = () => {
                           e.dataTransfer.setData('text/plain', String(index));
                         }}
                         onDragOver={(e) => {
+                          // OS file drops are handled by the queue panel; do not steal them for reorder.
+                          if (dataTransferHasFiles(e.dataTransfer)) return;
                           if (draggedIndex === null || draggedIndex === 0 || index === 0) return;
                           e.preventDefault();
                           e.dataTransfer.dropEffect = 'move';
@@ -1556,6 +1634,7 @@ export const ControlWindow: React.FC = () => {
                           }
                         }}
                         onDrop={(e) => {
+                          if (dataTransferHasFiles(e.dataTransfer)) return;
                           e.preventDefault();
                           if (draggedIndex !== null && draggedIndex > 0 && index > 0 && draggedIndex !== index) {
                             reorderQueue(draggedIndex, index);

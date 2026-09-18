@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **Safety-First slice 1** (invariants + test lock — merge pending Si) + **fix yt-dlp error -1** (Scarica strumentale) + **impostazioni avanzate UVR-MDX-NET (ETA)** + revert restyle Indigo Regia (#36) + **Interrompi ricerca** Web (yt-dlp) + **fix IPC MessageEvent** utility worker AI + scan libreria ricorsivo + AI UVR / keep-alive ORT + race worker extract WAV + sync Web dopo Elimina + avvisi Download + log debug AI + naming WAV + Actions Node 24 + staging Instrumental + path `//home/...` + SoundFont + progresso ~45% + Carica altri / Pulisci coda + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **Drag & Drop filesystem** + **Safety-First slice 1** + **fix yt-dlp error -1** (Scarica strumentale) + **impostazioni avanzate UVR-MDX-NET (ETA)** + revert restyle Indigo Regia (#36) + **Interrompi ricerca** Web (yt-dlp) + **fix IPC MessageEvent** utility worker AI + scan libreria ricorsivo + AI UVR / keep-alive ORT + race worker extract WAV + sync Web dopo Elimina + avvisi Download + log debug AI + naming WAV + Actions Node 24 + staging Instrumental + path `//home/...` + SoundFont + progresso ~45% + Carica altri / Pulisci coda + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
 
 ## 📦 File di Installazione
 
@@ -23,10 +23,16 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **Safety-First slice 
 
 ## 🌟 Novità di questa refresh
 
-### 🛡️ Safety-First / Zero Regression (slice 1 — in attesa merge)
+### 📂 Libreria — Drag & Drop da filesystem
+- Trascina file karaoke (`.mp4` / `.webm` / `.mkv` / `.avi`, `.mp3`+`.cdg`, `.mid` / `.kar`) sulla **Libreria Locale** per catalogarli, o sulla **coda Regia** per importarli e metterli in scaletta.
+- Pairing automatico `.mp3`↔`.cdg` (stesso basename); metadati `Artist - Title` con fallback Unknown Artist.
+- Overlay solo per drop OS (`Files`); il riordino drag della coda resta invariato.
+- Thumbnail video solo per i file video importati, con yield tra un file e l’altro sul multi-drop; upsert multipli in una transazione SQLite.
+
+### 🛡️ Safety-First / Zero Regression (slice 1)
 - Blocco **AI Context & Critical Invariants** in README (contratti IPC/Zustand/SQLite congelati + sei guardrail: pitch 0 bypass SoundTouch, gain = volume², unwrap MessageEvent AI, SIAE ≥120s, GC solo `queue_cache/`, SpessaSynth 5 ms + `latencyHint: 'playback'`).
 - Nuovo `scripts/verify-critical-invariants.js` + inclusione di `verify-ai-vocal-path.js` in `npm test`.
-- TSDoc / Why-comment sui path critici audio/store/download/preload (Watchlist: non eliminare handler dinamici). **Nessun breaking change**; non sovrascrivere v1.1.0 finché Luca non dice **Si**.
+- TSDoc / Why-comment sui path critici audio/store/download/preload (Watchlist: non eliminare handler dinamici). **Nessun breaking change**.
 
 ### 📥 Scarica strumentale — yt-dlp error -1
 - Messaggio opaco `yt-dlp exited with error code -1`: i fallimenti di **spawn** (errno OS; EPERM → `-1`) non sovrascrivono più l’errore reale.
@@ -159,7 +165,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **Safety-First slice 
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **Safety-First slice 1** (invariants + test lock — merge pending Si) + **yt-dlp error -1 fix** (Download Instrumental) + **UVR-MDX-NET advanced ETA settings** + revert Indigo Regia restyle (#36) + **Stop web search** (yt-dlp cancel) + **AI utility-worker MessageEvent IPC unwrap** + recursive library scan + UVR / ORT keep-alive + Instrumental AI worker ready race (extract WAV) + Web search after library delete + manual download warnings + AI debug logs + WAV naming + Actions Node 24 + Instrumental staging + path `//home/...` + SoundFont + ~45% progress + Load more / Clear downloads + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
+GitHub Release **v1.1.0** overwrite: **OS filesystem Drag & Drop** + **Safety-First slice 1** + **yt-dlp error -1 fix** (Download Instrumental) + **UVR-MDX-NET advanced ETA settings** + revert Indigo Regia restyle (#36) + **Stop web search** (yt-dlp cancel) + **AI utility-worker MessageEvent IPC unwrap** + recursive library scan + UVR / ORT keep-alive + Instrumental AI worker ready race (extract WAV) + Web search after library delete + manual download warnings + AI debug logs + WAV naming + Actions Node 24 + Instrumental staging + path `//home/...` + SoundFont + ~45% progress + Load more / Clear downloads + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
 
 ## 📦 Installers
 
@@ -173,10 +179,16 @@ GitHub Release **v1.1.0** overwrite: **Safety-First slice 1** (invariants + test
 
 ## 🌟 What’s new in this refresh
 
-### 🛡️ Safety-First / Zero Regression (slice 1 — pending merge)
+### 📂 Library — OS filesystem Drag & Drop
+- Drop karaoke files (`.mp4` / `.webm` / `.mkv` / `.avi`, `.mp3`+`.cdg`, `.mid` / `.kar`) onto **Local Library** to catalog them, or onto the **Control queue** to import and enqueue.
+- Automatic `.mp3`↔`.cdg` pairing (same basename); `Artist - Title` metadata with Unknown Artist fallback.
+- Overlay only for OS `Files` drops; in-app queue reorder is unchanged.
+- Video thumbnails only for imported video files, with yields between files on multi-drop; multi-row upsert in one SQLite transaction.
+
+### 🛡️ Safety-First / Zero Regression (slice 1)
 - README **AI Context & Critical Invariants** block (frozen IPC/Zustand/SQLite contracts + six guardrails: pitch-0 SoundTouch bypass, gain = volume², AI MessageEvent unwrap, SIAE ≥120s, GC only `queue_cache/`, SpessaSynth 5 ms + `latencyHint: 'playback'`).
 - New `scripts/verify-critical-invariants.js` and fold `verify-ai-vocal-path.js` into `npm test`.
-- TSDoc / Why-comments on critical audio/store/download/preload paths (Watchlist: never delete dynamic handlers). **No breaking changes**; do not overwrite v1.1.0 until Luca says **Si**.
+- TSDoc / Why-comments on critical audio/store/download/preload paths (Watchlist: never delete dynamic handlers). **No breaking changes**.
 
 ### 📥 Download Instrumental — yt-dlp error -1
 - Opaque `yt-dlp exited with error code -1`: **spawn** failures (OS errno; EPERM → `-1`) no longer overwrite the real error message.
