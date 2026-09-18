@@ -297,8 +297,16 @@
     "duration": "Durata"
   },
   "errors": {
-    "missingFileTitle": "File Danneggiato o Non Trovato",
+    "missingFileTitle": "File mancante o non trovato",
     "missingFileDesc": "Il file specificato non è più accessibile al percorso indicato: {{path}}",
+    "missingFilePathLabel": "Percorso",
+    "missingFileUsbHint": "Il file potrebbe essere su una chiavetta USB scollegata, oppure è stato spostato o eliminato fuori dall’app. Nessuna cancellazione automatica dal catalogo o dalla coda.",
+    "missingFileKeep": "Lascia in elenco",
+    "missingFileDelete": "Elimina",
+    "missingFileTooltip": "File mancante sul disco",
+    "missingFileAlsoDeleteLibraryMessage": "Rimuovere anche “{{title}}” dal catalogo libreria?",
+    "missingFileAlsoDeleteLibraryConfirm": "Sì, elimina anche dalla libreria",
+    "missingFileAlsoDeleteLibraryCancel": "No, solo dalla coda",
     "removeFromQueue": "Rimuovi dalla Coda",
     "dismiss": "Ignora",
     "downloadFailed": "Download fallito: {{error}}",

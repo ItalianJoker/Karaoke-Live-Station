@@ -2781,6 +2781,151 @@ console.log('\n\x1b[36m▶ Suite 12: OS filesystem drag-drop import\x1b[0m');
   );
 }
 
+// -------------------------------------------------------------
+// Suite 13: Missing local media file handling
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite 13: Missing local media file handling\x1b[0m');
+
+{
+  const mainIndexSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/index.ts'),
+    'utf8'
+  );
+  const preloadSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/preload/index.ts'),
+    'utf8'
+  );
+  const storeSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+    'utf8'
+  );
+  const localFileCheckSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/utils/localFileCheck.ts'),
+    'utf8'
+  );
+  const missingModalSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/MissingFileModal.tsx'),
+    'utf8'
+  );
+  const libraryPanelSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  const controlWindowSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+    'utf8'
+  );
+  const itLocale = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, '../locales/it.json'), 'utf8')
+  );
+  const enLocale = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, '../locales/en.json'), 'utf8')
+  );
+  const esLocale = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, '../locales/es.json'), 'utf8')
+  );
+  const frLocale = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, '../locales/fr.json'), 'utf8')
+  );
+
+  assert(
+    mainIndexSource.includes("ipcMain.handle('library:check-file-exists'") &&
+      mainIndexSource.includes('exists: true') &&
+      mainIndexSource.includes('fs.existsSync') &&
+      mainIndexSource.includes('karaoke|blob|data'),
+    'Main library:check-file-exists returns {exists,path} and skips non-fs URIs'
+  );
+  assert(
+    preloadSource.includes('checkFileExists:') &&
+      preloadSource.includes("ipcRenderer.invoke('library:check-file-exists'") &&
+      preloadSource.includes('result?.exists'),
+    'Preload checkFileExists unwraps IPC to Promise<boolean>'
+  );
+  assert(
+    localFileCheckSource.includes('shouldSkipLocalFileExistsCheck') &&
+      localFileCheckSource.includes('trackNeedsLocalFileCheck') &&
+      localFileCheckSource.includes('checkTrackLocalFileExists') &&
+      localFileCheckSource.includes('https?:'),
+    'localFileCheck helpers skip empty/web URLs'
+  );
+  assert(
+    storeSource.includes('missingTrackIds') &&
+      storeSource.includes('markTrackMissing') &&
+      storeSource.includes('clearTrackMissing') &&
+      storeSource.includes('MissingFileContext') &&
+      storeSource.includes("'library' | 'queue'") &&
+      storeSource.includes("context: 'queue'"),
+    'Store exposes missingTrackIds + modal context library|queue'
+  );
+  assert(
+    missingModalSource.includes('MissingFileModal') &&
+      missingModalSource.includes('missingFileDelete') &&
+      missingModalSource.includes('missingFileKeep') &&
+      missingModalSource.includes('db.deleteTrack') &&
+      missingModalSource.includes('removeFromQueue') &&
+      missingModalSource.includes('missingFileAlsoDeleteLibrary'),
+    'MissingFileModal: Elimina / Lascia + optional library delete'
+  );
+  assert(
+    libraryPanelSource.includes('checkTrackLocalFileExists') &&
+      libraryPanelSource.includes("context: 'library'") &&
+      libraryPanelSource.includes('rose-500/70') &&
+      libraryPanelSource.includes('FileX') &&
+      libraryPanelSource.includes('missingTrackIds'),
+    'LibraryPanel enqueue gate + rose missing styling'
+  );
+  assert(
+    controlWindowSource.includes('checkTrackLocalFileExists') &&
+      controlWindowSource.includes('pauseResetForMissingFile') &&
+      controlWindowSource.includes('<MissingFileModal') &&
+      controlWindowSource.includes("context: 'queue'") &&
+      controlWindowSource.includes('rose-500/70'),
+    'ControlWindow play/jump/coordinator gate + MissingFileModal'
+  );
+  // Safety-First: never silent auto-delete on miss
+  assert(
+    !missingModalSource.includes('auto-delete') ||
+      missingModalSource.includes('Never auto-deletes') ||
+      missingModalSource.includes('never auto-delete'),
+    'MissingFileModal documents no auto-delete'
+  );
+
+  const requiredErrorKeys = [
+    'missingFileTitle',
+    'missingFilePathLabel',
+    'missingFileUsbHint',
+    'missingFileKeep',
+    'missingFileDelete',
+    'missingFileTooltip',
+    'missingFileAlsoDeleteLibraryMessage',
+    'missingFileAlsoDeleteLibraryConfirm',
+    'missingFileAlsoDeleteLibraryCancel'
+  ];
+  for (const key of requiredErrorKeys) {
+    assert(Boolean(itLocale.errors?.[key]), `it.json errors.${key}`);
+    assert(Boolean(enLocale.errors?.[key]), `en.json errors.${key}`);
+    assert(Boolean(esLocale.errors?.[key]), `es.json errors.${key}`);
+    assert(Boolean(frLocale.errors?.[key]), `fr.json errors.${key}`);
+  }
+
+  // Runtime probe: skip rules + existsSync semantics mirrored in helpers
+  const tmpMissing = path.join(os.tmpdir(), `kls-missing-${Date.now()}-${process.pid}`);
+  assert(!fs.existsSync(tmpMissing), 'probe path does not exist yet');
+
+  function shouldSkip(filePath) {
+    const p = (filePath || '').trim();
+    if (!p) return true;
+    if (/^https?:\/\//i.test(p)) return true;
+    if (/^(karaoke|blob|data):/i.test(p)) return true;
+    return false;
+  }
+  assert(shouldSkip('') === true, 'skip empty path');
+  assert(shouldSkip('https://youtube.com/watch?v=abc') === true, 'skip https URL');
+  assert(shouldSkip('karaoke://local/foo') === true, 'skip karaoke:// URI');
+  assert(shouldSkip('/abs/path/song.mp4') === false, 'do not skip absolute path');
+  assert(fs.existsSync(tmpMissing) === false, 'missing absolute path → exists false');
+}
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');

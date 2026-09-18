@@ -26,11 +26,30 @@ import {
   MDX_DEFAULT_SEGMENT_SIZE
 } from '../../shared/mdxAdvancedSettings';
 
+export type MissingFileContext = 'library' | 'queue';
+
+/**
+ * Modal payload when a local media path is missing on disk (USB unplugged / moved / deleted).
+ * Why: never auto-delete — operator chooses Elimina vs Lascia; red mark via `missingTrackIds`.
+ */
 export interface MissingFileModalState {
   isOpen: boolean;
   filePath: string;
   trackTitle: string;
+  trackArtist: string;
+  trackId?: string;
   queueItemId?: string;
+  context: MissingFileContext;
+}
+
+/** Arguments for opening the missing-file modal (library enqueue or queue play). */
+export interface ShowMissingFileModalArgs {
+  filePath: string;
+  trackTitle: string;
+  trackArtist?: string;
+  trackId?: string;
+  queueItemId?: string;
+  context: MissingFileContext;
 }
 
 export interface KaraokeStoreState {
@@ -78,7 +97,11 @@ export interface KaraokeStoreState {
 
   // 5. Missing File Modal & Error Handling
   missingFileModal: MissingFileModalState;
-  showMissingFileModal: (filePath: string, trackTitle: string, queueItemId?: string) => void;
+  /** Track IDs known missing on disk — drives rose-500/70 row styling until Elimina or recovery */
+  missingTrackIds: string[];
+  markTrackMissing: (trackId: string) => void;
+  clearTrackMissing: (trackId: string) => void;
+  showMissingFileModal: (args: ShowMissingFileModalArgs) => void;
   closeMissingFileModal: () => void;
 
   // 6. Guest Portal Requests
@@ -575,7 +598,12 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           if (target?.track.localFilePath) {
             cleanupQueueCacheFileIfUnreferenced(target.track.localFilePath, updated);
           }
-          return { queue: updated };
+          const trackId = target?.track.id;
+          const missingTrackIds =
+            trackId && state.missingTrackIds.includes(trackId)
+              ? state.missingTrackIds.filter((id) => id !== trackId)
+              : state.missingTrackIds;
+          return { queue: updated, missingTrackIds };
         });
       },
 
@@ -872,16 +900,42 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
       missingFileModal: {
         isOpen: false,
         filePath: '',
-        trackTitle: ''
+        trackTitle: '',
+        trackArtist: '',
+        context: 'queue'
       },
 
-      showMissingFileModal: (filePath: string, trackTitle: string, queueItemId?: string) => {
+      missingTrackIds: [],
+
+      markTrackMissing: (trackId: string) => {
+        if (!trackId) return;
+        set((state) =>
+          state.missingTrackIds.includes(trackId)
+            ? state
+            : { missingTrackIds: [...state.missingTrackIds, trackId] }
+        );
+      },
+
+      clearTrackMissing: (trackId: string) => {
+        if (!trackId) return;
+        set((state) => ({
+          missingTrackIds: state.missingTrackIds.filter((id) => id !== trackId)
+        }));
+      },
+
+      showMissingFileModal: (args: ShowMissingFileModalArgs) => {
+        if (args.trackId) {
+          get().markTrackMissing(args.trackId);
+        }
         set({
           missingFileModal: {
             isOpen: true,
-            filePath,
-            trackTitle,
-            queueItemId
+            filePath: args.filePath,
+            trackTitle: args.trackTitle,
+            trackArtist: args.trackArtist || '',
+            trackId: args.trackId,
+            queueItemId: args.queueItemId,
+            context: args.context
           }
         });
       },
@@ -891,7 +945,9 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           missingFileModal: {
             isOpen: false,
             filePath: '',
-            trackTitle: ''
+            trackTitle: '',
+            trackArtist: '',
+            context: 'queue'
           }
         });
       },

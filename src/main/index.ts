@@ -930,6 +930,33 @@ class KaraokeMainProcess {
       return this.getOrGenerateThumbnail(filePath);
     });
 
+    /**
+     * Probe whether a local media path still exists on disk (USB unplugged / moved / deleted).
+     * Why: additive Safety-First channel — never auto-deletes catalog/queue rows.
+     * Empty strings and remote/protocol URIs skip `fs` and report `exists: true`.
+     *
+     * @returns `{ exists: boolean, path: string }` — preload unwraps to boolean for renderer
+     */
+    ipcMain.handle('library:check-file-exists', (_event, filePath: string) => {
+      const pathStr = typeof filePath === 'string' ? filePath.trim() : '';
+      if (
+        !pathStr ||
+        /^https?:\/\//i.test(pathStr) ||
+        /^(karaoke|blob|data):/i.test(pathStr)
+      ) {
+        return { exists: true, path: pathStr };
+      }
+      try {
+        return { exists: fs.existsSync(pathStr), path: pathStr };
+      } catch (err) {
+        this.logger.warn('Library', 'check-file-exists probe failed', {
+          path: pathStr,
+          error: String(err)
+        });
+        return { exists: false, path: pathStr };
+      }
+    });
+
     // 6. Database IPC Bridge
     ipcMain.handle('db:get-tracks', () => {
       return this.db.getAllTracks();

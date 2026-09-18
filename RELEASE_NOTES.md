@@ -23,6 +23,11 @@ Nuova release GitHub **v1.2.0** (tag dedicato; **non** sovrascrive `v1.1.0`): ba
 
 ## 🌟 Novità di questa versione
 
+### 📂 Libreria — file locali mancanti (USB / spostati)
+- Prima di **mettere in coda** o **riprodurre**, verifica del path locale (`library:check-file-exists`).
+- Se il file non esiste: azione bloccata, riga in rosso, modale **Elimina** / **Lascia in elenco** — nessuna cancellazione automatica.
+- YouTube/remoto senza `localFilePath` salta il controllo. Stringhe IT/EN/ES/FR.
+
 ### 📂 Libreria — Drag & Drop da filesystem
 - Trascina file karaoke (`.mp4` / `.webm` / `.mkv` / `.avi`, `.mp3`+`.cdg`, `.mid` / `.kar`) sulla **Libreria Locale** per catalogarli, o sulla **coda Regia** per importarli e metterli in scaletta.
 - Pairing automatico `.mp3`↔`.cdg` (stesso basename); metadati `Artist - Title` con fallback Unknown Artist.
@@ -77,6 +82,11 @@ New GitHub release **v1.2.0** (dedicated tag; does **not** overwrite `v1.1.0`): 
 | **macOS** | `Karaoke Live Station-1.2.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this version
+
+### 📂 Library — missing local files (USB / moved)
+- Before **enqueue** or **play**, probes the local path (`library:check-file-exists`).
+- If missing: action blocked, row marked red, **Delete** / **Keep in list** modal — never auto-deletes.
+- Remote/YouTube without `localFilePath` skips the check. Strings IT/EN/ES/FR.
 
 ### 📂 Library — OS filesystem Drag & Drop
 - Drop karaoke files (`.mp4` / `.webm` / `.mkv` / `.avi`, `.mp3`+`.cdg`, `.mid` / `.kar`) onto **Local Library** to catalog them, or onto the **Control queue** to import and enqueue.

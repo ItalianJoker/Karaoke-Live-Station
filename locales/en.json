@@ -297,8 +297,16 @@
     "duration": "Duration"
   },
   "errors": {
-    "missingFileTitle": "Corrupted or Missing File",
+    "missingFileTitle": "Missing or inaccessible file",
     "missingFileDesc": "The specified file is no longer accessible at: {{path}}",
+    "missingFilePathLabel": "Path",
+    "missingFileUsbHint": "The file may be on a disconnected USB drive, or was moved/deleted outside the app. Nothing is auto-removed from the catalog or queue.",
+    "missingFileKeep": "Keep in list",
+    "missingFileDelete": "Delete",
+    "missingFileTooltip": "File missing on disk",
+    "missingFileAlsoDeleteLibraryMessage": "Also remove “{{title}}” from the library catalog?",
+    "missingFileAlsoDeleteLibraryConfirm": "Yes, delete from library too",
+    "missingFileAlsoDeleteLibraryCancel": "No, queue only",
     "removeFromQueue": "Remove from Queue",
     "dismiss": "Dismiss",
     "downloadFailed": "Download failed: {{error}}",
