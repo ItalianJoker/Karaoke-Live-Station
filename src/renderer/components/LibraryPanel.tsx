@@ -654,6 +654,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         : `${(track.title || 'Unknown').trim()} (Instrumental)`
       : track.title;
     try {
+      const method = settings.instrumentalVocalRemoverMethod;
+      const isMdx = method === 'aiMdxKaraoke2';
       const result = await window.karaokeApi.downloads.start({
         url: track.uri,
         titleHint,
@@ -661,7 +663,15 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         trackId: track.id,
         libraryPath: settings.libraryPath || undefined,
         instrumental,
-        vocalRemoverAlgorithm: settings.instrumentalVocalRemoverMethod
+        vocalRemoverAlgorithm: method,
+        // MDX advanced ETA knobs only when UVR-MDX-NET is selected.
+        ...(isMdx
+          ? {
+              mdxSegmentSize: settings.mdxSegmentSize,
+              mdxOverlap: settings.mdxOverlap,
+              mdxEnableOrt: settings.mdxEnableOrt
+            }
+          : {})
       });
 
       const mappedTrack: KaraokeMediaTrack = instrumental

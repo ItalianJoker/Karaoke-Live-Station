@@ -17,6 +17,14 @@ import {
   coerceInstrumentalVocalRemoverMethod,
   isAiVocalRemoverMethod
 } from '../../shared/vocalRemover';
+import {
+  coerceMdxEnableOrt,
+  coerceMdxOverlap,
+  coerceMdxSegmentSize,
+  MDX_DEFAULT_ENABLE_ORT,
+  MDX_DEFAULT_OVERLAP,
+  MDX_DEFAULT_SEGMENT_SIZE
+} from '../../shared/mdxAdvancedSettings';
 
 export interface MissingFileModalState {
   isOpen: boolean;
@@ -89,6 +97,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   enableVocalRemover: false,
   vocalRemoverAlgorithm: 'centerCancelBassKeep',
   instrumentalVocalRemoverMethod: 'aiMdxKaraoke2',
+  mdxSegmentSize: MDX_DEFAULT_SEGMENT_SIZE,
+  mdxOverlap: MDX_DEFAULT_OVERLAP,
+  mdxEnableOrt: MDX_DEFAULT_ENABLE_ORT,
   maxSimultaneousDownloads: 2,
   enableAutoDuckingBGM: false,
   enableAudioNormalization: true,
@@ -244,6 +255,21 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
               updated.instrumentalVocalRemoverMethod
             );
           }
+          if (
+            partial.mdxSegmentSize !== undefined ||
+            updated.mdxSegmentSize !== undefined
+          ) {
+            updated.mdxSegmentSize = coerceMdxSegmentSize(updated.mdxSegmentSize);
+          }
+          if (partial.mdxOverlap !== undefined || updated.mdxOverlap !== undefined) {
+            updated.mdxOverlap = coerceMdxOverlap(updated.mdxOverlap);
+          }
+          if (partial.mdxEnableOrt !== undefined || updated.mdxEnableOrt !== undefined) {
+            updated.mdxEnableOrt = coerceMdxEnableOrt(updated.mdxEnableOrt);
+          }
+          const maxDl = Number(updated.maxSimultaneousDownloads);
+          updated.maxSimultaneousDownloads =
+            Number.isFinite(maxDl) && maxDl >= 1 ? Math.min(8, Math.floor(maxDl)) : 2;
           updatedSettings = updated;
           return { settings: updated };
         });
@@ -911,6 +937,9 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         mergedSettings.instrumentalVocalRemoverMethod = coerceInstrumentalVocalRemoverMethod(
           mergedSettings.instrumentalVocalRemoverMethod
         );
+        mergedSettings.mdxSegmentSize = coerceMdxSegmentSize(mergedSettings.mdxSegmentSize);
+        mergedSettings.mdxOverlap = coerceMdxOverlap(mergedSettings.mdxOverlap);
+        mergedSettings.mdxEnableOrt = coerceMdxEnableOrt(mergedSettings.mdxEnableOrt);
         const maxDl = Number(mergedSettings.maxSimultaneousDownloads);
         mergedSettings.maxSimultaneousDownloads =
           Number.isFinite(maxDl) && maxDl >= 1 ? Math.min(8, Math.floor(maxDl)) : 2;

@@ -1046,6 +1046,9 @@ class KaraokeMainProcess {
           libraryPath?: string;
           instrumental?: boolean;
           vocalRemoverAlgorithm?: string;
+          mdxSegmentSize?: number;
+          mdxOverlap?: number;
+          mdxEnableOrt?: boolean;
         }
       ) => {
         const libraryPath =
@@ -1062,14 +1065,26 @@ class KaraokeMainProcess {
             ? options.titleHint
             : `${(options.titleHint || 'Unknown').trim()} (Instrumental)`
           : options.titleHint;
+        const method =
+          options.vocalRemoverAlgorithm ||
+          this.currentSettings?.instrumentalVocalRemoverMethod ||
+          this.currentSettings?.vocalRemoverAlgorithm;
+        // Prefer IPC-provided MDX knobs; fall back to synced AppSettings for MDX only.
+        const isMdx = method === 'aiMdxKaraoke2';
         return await this.downloadManager.startDownload({
           ...options,
           titleHint,
           instrumental,
-          vocalRemoverAlgorithm:
-            options.vocalRemoverAlgorithm ||
-            this.currentSettings?.instrumentalVocalRemoverMethod ||
-            this.currentSettings?.vocalRemoverAlgorithm,
+          vocalRemoverAlgorithm: method,
+          mdxSegmentSize: isMdx
+            ? (options.mdxSegmentSize ?? this.currentSettings?.mdxSegmentSize)
+            : undefined,
+          mdxOverlap: isMdx
+            ? (options.mdxOverlap ?? this.currentSettings?.mdxOverlap)
+            : undefined,
+          mdxEnableOrt: isMdx
+            ? (options.mdxEnableOrt ?? this.currentSettings?.mdxEnableOrt)
+            : undefined,
           libraryPath,
           catalogTracks
         });

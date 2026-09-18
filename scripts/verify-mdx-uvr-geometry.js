@@ -25,7 +25,11 @@ const fftSrc = fs.readFileSync(path.join(root, 'src/main/ai/audioFft.ts'), 'utf8
 const sepSrc = fs.readFileSync(path.join(root, 'src/main/services/InstrumentalAiSeparator.ts'), 'utf8');
 
 assert(geomSrc.includes('mdxStepSamples') && geomSrc.includes("overlap === 'default'"), 'Geometry exports Default overlap step');
-assert(mdxSrc.includes("mdxStepSamples('default'") && mdxSrc.includes('mdxTailPadSamples'), 'MdxNetSeparator uses UVR Default demix geometry');
+assert(
+  mdxSrc.includes('mdxStepSamples(cfg.mdxOverlap') && mdxSrc.includes('mdxTailPadSamples'),
+  'MdxNetSeparator uses fractional overlap via mdxStepSamples(cfg.mdxOverlap)'
+);
+assert(mdxSrc.includes("mdxStepSamples('default'"), 'DEFAULT_STEP export still documents UVR Default');
 assert(!/CHUNK_SIZE \/ 2/.test(mdxSrc) && !/num_overlap ≈ 2/.test(mdxSrc), 'MdxNetSeparator no longer uses 50% triangular OLA step');
 assert(fftSrc.includes('warmAudioFftForMdx') && fftSrc.includes('periodic'), 'FFT warm + periodic Hann');
 assert(
@@ -44,10 +48,14 @@ const TRIM = N_FFT >> 1;
 const GEN = CHUNK - 2 * TRIM;
 const STEP_DEFAULT = CHUNK - N_FFT;
 const STEP_HALF = Math.floor(CHUNK / 2);
+const STEP_025 = Math.floor((1 - 0.25) * CHUNK);
 
 assert(CHUNK === 261120, `chunk_size=${CHUNK}`);
 assert(TRIM === 2560, `trim=${TRIM}`);
 assert(GEN === 256000, `gen_size=${GEN}`);
+assert(STEP_025 === 195840, `overlap 0.25 step=${STEP_025}`);
+assert(STEP_025 < STEP_DEFAULT, '0.25 overlap hop < UVR Default hop (more ORT windows)');
+assert(STEP_HALF < STEP_025, '0.50 overlap hop < 0.25 hop');
 assert(STEP_DEFAULT === 256000, `UVR Default step=${STEP_DEFAULT}`);
 assert(STEP_DEFAULT === GEN, 'Default step equals gen_size (UVR)');
 

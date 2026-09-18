@@ -122,6 +122,24 @@ export interface AppSettings {
     | 'aiHtDemucs'
     | 'aiBsRoformer';
   /**
+   * UVR-MDX-NET segment size (`dim_t`). Used only when instrumental method is aiMdxKaraoke2.
+   * Powers of 2 in [64, 1024]; Karaoke 2 catalog default is 256.
+   */
+  mdxSegmentSize: number;
+  /**
+   * UVR-MDX fractional overlap (0.10–0.99). Maps to ORT window hop via
+   * `mdxStepSamples(overlap) = floor((1 - overlap) * chunk_size)`.
+   * Used only for aiMdxKaraoke2.
+   */
+  mdxOverlap: number;
+  /**
+   * When true: ORT WASM graphOptimizationLevel `all` + SIMD.
+   * When false: graphOptimizationLevel `disabled` + SIMD off.
+   * ORT is still required for MDX — this only toggles CPU acceleration opts.
+   * Used only for aiMdxKaraoke2.
+   */
+  mdxEnableOrt: boolean;
+  /**
    * Max concurrent yt-dlp jobs (shared pool for traditional Download and Download Instrumental).
    * Extra starts are queued until a slot frees.
    */
@@ -343,6 +361,13 @@ export interface StartDownloadOptions {
   instrumental?: boolean;
   /** Method for instrumental post-process — from `instrumentalVocalRemoverMethod` (may be AI) */
   vocalRemoverAlgorithm?: string;
+  /**
+   * MDX-only advanced knobs (omit for Demucs / Roformer / algorithmic).
+   * Client should only set when method is aiMdxKaraoke2.
+   */
+  mdxSegmentSize?: number;
+  mdxOverlap?: number;
+  mdxEnableOrt?: boolean;
 }
 
 /**

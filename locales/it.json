@@ -253,7 +253,21 @@
     "maxSimultaneousDownloads": "Download simultanei massimi",
     "maxSimultaneousDownloadsDesc": "Limite condiviso tra Download normale e Download Strumentale. I job in eccesso restano in coda nel menu Download.",
     "instrumentalVocalRemover": "Metodo Download Strumentale",
-    "instrumentalVocalRemoverDesc": "Usato solo da Scarica strumentale (YouTube). Scegli AI offline (modelli una volta in userData/models) oppure DSP classico. Mai applicato alla Rimozione Vocale live."
+    "instrumentalVocalRemoverDesc": "Usato solo da Scarica strumentale (YouTube). Scegli AI offline (modelli una volta in userData/models) oppure DSP classico. Mai applicato alla Rimozione Vocale live.",
+    "mdxAdvancedTitle": "Impostazioni Avanzate UVR-MDX-NET (Ottimizzazione ETA)",
+    "mdxAdvancedDesc": "Visibile solo con UVR-MDX-NET Karaoke 2. Regola geometria dei chunk e accelerazione ORT CPU per bilanciare ETA e qualità del Download Strumentale.",
+    "mdxSegmentSize": "Dimensione segmento",
+    "mdxSegmentSizeTooltip": "Dimensione del chunk elaborato dal modello (UVR dim_t). Valori più piccoli riducono RAM/CPU e spesso l'ETA, ma possono ridurre continuità/qualità; valori più grandi migliorano stabilità a costo di memoria e tempo. Default Karaoke 2: 256.",
+    "mdxSegmentChip256": "256 (consigliato — poca RAM/CPU)",
+    "mdxSegmentChip512": "512 (bilanciato)",
+    "mdxOverlap": "Overlap",
+    "mdxOverlapTooltip": "Sovrapposizione frazionaria tra finestre MDX successive. Un overlap più alto di solito migliora la qualità ma aumenta le esecuzioni ORT e l'ETA. Mappato a hop = (1 − overlap) × chunk_size.",
+    "mdxOverlapChip025": "0.25 (veloce)",
+    "mdxOverlapChip050": "0.50 (bilanciato)",
+    "mdxOverlapChip075": "0.75 (studio — lento)",
+    "mdxOverlapHighWarning": "Overlap elevato (≥ 0.75): la separazione sarà molto più lenta (molte più finestre ORT). Preferisci 0.25–0.50 salvo necessità di continuità da studio.",
+    "mdxEnableOrt": "Accelerazione CPU ONNX Runtime",
+    "mdxEnableOrtDesc": "Attivo: ottimizzazioni grafo ORT WASM + SIMD. Disattivo: ottimizzazioni grafo disabilitate e SIMD off. ORT resta obbligatorio per MDX — non salta il motore."
   },
   "history": {
     "title": "Storico Esecuzioni",

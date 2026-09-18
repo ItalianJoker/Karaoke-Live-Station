@@ -3,7 +3,8 @@
  * Runs ORT + MDX/HTDemucs off the Electron main process so Control UI stays responsive.
  *
  * Protocol (parent ↔ child via Electron utilityProcess parentPort, or process IPC):
- *   in:  { type:'separate', requestId, method, modelPath, ortDir, inputWav, outputWav }
+ *   in:  { type:'separate', requestId, method, modelPath, ortDir, inputWav, outputWav,
+ *          mdxSegmentSize?, mdxOverlap?, mdxEnableOrt? }  // MDX-only knobs
  *   out: { type:'progress', requestId, phase, progress, message }
  *        { type:'done', requestId, outputWav }
  *        { type:'error', requestId, message }
@@ -20,6 +21,9 @@ import {
   methodToModelId,
   type AiVocalRemoverMethod
 } from '../../shared/vocalRemover';
+import {
+  coerceMdxAdvancedSettings
+} from '../../shared/mdxAdvancedSettings';
 import { MdxNetSeparator, MDX_SAMPLE_RATE } from '../ai/MdxNetSeparator';
 import { readPcmWavFile, writePcmWavFile } from '../ai/wavPcm';
 import { unwrapAiWorkerInboundMessage } from './aiWorkerMessage';
@@ -32,6 +36,10 @@ type SeparateRequest = {
   ortDir: string;
   inputWav: string;
   outputWav: string;
+  /** MDX-only — ignored for Demucs / Roformer. */
+  mdxSegmentSize?: number;
+  mdxOverlap?: number;
+  mdxEnableOrt?: boolean;
 };
 
 type OutMessage =
@@ -90,7 +98,8 @@ async function separateMdx(
   ortDir: string,
   inputWav: string,
   outputWav: string,
-  requestId: number
+  requestId: number,
+  mdxOpts?: { mdxSegmentSize?: number; mdxOverlap?: number; mdxEnableOrt?: boolean }
 ): Promise<void> {
   const wav = readPcmWavFile(inputWav);
   post({
@@ -110,8 +119,9 @@ async function separateMdx(
     );
   }
 
+  const advanced = coerceMdxAdvancedSettings(mdxOpts);
   const modelBuffer = toArrayBuffer(new Uint8Array(fs.readFileSync(modelPath)));
-  const separator = new MdxNetSeparator();
+  const separator = new MdxNetSeparator(advanced);
   separator.onProgress((info) => {
     post({
       type: 'progress',
@@ -240,9 +250,14 @@ async function handleSeparate(req: SeparateRequest): Promise<void> {
 
   switch (aiMethod) {
     case 'aiMdxKaraoke2':
-      await separateMdx(modelPath, ortDir, inputWav, outputWav, requestId);
+      await separateMdx(modelPath, ortDir, inputWav, outputWav, requestId, {
+        mdxSegmentSize: req.mdxSegmentSize,
+        mdxOverlap: req.mdxOverlap,
+        mdxEnableOrt: req.mdxEnableOrt
+      });
       break;
     case 'aiHtDemucs':
+      // Demucs path ignores MDX segment/overlap/ORT knobs even if present on the wire.
       await separateDemucs(modelPath, ortDir, inputWav, outputWav, requestId);
       break;
     case 'aiBsRoformer':

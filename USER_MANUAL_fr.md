@@ -238,6 +238,7 @@ La touche **`V`** / la commande **Suppression Voix Guide (Expérimental)** activ
 | --- | --- |
 | `centerCancelBassKeep` / `centerCancel` / `softMid` | DSP mid/side **temps réel** — léger, sans téléchargement |
 
+Dans les résultats YouTube, **Télécharger Instrumental** (si le titre ne contient pas déjà « Karaoke » ou « instrumental ») télécharge la vidéo, applique la **Méthode Télécharger Instrumental** de **Réglages → Audio** (IA hors ligne comme UVR-MDX-NET Karaoke 2, ou DSP classique) et enregistre un MP4 instrumental (sous-titres incrustés si disponibles). Avec UVR-MDX-NET sélectionné, **Paramètres avancés UVR-MDX-NET (optimisation ETA)** apparaît sous ce menu : taille de segment, chevauchement et accélération CPU ONNX Runtime — uniquement pour ce chemin MDX.
 
 ### 4.5 Auto-ducking BGM
 

@@ -238,7 +238,7 @@ Il tasto **`V`** / il controllo **Rimuovi Voce Guida (Sperimentale)** attiva il 
 | --- | --- |
 | `centerCancelBassKeep` / `centerCancel` / `softMid` | DSP mid/side **in tempo reale** — leggero, nessun download |
 
-Nella ricerca YouTube, **Scarica strumentale** (se il titolo non contiene già “Karaoke” o “instrumental”) scarica il video, applica lo stesso algoritmo offline via ffmpeg e salva un MP4 strumentale in libreria (sottotitoli bruciati se disponibili).
+Nella ricerca YouTube, **Scarica strumentale** (se il titolo non contiene già “Karaoke” o “instrumental”) scarica il video, poi applica il **Metodo Download Strumentale** da **Impostazioni → Audio** (AI offline come UVR-MDX-NET Karaoke 2, oppure DSP classico) e salva un MP4 strumentale (sottotitoli bruciati se disponibili). Con UVR-MDX-NET selezionato compare **Impostazioni Avanzate UVR-MDX-NET (Ottimizzazione ETA)** sotto il menu: dimensione segmento, overlap e accelerazione CPU ONNX Runtime — solo per quel percorso MDX.
 
 ### 4.5 Auto-ducking BGM
 

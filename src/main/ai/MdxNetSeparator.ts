@@ -8,13 +8,17 @@
  *
  * Pipeline: decode → resample 44.1 kHz → chunked STFT → ORT → iSTFT → PCM
  * Config matches UVR model_data.json entry MD5 1d64a6d2… (dim_f=2048, dim_t=2^8=256,
- * n_fft=5120, hop=1024, compensate=1.065).
+ * n_fft=5120, hop=1024, compensate=1.065). Advanced Settings can override dim_t
+ * (segment size) and fractional overlap; Karaoke 2 ONNX is catalogued at dim_t=256.
  *
  * Chunking / overlap follow Anjok07/ultimatevocalremovergui `SeperateMDX.demix`
  * (AGPL-3.0 inspiration only — math reimplemented here, GUI not vendored):
- * zero-pad + trim, Default overlap step = chunk_size - n_fft, Hann OLA, crop trim.
- * Prior KLS 50% triangular OLA roughly doubled ORT windows vs UVR Default and made
- * CPU WASM runs look stuck until idle/hard timeout.
+ * zero-pad + trim, hop = mdxStepSamples(overlap), Hann OLA, crop trim.
+ *
+ * Overlap mapping (EN):
+ * - UVR UI "Default" → step = chunk_size - n_fft (≈2%); not used when UI sends a fraction
+ * - UI fraction o ∈ [0.10, 0.99] → step = floor((1 - o) * chunk_size)
+ * - Default UI overlap 0.25 → ~25% window overlap (more ORT runs than UVR Default)
  *
  * Heavy work yields to the event loop between frames/chunks; a keep-alive timer
  * posts progress during long `session.run` so the parent idle watchdog stays armed.
@@ -30,6 +34,10 @@ import {
   mdxTrim
 } from './mdxUvrGeometry';
 import { yieldToMainThread } from './yieldToMain';
+import {
+  coerceMdxAdvancedSettings,
+  type MdxAdvancedSettingsInput
+} from '../../shared/mdxAdvancedSettings';
 
 export type MdxProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
@@ -46,24 +54,26 @@ export type OrtWasmPathConfig =
       wasmBinary?: ArrayBuffer | Uint8Array;
     };
 
+/** Runtime knobs from Settings → worker (MDX path only). */
+export type MdxRuntimeOptions = MdxAdvancedSettingsInput;
+
 type ProgressListener = (info: MdxProgress) => void;
 
 const SAMPLE_RATE = MDX_KARA2.sampleRate;
 const DIM_F = MDX_KARA2.dimF;
-const DIM_T = MDX_KARA2.dimT;
 const N_FFT = MDX_KARA2.nFft;
 const HOP = MDX_KARA2.hop;
 const COMPENSATION = MDX_KARA2.compensation;
-const CHUNK_SIZE = mdxChunkSize(HOP, DIM_T);
-const TRIM = mdxTrim(N_FFT);
-const GEN_SIZE = mdxGenSize(CHUNK_SIZE, TRIM);
-/** UVR UI "Default" MDX overlap — not 50%. */
-const STEP = mdxStepSamples('default', CHUNK_SIZE, N_FFT);
 const N_BINS = (N_FFT >> 1) + 1;
 /** How often to yield/IPC during STFT/iSTFT (frames). */
 const FRAME_HEARTBEAT = 64;
 /** Keep parent idle watchdog alive during blocking ORT WASM `session.run`. */
 const ORT_KEEPALIVE_MS = 15_000;
+
+/** Default geometry exports (Karaoke 2 catalog dim_t=256 + UVR Default step). */
+const DEFAULT_DIM_T = MDX_KARA2.dimT;
+const DEFAULT_CHUNK_SIZE = mdxChunkSize(HOP, DEFAULT_DIM_T);
+const DEFAULT_STEP = mdxStepSamples('default', DEFAULT_CHUNK_SIZE, N_FFT);
 
 export class MdxNetSeparator {
   private session: ort.InferenceSession | null = null;
@@ -75,9 +85,43 @@ export class MdxNetSeparator {
   private readonly window = hannWindow(N_FFT, true);
   private readonly frameL = new Float32Array(N_FFT);
   private readonly frameR = new Float32Array(N_FFT);
-  private readonly olaWindow = new Float32Array(CHUNK_SIZE);
-  private readonly chunkL = new Float32Array(CHUNK_SIZE);
-  private readonly chunkR = new Float32Array(CHUNK_SIZE);
+
+  /** UVR dim_t — from Settings segment size (default 256). */
+  private readonly dimT: number;
+  private readonly chunkSize: number;
+  private readonly trim: number;
+  private readonly genSize: number;
+  /**
+   * Hop between ORT prediction windows.
+   * Derived from fractional overlap via {@link mdxStepSamples} (not UVR Default
+   * unless overlap is omitted and we fall back — UI always sends a fraction).
+   */
+  private readonly step: number;
+  /**
+   * When true: graphOptimizationLevel `all` + WASM SIMD (faster CPU path).
+   * When false: `disabled` + SIMD off. ORT WASM is still mandatory for inference.
+   */
+  private readonly enableOrtAcceleration: boolean;
+  private readonly overlapLabel: string;
+
+  private olaWindow: Float32Array;
+  private chunkL: Float32Array;
+  private chunkR: Float32Array;
+
+  constructor(options?: MdxRuntimeOptions) {
+    const cfg = coerceMdxAdvancedSettings(options);
+    this.dimT = cfg.mdxSegmentSize;
+    this.chunkSize = mdxChunkSize(HOP, this.dimT);
+    this.trim = mdxTrim(N_FFT);
+    this.genSize = mdxGenSize(this.chunkSize, this.trim);
+    // Fractional overlap → hop. Example: 0.25 → floor(0.75 * chunk_size).
+    this.step = mdxStepSamples(cfg.mdxOverlap, this.chunkSize, N_FFT);
+    this.enableOrtAcceleration = cfg.mdxEnableOrt;
+    this.overlapLabel = cfg.mdxOverlap.toFixed(2);
+    this.olaWindow = new Float32Array(this.chunkSize);
+    this.chunkL = new Float32Array(this.chunkSize);
+    this.chunkR = new Float32Array(this.chunkSize);
+  }
 
   public onProgress(listener: ProgressListener): () => void {
     this.listeners.add(listener);
@@ -99,8 +143,11 @@ export class MdxNetSeparator {
     if (!wasmPaths) {
       throw new Error('ORT WASM paths required for instrumental AI separation');
     }
+    // Single-thread WASM is intentional in Electron utilityProcess (avoid nested workers).
     ort.env.wasm.numThreads = 1;
-    ort.env.wasm.simd = true;
+    // enableOrtAcceleration: honest toggle — SIMD + full graph opts vs disabled opts.
+    // Cannot skip ORT entirely; MDX has no non-ORT inference path.
+    ort.env.wasm.simd = this.enableOrtAcceleration;
     ort.env.wasm.proxy = false;
     if (typeof wasmPaths === 'string') {
       ort.env.wasm.wasmPaths = wasmPaths.endsWith('/') ? wasmPaths : `${wasmPaths}/`;
@@ -138,10 +185,11 @@ export class MdxNetSeparator {
       // Yield so Control UI can paint before the heavy session create.
       await yieldToMainThread();
       this.emit({ phase: 'model', progress: 0.15, message: 'Creating ORT WASM session…' });
-      // `all` matches typical ORT desktop defaults (UVR native ORT); WASM still single-thread.
+      // `all` matches typical ORT desktop defaults when acceleration is on;
+      // `disabled` when the user turns off ORT CPU acceleration in Settings.
       this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
         executionProviders: ['wasm'],
-        graphOptimizationLevel: 'all'
+        graphOptimizationLevel: this.enableOrtAcceleration ? 'all' : 'disabled'
       });
       this.inputName = this.session.inputNames[0] || 'input';
       this.modelReady = true;
@@ -163,13 +211,14 @@ export class MdxNetSeparator {
     if (!this.session) throw new Error('MDX model not loaded');
 
     const length = left.length;
+    const { chunkSize, trim, genSize, step, dimT } = this;
     // UVR demix: zeros(trim) + mix + zeros(pad)
-    const pad = mdxTailPadSamples(length, GEN_SIZE, TRIM);
-    const mixtureLen = TRIM + length + pad;
+    const pad = mdxTailPadSamples(length, genSize, trim);
+    const mixtureLen = trim + length + pad;
     const mixtureL = new Float32Array(mixtureLen);
     const mixtureR = new Float32Array(mixtureLen);
-    mixtureL.set(left, TRIM);
-    mixtureR.set(right, TRIM);
+    mixtureL.set(left, trim);
+    mixtureR.set(right, trim);
 
     const resultL = new Float32Array(mixtureLen);
     const resultR = new Float32Array(mixtureLen);
@@ -177,7 +226,7 @@ export class MdxNetSeparator {
 
     // Pre-count windows (same loop as UVR: for i in range(0, mixture.shape[-1], step))
     let totalChunks = 0;
-    for (let i = 0; i < mixtureLen; i += STEP) totalChunks++;
+    for (let i = 0; i < mixtureLen; i += step) totalChunks++;
     totalChunks = Math.max(1, totalChunks);
 
     const reportSeparate = (ratio: number, message: string) => {
@@ -188,13 +237,13 @@ export class MdxNetSeparator {
 
     reportSeparate(
       1 / (totalChunks * 1000),
-      `MDX separating… 0% (${totalChunks} chunks, UVR Default overlap)`
+      `MDX separating… 0% (${totalChunks} chunks, dim_t=${dimT}, overlap=${this.overlapLabel})`
     );
     await yieldToMainThread();
 
     let chunkIndex = 0;
-    for (let i = 0; i < mixtureLen; i += STEP) {
-      const end = Math.min(i + CHUNK_SIZE, mixtureLen);
+    for (let i = 0; i < mixtureLen; i += step) {
+      const end = Math.min(i + chunkSize, mixtureLen);
       const chunkActual = end - i;
 
       const chunkL = this.chunkL;
@@ -232,7 +281,7 @@ export class MdxNetSeparator {
     const outL = new Float32Array(length);
     const outR = new Float32Array(length);
     for (let s = 0; s < length; s++) {
-      const src = TRIM + s;
+      const src = trim + s;
       const d = divider[src] > 1e-8 ? divider[src] : 1;
       outL[s] = (resultL[src] / d) * COMPENSATION;
       outR[s] = (resultR[src] / d) * COMPENSATION;
@@ -260,10 +309,13 @@ export class MdxNetSeparator {
   ): Promise<{ left: Float32Array; right: Float32Array }> {
     if (!this.session) throw new Error('MDX model not loaded');
 
+    const dimT = this.dimT;
+    const chunkSize = this.chunkSize;
+
     // Build spectrogram [1, 4, dim_f, dim_t] = L_re, L_im, R_re, R_im
     // STFT ≈ 0–0.45 of chunk work; ORT ≈ 0.45–0.55; iSTFT ≈ 0.55–1.
-    const input = new Float32Array(1 * 4 * DIM_F * DIM_T);
-    for (let t = 0; t < DIM_T; t++) {
+    const input = new Float32Array(1 * 4 * DIM_F * dimT);
+    for (let t = 0; t < dimT; t++) {
       const offset = t * HOP;
       const frameL = this.frameL;
       const frameR = this.frameR;
@@ -280,31 +332,31 @@ export class MdxNetSeparator {
       const specL = realFftFrame(frameL, N_FFT, 0);
       const specR = realFftFrame(frameR, N_FFT, 1);
       for (let f = 0; f < DIM_F; f++) {
-        const base = (c: number) => c * DIM_F * DIM_T + f * DIM_T + t;
+        const base = (c: number) => c * DIM_F * dimT + f * dimT + t;
         input[base(0)] = specL.re[f];
         input[base(1)] = specL.im[f];
         input[base(2)] = specR.re[f];
         input[base(3)] = specR.im[f];
       }
       if ((t & (FRAME_HEARTBEAT - 1)) === FRAME_HEARTBEAT - 1) {
-        onIntra?.((t / DIM_T) * 0.45);
+        onIntra?.((t / dimT) * 0.45);
         await yieldToMainThread();
       }
     }
 
     // UVR separate.py run_model: spek[:, :, :3, :] *= 0 — mute the lowest 3 bins
     // before ONNX (matches Anjok07/ultimatevocalremovergui MDX path).
-    for (let t = 0; t < DIM_T; t++) {
+    for (let t = 0; t < dimT; t++) {
       for (let f = 0; f < MDX_KARA2.muteLowBins; f++) {
         for (let c = 0; c < 4; c++) {
-          input[c * DIM_F * DIM_T + f * DIM_T + t] = 0;
+          input[c * DIM_F * dimT + f * dimT + t] = 0;
         }
       }
     }
 
     onIntra?.(0.45);
     await yieldToMainThread();
-    const tensor = new ort.Tensor('float32', input, [1, 4, DIM_F, DIM_T]);
+    const tensor = new ort.Tensor('float32', input, [1, 4, DIM_F, dimT]);
     const feeds: Record<string, ort.Tensor> = { [this.inputName]: tensor };
 
     // ORT WASM `session.run` can block for minutes with no await points — pulse
@@ -327,24 +379,24 @@ export class MdxNetSeparator {
     const outData = outTensor.data as Float32Array;
 
     // Inverse STFT from predicted instrumental spectrogram (UVR Karaoke 2 primary)
-    const outL = new Float32Array(CHUNK_SIZE);
-    const outR = new Float32Array(CHUNK_SIZE);
-    const accL = new Float32Array(CHUNK_SIZE + N_FFT);
-    const accR = new Float32Array(CHUNK_SIZE + N_FFT);
-    const winAcc = new Float32Array(CHUNK_SIZE + N_FFT);
+    const outL = new Float32Array(chunkSize);
+    const outR = new Float32Array(chunkSize);
+    const accL = new Float32Array(chunkSize + N_FFT);
+    const accR = new Float32Array(chunkSize + N_FFT);
+    const winAcc = new Float32Array(chunkSize + N_FFT);
 
     const reL = new Float32Array(N_BINS);
     const imL = new Float32Array(N_BINS);
     const reR = new Float32Array(N_BINS);
     const imR = new Float32Array(N_BINS);
 
-    for (let t = 0; t < DIM_T; t++) {
+    for (let t = 0; t < dimT; t++) {
       reL.fill(0);
       imL.fill(0);
       reR.fill(0);
       imR.fill(0);
       for (let f = 0; f < DIM_F; f++) {
-        const base = (c: number) => c * DIM_F * DIM_T + f * DIM_T + t;
+        const base = (c: number) => c * DIM_F * dimT + f * dimT + t;
         reL[f] = outData[base(0)];
         imL[f] = outData[base(1)];
         reR[f] = outData[base(2)];
@@ -362,12 +414,12 @@ export class MdxNetSeparator {
         winAcc[idx] += this.window[i] * this.window[i];
       }
       if ((t & (FRAME_HEARTBEAT - 1)) === FRAME_HEARTBEAT - 1) {
-        onIntra?.(0.55 + (t / DIM_T) * 0.45);
+        onIntra?.(0.55 + (t / dimT) * 0.45);
         await yieldToMainThread();
       }
     }
 
-    for (let i = 0; i < CHUNK_SIZE; i++) {
+    for (let i = 0; i < chunkSize; i++) {
       const w = winAcc[i] > 1e-8 ? winAcc[i] : 1;
       outL[i] = accL[i] / w;
       outR[i] = accR[i] / w;
@@ -377,4 +429,8 @@ export class MdxNetSeparator {
   }
 }
 
-export { SAMPLE_RATE as MDX_SAMPLE_RATE, CHUNK_SIZE as MDX_CHUNK_SIZE, STEP as MDX_STEP };
+export {
+  SAMPLE_RATE as MDX_SAMPLE_RATE,
+  DEFAULT_CHUNK_SIZE as MDX_CHUNK_SIZE,
+  DEFAULT_STEP as MDX_STEP
+};

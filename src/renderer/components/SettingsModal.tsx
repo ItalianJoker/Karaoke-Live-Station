@@ -43,6 +43,17 @@ import {
   coerceAlgorithmicVocalRemoverMethod,
   coerceInstrumentalVocalRemoverMethod
 } from '../../shared/vocalRemover';
+import {
+  coerceMdxEnableOrt,
+  coerceMdxOverlap,
+  coerceMdxSegmentSize,
+  MDX_OVERLAP_MAX,
+  MDX_OVERLAP_MIN,
+  MDX_OVERLAP_STEP,
+  MDX_OVERLAP_WARN_THRESHOLD,
+  MDX_SEGMENT_SIZES,
+  isMdxInstrumentalMethod
+} from '../../shared/mdxAdvancedSettings';
 import appLogo from '../assets/logo.png';
 
 const THEME_OPTIONS: { id: AppTheme; label: string }[] = [
@@ -341,13 +352,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const matchInstrumentalVocal = matchesSearch(
     t('settings.instrumentalVocalRemover'),
     t('settings.instrumentalVocalRemoverDesc'),
+    t('settings.mdxAdvancedTitle'),
+    t('settings.mdxSegmentSize'),
+    t('settings.mdxOverlap'),
+    t('settings.mdxEnableOrt'),
     'instrumental',
     'strumentale',
     'ai',
     'mdx',
     'demucs',
     'roformer',
-    'download'
+    'download',
+    'segment',
+    'overlap',
+    'onnx'
   );
   const matchMaxDownloads = matchesSearch(
     t('settings.maxSimultaneousDownloads'),
@@ -1099,6 +1117,159 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       <option value="aiBsRoformer">{t('settings.vocalAiBsRoformer')}</option>
                     </optgroup>
                   </select>
+
+                  {/* MDX-only advanced ETA panel — hidden for Demucs / Roformer / DSP */}
+                  {isMdxInstrumentalMethod(
+                    coerceInstrumentalVocalRemoverMethod(settings.instrumentalVocalRemoverMethod)
+                  ) && (
+                    <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-3">
+                      <div>
+                        <p className="font-semibold text-white text-xs">
+                          {t('settings.mdxAdvancedTitle')}
+                        </p>
+                        <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
+                          {t('settings.mdxAdvancedDesc')}
+                        </p>
+                      </div>
+
+                      {/* A. Segment size (dim_t) */}
+                      <div className="space-y-1.5">
+                        <label
+                          className="block text-[11px] font-medium text-slate-200"
+                          title={t('settings.mdxSegmentSizeTooltip')}
+                        >
+                          {t('settings.mdxSegmentSize')}
+                          <span className="ml-2 font-mono text-indigo-300">
+                            {coerceMdxSegmentSize(settings.mdxSegmentSize)}
+                          </span>
+                        </label>
+                        <p className="text-[10px] text-slate-500 leading-relaxed">
+                          {t('settings.mdxSegmentSizeTooltip')}
+                        </p>
+                        <input
+                          type="range"
+                          min={0}
+                          max={MDX_SEGMENT_SIZES.length - 1}
+                          step={1}
+                          value={Math.max(
+                            0,
+                            MDX_SEGMENT_SIZES.indexOf(
+                              coerceMdxSegmentSize(settings.mdxSegmentSize) as (typeof MDX_SEGMENT_SIZES)[number]
+                            )
+                          )}
+                          onChange={(e) => {
+                            const idx = parseInt(e.target.value, 10);
+                            const next = MDX_SEGMENT_SIZES[idx] ?? 256;
+                            updateSettings({ mdxSegmentSize: coerceMdxSegmentSize(next) });
+                          }}
+                          className="w-full accent-indigo-600"
+                        />
+                        <div className="flex flex-wrap gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => updateSettings({ mdxSegmentSize: 256 })}
+                            className={`px-2 py-0.5 rounded text-[10px] border ${
+                              coerceMdxSegmentSize(settings.mdxSegmentSize) === 256
+                                ? 'border-indigo-500 bg-indigo-950/60 text-indigo-200'
+                                : 'border-slate-700 text-slate-400 hover:border-slate-500'
+                            }`}
+                          >
+                            {t('settings.mdxSegmentChip256')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateSettings({ mdxSegmentSize: 512 })}
+                            className={`px-2 py-0.5 rounded text-[10px] border ${
+                              coerceMdxSegmentSize(settings.mdxSegmentSize) === 512
+                                ? 'border-indigo-500 bg-indigo-950/60 text-indigo-200'
+                                : 'border-slate-700 text-slate-400 hover:border-slate-500'
+                            }`}
+                          >
+                            {t('settings.mdxSegmentChip512')}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* B. Overlap fraction → mdxStepSamples */}
+                      <div className="space-y-1.5">
+                        <label
+                          className="block text-[11px] font-medium text-slate-200"
+                          title={t('settings.mdxOverlapTooltip')}
+                        >
+                          {t('settings.mdxOverlap')}
+                          <span className="ml-2 font-mono text-indigo-300">
+                            {coerceMdxOverlap(settings.mdxOverlap).toFixed(2)}
+                          </span>
+                        </label>
+                        <p className="text-[10px] text-slate-500 leading-relaxed">
+                          {t('settings.mdxOverlapTooltip')}
+                        </p>
+                        <input
+                          type="range"
+                          min={MDX_OVERLAP_MIN}
+                          max={MDX_OVERLAP_MAX}
+                          step={MDX_OVERLAP_STEP}
+                          value={coerceMdxOverlap(settings.mdxOverlap)}
+                          onChange={(e) =>
+                            updateSettings({
+                              mdxOverlap: coerceMdxOverlap(parseFloat(e.target.value))
+                            })
+                          }
+                          className="w-full accent-indigo-600"
+                        />
+                        <div className="flex flex-wrap gap-1.5">
+                          {(
+                            [
+                              [0.25, 'settings.mdxOverlapChip025'],
+                              [0.5, 'settings.mdxOverlapChip050'],
+                              [0.75, 'settings.mdxOverlapChip075']
+                            ] as const
+                          ).map(([value, labelKey]) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() =>
+                                updateSettings({ mdxOverlap: coerceMdxOverlap(value) })
+                              }
+                              className={`px-2 py-0.5 rounded text-[10px] border ${
+                                Math.abs(coerceMdxOverlap(settings.mdxOverlap) - value) < 0.001
+                                  ? 'border-indigo-500 bg-indigo-950/60 text-indigo-200'
+                                  : 'border-slate-700 text-slate-400 hover:border-slate-500'
+                              }`}
+                            >
+                              {t(labelKey)}
+                            </button>
+                          ))}
+                        </div>
+                        {coerceMdxOverlap(settings.mdxOverlap) >= MDX_OVERLAP_WARN_THRESHOLD && (
+                          <div className="flex items-start gap-1.5 rounded-lg border border-amber-700/60 bg-amber-950/40 px-2 py-1.5 text-[10px] text-amber-200 leading-relaxed">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400" />
+                            <span>{t('settings.mdxOverlapHighWarning')}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* C. ORT WASM CPU acceleration */}
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={coerceMdxEnableOrt(settings.mdxEnableOrt)}
+                          onChange={(e) =>
+                            updateSettings({ mdxEnableOrt: coerceMdxEnableOrt(e.target.checked) })
+                          }
+                          className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
+                        />
+                        <div>
+                          <span className="block text-[11px] font-medium text-slate-200">
+                            {t('settings.mdxEnableOrt')}
+                          </span>
+                          <span className="block text-[10px] text-slate-500 leading-relaxed mt-0.5">
+                            {t('settings.mdxEnableOrtDesc')}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  )}
                 </div>
               )}
 
