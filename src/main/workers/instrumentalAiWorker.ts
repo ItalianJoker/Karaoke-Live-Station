@@ -168,7 +168,7 @@ async function separateDemucs(
     ort,
     sessionOptions: {
       executionProviders: ['wasm'],
-      graphOptimizationLevel: 'basic'
+      graphOptimizationLevel: 'all'
     },
     onProgress: (info: { progress: number }) => {
       const progress = Math.max(0, Math.min(1, info.progress));

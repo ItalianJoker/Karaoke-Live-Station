@@ -4,8 +4,8 @@
  *
  * Needed because UVR MDX Karaoke 2 uses n_fft=5120 (not a power of two).
  *
- * Plans are cached per (n, inverse): rebuilding FFT(16384) + chirps every
- * STFT frame made instrumental AI look frozen at ~45% on CPU.
+ * Plans + scratch buffers are cached: rebuilding FFT(16384) + chirps every
+ * STFT frame made instrumental AI look frozen / idle-timeout on CPU WASM.
  */
 import FFT from 'fft.js';
 
@@ -114,6 +114,31 @@ function getPow2Plan(n: number): Pow2Plan {
   return plan;
 }
 
+/** Per-(nFft, lane) reusable real↔complex scratch (avoids Float64Array(n*2) every frame). */
+type RealFrameScratch = {
+  data: Float64Array;
+  re: Float32Array;
+  im: Float32Array;
+  out: Float32Array;
+};
+
+const realFrameCache = new Map<string, RealFrameScratch>();
+
+function getRealFrameScratch(nFft: number, lane: 0 | 1 = 0): RealFrameScratch {
+  const key = `${nFft}:${lane}`;
+  let s = realFrameCache.get(key);
+  if (s) return s;
+  const bins = (nFft >> 1) + 1;
+  s = {
+    data: new Float64Array(nFft * 2),
+    re: new Float32Array(bins),
+    im: new Float32Array(bins),
+    out: new Float32Array(nFft)
+  };
+  realFrameCache.set(key, s);
+  return s;
+}
+
 /**
  * In-place complex FFT / iFFT on interleaved Float64Array [re0, im0, re1, im1, …].
  * Length of the complex vector is `n` (array length = 2n).
@@ -166,17 +191,35 @@ export function bluesteinFft(data: Float64Array, n: number, inverse: boolean): v
   }
 }
 
-/** Real forward STFT frame → complex spectrum (length nFft/2+1 bins kept by caller). */
-export function realFftFrame(frame: Float32Array, nFft: number): { re: Float32Array; im: Float32Array } {
-  const data = new Float64Array(nFft * 2);
+/**
+ * Warm Bluestein + real-frame scratch for MDX n_fft so the first chunk does not
+ * pay plan construction mid-separation (helps idle-watchdog / first-progress UX).
+ */
+export function warmAudioFftForMdx(nFft = 5120): void {
+  getBluesteinPlan(nFft, false);
+  getBluesteinPlan(nFft, true);
+  // Two lanes so L/R spectra/time frames can coexist without clobbering.
+  getRealFrameScratch(nFft, 0);
+  getRealFrameScratch(nFft, 1);
+}
+
+/**
+ * Real forward STFT frame → complex spectrum.
+ * `lane` selects L/R scratch so both channels can be held before copying into the ONNX tensor.
+ */
+export function realFftFrame(
+  frame: Float32Array,
+  nFft: number,
+  lane: 0 | 1 = 0
+): { re: Float32Array; im: Float32Array } {
+  const scratch = getRealFrameScratch(nFft, lane);
+  const { data, re, im } = scratch;
+  data.fill(0);
   for (let i = 0; i < nFft; i++) {
     data[2 * i] = i < frame.length ? frame[i] : 0;
-    data[2 * i + 1] = 0;
   }
   bluesteinFft(data, nFft, false);
   const bins = (nFft >> 1) + 1;
-  const re = new Float32Array(bins);
-  const im = new Float32Array(bins);
   for (let k = 0; k < bins; k++) {
     re[k] = data[2 * k];
     im[k] = data[2 * k + 1];
@@ -184,9 +227,19 @@ export function realFftFrame(frame: Float32Array, nFft: number): { re: Float32Ar
   return { re, im };
 }
 
-/** Inverse: complex spectrum (nFft/2+1) → real time frame of length nFft. */
-export function realIfftFrame(re: Float32Array, im: Float32Array, nFft: number): Float32Array {
-  const data = new Float64Array(nFft * 2);
+/**
+ * Inverse: complex spectrum (nFft/2+1) → real time frame of length nFft (scratch view).
+ * Use distinct `lane` values when both L and R frames must live at once.
+ */
+export function realIfftFrame(
+  re: Float32Array,
+  im: Float32Array,
+  nFft: number,
+  lane: 0 | 1 = 0
+): Float32Array {
+  const scratch = getRealFrameScratch(nFft, lane);
+  const { data, out } = scratch;
+  data.fill(0);
   const bins = (nFft >> 1) + 1;
   for (let k = 0; k < bins; k++) {
     data[2 * k] = re[k] ?? 0;
@@ -202,19 +255,28 @@ export function realIfftFrame(re: Float32Array, im: Float32Array, nFft: number):
     data[2 * dst + 1] = -(im[src] ?? 0);
   }
   bluesteinFft(data, nFft, true);
-  const out = new Float32Array(nFft);
   for (let i = 0; i < nFft; i++) out[i] = data[2 * i];
   return out;
 }
 
-export function hannWindow(n: number): Float32Array {
+/**
+ * Hann window. `periodic=true` matches UVR/torch `hann_window(..., periodic=True)`
+ * used by MDX STFT; `false` is the symmetric (n-1) form.
+ */
+export function hannWindow(n: number, periodic = true): Float32Array {
   const w = new Float32Array(n);
-  if (n === 1) {
-    w[0] = 1;
+  if (n <= 1) {
+    if (n === 1) w[0] = 1;
     return w;
   }
-  for (let i = 0; i < n; i++) {
-    w[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (n - 1)));
+  if (periodic) {
+    for (let i = 0; i < n; i++) {
+      w[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / n));
+    }
+  } else {
+    for (let i = 0; i < n; i++) {
+      w[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (n - 1)));
+    }
   }
   return w;
 }
@@ -223,4 +285,5 @@ export function hannWindow(n: number): Float32Array {
 export function clearAudioFftCachesForTests(): void {
   planCache.clear();
   pow2Cache.clear();
+  realFrameCache.clear();
 }
