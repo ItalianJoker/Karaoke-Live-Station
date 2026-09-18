@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **scan libreria ricorsivo** (sottocartelle) + **AI strumentale UVR Default overlap / keep-alive ORT** + race worker extract WAV + sync Web dopo Elimina + avvisi Download nel menu + log debug AI + naming WAV + Actions Node 24 + staging Instrumental + path `//home/...` + SoundFont + progresso ~45% + Carica altri / Pulisci coda + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **Interrompi ricerca** Web (yt-dlp) + **fix IPC MessageEvent** utility worker AI + scan libreria ricorsivo + AI UVR Default / keep-alive ORT + race worker extract WAV + sync Web dopo Elimina + avvisi Download + log debug AI + naming WAV + Actions Node 24 + staging Instrumental + path `//home/...` + SoundFont + progresso ~45% + Carica altri / Pulisci coda + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,14 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **scan libreria ricor
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### ⏹️ Ricerca Web — Interrompi ricerca
+- Pulsante **Interrompi ricerca** (IT/EN/ES/FR) mentre la ricerca Web o «Carica altri» è in corso: abort yt-dlp via IPC, azzera lo stato di loading, evita risultati in ritardo.
+- Nuova ricerca annulla eventuali child yt-dlp precedenti; cancel idle = no-op sicuro.
+
+### 🔧 Scarica strumentale AI — unwrap MessageEvent IPC
+- Il utility worker riceve `{ data, ports }` da `parentPort`, non il payload `separate` nudo: unwrap corretto così `handleSeparate` parte dopo il ready-ping (niente stall 45 min / `ort_silence_timeout` falsi).
+- Log stdout/stderr del worker; import lazy di `demucs-web` solo per HTDemucs; test `scripts/verify-ai-worker-ipc-unwrap.js`.
 
 ### 📂 Libreria — scan ricorsivo sottocartelle
 - **Aggiorna Libreria** / reindex all’avvio e il match «già su disco» nei download percorrono tutte le sottocartelle relative sotto `libraryPath` (stessi filtri audio/video / Instrumental / file incompleti; id basati sul path evitano doppi conteggi).
@@ -133,7 +141,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **scan libreria ricor
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **recursive library scan** (subfolders) + **Instrumental AI UVR Default overlap / ORT keep-alive** + Instrumental AI worker ready race (extract WAV) + Web search after library delete + manual download warnings in Downloads menu + AI debug logs + WAV naming + Actions Node 24 + Instrumental staging + path `//home/...` + SoundFont + ~45% progress + Load more / Clear downloads + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
+GitHub Release **v1.1.0** overwrite: **Stop web search** (yt-dlp cancel) + **AI utility-worker MessageEvent IPC unwrap** + recursive library scan + UVR Default / ORT keep-alive + Instrumental AI worker ready race (extract WAV) + Web search after library delete + manual download warnings + AI debug logs + WAV naming + Actions Node 24 + Instrumental staging + path `//home/...` + SoundFont + ~45% progress + Load more / Clear downloads + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
 
 ## 📦 Installers
 
@@ -146,6 +154,14 @@ GitHub Release **v1.1.0** overwrite: **recursive library scan** (subfolders) + *
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### ⏹️ Web search — Stop search
+- **Stop search** button (IT/EN/ES/FR) while Web search or “Load more” is running: abort yt-dlp via IPC, clear loading UI, ignore late results.
+- A new search aborts any previous yt-dlp child; idle cancel is a safe no-op.
+
+### 🔧 Instrumental AI — MessageEvent IPC unwrap
+- Utility worker `parentPort` delivers `{ data, ports }`, not a bare `separate` payload — unwrap so `handleSeparate` runs after the ready ping (no false 45 min / `ort_silence_timeout` stalls).
+- Worker stdout/stderr logging; lazy `demucs-web` import for HTDemucs only; test `scripts/verify-ai-worker-ipc-unwrap.js`.
 
 ### 📂 Library — recursive subfolder scan
 - **Refresh Library** / startup reindex and download “already on disk” matching walk all relative subdirectories under `libraryPath` (same audio/video / Instrumental / incomplete-file filters; path-based ids avoid double-count).

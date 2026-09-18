@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+## [1.1.0] — Stop web search + AI worker MessageEvent IPC (refresh) — 2026-09-18
+
+Overwrite of GitHub Release `v1.1.0` after PR #32 (Interrompi ricerca / cancel stuck YouTube web search) + PR #33 (utilityProcess parentPort MessageEvent unwrap so Instrumental AI `separate` runs).
+
+### Fixed
+- **Web search stuck on “Ricerca in corso…”** — no way to recover without restarting. Added **Stop search** (IT/EN/ES/FR): IPC cancel kills the in-flight yt-dlp process tree, clears loading / load-more UI, and ignores late results; a new search aborts any previous child.
+- **Instrumental AI silent no-op after ready ping** — child `parentPort.on('message')` receives Electron `{ data, ports }`, not the bare `{ type:'separate', … }` payload, so the worker ignored jobs (`lastPhase: null`, false `ort_silence_timeout`). Unwrap MessageEvent `.data` (bare payloads still work for fork fallback); log worker stdio; lazy-import demucs for HTDemucs only.
+
 ## [1.1.0] — Recursive library scan + UVR Default AI chunking (refresh) — 2026-09-18
 
 Overwrite of GitHub Release `v1.1.0` after PR #30 (recursive library subfolder scan) + PR #31 (UVR-aligned MDX chunking / ORT keep-alive).
