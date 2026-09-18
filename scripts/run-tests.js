@@ -1731,6 +1731,51 @@ console.log('\n\x1b[36m▶ Suite: Recursive library media discovery\x1b[0m');
   );
 }
 
+// --- Large-library scan latency: batch SQLite + deferred FFmpeg thumbs ---
+{
+  const mainScanLatency = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/index.ts'),
+    'utf8'
+  );
+  const databaseScanLatency = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/db/database.ts'),
+    'utf8'
+  );
+
+  assert(
+    databaseScanLatency.includes('upsertTracksBatch') &&
+      databaseScanLatency.includes('this.db.transaction') &&
+      databaseScanLatency.includes('prepareTrackStatements') &&
+      databaseScanLatency.includes('deleteByPathExceptStmt'),
+    'DatabaseManager exposes transactional upsertTracksBatch with prepared stmts + path dedupe'
+  );
+
+  const scanFolderFn = mainScanLatency.match(
+    /private scanFolder\(folderPath: string\): KaraokeMediaTrack\[\] \{[\s\S]*?\n  \}/
+  );
+  assert(Boolean(scanFolderFn), 'scanFolder method body is locatable for latency contracts');
+  const scanBody = scanFolderFn ? scanFolderFn[0] : '';
+  assert(
+    scanBody.includes('upsertTracksBatch') &&
+      scanBody.includes('peekCachedThumbnail') &&
+      scanBody.includes('enqueueThumbnailBackfill') &&
+      !scanBody.includes('getOrGenerateThumbnail') &&
+      !/upsertTrack\(/.test(scanBody),
+    'scanFolder batch-upserts, peeks cache only, enqueues async thumbs (no sync FFmpeg / per-track upsert)'
+  );
+  assert(
+    mainScanLatency.includes('generateThumbnailAsync') &&
+      mainScanLatency.includes('execFile(') &&
+      mainScanLatency.includes('pumpThumbnailBackfill') &&
+      mainScanLatency.includes('scheduleLibraryReindexedNotify'),
+    'Async FFmpeg thumbnail backfill + throttled library:reindexed notify exist'
+  );
+  assert(
+    /download:save-to-library[\s\S]*getOrGenerateThumbnail[\s\S]*upsertTrack/.test(mainScanLatency),
+    'save-to-library still generates a sync thumbnail before single upsert (one-file path)'
+  );
+}
+
 assert(
   libraryPanelScopedSource.includes('setLocalResults') &&
     libraryPanelScopedSource.includes('localQuery') &&

@@ -16,6 +16,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ### Changed
 - **Library / Web search** — Removed the “Cantante assegnato…” preselect field. Singer assignment happens only in the add-to-queue modal (enqueue / assign). Regia theme chrome unchanged.
 - **Safety-First documentation pass (slice 1)** — high-density Why/TSDoc on hot audio, store GC, DownloadManager delete guard, AI worker unwrap, and preload Watchlist surfaces. No IPC / Zustand / SQLite schema / Control↔Stage sync behavior changes.
+- **Large library scan latency** — Folder scan batch-upserts tracks in one SQLite transaction (prepared statements reused) and no longer runs sync FFmpeg per video on the main thread. Cached/DB thumbnails are reused; missing thumbs generate asynchronously via `execFile` and refresh Local via existing `library:reindexed`. Single-file `download:save-to-library` still generates a sync thumb. IPC contracts unchanged. (FS walk + Local list virtualization remain follow-ups.)
 
 ### Fixed
 - **AppImage SoundFont path** — Bundled `GeneralUser-GS.sf2` is seeded to `<userData>/soundfonts/` (like ORT/yt-dlp). Persisted `/tmp/.mount_*` AppImage paths are treated as ephemeral and re-resolved on startup so `karaoke://local` no longer 404s. Packaging: top-level `extraResources` ships `public/soundfonts` + `public/ort` **once** (platform blocks only add `bin/` — avoids electron-builder EEXIST/EBUSY double-link).

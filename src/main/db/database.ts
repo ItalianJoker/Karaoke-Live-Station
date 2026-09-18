@@ -11,6 +11,9 @@ import { normalizeForSearch } from '../../shared/textNormalize';
  */
 export class DatabaseManager {
   private db: Database.Database;
+  /** Prepared once — reused by upsertTrack / upsertTracksBatch. */
+  private upsertTrackStmt: Database.Statement | null = null;
+  private deleteByPathExceptStmt: Database.Statement | null = null;
 
   /**
    * Initializes the SQLite database connection and sets PRAGMA modes.
@@ -30,6 +33,62 @@ export class DatabaseManager {
       normalizeForSearch(value == null ? '' : String(value))
     );
     this.initSchema();
+    this.prepareTrackStatements();
+  }
+
+  /**
+   * Prepares track upsert/delete statements once (avoids re-prepare × N on library scan).
+   */
+  private prepareTrackStatements(): void {
+    this.upsertTrackStmt = this.db.prepare(`
+      INSERT INTO tracks (id, source, title, artist, durationSec, uri, localFilePath, thumbnailUrl, hasEmbeddedLyrics, isMultiplex, isEmbeddable, addedAt)
+      VALUES (@id, @source, @title, @artist, @durationSec, @uri, @localFilePath, @thumbnailUrl, @hasEmbeddedLyrics, @isMultiplex, @isEmbeddable, @addedAt)
+      ON CONFLICT(id) DO UPDATE SET
+        source = excluded.source,
+        title = excluded.title,
+        artist = excluded.artist,
+        durationSec = excluded.durationSec,
+        uri = excluded.uri,
+        localFilePath = excluded.localFilePath,
+        thumbnailUrl = excluded.thumbnailUrl,
+        hasEmbeddedLyrics = excluded.hasEmbeddedLyrics,
+        isMultiplex = excluded.isMultiplex,
+        isEmbeddable = excluded.isEmbeddable
+    `);
+    this.deleteByPathExceptStmt = this.db.prepare(
+      `DELETE FROM tracks WHERE localFilePath = ? AND id != ?`
+    );
+  }
+
+  /** Bound params for the cached upsert statement. */
+  private trackUpsertParams(track: KaraokeMediaTrack): Record<string, unknown> {
+    return {
+      id: track.id,
+      source: track.source,
+      title: track.title,
+      artist: track.artist,
+      durationSec: track.durationSec,
+      uri: track.uri,
+      localFilePath: track.localFilePath ?? null,
+      thumbnailUrl: track.thumbnailUrl ?? null,
+      hasEmbeddedLyrics: track.hasEmbeddedLyrics ? 1 : 0,
+      isMultiplex: track.isMultiplex ? 1 : 0,
+      isEmbeddable: track.isEmbeddable ? 1 : 0,
+      addedAt: Date.now()
+    };
+  }
+
+  /**
+   * Runs one upsert + optional path-dedupe delete (statements must already be prepared).
+   */
+  private runUpsertTrack(track: KaraokeMediaTrack): void {
+    if (!this.upsertTrackStmt || !this.deleteByPathExceptStmt) {
+      this.prepareTrackStatements();
+    }
+    this.upsertTrackStmt!.run(this.trackUpsertParams(track));
+    if (track.localFilePath) {
+      this.deleteByPathExceptStmt!.run(track.localFilePath, track.id);
+    }
   }
 
   /**
@@ -215,39 +274,27 @@ export class DatabaseManager {
    * @param track - The track payload to persist
    */
   public upsertTrack(track: KaraokeMediaTrack): void {
-    const stmt = this.db.prepare(`
-      INSERT INTO tracks (id, source, title, artist, durationSec, uri, localFilePath, thumbnailUrl, hasEmbeddedLyrics, isMultiplex, isEmbeddable, addedAt)
-      VALUES (@id, @source, @title, @artist, @durationSec, @uri, @localFilePath, @thumbnailUrl, @hasEmbeddedLyrics, @isMultiplex, @isEmbeddable, @addedAt)
-      ON CONFLICT(id) DO UPDATE SET
-        source = excluded.source,
-        title = excluded.title,
-        artist = excluded.artist,
-        durationSec = excluded.durationSec,
-        uri = excluded.uri,
-        localFilePath = excluded.localFilePath,
-        thumbnailUrl = excluded.thumbnailUrl,
-        hasEmbeddedLyrics = excluded.hasEmbeddedLyrics,
-        isMultiplex = excluded.isMultiplex,
-        isEmbeddable = excluded.isEmbeddable
-    `);
+    this.runUpsertTrack(track);
+  }
 
-    stmt.run({
-      id: track.id,
-      source: track.source,
-      title: track.title,
-      artist: track.artist,
-      durationSec: track.durationSec,
-      uri: track.uri,
-      localFilePath: track.localFilePath ?? null,
-      thumbnailUrl: track.thumbnailUrl ?? null,
-      hasEmbeddedLyrics: track.hasEmbeddedLyrics ? 1 : 0,
-      isMultiplex: track.isMultiplex ? 1 : 0,
-      isEmbeddable: track.isEmbeddable ? 1 : 0,
-      addedAt: Date.now()
-    });
-    if (track.localFilePath) {
-      this.deleteTracksByLocalPathExcept(track.localFilePath, track.id);
+  /**
+   * Batch upsert inside a single SQLite transaction (one prepare, one commit).
+   * Used by library scan so ~N tracks do not each auto-commit.
+   * Still runs path-dedupe delete per track (anti-ghost) inside the same transaction.
+   *
+   * @param tracks - Tracks discovered by a folder scan
+   */
+  public upsertTracksBatch(tracks: KaraokeMediaTrack[]): void {
+    if (!tracks.length) return;
+    if (!this.upsertTrackStmt || !this.deleteByPathExceptStmt) {
+      this.prepareTrackStatements();
     }
+    const runBatch = this.db.transaction((items: KaraokeMediaTrack[]) => {
+      for (const track of items) {
+        this.runUpsertTrack(track);
+      }
+    });
+    runBatch(tracks);
   }
 
   /**
@@ -256,10 +303,10 @@ export class DatabaseManager {
    */
   public deleteTracksByLocalPathExcept(localFilePath: string, keepId: string): number {
     if (!localFilePath) return 0;
-    const stmt = this.db.prepare(
-      `DELETE FROM tracks WHERE localFilePath = ? AND id != ?`
-    );
-    const result = stmt.run(localFilePath, keepId);
+    if (!this.deleteByPathExceptStmt) {
+      this.prepareTrackStatements();
+    }
+    const result = this.deleteByPathExceptStmt!.run(localFilePath, keepId);
     return Number(result.changes || 0);
   }
 

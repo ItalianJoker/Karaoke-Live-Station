@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, protocol, dialog, Menu, shell, session } f
 import path from 'path';
 import fs from 'fs';
 import { Readable } from 'stream';
-import { execFileSync, type ChildProcess } from 'child_process';
+import { execFile, execFileSync, type ChildProcess } from 'child_process';
 import crypto from 'crypto';
 import { DatabaseManager } from './db/database';
 import { GuestPortalServer } from './server/guestServer';
@@ -154,6 +154,12 @@ class KaraokeMainProcess {
   /** In-flight yt-dlp web search process (single slot; cancel kills it). */
   private youtubeSearchChild: ChildProcess | null = null;
   private youtubeSearchCancelled = false;
+  /** Track ids waiting for async FFmpeg thumbnail generation (scan does not block on FFmpeg). */
+  private thumbnailBackfillQueue: string[] = [];
+  private thumbnailBackfillRunning = false;
+  /** Paths already attempted this session — avoid infinite retry on decode failures. */
+  private thumbnailBackfillAttempted = new Set<string>();
+  private libraryReindexNotifyTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     const userDataPath = app.getPath('userData');
@@ -1305,6 +1311,9 @@ class KaraokeMainProcess {
    * to the SQLite library table. Discovery logic lives in shared/libraryScanner
    * so recursive coverage is unit-tested without Electron.
    *
+   * Scan path is FFmpeg-free: reuses DB / disk cache thumbnails only, then batch-upserts
+   * in one SQLite transaction. Missing video thumbs are filled by async backfill.
+   *
    * @param folderPath - Library root directory path to scan
    * @returns Discovered tracks list
    */
@@ -1312,8 +1321,28 @@ class KaraokeMainProcess {
     const discovered: KaraokeMediaTrack[] = [];
     const found = discoverLibraryMedia(folderPath);
 
+    // Warm path: reuse thumbnailUrl already stored for the same local path (skip MD5/exists).
+    const existingByPath = new Map<string, KaraokeMediaTrack>();
+    try {
+      for (const t of this.db.getAllTracks()) {
+        if (t.localFilePath) {
+          existingByPath.set(t.localFilePath.toLowerCase(), t);
+        }
+      }
+    } catch (err) {
+      this.logger.warn('LibraryScan', 'Failed loading existing catalog for thumb reuse', {
+        error: String(err)
+      });
+    }
+
+    const needThumbIds: string[] = [];
+
     for (const item of found) {
-      const thumb = this.getOrGenerateThumbnail(item.absolutePath);
+      const prev = existingByPath.get(item.absolutePath.toLowerCase());
+      let thumb = prev?.thumbnailUrl;
+      if (!thumb) {
+        thumb = this.peekCachedThumbnail(item.absolutePath);
+      }
       const track: KaraokeMediaTrack = {
         id: item.idHint,
         source: item.source,
@@ -1327,11 +1356,61 @@ class KaraokeMainProcess {
         isMultiplex: false,
         isEmbeddable: true
       };
-      this.db.upsertTrack(track);
+      if (!thumb && track.localFilePath && this.isVideoThumbnailCandidate(track.localFilePath)) {
+        needThumbIds.push(track.id);
+      }
       discovered.push(track);
     }
 
+    this.db.upsertTracksBatch(discovered);
+    this.enqueueThumbnailBackfill(needThumbIds);
     return discovered;
+  }
+
+  /** True when the file extension can yield an FFmpeg frame thumbnail. */
+  private isVideoThumbnailCandidate(localFilePath: string): boolean {
+    const ext = path.extname(localFilePath).toLowerCase();
+    return ext === '.mp4' || ext === '.webm' || ext === '.mkv' || ext === '.avi';
+  }
+
+  /** Absolute JPEG path under userData/thumbnails for a media file (MD5 of path). */
+  private thumbnailCacheFilePath(localFilePath: string): string {
+    const thumbsDir = path.join(app.getPath('userData'), 'thumbnails');
+    const hash = crypto.createHash('md5').update(localFilePath).digest('hex');
+    return path.join(thumbsDir, `${hash}.jpg`);
+  }
+
+  /**
+   * Returns a karaoke:// URI if a thumbnail JPEG already exists on disk — never runs FFmpeg.
+   * Used by library scan so cold catalogs do not ANR the main process.
+   */
+  private peekCachedThumbnail(localFilePath: string): string | undefined {
+    try {
+      if (!this.isVideoThumbnailCandidate(localFilePath)) return undefined;
+      const thumbPath = this.thumbnailCacheFilePath(localFilePath);
+      if (fs.existsSync(thumbPath)) {
+        return buildKaraokeLocalUri(thumbPath);
+      }
+    } catch (err) {
+      this.logger.warn('Thumbnail', 'Failed peeking cached thumbnail', {
+        localFilePath,
+        error: String(err)
+      });
+    }
+    return undefined;
+  }
+
+  /**
+   * Ensures userData/thumbnails exists and returns the target JPEG path for generation.
+   */
+  private ensureThumbnailOutputPath(localFilePath: string): string | undefined {
+    if (!this.isVideoThumbnailCandidate(localFilePath)) return undefined;
+    if (!fs.existsSync(localFilePath)) return undefined;
+    const thumbsDir = path.join(app.getPath('userData'), 'thumbnails');
+    if (!fs.existsSync(thumbsDir)) {
+      fs.mkdirSync(thumbsDir, { recursive: true });
+    }
+    return this.thumbnailCacheFilePath(localFilePath);
   }
 
   /**
@@ -1339,44 +1418,42 @@ class KaraokeMainProcess {
    * Extracts a frame at 4 seconds (where the intro/karaoke title card typically resides)
    * using ffmpeg, scaling down to 320px width.
    *
+   * Sync path kept for single-file flows (e.g. download:save-to-library). Library scan
+   * must not call this — use peekCachedThumbnail + enqueueThumbnailBackfill instead.
+   *
    * @param localFilePath - Physical path to video file
    * @returns karaoke://local/... URI to the cached JPEG thumbnail, or undefined
    */
   private getOrGenerateThumbnail(localFilePath: string): string | undefined {
     try {
-      const ext = path.extname(localFilePath).toLowerCase();
-      if (ext !== '.mp4' && ext !== '.webm' && ext !== '.mkv' && ext !== '.avi') {
-        return undefined;
-      }
+      const cached = this.peekCachedThumbnail(localFilePath);
+      if (cached) return cached;
 
-      if (!fs.existsSync(localFilePath)) return undefined;
-
-      const thumbsDir = path.join(app.getPath('userData'), 'thumbnails');
-      if (!fs.existsSync(thumbsDir)) {
-        fs.mkdirSync(thumbsDir, { recursive: true });
-      }
-
-      const hash = crypto.createHash('md5').update(localFilePath).digest('hex');
-      const thumbFileName = `${hash}.jpg`;
-      const thumbPath = path.join(thumbsDir, thumbFileName);
-
-      if (fs.existsSync(thumbPath)) {
-        return buildKaraokeLocalUri(thumbPath);
-      }
+      const thumbPath = this.ensureThumbnailOutputPath(localFilePath);
+      if (!thumbPath) return undefined;
 
       const ffmpegBin = resolveFfmpegPath();
 
       // Try extraction at 4 seconds first (karaoke intro title card)
       try {
-        execFileSync(ffmpegBin, [
-          '-y',
-          '-ss', '00:00:04',
-          '-i', localFilePath,
-          '-frames:v', '1',
-          '-q:v', '3',
-          '-vf', 'scale=320:-1',
-          thumbPath
-        ], { timeout: 4000, stdio: 'ignore' });
+        execFileSync(
+          ffmpegBin,
+          [
+            '-y',
+            '-ss',
+            '00:00:04',
+            '-i',
+            localFilePath,
+            '-frames:v',
+            '1',
+            '-q:v',
+            '3',
+            '-vf',
+            'scale=320:-1',
+            thumbPath
+          ],
+          { timeout: 4000, stdio: 'ignore' }
+        );
 
         if (fs.existsSync(thumbPath)) {
           return buildKaraokeLocalUri(thumbPath);
@@ -1384,15 +1461,24 @@ class KaraokeMainProcess {
       } catch {
         // If 4s failed (e.g. short file), try at 1 second
         try {
-          execFileSync(ffmpegBin, [
-            '-y',
-            '-ss', '00:00:01',
-            '-i', localFilePath,
-            '-frames:v', '1',
-            '-q:v', '3',
-            '-vf', 'scale=320:-1',
-            thumbPath
-          ], { timeout: 4000, stdio: 'ignore' });
+          execFileSync(
+            ffmpegBin,
+            [
+              '-y',
+              '-ss',
+              '00:00:01',
+              '-i',
+              localFilePath,
+              '-frames:v',
+              '1',
+              '-q:v',
+              '3',
+              '-vf',
+              'scale=320:-1',
+              thumbPath
+            ],
+            { timeout: 4000, stdio: 'ignore' }
+          );
 
           if (fs.existsSync(thumbPath)) {
             return buildKaraokeLocalUri(thumbPath);
@@ -1408,21 +1494,151 @@ class KaraokeMainProcess {
   }
 
   /**
-   * Scans existing library database tracks and asynchronously ensures cached thumbnails
-   * exist for all local video files.
+   * Async FFmpeg thumbnail generation (non-blocking). Used by background backfill after scan.
+   */
+  private generateThumbnailAsync(localFilePath: string): Promise<string | undefined> {
+    return new Promise((resolve) => {
+      try {
+        const cached = this.peekCachedThumbnail(localFilePath);
+        if (cached) {
+          resolve(cached);
+          return;
+        }
+        const thumbPath = this.ensureThumbnailOutputPath(localFilePath);
+        if (!thumbPath) {
+          resolve(undefined);
+          return;
+        }
+        const ffmpegBin = resolveFfmpegPath();
+        const argsAt = (ss: string) => [
+          '-y',
+          '-ss',
+          ss,
+          '-i',
+          localFilePath,
+          '-frames:v',
+          '1',
+          '-q:v',
+          '3',
+          '-vf',
+          'scale=320:-1',
+          thumbPath
+        ];
+
+        execFile(ffmpegBin, argsAt('00:00:04'), { timeout: 4000 }, (err) => {
+          if (!err && fs.existsSync(thumbPath)) {
+            resolve(buildKaraokeLocalUri(thumbPath));
+            return;
+          }
+          execFile(ffmpegBin, argsAt('00:00:01'), { timeout: 4000 }, (err2) => {
+            if (!err2 && fs.existsSync(thumbPath)) {
+              resolve(buildKaraokeLocalUri(thumbPath));
+              return;
+            }
+            resolve(undefined);
+          });
+        });
+      } catch (err) {
+        this.logger.warn('Thumbnail', 'Async thumbnail generation failed', {
+          localFilePath,
+          error: String(err)
+        });
+        resolve(undefined);
+      }
+    });
+  }
+
+  /**
+   * Queues track ids for async thumbnail backfill (deduped). Starts the pump if idle.
+   */
+  private enqueueThumbnailBackfill(trackIds: string[]): void {
+    if (!trackIds.length) return;
+    const seen = new Set(this.thumbnailBackfillQueue);
+    for (const id of trackIds) {
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      this.thumbnailBackfillQueue.push(id);
+    }
+    this.pumpThumbnailBackfill();
+  }
+
+  /**
+   * Processes one pending thumbnail at a time via async FFmpeg so the main process stays responsive.
+   */
+  private pumpThumbnailBackfill(): void {
+    if (this.thumbnailBackfillRunning) return;
+    this.thumbnailBackfillRunning = true;
+
+    const step = () => {
+      const id = this.thumbnailBackfillQueue.shift();
+      if (!id) {
+        this.thumbnailBackfillRunning = false;
+        return;
+      }
+
+      const track = this.db.getTrackById(id);
+      if (
+        !track?.localFilePath ||
+        track.thumbnailUrl ||
+        !this.isVideoThumbnailCandidate(track.localFilePath) ||
+        this.thumbnailBackfillAttempted.has(track.localFilePath)
+      ) {
+        setImmediate(step);
+        return;
+      }
+
+      this.thumbnailBackfillAttempted.add(track.localFilePath);
+      void this.generateThumbnailAsync(track.localFilePath).then((thumb) => {
+        try {
+          if (thumb) {
+            track.thumbnailUrl = thumb;
+            this.db.upsertTrack(track);
+            this.scheduleLibraryReindexedNotify();
+          }
+        } catch (err) {
+          this.logger.warn('Thumbnail', 'Failed persisting async thumbnail', {
+            id,
+            error: String(err)
+          });
+        }
+        setImmediate(step);
+      });
+    };
+
+    setImmediate(step);
+  }
+
+  /**
+   * Throttled library:reindexed so Local list picks up thumbs without spamming IPC.
+   */
+  private scheduleLibraryReindexedNotify(): void {
+    if (this.libraryReindexNotifyTimer) return;
+    this.libraryReindexNotifyTimer = setTimeout(() => {
+      this.libraryReindexNotifyTimer = null;
+      if (this.controlWindow && !this.controlWindow.isDestroyed()) {
+        this.controlWindow.webContents.send('library:reindexed');
+      }
+    }, 750);
+  }
+
+  /**
+   * Enqueues missing video thumbnails for async generation (startup / after scan).
+   * Does not block the main thread with execFileSync loops.
    */
   private ensureLocalThumbnails(): void {
     try {
-      const allTracks = this.db.getAllTracks();
-      for (const t of allTracks) {
-        if (!t.thumbnailUrl && t.localFilePath && (t.source === 'local_library' || t.source === 'youtube')) {
-          const thumb = this.getOrGenerateThumbnail(t.localFilePath);
-          if (thumb) {
-            t.thumbnailUrl = thumb;
-            this.db.upsertTrack(t);
-          }
+      const needIds: string[] = [];
+      for (const t of this.db.getAllTracks()) {
+        if (
+          !t.thumbnailUrl &&
+          t.localFilePath &&
+          (t.source === 'local_library' || t.source === 'youtube') &&
+          this.isVideoThumbnailCandidate(t.localFilePath)
+        ) {
+          needIds.push(t.id);
         }
       }
+      this.enqueueThumbnailBackfill(needIds);
     } catch (err) {
       this.logger.warn('Thumbnail', 'Error ensuring local thumbnails', { error: String(err) });
     }
