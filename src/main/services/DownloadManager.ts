@@ -20,6 +20,7 @@ import type { Logger } from './Logger';
 import { buildKaraokeLocalUri } from '../../shared/karaokeLocalPath';
 import { findMediaMatchInTree } from '../../shared/libraryScanner';
 import {
+  YTDLP_INSTRUMENTAL_SUB_LANGS,
   buildYtDlpOutputTemplate,
   isYtDlpTransientMediaName,
   parseYtDlpOutputPath,
@@ -42,6 +43,7 @@ const MEDIA_EXTENSIONS = new Set([
 
 // Re-export staging helpers for tests / diagnostics
 export {
+  YTDLP_INSTRUMENTAL_SUB_LANGS,
   buildYtDlpOutputTemplate,
   isYtDlpTransientMediaName,
   parseYtDlpOutputPath,
@@ -551,12 +553,13 @@ export class DownloadManager {
       );
     }
 
-    // Best-effort auto-subs for optional lyric burn-in on instrumental remux
+    // Best-effort auto-subs for optional lyric burn-in on instrumental remux.
+    // --sub-langs tokens are Python regexes; a leading "*" quantifier is invalid.
     if (instrumental && !options.isAudioOnly) {
       args.push(
         '--write-auto-sub',
         '--sub-langs',
-        'en.*,it.*,es.*,fr.*,*-orig',
+        YTDLP_INSTRUMENTAL_SUB_LANGS,
         '--convert-subs',
         'srt'
       );

@@ -2128,11 +2128,12 @@ const downloadManagerStagingSrc = fs.readFileSync(
 const mainStagingSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
 
 assert(
-  fs.existsSync(path.resolve(__dirname, '../src/main/services/downloadStaging.ts')) &&
-    downloadStagingSource.includes('resolveDownloadedMediaPath') &&
+  downloadStagingSource.includes('resolveDownloadedMediaPath') &&
     downloadStagingSource.includes('parseYtDlpOutputPath') &&
     downloadStagingSource.includes('isYtDlpTransientMediaName') &&
-    downloadStagingSource.includes('buildYtDlpOutputTemplate'),
+    downloadStagingSource.includes('buildYtDlpOutputTemplate') &&
+    downloadStagingSource.includes('YTDLP_INSTRUMENTAL_SUB_LANGS') &&
+    downloadStagingSource.includes("YTDLP_INSTRUMENTAL_SUB_LANGS = 'all,-live_chat'"),
   'downloadStaging.ts exports yt-dlp path parse + media resolve helpers'
 );
 
@@ -2157,6 +2158,10 @@ assert(
     downloadManagerStagingSrc.includes('processInstrumentalVideo') &&
     downloadManagerStagingSrc.includes('originalVideoPath') &&
     downloadManagerStagingSrc.includes('Instrumental staging:') &&
+    downloadManagerStagingSrc.includes('YTDLP_INSTRUMENTAL_SUB_LANGS') &&
+    downloadManagerStagingSrc.includes("'--sub-langs'") &&
+    !downloadManagerStagingSrc.includes("'en.*,it.*,es.*,fr.*,*-orig'") &&
+    !/['"][^'"]*\*-orig[^'"]*['"]/.test(downloadManagerStagingSrc) &&
     fs
       .readFileSync(path.resolve(__dirname, '../src/main/services/InstrumentalProcessor.ts'), 'utf8')
       .includes('resolveInstrumentalTempWavPaths'),
@@ -2178,7 +2183,8 @@ assert(
         isYtDlpTransientMediaName,
         resolveDownloadedMediaPath,
         resolvePathAgainstTempDir,
-        buildYtDlpOutputTemplate
+        buildYtDlpOutputTemplate,
+        YTDLP_INSTRUMENTAL_SUB_LANGS
       } from ${JSON.stringify(path.resolve(__dirname, '../src/main/services/downloadStaging.ts'))};
       import fs from 'fs';
       import pathMod from 'path';
@@ -2189,6 +2195,21 @@ assert(
       assert(!buildYtDlpOutputTemplate('dl_abc').includes(pathMod.sep), 'no-abs-sep');
       assert(!buildYtDlpOutputTemplate('dl_abc').includes(':'), 'no-type-colon');
       assert(buildYtDlpOutputTemplate('dl_abc').includes('%(ext)s'), 'keeps-ext-field');
+      assert(YTDLP_INSTRUMENTAL_SUB_LANGS === 'all,-live_chat', 'sub-langs-documented');
+      assert(!YTDLP_INSTRUMENTAL_SUB_LANGS.includes('*-orig'), 'no-star-orig-glob');
+      assert(
+        !YTDLP_INSTRUMENTAL_SUB_LANGS.split(',').some((t) => t === '*' || t.startsWith('*')),
+        'no-leading-star-token'
+      );
+      // Each comma-separated token must compile as a JS RegExp (same constraint as yt-dlp/Python re).
+      for (const token of YTDLP_INSTRUMENTAL_SUB_LANGS.split(',')) {
+        const pat = token.startsWith('-') ? token.slice(1) : token;
+        if (pat === 'all') continue;
+        try { new RegExp(pat); } catch (e) {
+          console.error('PROBE_FAIL', 'sub-langs-regex', pat, e && e.message);
+          process.exit(2);
+        }
+      }
       assert(parseYtDlpOutputPath('[download] Destination: /tmp/a.mp4') === '/tmp/a.mp4', 'dest');
       assert(
         parseYtDlpOutputPath('[Merger] Merging formats into "/tmp/b.mp4"') === '/tmp/b.mp4',
