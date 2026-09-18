@@ -19,7 +19,9 @@ import {
   Sparkles,
   ArrowDownToLine,
   Trash2,
-  Square
+  Square,
+  AlertCircle,
+  FileX
 } from 'lucide-react';
 import { KaraokeMediaTrack, DownloadProgressPayload } from '../../shared/types';
 import { isInstrumentalDownloadEligibleTitle } from '../../shared/vocalRemover';
@@ -28,6 +30,10 @@ import { useKaraokeStore } from '../store/karaokeStore';
 import { useScopedLibrarySearch } from '../hooks/useScopedLibrarySearch';
 import { VideoPreviewModal, extractVersionTags } from './VideoPreviewModal';
 import { dataTransferHasFiles, resolveDroppedAbsolutePaths } from '../utils/fsDragDrop';
+import {
+  checkTrackLocalFileExists,
+  trackNeedsLocalFileCheck
+} from '../utils/localFileCheck';
 
 /** Intent to enqueue only after YouTube download + auto-archive succeed. */
 type PendingArchiveEnqueue = {
@@ -122,6 +128,10 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   const addToQueue = useKaraokeStore((state) => state.addToQueue);
   const updateTrackInQueue = useKaraokeStore((state) => state.updateTrackInQueue);
   const removeFromQueue = useKaraokeStore((state) => state.removeFromQueue);
+  const showMissingFileModal = useKaraokeStore((state) => state.showMissingFileModal);
+  const markTrackMissing = useKaraokeStore((state) => state.markTrackMissing);
+  const clearTrackMissing = useKaraokeStore((state) => state.clearTrackMissing);
+  const missingTrackIds = useKaraokeStore((state) => state.missingTrackIds);
 
   const loadLocalCatalog = async () => {
     if (window.karaokeApi) {
@@ -746,6 +756,23 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     singerName?: string,
     placement: 'auto' | 'end' = 'auto'
   ) => {
+    // Block enqueue when local path is missing (USB unplug / moved / deleted outside app)
+    if (trackNeedsLocalFileCheck(track)) {
+      const check = await checkTrackLocalFileExists(track);
+      if (!check.exists) {
+        markTrackMissing(track.id);
+        showMissingFileModal({
+          filePath: check.path,
+          trackTitle: track.title,
+          trackArtist: track.artist,
+          trackId: track.id,
+          context: 'library'
+        });
+        return;
+      }
+      clearTrackMissing(track.id);
+    }
+
     // Auto-archive ON: wait for download + library archive, then enqueue the LOCAL file only.
     // Avoids non-playable YouTube/temp queue pointers that need a manual “Refresh Library”.
     if (track.source === 'youtube' && !track.localFilePath && settings.autoArchiveWebTracks) {
@@ -1002,17 +1029,27 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         ) : (
           displayedTracks.map((track) => {
             const versionTags = extractVersionTags(track);
+            const isMissing = missingTrackIds.includes(track.id);
 
             return (
               <div
                 key={track.id}
-                className="p-2.5 sm:p-3 bg-slate-950/40 hover:bg-slate-950/80 border border-slate-800/60 hover:border-slate-700/80 rounded-2xl flex items-center justify-between gap-3 transition-all group/item"
+                className={`p-2.5 sm:p-3 border rounded-2xl flex items-center justify-between gap-3 transition-all group/item ${
+                  isMissing
+                    ? 'bg-rose-950/40 border-rose-500/70 hover:bg-rose-950/55'
+                    : 'bg-slate-950/40 hover:bg-slate-950/80 border-slate-800/60 hover:border-slate-700/80'
+                }`}
+                data-missing-file={isMissing ? 'true' : undefined}
               >
                 <div className="flex items-center gap-3 overflow-hidden min-w-0">
                   {/* 16:9 Video / Media Preview Thumbnail */}
                   <div
                     onClick={() => setPreviewTrack(track)}
-                    className="w-20 sm:w-24 aspect-video rounded-xl bg-slate-950 border border-slate-800/80 overflow-hidden relative group/thumb shrink-0 cursor-pointer shadow-sm hover:border-indigo-500/80 transition-all flex items-center justify-center"
+                    className={`w-20 sm:w-24 aspect-video rounded-xl bg-slate-950 overflow-hidden relative group/thumb shrink-0 cursor-pointer shadow-sm transition-all flex items-center justify-center ${
+                      isMissing
+                        ? 'border border-rose-500/70'
+                        : 'border border-slate-800/80 hover:border-indigo-500/80'
+                    }`}
                     title={t('library.previewVideo')}
                   >
                     {track.thumbnailUrl ? (
@@ -1049,10 +1086,21 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                   <div className="truncate min-w-0">
                     <div
                       onClick={() => setPreviewTrack(track)}
-                      className="font-semibold text-xs text-slate-200 hover:text-indigo-300 transition-colors truncate cursor-pointer"
+                      className={`font-semibold text-xs transition-colors truncate cursor-pointer flex items-center gap-1.5 ${
+                        isMissing ? 'text-rose-200 hover:text-rose-100' : 'text-slate-200 hover:text-indigo-300'
+                      }`}
                       title={track.title}
                     >
-                      {track.title}
+                      <span className="truncate">{track.title}</span>
+                      {isMissing && (
+                        <span
+                          className="inline-flex items-center gap-0.5 text-rose-400 shrink-0"
+                          title={t('errors.missingFileTooltip')}
+                        >
+                          <FileX className="w-3.5 h-3.5" />
+                          <AlertCircle className="w-3 h-3 opacity-80" />
+                        </span>
+                      )}
                     </div>
                     <div className="text-[11px] text-slate-400 truncate flex flex-wrap items-center gap-1.5 mt-0.5">
                       <span className="truncate">{track.artist}</span>
@@ -1130,7 +1178,23 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
 
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
+                      // Pre-check before opening singer modal — same gate as executeAddToQueue
+                      if (trackNeedsLocalFileCheck(track)) {
+                        const check = await checkTrackLocalFileExists(track);
+                        if (!check.exists) {
+                          markTrackMissing(track.id);
+                          showMissingFileModal({
+                            filePath: check.path,
+                            trackTitle: track.title,
+                            trackArtist: track.artist,
+                            trackId: track.id,
+                            context: 'library'
+                          });
+                          return;
+                        }
+                        clearTrackMissing(track.id);
+                      }
                       useKaraokeStore.getState().loadSingersFromDb();
                       setModalSingerInput('');
                       setPlacementMode('auto');

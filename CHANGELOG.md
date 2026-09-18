@@ -9,7 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- None yet.
+- **Missing local media handling** — IPC `library:check-file-exists` → `{ exists, path }` (preload `checkFileExists` → boolean). Library enqueue and Control play/jump/auto-advance probe local paths before AudioGraph/`<video>`; on miss: pause/reset, mark `missingTrackIds` (rose-500/70 + FileX/AlertCircle), open `MissingFileModal` with **Elimina** / **Lascia in elenco**. Never auto-deletes catalog/queue. Remote/YouTube without `localFilePath` and empty/web URLs skip fs. (feat(library): missing local file handling)
 
 ### Changed
 - None yet.

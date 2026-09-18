@@ -13,7 +13,6 @@ import {
   Sliders,
   Sparkles,
   QrCode,
-  AlertTriangle,
   Trash2,
   Settings,
   Users,
@@ -30,7 +29,9 @@ import {
   GripVertical,
   Download,
   XCircle,
-  HelpCircle
+  HelpCircle,
+  AlertCircle,
+  FileX
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AudioGraphManager } from '../core/AudioGraphManager';
@@ -38,7 +39,12 @@ import { MidiChannelMixer } from './MidiChannelMixer';
 import { LibraryPanel } from './LibraryPanel';
 import { HistoryPanel } from './HistoryPanel';
 import { SettingsModal } from './SettingsModal';
+import { MissingFileModal } from './MissingFileModal';
 import { dataTransferHasFiles, resolveDroppedAbsolutePaths } from '../utils/fsDragDrop';
+import {
+  checkTrackLocalFileExists,
+  trackNeedsLocalFileCheck
+} from '../utils/localFileCheck';
 import { ToastHost } from './ToastHost';
 import { showToast, confirmAsync } from '../utils/toast';
 import { SingersModal } from './SingersModal';
@@ -164,8 +170,11 @@ export const ControlWindow: React.FC = () => {
   const removeFromQueue = useKaraokeStore((state) => state.removeFromQueue);
   const advanceToNextTrack = useKaraokeStore((state) => state.advanceToNextTrack);
   const clearQueue = useKaraokeStore((state) => state.clearQueue);
-  const missingFileModal = useKaraokeStore((state) => state.missingFileModal);
   const closeMissingFileModal = useKaraokeStore((state) => state.closeMissingFileModal);
+  const showMissingFileModal = useKaraokeStore((state) => state.showMissingFileModal);
+  const markTrackMissing = useKaraokeStore((state) => state.markTrackMissing);
+  const clearTrackMissing = useKaraokeStore((state) => state.clearTrackMissing);
+  const missingTrackIds = useKaraokeStore((state) => state.missingTrackIds);
   const pendingRequests = useKaraokeStore((state) => state.pendingGuestRequests);
   const storeSingers = useKaraokeStore((state) => state.singers);
 
@@ -232,7 +241,58 @@ export const ControlWindow: React.FC = () => {
     }
   }, [currentTrack?.id, playback.currentTrackId, setPlaybackState]);
 
+  /**
+   * Safely pause / reset media graph when a local file is missing.
+   * Why: never leave AudioGraph or `<video>` in a rejecting play() state.
+   */
+  const pauseResetForMissingFile = () => {
+    try {
+      audioGraphRef.current?.stopMidiPlayback();
+    } catch {
+      // ignore
+    }
+    if (videoRef.current) {
+      try {
+        videoRef.current.pause();
+        videoRef.current.removeAttribute('src');
+        videoRef.current.load();
+      } catch {
+        // ignore
+      }
+    }
+    setPlaybackState({ isPlaying: false, currentTime: 0, activeLyricsText: undefined });
+  };
+
+  const openMissingForQueueItem = (
+    track: { id: string; title: string; artist: string; localFilePath?: string },
+    filePath: string,
+    queueItemId?: string
+  ) => {
+    markTrackMissing(track.id);
+    showMissingFileModal({
+      filePath,
+      trackTitle: track.title,
+      trackArtist: track.artist,
+      trackId: track.id,
+      queueItemId,
+      context: 'queue'
+    });
+  };
+
   const handleJumpToTrack = async (index: number) => {
+    const item = queue[index];
+    if (!item) return;
+
+    if (trackNeedsLocalFileCheck(item.track)) {
+      const check = await checkTrackLocalFileExists(item.track);
+      if (!check.exists) {
+        pauseResetForMissingFile();
+        openMissingForQueueItem(item.track, check.path, item.queueId);
+        return;
+      }
+      clearTrackMissing(item.track.id);
+    }
+
     audioGraphRef.current?.stopMidiPlayback();
     await audioGraphRef.current?.initContext();
     if (index === 0) {
@@ -256,7 +316,19 @@ export const ControlWindow: React.FC = () => {
   };
 
   const handlePlayPause = async () => {
-    if (!currentTrack) return;
+    if (!currentTrack || !currentQueueItem) return;
+
+    // Starting playback — verify local path before AudioGraph / video feed
+    if (!playback.isPlaying && trackNeedsLocalFileCheck(currentTrack)) {
+      const check = await checkTrackLocalFileExists(currentTrack);
+      if (!check.exists) {
+        pauseResetForMissingFile();
+        openMissingForQueueItem(currentTrack, check.path, currentQueueItem.queueId);
+        return;
+      }
+      clearTrackMissing(currentTrack.id);
+    }
+
     await audioGraphRef.current?.initContext();
     togglePlayPause();
   };
@@ -624,6 +696,7 @@ export const ControlWindow: React.FC = () => {
   }, [isMidiTrack, playback.isPlaying, setPlaybackState]);
 
   // Main Playback Coordinator Effect
+  // Guards local paths before AudioGraph / <video> feed (jump, play, auto-advance).
   useEffect(() => {
     if (!currentTrack || !currentQueueItem) {
       if (videoRef.current) {
@@ -671,79 +744,131 @@ export const ControlWindow: React.FC = () => {
       return;
     }
 
-    const mediaKey = `${currentQueueItem.queueId}::${currentTrack.localFilePath || currentTrack.uri}`;
-    const isNewTrackLoaded = loadedTrackMediaKeyRef.current !== mediaKey;
+    let cancelled = false;
 
-    // If track is MIDI/KAR
-    if (isMidiTrack) {
-      if (isNewTrackLoaded) {
-        loadedTrackQueueIdRef.current = currentQueueItem.queueId;
-        loadedTrackMediaKeyRef.current = mediaKey;
-        // Instantly stop previous MIDI playback BEFORE starting fetch
-        audioGraphRef.current?.stopMidiPlayback();
-        // Unload any existing video playback
-        if (videoRef.current) {
-          videoRef.current.pause();
-          videoRef.current.removeAttribute('src');
-          videoRef.current.load();
+    const coordinatePlayback = async () => {
+      // Disk probe before MIDI / video graph — never uncaught rejection
+      if (trackNeedsLocalFileCheck(currentTrack)) {
+        const check = await checkTrackLocalFileExists(currentTrack);
+        if (cancelled) return;
+        if (!check.exists) {
+          pauseResetForMissingFile();
+          openMissingForQueueItem(currentTrack, check.path, currentQueueItem.queueId);
+          loadedTrackQueueIdRef.current = null;
+          loadedTrackMediaKeyRef.current = null;
+          return;
         }
-        setPlaybackState({ activeLyricsText: undefined, currentTime: 0 });
-
-        const mediaKeyToLoad = mediaKey;
-        fetch(currentTrack.uri)
-          .then((res) => res.arrayBuffer())
-          .then(async (buffer) => {
-            // Guard against race conditions when skipping tracks rapidly
-            if (loadedTrackMediaKeyRef.current !== mediaKeyToLoad) return;
-            await audioGraphRef.current?.initContext();
-            const song = await audioGraphRef.current?.loadMidiSong(buffer);
-            if (song && loadedTrackMediaKeyRef.current === mediaKeyToLoad) {
-              setPlaybackState({ duration: song.durationMs / 1000, currentTime: 0 });
-              if (useKaraokeStore.getState().playback.isPlaying) {
-                audioGraphRef.current?.playMidi();
-              }
-            }
-          })
-          .catch((err) => console.error('Failed to load MIDI file:', err));
-      } else {
-        if (playback.isPlaying) {
-          audioGraphRef.current?.playMidi();
-        } else {
-          audioGraphRef.current?.pauseMidi();
-        }
+        clearTrackMissing(currentTrack.id);
       }
-    } else {
-      // Audio or Video file
-      if (videoRef.current) {
+
+      if (cancelled) return;
+
+      const mediaKey = `${currentQueueItem.queueId}::${currentTrack.localFilePath || currentTrack.uri}`;
+      const isNewTrackLoaded = loadedTrackMediaKeyRef.current !== mediaKey;
+
+      // If track is MIDI/KAR
+      if (isMidiTrack) {
         if (isNewTrackLoaded) {
           loadedTrackQueueIdRef.current = currentQueueItem.queueId;
           loadedTrackMediaKeyRef.current = mediaKey;
-          // Stop MIDI voices and clear lyric text
+          // Instantly stop previous MIDI playback BEFORE starting fetch
           audioGraphRef.current?.stopMidiPlayback();
+          // Unload any existing video playback
+          if (videoRef.current) {
+            videoRef.current.pause();
+            videoRef.current.removeAttribute('src');
+            videoRef.current.load();
+          }
           setPlaybackState({ activeLyricsText: undefined, currentTime: 0 });
 
-          videoRef.current.src = currentTrack.uri;
-          videoRef.current.load();
-          videoRef.current.preservesPitch = true;
-          (videoRef.current as any).mozPreservesPitch = true;
-          (videoRef.current as any).webkitPreservesPitch = true;
-          videoRef.current.playbackRate = playback.playbackSpeed;
-        }
-
-        if (playback.isPlaying) {
-          audioGraphRef.current?.initContext().then(() => {
-            if (videoRef.current) {
-              audioGraphRef.current?.bindMediaElement(videoRef.current);
-            }
-            videoRef.current?.play().catch((err) => {
-              console.warn('Playback play() was rejected:', err);
+          const mediaKeyToLoad = mediaKey;
+          fetch(currentTrack.uri)
+            .then((res) => {
+              if (!res.ok) {
+                throw new Error(`MIDI fetch failed: ${res.status}`);
+              }
+              return res.arrayBuffer();
+            })
+            .then(async (buffer) => {
+              // Guard against race conditions when skipping tracks rapidly
+              if (cancelled || loadedTrackMediaKeyRef.current !== mediaKeyToLoad) return;
+              await audioGraphRef.current?.initContext();
+              const song = await audioGraphRef.current?.loadMidiSong(buffer);
+              if (song && loadedTrackMediaKeyRef.current === mediaKeyToLoad) {
+                setPlaybackState({ duration: song.durationMs / 1000, currentTime: 0 });
+                if (useKaraokeStore.getState().playback.isPlaying) {
+                  audioGraphRef.current?.playMidi();
+                }
+              }
+            })
+            .catch((err) => {
+              console.error('Failed to load MIDI file:', err);
+              if (cancelled) return;
+              // Treat fetch failure (missing file behind karaoke://) as missing media
+              if (trackNeedsLocalFileCheck(currentTrack) || currentTrack.localFilePath) {
+                pauseResetForMissingFile();
+                openMissingForQueueItem(
+                  currentTrack,
+                  currentTrack.localFilePath || currentTrack.uri,
+                  currentQueueItem.queueId
+                );
+              }
             });
-          });
         } else {
-          videoRef.current.pause();
+          if (playback.isPlaying) {
+            audioGraphRef.current?.playMidi();
+          } else {
+            audioGraphRef.current?.pauseMidi();
+          }
+        }
+      } else {
+        // Audio or Video file
+        if (videoRef.current) {
+          if (isNewTrackLoaded) {
+            loadedTrackQueueIdRef.current = currentQueueItem.queueId;
+            loadedTrackMediaKeyRef.current = mediaKey;
+            // Stop MIDI voices and clear lyric text
+            audioGraphRef.current?.stopMidiPlayback();
+            setPlaybackState({ activeLyricsText: undefined, currentTime: 0 });
+
+            videoRef.current.src = currentTrack.uri;
+            videoRef.current.load();
+            videoRef.current.preservesPitch = true;
+            (videoRef.current as any).mozPreservesPitch = true;
+            (videoRef.current as any).webkitPreservesPitch = true;
+            videoRef.current.playbackRate = playback.playbackSpeed;
+          }
+
+          if (playback.isPlaying) {
+            audioGraphRef.current?.initContext().then(() => {
+              if (cancelled || !videoRef.current) return;
+              audioGraphRef.current?.bindMediaElement(videoRef.current);
+              videoRef.current.play().catch((err) => {
+                console.warn('Playback play() was rejected:', err);
+                // Media error often means missing/unreadable file after USB unplug mid-session
+                const mediaErr = videoRef.current?.error;
+                if (mediaErr && trackNeedsLocalFileCheck(currentTrack)) {
+                  pauseResetForMissingFile();
+                  openMissingForQueueItem(
+                    currentTrack,
+                    currentTrack.localFilePath || currentTrack.uri,
+                    currentQueueItem.queueId
+                  );
+                }
+              });
+            });
+          } else {
+            videoRef.current.pause();
+          }
         }
       }
-    }
+    };
+
+    void coordinatePlayback();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     currentQueueItem?.queueId,
     currentTrack?.id,
@@ -1607,6 +1732,7 @@ export const ControlWindow: React.FC = () => {
                   queue.map((item, index) => {
                     const isDragging = draggedIndex === index;
                     const isDragOver = dragOverIndex === index;
+                    const isMissing = missingTrackIds.includes(item.track.id);
 
                     return (
                       <div
@@ -1648,12 +1774,15 @@ export const ControlWindow: React.FC = () => {
                         }}
                         onDoubleClick={() => handleJumpToTrack(index)}
                         className={`p-3 rounded-2xl border flex items-center justify-between transition-all duration-150 cursor-pointer select-none group/item ${
-                          index === 0
-                            ? 'bg-gradient-to-r from-indigo-950/40 via-slate-900/90 to-slate-900/90 border-indigo-500/50 text-indigo-200 shadow-md'
-                            : 'bg-slate-950/60 border-slate-800/80 text-slate-300 hover:border-slate-700/80 hover:bg-slate-950/90'
+                          isMissing
+                            ? 'bg-rose-950/40 border-rose-500/70 text-rose-100 shadow-md shadow-rose-950/30'
+                            : index === 0
+                              ? 'bg-gradient-to-r from-indigo-950/40 via-slate-900/90 to-slate-900/90 border-indigo-500/50 text-indigo-200 shadow-md'
+                              : 'bg-slate-950/60 border-slate-800/80 text-slate-300 hover:border-slate-700/80 hover:bg-slate-950/90'
                         } ${isDragging ? 'opacity-40 scale-[0.99]' : ''} ${
                           isDragOver ? 'border-indigo-400 ring-2 ring-indigo-500/50 bg-indigo-950/40' : ''
                         }`}
+                        data-missing-file={isMissing ? 'true' : undefined}
                       >
                         <div className="flex items-center gap-2 overflow-hidden pr-2 flex-1">
                           {/* Drag handle for waiting songs (index > 0) */}
@@ -1706,6 +1835,15 @@ export const ControlWindow: React.FC = () => {
                         <div className="overflow-hidden flex-1">
                           <div className="font-semibold text-xs flex items-center gap-2 truncate">
                             <span className="truncate">{item.track.title}</span>
+                            {isMissing && (
+                              <span
+                                className="inline-flex items-center gap-0.5 text-rose-400 shrink-0"
+                                title={t('errors.missingFileTooltip')}
+                              >
+                                <FileX className="w-3.5 h-3.5" />
+                                <AlertCircle className="w-3 h-3 opacity-80" />
+                              </span>
+                            )}
                             {item.isVIPOverride && (
                               <span className="bg-amber-500/20 text-amber-300 text-[9px] px-2 py-0.5 rounded-full font-bold shrink-0 border border-amber-500/30">
                                 VIP
@@ -2105,43 +2243,8 @@ export const ControlWindow: React.FC = () => {
         </div>
       )}
 
-      {/* Missing File Error Modal */}
-      {missingFileModal.isOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-red-800/80 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-scale-in">
-            <div className="flex items-center gap-3 text-red-400 mb-3">
-              <AlertTriangle className="w-6 h-6" />
-              <h3 className="font-bold text-base">{t('errors.missingFileTitle')}</h3>
-            </div>
-            <p className="text-xs text-slate-300 mb-4 leading-relaxed">
-              {t('errors.missingFileDesc', { path: missingFileModal.filePath })}
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={closeMissingFileModal}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300"
-              >
-                {t('errors.dismiss')}
-              </button>
-              {missingFileModal.queueItemId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (missingFileModal.queueItemId) {
-                      removeFromQueue(missingFileModal.queueItemId);
-                    }
-                    closeMissingFileModal();
-                  }}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-500 text-white"
-                >
-                  {t('errors.removeFromQueue')}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Missing File Modal — USB unplug / moved path (Elimina vs Lascia; never auto-delete) */}
+      <MissingFileModal />
 
       {/* Guest Portal QR Modal */}
       {showPortalQrModal && (

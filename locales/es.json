@@ -297,8 +297,16 @@
     "duration": "Duración"
   },
   "errors": {
-    "missingFileTitle": "Archivo Dañado o No Encontrado",
+    "missingFileTitle": "Archivo faltante o inaccesible",
     "missingFileDesc": "El archivo especificado ya no está accesible en: {{path}}",
+    "missingFilePathLabel": "Ruta",
+    "missingFileUsbHint": "El archivo puede estar en una USB desconectada, o se movió/eliminó fuera de la app. Nada se elimina automáticamente del catálogo o de la cola.",
+    "missingFileKeep": "Dejar en la lista",
+    "missingFileDelete": "Eliminar",
+    "missingFileTooltip": "Archivo faltante en disco",
+    "missingFileAlsoDeleteLibraryMessage": "¿También quitar “{{title}}” del catálogo de la biblioteca?",
+    "missingFileAlsoDeleteLibraryConfirm": "Sí, eliminar también de la biblioteca",
+    "missingFileAlsoDeleteLibraryCancel": "No, solo de la cola",
     "removeFromQueue": "Eliminar de la Cola",
     "dismiss": "Descartar",
     "downloadFailed": "Descarga fallida: {{error}}",

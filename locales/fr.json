@@ -297,8 +297,16 @@
     "duration": "Durée"
   },
   "errors": {
-    "missingFileTitle": "Fichier Endommagé ou Introuvable",
+    "missingFileTitle": "Fichier manquant ou inaccessible",
     "missingFileDesc": "Le fichier spécifié n'est plus accessible à l'emplacement: {{path}}",
+    "missingFilePathLabel": "Chemin",
+    "missingFileUsbHint": "Le fichier peut être sur une clé USB déconnectée, ou a été déplacé/supprimé hors de l'app. Rien n'est retiré automatiquement du catalogue ou de la file.",
+    "missingFileKeep": "Laisser dans la liste",
+    "missingFileDelete": "Supprimer",
+    "missingFileTooltip": "Fichier manquant sur le disque",
+    "missingFileAlsoDeleteLibraryMessage": "Retirer aussi « {{title}} » du catalogue bibliothèque ?",
+    "missingFileAlsoDeleteLibraryConfirm": "Oui, supprimer aussi de la bibliothèque",
+    "missingFileAlsoDeleteLibraryCancel": "Non, file uniquement",
     "removeFromQueue": "Retirer de la File",
     "dismiss": "Ignorer",
     "downloadFailed": "Échec du téléchargement: {{error}}",

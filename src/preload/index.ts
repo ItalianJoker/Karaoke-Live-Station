@@ -101,6 +101,12 @@ export interface KaraokeAPI {
     cancelYouTubeSearch: () => Promise<boolean>;
     /** Generates or retrieves a cached video thumbnail for a local video file */
     getTrackThumbnail: (filePath: string) => Promise<string | undefined>;
+    /**
+     * Probe whether a local absolute path still exists on disk.
+     * Why: USB unplug / moved file — blocks enqueue & play without auto-deleting DB rows.
+     * Empty / http(s) / protocol URIs skip fs (main returns exists:true); this unwraps to boolean.
+     */
+    checkFileExists: (filePath: string) => Promise<boolean>;
   };
 
   // 5. SIAE Reporting
@@ -359,7 +365,20 @@ const karaokeApi: KaraokeAPI = {
     searchYouTube: (query: string, options?: { offset?: number; limit?: number }) =>
       ipcRenderer.invoke('search:youtube', query, options),
     cancelYouTubeSearch: () => ipcRenderer.invoke('search:youtube:cancel'),
-    getTrackThumbnail: (filePath: string) => ipcRenderer.invoke('library:get-track-thumbnail', filePath)
+    getTrackThumbnail: (filePath: string) => ipcRenderer.invoke('library:get-track-thumbnail', filePath),
+    /**
+     * Disk existence probe. Main returns `{ exists, path }`; renderer only needs the boolean.
+     * Watchlist: keep even if some call sites look unused — required by missing-file modal flow.
+     */
+    checkFileExists: async (filePath: string) => {
+      const result = (await ipcRenderer.invoke('library:check-file-exists', filePath)) as
+        | { exists?: boolean; path?: string }
+        | boolean
+        | null
+        | undefined;
+      if (typeof result === 'boolean') return result;
+      return Boolean(result?.exists);
+    }
   },
 
   // SIAE Reporting
