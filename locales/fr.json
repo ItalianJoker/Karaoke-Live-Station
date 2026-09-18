@@ -253,7 +253,21 @@
     "maxSimultaneousDownloads": "Téléchargements simultanés max.",
     "maxSimultaneousDownloadsDesc": "Limite partagée entre Téléchargement normal et Télécharger Instrumental. Les tâches en trop attendent dans le menu Téléchargements.",
     "instrumentalVocalRemover": "Méthode Télécharger Instrumental",
-    "instrumentalVocalRemoverDesc": "Uniquement pour Télécharger Instrumental (YouTube). Choisissez l’IA hors ligne (modèles une fois dans userData/models) ou le DSP classique. Jamais appliqué à la suppression live."
+    "instrumentalVocalRemoverDesc": "Uniquement pour Télécharger Instrumental (YouTube). Choisissez l’IA hors ligne (modèles une fois dans userData/models) ou le DSP classique. Jamais appliqué à la suppression live.",
+    "mdxAdvancedTitle": "Paramètres avancés UVR-MDX-NET (optimisation ETA)",
+    "mdxAdvancedDesc": "Visible uniquement avec UVR-MDX-NET Karaoke 2. Ajuste la géométrie des chunks et l’accélération ORT CPU pour équilibrer ETA et qualité du Télécharger Instrumental.",
+    "mdxSegmentSize": "Taille de segment",
+    "mdxSegmentSizeTooltip": "Taille du chunk traité par le modèle (UVR dim_t). Des valeurs plus petites réduisent RAM/CPU et souvent l’ETA, mais peuvent baisser continuité/qualité ; des valeurs plus grandes améliorent la stabilité au prix de mémoire et de temps. Défaut Karaoke 2 : 256.",
+    "mdxSegmentChip256": "256 (recommandé — peu de RAM/CPU)",
+    "mdxSegmentChip512": "512 (équilibré)",
+    "mdxOverlap": "Chevauchement",
+    "mdxOverlapTooltip": "Chevauchement fractionnaire entre fenêtres MDX successives. Un chevauchement plus élevé améliore souvent la qualité mais augmente les passes ORT et l’ETA. Correspond à hop = (1 − overlap) × chunk_size.",
+    "mdxOverlapChip025": "0.25 (rapide)",
+    "mdxOverlapChip050": "0.50 (équilibré)",
+    "mdxOverlapChip075": "0.75 (studio — lent)",
+    "mdxOverlapHighWarning": "Chevauchement élevé (≥ 0.75) : la séparation sera beaucoup plus lente (beaucoup plus de fenêtres ORT). Préférez 0.25–0.50 sauf besoin de continuité studio.",
+    "mdxEnableOrt": "Accélération CPU ONNX Runtime",
+    "mdxEnableOrtDesc": "Activé : optimisations de graphe ORT WASM + SIMD. Désactivé : opts de graphe désactivées et SIMD off. ORT reste obligatoire pour MDX — cela ne contourne pas le moteur."
   },
   "history": {
     "title": "Historique de Lecture",

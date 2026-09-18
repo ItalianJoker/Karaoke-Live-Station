@@ -291,6 +291,27 @@ Se trovi utile **Karaoke Live Station** per le tue serate, feste o eventi e desi
 
 ---
 
+## 🧩 Stack Dipendenze (runtime rilevante per AI / download)
+
+| Pacchetto | Ruolo in Karaoke Live Station |
+| :--- | :--- |
+| **onnxruntime-web** | Motore ORT WASM per separazione AI Download Strumentale (UVR-MDX-NET / HTDemucs) |
+| **demucs-web** | Wrapper HTDemucs ONNX (caricato lazy solo sul path HTDemucs) |
+| **fft.js** | STFT / iSTFT Bluestein per MDX (`audioFft.ts`) |
+| **ffmpeg-static** | Demux / remux strumentale e miniature |
+| **electron** | Main + utilityProcess worker AI (ORT fuori dal thread UI) |
+| **zustand** | Persistenza impostazioni (incluso metodo strumentale e knobs MDX) |
+
+### Linee guida Contesto AI (per sviluppatori / agenti)
+
+- **Rimozione Vocale live (`V`)** = solo DSP mid/side algoritmico; mai AI / dual-stem live.
+- **Scarica strumentale** = AI offline (modelli in `userData/models`) o DSP; metodo indipendente dal live.
+- Commenti codice in **inglese**; UI/manuali IT/EN/ES/FR.
+- Non rivivere PR UI restyle chiuse senza merge; non merge/release overwrite senza **Si** di Luca.
+- Knobs MDX avanzati (`mdxSegmentSize` / `mdxOverlap` / `mdxEnableOrt`) solo se metodo = `aiMdxKaraoke2`; altrimenti non inviarli nel payload worker.
+
+---
+
 ## 📚 Attribuzioni, Fonti & Licenze Librerie Terze
 
 Karaoke Live Station è realizzato grazie a eccezionali librerie open source, standard aperti e progetti della comunità. Di seguito sono riportate le fonti ufficiali, gli autori, le licenze e il ruolo di ciascuna dipendenza utilizzata:
@@ -625,6 +646,27 @@ If you find **Karaoke Live Station** valuable for your shows, venues, or private
 
 ### 4. Disclaimer of Warranties & Limitation of Liability ("AS IS")
 - This software is distributed on an "AS IS" basis, without warranties or conditions of any kind, either express or implied, including without limitation warranties of merchantability, fitness for a particular purpose, or non-infringement. In no event shall the authors or copyright holders be liable for any claims, penalties, direct or consequential damages arising from the use of this software or media played through it.
+
+---
+
+## 🧩 Dependencies Stack (AI / download-relevant runtime)
+
+| Package | Role in Karaoke Live Station |
+| :--- | :--- |
+| **onnxruntime-web** | ORT WASM engine for Download Instrumental AI (UVR-MDX-NET / HTDemucs) |
+| **demucs-web** | HTDemucs ONNX wrapper (lazy-loaded on HTDemucs path only) |
+| **fft.js** | Bluestein STFT / iSTFT for MDX (`audioFft.ts`) |
+| **ffmpeg-static** | Instrumental demux / remux and thumbnails |
+| **electron** | Main + utilityProcess AI worker (ORT off the UI thread) |
+| **zustand** | Persisted settings (instrumental method + MDX knobs) |
+
+### AI Context Guidelines (for developers / agents)
+
+- **Live Vocal Remover (`V`)** = algorithmic mid/side DSP only; never AI / live dual-stem.
+- **Download Instrumental** = offline AI (models under `userData/models`) or DSP; method is independent from live.
+- Code comments in **English**; UI/manuals IT/EN/ES/FR.
+- Do not revive closed no-merge UI restyle PRs; do not merge/release-overwrite until Luca says **Si**.
+- MDX advanced knobs (`mdxSegmentSize` / `mdxOverlap` / `mdxEnableOrt`) only when method is `aiMdxKaraoke2`; otherwise omit them from the worker payload.
 
 ---
 

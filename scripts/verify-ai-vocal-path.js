@@ -63,13 +63,13 @@ assert(
 );
 assert(
   mdxSrc.includes('mdxStepSamples') &&
-    mdxSrc.includes("mdxStepSamples('default'") &&
+    mdxSrc.includes('mdxStepSamples(cfg.mdxOverlap') &&
     mdxSrc.includes('mdxTailPadSamples') &&
     mdxSrc.includes('ORT_KEEPALIVE') &&
-    mdxSrc.includes('graphOptimizationLevel: \'all\'') &&
+    mdxSrc.includes("graphOptimizationLevel: this.enableOrtAcceleration ? 'all' : 'disabled'") &&
     mdxSrc.includes('f < ') &&
     (mdxSrc.includes('muteLowBins') || mdxSrc.includes('f < 3')),
-  'MDX uses UVR Default overlap + low-bin zeroing + ORT keep-alive'
+  'MDX uses fractional overlap + low-bin zeroing + ORT accel toggle + keep-alive'
 );
 assert(
   vocalSrc.includes("return 'aiMdxKaraoke2'") &&

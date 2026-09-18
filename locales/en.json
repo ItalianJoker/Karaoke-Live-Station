@@ -253,7 +253,21 @@
     "maxSimultaneousDownloads": "Max simultaneous downloads",
     "maxSimultaneousDownloadsDesc": "Shared limit for traditional Download and Download Instrumental. Extra jobs wait in the Download menu queue.",
     "instrumentalVocalRemover": "Download Instrumental Method",
-    "instrumentalVocalRemoverDesc": "Used only by YouTube Download Instrumental. Choose offline AI (models download once into userData/models) or classical DSP. Never applied to live Rimozione Vocale."
+    "instrumentalVocalRemoverDesc": "Used only by YouTube Download Instrumental. Choose offline AI (models download once into userData/models) or classical DSP. Never applied to live Rimozione Vocale.",
+    "mdxAdvancedTitle": "Advanced UVR-MDX-NET Settings (ETA Optimization)",
+    "mdxAdvancedDesc": "Shown only for UVR-MDX-NET Karaoke 2. Adjusts chunk geometry and ORT CPU acceleration for Download Instrumental ETA / quality trade-offs.",
+    "mdxSegmentSize": "Segment size",
+    "mdxSegmentSizeTooltip": "Chunk size processed by the model (UVR dim_t). Smaller values use less RAM/CPU and often finish sooner, but may reduce continuity/quality; larger values improve stability at the cost of memory and time. Karaoke 2 default is 256.",
+    "mdxSegmentChip256": "256 (recommended — low RAM/CPU)",
+    "mdxSegmentChip512": "512 (balanced)",
+    "mdxOverlap": "Overlap",
+    "mdxOverlapTooltip": "Fractional overlap between successive MDX windows. Higher overlap usually improves quality but increases ORT runs and ETA. Maps to hop = (1 − overlap) × chunk_size.",
+    "mdxOverlapChip025": "0.25 (fast)",
+    "mdxOverlapChip050": "0.50 (balanced)",
+    "mdxOverlapChip075": "0.75 (studio — slow)",
+    "mdxOverlapHighWarning": "High overlap (≥ 0.75): separation will be much slower (many more ORT windows). Prefer 0.25–0.50 unless you need studio-grade continuity.",
+    "mdxEnableOrt": "ONNX Runtime CPU acceleration",
+    "mdxEnableOrtDesc": "When on: ORT WASM graph optimizations + SIMD. When off: graph opts disabled and SIMD off. ORT is still required for MDX — this does not skip the engine."
   },
   "history": {
     "title": "Playback History",

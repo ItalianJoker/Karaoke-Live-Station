@@ -253,7 +253,21 @@
     "maxSimultaneousDownloads": "Descargas simultáneas máximas",
     "maxSimultaneousDownloadsDesc": "Límite compartido entre Descarga normal y Descargar Instrumental. Los trabajos extra esperan en el menú Descargas.",
     "instrumentalVocalRemover": "Método Descargar Instrumental",
-    "instrumentalVocalRemoverDesc": "Solo para Descargar Instrumental (YouTube). Elige IA offline (modelos una vez en userData/models) o DSP clásico. Nunca se aplica a la eliminación en vivo."
+    "instrumentalVocalRemoverDesc": "Solo para Descargar Instrumental (YouTube). Elige IA offline (modelos una vez en userData/models) o DSP clásico. Nunca se aplica a la eliminación en vivo.",
+    "mdxAdvancedTitle": "Ajustes avanzados UVR-MDX-NET (optimización ETA)",
+    "mdxAdvancedDesc": "Visible solo con UVR-MDX-NET Karaoke 2. Ajusta la geometría de chunks y la aceleración ORT CPU para equilibrar ETA y calidad de Descargar Instrumental.",
+    "mdxSegmentSize": "Tamaño de segmento",
+    "mdxSegmentSizeTooltip": "Tamaño del chunk procesado por el modelo (UVR dim_t). Valores menores reducen RAM/CPU y a menudo el ETA, pero pueden bajar continuidad/calidad; valores mayores mejoran estabilidad a costa de memoria y tiempo. Predeterminado Karaoke 2: 256.",
+    "mdxSegmentChip256": "256 (recomendado — poca RAM/CPU)",
+    "mdxSegmentChip512": "512 (equilibrado)",
+    "mdxOverlap": "Solapamiento",
+    "mdxOverlapTooltip": "Solapamiento fraccional entre ventanas MDX sucesivas. Más solapamiento suele mejorar la calidad pero aumenta las ejecuciones ORT y el ETA. Se mapea a hop = (1 − overlap) × chunk_size.",
+    "mdxOverlapChip025": "0.25 (rápido)",
+    "mdxOverlapChip050": "0.50 (equilibrado)",
+    "mdxOverlapChip075": "0.75 (estudio — lento)",
+    "mdxOverlapHighWarning": "Solapamiento alto (≥ 0.75): la separación será mucho más lenta (muchas más ventanas ORT). Prefiere 0.25–0.50 salvo necesidad de continuidad de estudio.",
+    "mdxEnableOrt": "Aceleración CPU de ONNX Runtime",
+    "mdxEnableOrtDesc": "Activado: optimizaciones de grafo ORT WASM + SIMD. Desactivado: opts de grafo deshabilitadas y SIMD off. ORT sigue siendo obligatorio para MDX — no omite el motor."
   },
   "history": {
     "title": "Historial de Reproducción",

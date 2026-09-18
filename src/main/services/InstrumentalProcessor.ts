@@ -26,6 +26,7 @@ import {
   type AlgorithmicVocalRemoverMethod,
   type AiVocalRemoverMethod
 } from '../../shared/vocalRemover';
+import { mdxPayloadForMethod } from '../../shared/mdxAdvancedSettings';
 import { resolveFfmpegPath } from './BinaryResolver';
 import { separateInstrumentalWithAi } from './InstrumentalAiSeparator';
 import { isAbortError, killProcessTree, throwIfAborted } from './processKill';
@@ -123,6 +124,13 @@ export type InstrumentalProcessOptions = {
    * Production callers omit this — {@link separateInstrumentalWithAi} is used.
    */
   aiSeparate?: typeof separateInstrumentalWithAi;
+  /**
+   * MDX-only advanced knobs (aiMdxKaraoke2). Ignored for other methods.
+   * Passed through to {@link separateInstrumentalWithAi} / worker.
+   */
+  mdxSegmentSize?: number;
+  mdxOverlap?: number;
+  mdxEnableOrt?: boolean;
 };
 
 export type InstrumentalProcessResult = {
@@ -425,6 +433,12 @@ async function removeVocalsAi(
       outputWav: instrumentalWav,
       signal: options.signal,
       durationSec: durationSec > 0 ? durationSec : undefined,
+      // MDX knobs only when method is aiMdxKaraoke2; undefined for Demucs/Roformer.
+      ...mdxPayloadForMethod(method, {
+        mdxSegmentSize: options.mdxSegmentSize,
+        mdxOverlap: options.mdxOverlap,
+        mdxEnableOrt: options.mdxEnableOrt
+      }),
       onProgress: (info) => {
         const ratio = Math.max(0, Math.min(1, info.progress));
         let mapped: number;

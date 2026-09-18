@@ -13,6 +13,7 @@ import { app } from 'electron';
 import { Logger } from './Logger';
 import type { AiVocalRemoverMethod } from '../../shared/vocalRemover';
 import { methodToModelId, OFFLINE_VOCAL_MODELS } from '../../shared/vocalRemover';
+import { isMdxInstrumentalMethod, mdxPayloadForMethod } from '../../shared/mdxAdvancedSettings';
 
 export type InstrumentalAiProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
@@ -35,6 +36,13 @@ export type InstrumentalAiSeparateOptions = {
    * Prefer reading from the demuxed WAV; defaults to a conservative mid-length track.
    */
   durationSec?: number;
+  /**
+   * MDX-only advanced knobs. Omit for Demucs / Roformer — worker ignores when method ≠ MDX.
+   * segmentSize → dim_t; overlap → mdxStepSamples fraction; enableOrt → ORT accel opts.
+   */
+  mdxSegmentSize?: number;
+  mdxOverlap?: number;
+  mdxEnableOrt?: boolean;
 };
 
 /** Minimum hard ceiling so short tracks still get a full CPU WASM run. */
@@ -372,6 +380,11 @@ export async function separateInstrumentalWithAi(
         clearTimeout(readyTimer);
         readyTimer = null;
       }
+      const mdxPayload = mdxPayloadForMethod(method, {
+        mdxSegmentSize: options.mdxSegmentSize,
+        mdxOverlap: options.mdxOverlap,
+        mdxEnableOrt: options.mdxEnableOrt
+      });
       const payload = {
         type: 'separate' as const,
         requestId,
@@ -379,14 +392,17 @@ export async function separateInstrumentalWithAi(
         modelPath,
         ortDir,
         inputWav,
-        outputWav
+        outputWav,
+        // Only attach MDX knobs for aiMdxKaraoke2 — Demucs/Roformer must not receive them.
+        ...(mdxPayload || {})
       };
       logger?.debug('InstrumentalAiSeparator', 'Sending separate to AI worker', {
         workerKind: worker.kind,
         requestId,
         inputWav,
         outputWav,
-        waitMs: Date.now() - startedAt
+        waitMs: Date.now() - startedAt,
+        mdxAdvanced: isMdxInstrumentalMethod(method) ? mdxPayload : null
       });
       if (worker.kind === 'utility') {
         worker.proc.postMessage(payload);

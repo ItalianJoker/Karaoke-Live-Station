@@ -646,6 +646,8 @@ assert(
     settingsModalSourceVocal.includes('aiMdxKaraoke2') &&
     settingsModalSourceVocal.includes('coerceAlgorithmicVocalRemoverMethod') &&
     settingsModalSourceVocal.includes('coerceInstrumentalVocalRemoverMethod') &&
+    settingsModalSourceVocal.includes('isMdxInstrumentalMethod') &&
+    settingsModalSourceVocal.includes('mdxAdvancedTitle') &&
     settingsModalSourceVocal.includes('maxSimultaneousDownloads') &&
     settingsModalSourceVocal.includes('centerCancelBassKeep') &&
     settingsModalSourceVocal.includes('softMid') &&
@@ -727,12 +729,13 @@ assert(
       .includes('onIntra') &&
     fs
       .readFileSync(path.resolve(__dirname, '../src/main/ai/MdxNetSeparator.ts'), 'utf8')
-      .includes("mdxStepSamples('default'") &&
+      .includes('mdxStepSamples(cfg.mdxOverlap') &&
     fs
       .readFileSync(path.resolve(__dirname, '../src/main/ai/audioFft.ts'), 'utf8')
       .includes('getBluesteinPlan') &&
-    fs.existsSync(path.resolve(__dirname, '../src/main/ai/mdxUvrGeometry.ts')),
-  'AI separation: UVR Default overlap, ORT keep-alive, ready-ping, MessageEvent unwrap, timeouts'
+    fs.existsSync(path.resolve(__dirname, '../src/main/ai/mdxUvrGeometry.ts')) &&
+    fs.existsSync(path.resolve(__dirname, '../src/shared/mdxAdvancedSettings.ts')),
+  'AI separation: fractional MDX overlap, ORT keep-alive, ready-ping, MessageEvent unwrap, timeouts'
 );
 
 assert(
@@ -807,13 +810,18 @@ assert(
     enLocaleVocal.settings.vocalAiMdxKaraoke2 &&
     enLocaleVocal.settings.maxSimultaneousDownloads &&
     enLocaleVocal.settings.instrumentalVocalRemover &&
+    enLocaleVocal.settings.mdxAdvancedTitle &&
+    enLocaleVocal.settings.mdxSegmentSize &&
+    enLocaleVocal.settings.mdxOverlapHighWarning &&
+    itLocaleVocal.settings.mdxAdvancedTitle ===
+      'Impostazioni Avanzate UVR-MDX-NET (Ottimizzazione ETA)' &&
     enLocaleVocal.library.instrumentalDownloadWarning &&
     enLocaleVocal.library.downloadsMenu &&
     /Live|Regia|Control/i.test(enLocaleVocal.settings.vocalRemoverAlgorithmDesc) &&
     /Download Instrumental|userData\/models/i.test(
       enLocaleVocal.settings.instrumentalVocalRemoverDesc
     ),
-  'EN/IT locales: split live vs Instrumental method copy present'
+  'EN/IT locales: split live vs Instrumental method + MDX advanced copy present'
 );
 
 // -------------------------------------------------------------
@@ -2237,8 +2245,30 @@ console.log('\n\x1b[36m▶ Suite: UVR-MDX geometry (timeout / overlap)\x1b[0m');
   });
   assert(
     geomRun.status === 0 && (geomRun.stdout || '').includes('verify-mdx-uvr-geometry: all checks passed'),
-    'verify-mdx-uvr-geometry: Default overlap fewer chunks than 50% OLA',
+    'verify-mdx-uvr-geometry: Default / fractional overlap geometry',
     (geomRun.stderr || geomRun.stdout || `exit ${geomRun.status}`).slice(0, 600)
+  );
+}
+
+// -------------------------------------------------------------
+// Suite: MDX advanced ETA settings (coerce / conditional payload)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: MDX advanced ETA settings\x1b[0m');
+
+{
+  const { spawnSync } = require('child_process');
+  const advVerify = path.resolve(__dirname, 'verify-mdx-advanced-settings.js');
+  assert(fs.existsSync(advVerify), 'verify-mdx-advanced-settings.js exists');
+  const advRun = spawnSync(process.execPath, [advVerify], {
+    cwd: path.resolve(__dirname, '..'),
+    encoding: 'utf8',
+    timeout: 120000
+  });
+  assert(
+    advRun.status === 0 &&
+      (advRun.stdout || '').includes('verify-mdx-advanced-settings: all checks passed'),
+    'verify-mdx-advanced-settings: coerce + non-MDX omit payload',
+    (advRun.stderr || advRun.stdout || `exit ${advRun.status}`).slice(0, 600)
   );
 }
 

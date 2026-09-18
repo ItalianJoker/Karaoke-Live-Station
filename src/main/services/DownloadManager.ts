@@ -74,6 +74,10 @@ export interface DownloadOptions {
   instrumental?: boolean;
   /** Vocal-remover method for instrumental post-process (AI or algorithmic) */
   vocalRemoverAlgorithm?: string;
+  /** MDX-only advanced knobs — omit for non-MDX methods */
+  mdxSegmentSize?: number;
+  mdxOverlap?: number;
+  mdxEnableOrt?: boolean;
 }
 
 /**
@@ -821,6 +825,9 @@ export class DownloadManager {
               ortWasmManager: this.ortWasmManager,
               logger: this.logger,
               signal,
+              mdxSegmentSize: options.mdxSegmentSize,
+              mdxOverlap: options.mdxOverlap,
+              mdxEnableOrt: options.mdxEnableOrt,
               onProgress: (phase, percent) => {
                 if (payload.status === 'cancelled') return;
                 if (phase === 'ensuring_model') {

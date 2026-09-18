@@ -20,19 +20,19 @@ export const MDX_KARA2 = {
 } as const;
 
 /** hop * (dim_t - 1) — samples fed to one ORT window (UVR chunk_size). */
-export function mdxChunkSize(hop = MDX_KARA2.hop, dimT = MDX_KARA2.dimT): number {
+export function mdxChunkSize(hop: number = MDX_KARA2.hop, dimT: number = MDX_KARA2.dimT): number {
   return hop * (dimT - 1);
 }
 
 /** n_fft / 2 — UVR trim margin (center STFT margin cropped after OLA). */
-export function mdxTrim(nFft = MDX_KARA2.nFft): number {
+export function mdxTrim(nFft: number = MDX_KARA2.nFft): number {
   return nFft >> 1;
 }
 
 /** chunk_size - 2*trim — new audio advanced per Default-overlap step. */
 export function mdxGenSize(
-  chunkSize = mdxChunkSize(),
-  trim = mdxTrim()
+  chunkSize: number = mdxChunkSize(),
+  trim: number = mdxTrim()
 ): number {
   return chunkSize - 2 * trim;
 }
@@ -41,14 +41,16 @@ export function mdxGenSize(
  * UVR MDX overlap → hop between prediction windows.
  * - `default` matches UVR UI "Default": step = chunk_size - n_fft (≈2% overlap).
  * - numeric fraction matches UVR 0.25 / 0.50 / …: step = (1 - overlap) * chunk_size.
+ *   Settings UI default is 0.25 (see mdxAdvancedSettings.ts); hop actually changes
+ *   when the user moves the overlap slider (not a no-op).
  *
  * KLS previously used 50% triangular OLA (~2× ORT runs vs UVR Default) which made
  * CPU WASM separations look stuck then hit idle/hard timeouts.
  */
 export function mdxStepSamples(
   overlap: 'default' | number = 'default',
-  chunkSize = mdxChunkSize(),
-  nFft = MDX_KARA2.nFft
+  chunkSize: number = mdxChunkSize(),
+  nFft: number = MDX_KARA2.nFft
 ): number {
   if (overlap === 'default') {
     return chunkSize - nFft;
@@ -60,8 +62,8 @@ export function mdxStepSamples(
 /** Zero-pad length so (trim + mix + pad - trim) is a multiple of gen_size (UVR demix). */
 export function mdxTailPadSamples(
   mixLength: number,
-  genSize = mdxGenSize(),
-  trim = mdxTrim()
+  genSize: number = mdxGenSize(),
+  trim: number = mdxTrim()
 ): number {
   if (mixLength <= 0) return genSize + trim;
   return genSize + trim - (mixLength % genSize);

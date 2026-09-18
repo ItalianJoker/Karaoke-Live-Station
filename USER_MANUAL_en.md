@@ -238,7 +238,7 @@ The **`V`** key / **Vocal Remover (Experimental)** control enables the method ch
 | --- | --- |
 | `centerCancelBassKeep` / `centerCancel` / `softMid` | Classical **realtime** mid/side DSP — light, no download |
 
-On YouTube search results, **Download Instrumental** (when the title does not already contain “Karaoke” or “instrumental”) downloads the video, applies the same algorithm offline via ffmpeg, and saves an instrumental MP4 to the library (burns subtitles when available).
+On YouTube search results, **Download Instrumental** (when the title does not already contain “Karaoke” or “instrumental”) downloads the video, then applies the **Download Instrumental Method** from **Settings → Audio** (offline AI such as UVR-MDX-NET Karaoke 2, or classical DSP) and saves an instrumental MP4 (burns subtitles when available). When UVR-MDX-NET is selected, **Advanced UVR-MDX-NET Settings (ETA Optimization)** appears under that dropdown: segment size, overlap, and ONNX Runtime CPU acceleration — used only for that MDX path.
 
 ### 4.5 Auto-ducking BGM
 

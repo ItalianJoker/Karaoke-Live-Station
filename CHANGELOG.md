@@ -8,6 +8,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+### Added
+- **UVR-MDX-NET advanced ETA settings** — When Download Instrumental method is UVR-MDX-NET Karaoke 2 (`aiMdxKaraoke2`), Settings → Audio shows **Impostazioni Avanzate UVR-MDX-NET (Ottimizzazione ETA)** with segment size (default 256), fractional overlap (default 0.25 → `mdxStepSamples`), and an honest ORT WASM CPU acceleration toggle (graph opts + SIMD; ORT remains required). Knobs persist in AppSettings and are omitted from the AI worker payload for Demucs / Roformer / DSP.
+
+### Changed
+- **MDX demix hop** — Runtime overlap is the Settings fraction (not hardcoded UVR “Default” `chunk_size - n_fft`); UVR Default remains available via `mdxStepSamples('default')` for geometry helpers / exports.
+
+### Fixed
+- None for this change set.
+
+### Breaking Changes
+- None.
+
 ## [1.1.0] — Stop web search + AI worker MessageEvent IPC (refresh) — 2026-09-18
 
 Overwrite of GitHub Release `v1.1.0` after PR #32 (Interrompi ricerca / cancel stuck YouTube web search) + PR #33 (utilityProcess parentPort MessageEvent unwrap so Instrumental AI `separate` runs).
