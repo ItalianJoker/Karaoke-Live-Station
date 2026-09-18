@@ -2162,6 +2162,12 @@ assert(
     downloadManagerStagingSrc.includes("'--sub-langs'") &&
     !downloadManagerStagingSrc.includes("'en.*,it.*,es.*,fr.*,*-orig'") &&
     !/['"][^'"]*\*-orig[^'"]*['"]/.test(downloadManagerStagingSrc) &&
+    downloadManagerStagingSrc.includes('logDownloadFailure') &&
+    downloadManagerStagingSrc.includes("yt-dlp exited with error code") &&
+    downloadManagerStagingSrc.includes('logger?.warn') &&
+    downloadManagerStagingSrc.includes("'Spawning yt-dlp'") &&
+    downloadManagerStagingSrc.includes('recentYtDlpLines') &&
+    downloadManagerStagingSrc.includes("getLogLevel() === 'debug'") &&
     fs
       .readFileSync(path.resolve(__dirname, '../src/main/services/InstrumentalProcessor.ts'), 'utf8')
       .includes('resolveInstrumentalTempWavPaths'),

@@ -205,6 +205,22 @@ export class DownloadManager {
     }
   }
 
+  /**
+   * Persist a download failure to the structured logger (disk), not only the UI panel.
+   * Always ERROR; when log level is `debug`, attach argv / recent yt-dlp output.
+   */
+  private logDownloadFailure(
+    message: string,
+    data: Record<string, unknown>,
+    debugExtras?: Record<string, unknown>
+  ): void {
+    const payload: Record<string, unknown> = { ...data };
+    if (this.logger?.getLogLevel() === 'debug' && debugExtras) {
+      Object.assign(payload, debugExtras);
+    }
+    this.logger?.error('DownloadManager', message, payload);
+  }
+
   /** Count of active yt-dlp children (instrumental conversion does not hold a pool slot). */
   private getRunningCount(): number {
     let count = 0;
@@ -572,6 +588,15 @@ export class DownloadManager {
       detached: process.platform !== 'win32'
     });
 
+    this.logger?.debug('DownloadManager', 'Spawning yt-dlp', {
+      downloadId,
+      instrumental,
+      isAudioOnly: options.isAudioOnly === true,
+      ytdlpPath: this.ytdlpPath,
+      cwd: this.tempDir,
+      args
+    });
+
     const abortController = new AbortController();
     this.activeJobs.set(downloadId, {
       process: child,
@@ -587,13 +612,40 @@ export class DownloadManager {
     let spawnFailed = false;
     /** Last yt-dlp `ERROR:` line for opaque non-zero exits (e.g. code 1). */
     let lastYtDlpErrorLine = '';
+    /** Recent non-progress yt-dlp lines for debug dumps on failure. */
+    const recentYtDlpLines: string[] = [];
+    const RECENT_YTDLP_LINE_CAP = 40;
+
+    const debugSpawnExtras = () => ({
+      ytdlpPath: this.ytdlpPath,
+      cwd: this.tempDir,
+      args: [...args],
+      recentOutput: [...recentYtDlpLines]
+    });
 
     const ingestYtDlpLine = (line: string) => {
       const trimmed = line.trim();
       if (!trimmed) return;
 
+      const isProgressTemplate =
+        /^KLSPROG\|/i.test(trimmed) ||
+        /^download:/i.test(trimmed) ||
+        /\[download\]\s+\d/i.test(trimmed);
+
+      if (!isProgressTemplate) {
+        recentYtDlpLines.push(trimmed.slice(0, 500));
+        if (recentYtDlpLines.length > RECENT_YTDLP_LINE_CAP) {
+          recentYtDlpLines.shift();
+        }
+      }
+
       if (/^ERROR:/i.test(trimmed) || /\bERROR:\s/i.test(trimmed)) {
         lastYtDlpErrorLine = trimmed.slice(0, 500);
+        // Surface yt-dlp ERROR lines to disk even before process exit (UI alone is not enough).
+        this.logger?.warn('DownloadManager', lastYtDlpErrorLine, {
+          downloadId,
+          instrumental
+        });
       }
 
       if (
@@ -756,11 +808,17 @@ export class DownloadManager {
                 `Downloaded video not found in staging folder after yt-dlp ` +
                 `(expected under ${this.tempDir} for ${downloadId}). ` +
                 `Instrumental AI cannot run without the original MP4.`;
-              this.logger?.error('DownloadManager', payload.errorMessage, {
-                downloadId,
-                tempDir: this.tempDir,
-                detectedHint: detectedOutputFile
-              });
+              this.logDownloadFailure(
+                payload.errorMessage,
+                {
+                  downloadId,
+                  tempDir: this.tempDir,
+                  detectedHint: detectedOutputFile,
+                  exitCode: code,
+                  instrumental: true
+                },
+                debugSpawnExtras()
+              );
               this.emitProgress({ ...payload });
               this.activeJobs.delete(downloadId);
               this.activeUrls.delete(dedupUrlKey);
@@ -899,6 +957,16 @@ export class DownloadManager {
               payload.status = 'error';
               payload.errorMessage =
                 result.error || `Instrumental processing failed for ${downloadId}`;
+              this.logDownloadFailure(
+                payload.errorMessage,
+                {
+                  downloadId,
+                  instrumental: true,
+                  sourceMp4: originalVideoPath,
+                  exitCode: code
+                },
+                debugSpawnExtras()
+              );
               this.emitProgress({ ...payload });
               this.activeJobs.delete(downloadId);
               this.activeUrls.delete(dedupUrlKey);
@@ -912,6 +980,16 @@ export class DownloadManager {
             payload.status = 'error';
             payload.errorMessage =
               `Download finished but no media file was found under ${this.tempDir}`;
+            this.logDownloadFailure(
+              payload.errorMessage,
+              {
+                downloadId,
+                tempDir: this.tempDir,
+                exitCode: code,
+                instrumental: false
+              },
+              debugSpawnExtras()
+            );
             this.emitProgress({ ...payload });
             this.activeJobs.delete(downloadId);
             this.activeUrls.delete(dedupUrlKey);
@@ -940,6 +1018,17 @@ export class DownloadManager {
               : '';
           const detail = lastYtDlpErrorLine ? `: ${lastYtDlpErrorLine}` : errnoHint;
           payload.errorMessage = `yt-dlp exited with error code ${code}${detail}`;
+          this.logDownloadFailure(
+            payload.errorMessage,
+            {
+              downloadId,
+              exitCode: code,
+              instrumental,
+              url: options.url,
+              lastYtDlpErrorLine: lastYtDlpErrorLine || undefined
+            },
+            debugSpawnExtras()
+          );
           this.emitProgress({ ...payload });
           this.activeJobs.delete(downloadId);
           this.activeUrls.delete(dedupUrlKey);
@@ -959,6 +1048,16 @@ export class DownloadManager {
       if (payload.status !== 'cancelled') {
         payload.status = 'error';
         payload.errorMessage = err.message;
+        this.logDownloadFailure(
+          `yt-dlp spawn failed: ${err.message}`,
+          {
+            downloadId,
+            instrumental,
+            url: options.url,
+            spawnError: err.message
+          },
+          debugSpawnExtras()
+        );
         this.emitProgress({ ...payload });
       }
       this.pumpQueue();
