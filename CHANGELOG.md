@@ -17,7 +17,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - **Safety-First documentation pass (slice 1)** — high-density Why/TSDoc on hot audio, store GC, DownloadManager delete guard, AI worker unwrap, and preload Watchlist surfaces. No IPC / Zustand / SQLite schema / Control↔Stage sync behavior changes.
 
 ### Fixed
-- None (documentation + non-regression locks only).
+- **AppImage SoundFont path** — Bundled `GeneralUser-GS.sf2` is seeded to `<userData>/soundfonts/` (like ORT/yt-dlp). Persisted `/tmp/.mount_*` AppImage paths are treated as ephemeral and re-resolved on startup so `karaoke://local` no longer 404s. Packaging: `asarUnpack` for `**/soundfonts/**/*.sf2`; linux/win/mac `extraResources` each include `public/soundfonts` (and `public/ort`) alongside platform `bin/`.
 
 ### Performance
 - None in this slice (granular Zustand selectors deferred to Watchlist).

@@ -2106,12 +2106,111 @@ assert(
   'DownloadManager builds library/cache URIs via buildKaraokeLocalUri(destinationPath)'
 );
 
-assert(
-  mainProtocolSource.includes("path.join(process.resourcesPath || '', 'soundfonts/GeneralUser-GS.sf2')") &&
-    mainProtocolSource.indexOf("path.join(process.resourcesPath || '', 'soundfonts/GeneralUser-GS.sf2')") <
-      mainProtocolSource.indexOf("path.join(app.getAppPath(), 'public/soundfonts/GeneralUser-GS.sf2')"),
-  'Bundled SoundFont prefers resources/ (extraResources) before asar app path'
+const soundFontManagerSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/services/SoundFontManager.ts'),
+  'utf8'
 );
+const soundFontPathSharedSource = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/soundFontPath.ts'),
+  'utf8'
+);
+
+assert(
+  soundFontManagerSource.includes('ensureBundledSoundFont') &&
+    soundFontManagerSource.includes("path.join(resources, 'soundfonts'") &&
+    soundFontManagerSource.includes('userData') &&
+    soundFontManagerSource.includes('isEphemeralSoundFontPath'),
+  'SoundFontManager seeds userData from resources/soundfonts (extraResources)'
+);
+
+assert(
+  soundFontPathSharedSource.includes('isEphemeralSoundFontPath') &&
+    soundFontPathSharedSource.includes('.mount_') &&
+    soundFontPathSharedSource.includes('AppData') &&
+    soundFontPathSharedSource.includes('Local') &&
+    soundFontPathSharedSource.includes('Temp'),
+  'Shared soundFontPath detects AppImage .mount_ and Windows Temp extracts'
+);
+
+assert(
+  mainProtocolSource.includes('SoundFontManager') &&
+    mainProtocolSource.includes('isEphemeralSoundFontPath') &&
+    mainProtocolSource.includes('ensureBundledSoundFont') &&
+    mainProtocolSource.includes('resolveDefaultSoundFont'),
+  'Main process wires SoundFontManager for default/init-paths resolution'
+);
+
+assert(
+  mainProtocolSource.includes('isEphemeralSoundFontPath(resolvedSoundFont)'),
+  'init-paths re-resolves SoundFont when persisted path is AppImage-ephemeral'
+);
+
+/** Mirrors src/shared/soundFontPath.ts — keep in sync. */
+function isEphemeralSoundFontPathTest(filePath) {
+  const normalized = (filePath || '').replace(/\\/g, '/');
+  if (!normalized) return false;
+  if (normalized.includes('/.mount_')) return true;
+  if (/\/AppData\/Local\/Temp\//i.test(normalized)) return true;
+  if (/\/var\/folders\/[^/]+\/[^/]+\/T\//i.test(normalized)) return true;
+  return false;
+}
+
+assert(
+  isEphemeralSoundFontPathTest(
+    '/tmp/.mount_KaraokK6MA1R/resources/soundfonts/GeneralUser-GS.sf2'
+  ),
+  'AppImage FUSE mount SoundFont path is ephemeral'
+);
+assert(
+  !isEphemeralSoundFontPathTest(
+    path.join(os.homedir(), '.config', 'karaoke-live-station', 'soundfonts', 'GeneralUser-GS.sf2')
+  ),
+  'userData/soundfonts managed path is not ephemeral'
+);
+assert(
+  !isEphemeralSoundFontPathTest('/usr/share/sounds/sf2/FluidR3_GM.sf2'),
+  'System SoundFont path is not ephemeral'
+);
+assert(
+  isEphemeralSoundFontPathTest(
+    'C:/AppData/Local/Temp/KaraokeLiveStation/resources/soundfonts/GeneralUser-GS.sf2'
+  ),
+  'Windows Temp extract SoundFont path is ephemeral'
+);
+
+// Packaging: SoundFont extraResources on all platforms + asarUnpack
+{
+  const packageJsonSf = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
+  );
+  const buildCfg = packageJsonSf.build || {};
+  assert(
+    Array.isArray(buildCfg.extraResources) &&
+      buildCfg.extraResources.some(
+        (e) => e && e.from === 'public/soundfonts' && e.to === 'soundfonts'
+      ),
+    'Top-level electron-builder extraResources includes public/soundfonts → soundfonts'
+  );
+  for (const plat of ['linux', 'win', 'mac']) {
+    const platRes = (buildCfg[plat] && buildCfg[plat].extraResources) || [];
+    assert(
+      platRes.some((e) => e && e.from === 'public/soundfonts' && e.to === 'soundfonts'),
+      `Platform ${plat} extraResources includes soundfonts (AppImage/win/mac consistency)`
+    );
+  }
+  assert(
+    Array.isArray(buildCfg.asarUnpack) &&
+      buildCfg.asarUnpack.some((p) => String(p).includes('soundfonts')),
+    'asarUnpack includes soundfonts/*.sf2 fallback for protocol streaming'
+  );
+
+  assert(
+    fs.existsSync(path.resolve(__dirname, '../public/soundfonts/GeneralUser-GS.sf2')) &&
+      fs.statSync(path.resolve(__dirname, '../public/soundfonts/GeneralUser-GS.sf2')).size >
+        1024 * 1024,
+    'Repo ships public/soundfonts/GeneralUser-GS.sf2 (>1MB) for electron-builder extraResources'
+  );
+}
 
 // -------------------------------------------------------------
 // Suite: Instrumental download staging (userData/temp → remux → library)

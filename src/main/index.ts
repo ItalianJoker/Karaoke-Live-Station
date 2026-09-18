@@ -13,6 +13,10 @@ import { YtDlpUpdater } from './services/YtDlpUpdater';
 import { FirewallHelper } from './services/FirewallHelper';
 import { OfflineVocalModelManager } from './services/OfflineVocalModelManager';
 import { OrtWasmManager } from './services/OrtWasmManager';
+import {
+  SoundFontManager,
+  isEphemeralSoundFontPath
+} from './services/SoundFontManager';
 import { killProcessTree } from './services/processKill';
 import {
   ActivePlaybackState,
@@ -80,50 +84,25 @@ function getMediaMimeType(filePath: string): string {
 }
 
 /**
- * Searches common system directories for a default General MIDI SoundFont bank (.sf2 or .dls).
- * Provides zero-configuration MIDI/KAR playback out-of-the-box.
- *
- * @returns Absolute path to a valid system SoundFont bank if found, otherwise null
+ * OS-provided General MIDI banks when the bundled GeneralUser GS bank is unavailable.
+ * Bundled resolution (extraResources → userData seed) is handled by SoundFontManager.
  */
-function getDefaultSystemSoundFont(): string | null {
-  // 1. Prioritize bundled GeneralUser GS SoundFont for pristine out-of-the-box MIDI/KAR playback.
-  // Prefer extraResources (outside asar) first — createReadStream via karaoke://local fails
-  // for files that only exist inside the asar archive on some Electron builds.
-  const appPath = app.isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath();
-  const bundledCandidates = [
-    path.join(process.resourcesPath || '', 'soundfonts/GeneralUser-GS.sf2'),
-    path.join(appPath, 'soundfonts/GeneralUser-GS.sf2'),
-    path.join(process.cwd(), 'public/soundfonts/GeneralUser-GS.sf2'),
-    path.join(app.getAppPath(), 'public/soundfonts/GeneralUser-GS.sf2'),
-    path.join(app.getAppPath(), 'dist/soundfonts/GeneralUser-GS.sf2')
-  ];
-
-  for (const bCandidate of bundledCandidates) {
-    try {
-      if (bCandidate && fs.existsSync(bCandidate)) {
-        return bCandidate;
-      }
-    } catch {
-      // Check next candidate
-    }
-  }
-
-  // 2. System fallbacks if bundled bank is missing
+function getOsFallbackSoundFont(): string | null {
   const candidates =
     process.platform === 'win32'
       ? [path.join(process.env.WINDIR || 'C:\\Windows', 'System32\\drivers\\gm.dls')]
       : process.platform === 'darwin'
-      ? [
-          '/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls',
-          '/Library/Audio/Sounds/Banks/default.sf2'
-        ]
-      : [
-          '/usr/share/sounds/sf2/default-GM.sf2',
-          '/usr/share/sounds/sf2/FluidR3_GM.sf2',
-          '/usr/share/soundfonts/default.sf2',
-          '/usr/share/sounds/sf2/TimGM6mb.sf2',
-          '/usr/share/soundfonts/FluidR3_GM.sf2'
-        ];
+        ? [
+            '/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls',
+            '/Library/Audio/Sounds/Banks/default.sf2'
+          ]
+        : [
+            '/usr/share/sounds/sf2/default-GM.sf2',
+            '/usr/share/sounds/sf2/FluidR3_GM.sf2',
+            '/usr/share/soundfonts/default.sf2',
+            '/usr/share/sounds/sf2/TimGM6mb.sf2',
+            '/usr/share/soundfonts/FluidR3_GM.sf2'
+          ];
 
   for (const candidate of candidates) {
     try {
@@ -167,6 +146,7 @@ class KaraokeMainProcess {
   private ytDlpUpdater: YtDlpUpdater;
   private vocalModelManager: OfflineVocalModelManager;
   private ortWasmManager: OrtWasmManager;
+  private soundFontManager: SoundFontManager;
   private guestServer: GuestPortalServer | null = null;
   private currentMasterState: ActivePlaybackState | null = null;
   private currentQueue: QueueItem[] = [];
@@ -188,6 +168,7 @@ class KaraokeMainProcess {
     this.ytDlpUpdater = new YtDlpUpdater(userDataPath, this.logger);
     this.vocalModelManager = new OfflineVocalModelManager(this.logger);
     this.ortWasmManager = new OrtWasmManager(this.logger);
+    this.soundFontManager = new SoundFontManager(this.logger);
     this.downloadManager.setInstrumentalAiDeps({
       vocalModelManager: this.vocalModelManager,
       ortWasmManager: this.ortWasmManager,
@@ -402,6 +383,17 @@ class KaraokeMainProcess {
           `Failed to seed ORT WASM under userData/ort: ${err instanceof Error ? err.message : String(err)}`
         );
       }
+      // Seed bundled GeneralUser GS into userData/soundfonts (stable path for AppImage remounts)
+      try {
+        this.soundFontManager.ensureBundledSoundFont();
+      } catch (err) {
+        this.logger.error(
+          'SoundFontManager',
+          `Failed to seed SoundFont under userData/soundfonts: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
       await this.initWindows();
       this.initGuestServer();
       setTimeout(() => {
@@ -487,6 +479,16 @@ class KaraokeMainProcess {
   /**
    * Resolves the application window icon path for window titlebars and system taskbars.
    */
+  /**
+   * Bundled GeneralUser GS (seeded under userData/soundfonts) then OS GM fallbacks.
+   * Never returns a bare asar-only path for protocol streaming.
+   */
+  private resolveDefaultSoundFont(): string | null {
+    const bundled = this.soundFontManager.ensureBundledSoundFont();
+    if (bundled) return bundled;
+    return getOsFallbackSoundFont();
+  }
+
   private getWindowIcon(): string | undefined {
     const candidates = [
       path.join(app.getAppPath(), 'build/icon.png'),
@@ -775,9 +777,9 @@ class KaraokeMainProcess {
       return result.filePaths[0];
     });
 
-    // 4b. System Defaults
+    // 4b. System Defaults — always re-resolve bundled bank (never trust AppImage /tmp/.mount_* paths)
     ipcMain.handle('system:get-default-soundfont', () => {
-      return getDefaultSystemSoundFont();
+      return this.resolveDefaultSoundFont();
     });
 
     ipcMain.handle('system:open-external', async (_event, url: string) => {
@@ -798,8 +800,13 @@ class KaraokeMainProcess {
       'system:init-paths',
       async (_event, clientSettings: { libraryPath?: string; midiSoundFontPath?: string }) => {
         let resolvedSoundFont = clientSettings?.midiSoundFontPath;
-        if (!resolvedSoundFont || !fs.existsSync(resolvedSoundFont)) {
-          resolvedSoundFont = getDefaultSystemSoundFont() || '';
+        // Missing, deleted, or ephemeral AppImage/portable mount paths must be re-seeded.
+        if (
+          !resolvedSoundFont ||
+          !fs.existsSync(resolvedSoundFont) ||
+          isEphemeralSoundFontPath(resolvedSoundFont)
+        ) {
+          resolvedSoundFont = this.resolveDefaultSoundFont() || '';
         }
 
         let resolvedLibrary = clientSettings?.libraryPath;
