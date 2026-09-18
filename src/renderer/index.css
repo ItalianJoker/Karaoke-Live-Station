@@ -7,6 +7,64 @@
  * Functional layout/controls are unchanged; this file only styles surfaces.
  */
 
+/* Self-hosted fonts (offline Electron-safe; bundled via Vite) */
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/Outfit-500.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/Outfit-600.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/Outfit-700.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("./assets/fonts/Outfit-800.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/SourceSans3-400.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/SourceSans3-500.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/SourceSans3-600.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/SourceSans3-700.ttf") format("truetype");
+}
+
 @theme {
   --font-sans: "Source Sans 3", "Segoe UI", sans-serif;
   --font-display: "Outfit", "Source Sans 3", sans-serif;
@@ -212,6 +270,11 @@ h3,
 
 :where(button, a, input, select, textarea):focus:not(:focus-visible) {
   outline: none;
+}
+
+/* Align native range controls with theme accent */
+input[type="range"] {
+  accent-color: var(--accent);
 }
 
 /* Stage screen */
