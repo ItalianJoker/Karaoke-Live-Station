@@ -27,6 +27,7 @@ import {
 } from '../shared/vocalRemover';
 import { ORT_WASM_ASSET_FILES } from '../shared/ortWasm';
 import { resolveKaraokeLocalFilePath, buildKaraokeLocalUri } from '../shared/karaokeLocalPath';
+import { discoverLibraryMedia } from '../shared/libraryScanner';
 
 /**
  * Returns the corresponding MIME content-type for audio/video media files.
@@ -1263,108 +1264,38 @@ class KaraokeMainProcess {
   }
 
   /**
-   * Recursively scans a filesystem directory for karaoke files (.mp4, .webm, .mp3+.cdg, .mid, .kar),
-   * extracts song titles and artist names from filename patterns ("Artist - Title"),
-   * and persists them to the SQLite library table.
+   * Recursively scans a filesystem directory (and all relative subfolders) for
+   * karaoke files (.mp4, .webm, .mp3+.cdg, .mid, .kar), extracts song titles and
+   * artist names from filename patterns ("Artist - Title"), and persists them
+   * to the SQLite library table. Discovery logic lives in shared/libraryScanner
+   * so recursive coverage is unit-tested without Electron.
    *
-   * @param folderPath - Directory path to scan
+   * @param folderPath - Library root directory path to scan
    * @returns Discovered tracks list
    */
   private scanFolder(folderPath: string): KaraokeMediaTrack[] {
     const discovered: KaraokeMediaTrack[] = [];
-    if (!fs.existsSync(folderPath)) return discovered;
+    const found = discoverLibraryMedia(folderPath);
 
-    const walk = (dir: string) => {
-      try {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
-        const filesMap = new Map<string, string[]>();
+    for (const item of found) {
+      const thumb = this.getOrGenerateThumbnail(item.absolutePath);
+      const track: KaraokeMediaTrack = {
+        id: item.idHint,
+        source: item.source,
+        title: item.title,
+        artist: item.artist,
+        durationSec: 0,
+        uri: buildKaraokeLocalUri(item.absolutePath),
+        localFilePath: item.absolutePath,
+        thumbnailUrl: thumb,
+        hasEmbeddedLyrics: item.hasEmbeddedLyrics,
+        isMultiplex: false,
+        isEmbeddable: true
+      };
+      this.db.upsertTrack(track);
+      discovered.push(track);
+    }
 
-        for (const entry of entries) {
-          if (entry.isDirectory()) {
-            walk(path.join(dir, entry.name));
-          } else if (entry.isFile()) {
-            const ext = path.extname(entry.name).toLowerCase();
-            const base = path.basename(entry.name, ext);
-            if (!filesMap.has(base)) filesMap.set(base, []);
-            filesMap.get(base)!.push(ext);
-          }
-        }
-
-        for (const [baseName, exts] of filesMap.entries()) {
-          // Skip incomplete / in-progress download artifacts
-          const incompleteExt = exts.some((e) =>
-            ['.part', '.ytdl', '.temp', '.tmp', '.download', '.crdownload'].includes(e)
-          );
-          if (incompleteExt || /\.part$/i.test(baseName)) {
-            continue;
-          }
-
-          const hasCdg = exts.includes('.cdg');
-          const hasMp3 = exts.includes('.mp3');
-          const hasMp4 = exts.includes('.mp4');
-          const hasWebm = exts.includes('.webm');
-          const hasMid = exts.includes('.mid');
-          const hasKar = exts.includes('.kar');
-
-          let source: KaraokeMediaTrack['source'] = 'local_library';
-          let targetExt = '';
-
-          if (hasMid || hasKar) {
-            source = 'midi';
-            targetExt = hasKar ? '.kar' : '.mid';
-          } else if (hasMp4) {
-            targetExt = '.mp4';
-          } else if (hasWebm) {
-            targetExt = '.webm';
-          } else if (hasMp3) {
-            targetExt = '.mp3';
-          }
-
-          if (targetExt) {
-            const fullFilePath = path.join(dir, `${baseName}${targetExt}`);
-
-            // Ignore zero-byte / tiny incomplete files
-            try {
-              const st = fs.statSync(fullFilePath);
-              if (!st.isFile() || st.size < 2048) continue;
-            } catch {
-              continue;
-            }
-
-            // Prefer stable YouTube id when filename is `${youtubeId}_Artist - Title`
-            const ytPrefix = baseName.match(/^([\w-]{11})_(.+)$/);
-            const stableYtId = ytPrefix ? ytPrefix[1] : null;
-            const nameForMeta = ytPrefix ? ytPrefix[2] : baseName;
-            const parts = nameForMeta.split(' - ');
-            const artist = parts.length > 1 ? parts[0].trim() : 'Unknown Artist';
-            const title = parts.length > 1 ? parts.slice(1).join(' - ').trim() : nameForMeta.trim();
-
-            const thumb = this.getOrGenerateThumbnail(fullFilePath);
-
-            const track: KaraokeMediaTrack = {
-              id: stableYtId || `track_${Buffer.from(fullFilePath).toString('base64url')}`,
-              source,
-              title,
-              artist,
-              durationSec: 0,
-              uri: buildKaraokeLocalUri(fullFilePath),
-              localFilePath: fullFilePath,
-              thumbnailUrl: thumb,
-              hasEmbeddedLyrics: hasCdg || hasKar,
-              isMultiplex: false,
-              isEmbeddable: true
-            };
-
-            this.db.upsertTrack(track);
-            discovered.push(track);
-          }
-        }
-      } catch (err) {
-        console.warn(`Error scanning directory ${dir}:`, err);
-      }
-    };
-
-    walk(folderPath);
     return discovered;
   }
 

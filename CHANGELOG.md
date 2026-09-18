@@ -8,6 +8,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+### Fixed
+- **Library scan misses subfolders** — Refresh Library / startup reindex and download “already on disk” matching now walk all relative subdirectories under `libraryPath` (same audio/video / Instrumental / incomplete-file filters; path-based ids avoid double-count).
+
 ## [1.1.0] — AI extract race + web delete sync + download warnings (refresh) — 2026-09-17
 
 Overwrite of GitHub Release `v1.1.0` after PR #27 (Instrumental AI worker ready race) + PR #28 (Web search after library delete) + PR #29 (manual download warnings in Downloads menu).
