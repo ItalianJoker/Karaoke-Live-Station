@@ -685,6 +685,9 @@ const instrumentalAiSepSource = fs.readFileSync(
 assert(
   instrumentalAiSepSource.includes('computeAiSeparationTimeoutMs') &&
     instrumentalAiSepSource.includes('AI_SEPARATION_IDLE_TIMEOUT_MS') &&
+    instrumentalAiSepSource.includes('AI_SEPARATION_ORT_SILENCE_TIMEOUT_MS') &&
+    instrumentalAiSepSource.includes('AI_SEPARATION_PARENT_KEEPALIVE_MS') &&
+    instrumentalAiSepSource.includes('startParentKeepAlive') &&
     instrumentalAiSepSource.includes('AI_WORKER_READY_TIMEOUT_MS') &&
     instrumentalAiSepSource.includes('armIdleWatchdog') &&
     instrumentalAiSepSource.includes('sendSeparate') &&
@@ -715,9 +718,13 @@ assert(
       .readFileSync(path.resolve(__dirname, '../src/main/ai/MdxNetSeparator.ts'), 'utf8')
       .includes('onIntra') &&
     fs
+      .readFileSync(path.resolve(__dirname, '../src/main/ai/MdxNetSeparator.ts'), 'utf8')
+      .includes("mdxStepSamples('default'") &&
+    fs
       .readFileSync(path.resolve(__dirname, '../src/main/ai/audioFft.ts'), 'utf8')
-      .includes('getBluesteinPlan'),
-  'AI separation: ready-ping gate, output verify, debug stages, WAV guard, timeouts'
+      .includes('getBluesteinPlan') &&
+    fs.existsSync(path.resolve(__dirname, '../src/main/ai/mdxUvrGeometry.ts')),
+  'AI separation: UVR Default overlap, ORT keep-alive, ready-ping, output verify, timeouts'
 );
 
 assert(
@@ -2155,6 +2162,27 @@ console.log('\n\x1b[36m▶ Suite: AI instrumental extract WAV pipeline\x1b[0m');
       (extractRun.stdout || '').includes('All AI instrumental extract checks passed'),
     'verify-ai-instrumental-extract: naming + AI invoke + write + cleanup',
     (extractRun.stderr || extractRun.stdout || `exit ${extractRun.status}`).slice(0, 600)
+  );
+}
+
+// -------------------------------------------------------------
+// Suite: UVR-MDX geometry + ORT keep-alive wiring
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: UVR-MDX geometry (timeout / overlap)\x1b[0m');
+
+{
+  const { spawnSync } = require('child_process');
+  const geomVerify = path.resolve(__dirname, 'verify-mdx-uvr-geometry.js');
+  assert(fs.existsSync(geomVerify), 'verify-mdx-uvr-geometry.js exists');
+  const geomRun = spawnSync(process.execPath, [geomVerify], {
+    cwd: path.resolve(__dirname, '..'),
+    encoding: 'utf8',
+    timeout: 120000
+  });
+  assert(
+    geomRun.status === 0 && (geomRun.stdout || '').includes('verify-mdx-uvr-geometry: all checks passed'),
+    'verify-mdx-uvr-geometry: Default overlap fewer chunks than 50% OLA',
+    (geomRun.stderr || geomRun.stdout || `exit ${geomRun.status}`).slice(0, 600)
   );
 }
 

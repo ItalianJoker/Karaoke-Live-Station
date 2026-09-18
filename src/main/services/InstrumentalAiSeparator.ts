@@ -48,11 +48,23 @@ export const AI_SEPARATION_MAX_TIMEOUT_MS = 3 * 60 * 60 * 1000;
  */
 export const AI_SEPARATION_MS_PER_AUDIO_SEC = 45 * 1000;
 /**
- * Fail if the worker goes silent this long (no progress heartbeat).
- * First MDX chunk (STFT+ORT+iSTFT) can be multi-minute on CPU even with FFT plan cache;
- * intra-chunk heartbeats should reset this, but keep a generous backstop.
+ * Fail if the worker goes silent this long (no progress heartbeat) *before*
+ * `separate` is running, or between heartbeats when IPC is flowing.
+ * During blocking ORT WASM, IPC cannot flush — see ORT silence timeout + parent keep-alive.
  */
 export const AI_SEPARATION_IDLE_TIMEOUT_MS = 20 * 60 * 1000;
+/**
+ * Parent-side keep-alive while the worker may be inside blocking ORT WASM.
+ * Re-arms the short idle watchdog so expected ORT silence is not a false stall,
+ * while {@link AI_SEPARATION_ORT_SILENCE_TIMEOUT_MS} still bounds true hangs.
+ */
+export const AI_SEPARATION_PARENT_KEEPALIVE_MS = 60 * 1000;
+/**
+ * Max wall time with zero worker IPC after `separate` was sent.
+ * ORT WASM can block the worker event loop for many minutes per chunk; this is the
+ * real stall detector for that phase (short idle is intentionally re-armed).
+ */
+export const AI_SEPARATION_ORT_SILENCE_TIMEOUT_MS = 45 * 60 * 1000;
 /**
  * Max time to wait for the worker's ready ping (requestId 0) before sending `separate`.
  * Must NOT post separate on a fixed short timer — utilityProcess can drop messages posted
@@ -179,9 +191,12 @@ export async function separateInstrumentalWithAi(
   let hardTimer: ReturnType<typeof setTimeout> | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let readyTimer: ReturnType<typeof setTimeout> | null = null;
+  let parentKeepAliveTimer: ReturnType<typeof setInterval> | null = null;
   const hardTimeoutMs = computeAiSeparationTimeoutMs(options.durationSec);
   const startedAt = Date.now();
   let lastPhase: string | null = null;
+  let lastProgressAt = startedAt;
+  let lastProgressMessage = '';
 
   const kill = () => {
     try {
@@ -204,6 +219,10 @@ export async function separateInstrumentalWithAi(
     if (readyTimer) {
       clearTimeout(readyTimer);
       readyTimer = null;
+    }
+    if (parentKeepAliveTimer) {
+      clearInterval(parentKeepAliveTimer);
+      parentKeepAliveTimer = null;
     }
   };
 
@@ -280,14 +299,49 @@ export async function separateInstrumentalWithAi(
     const armIdleWatchdog = () => {
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
+        const silentSec = Math.round((Date.now() - lastProgressAt) / 1000);
         fail(
           `Instrumental AI separation stalled (no progress for ${Math.round(
             AI_SEPARATION_IDLE_TIMEOUT_MS / 60000
-          )} min). Try again or pick an algorithmic Download Instrumental method.`,
+          )} min; last update ${silentSec}s ago` +
+            `${lastProgressMessage ? `: ${lastProgressMessage}` : ''}` +
+            `${lastPhase ? `; phase=${lastPhase}` : ''}). ` +
+            `Cancel and retry, or pick an algorithmic Download Instrumental method.`,
           false,
           'idle_timeout'
         );
       }, AI_SEPARATION_IDLE_TIMEOUT_MS);
+    };
+
+    const startParentKeepAlive = () => {
+      if (parentKeepAliveTimer) return;
+      // ORT WASM often blocks the worker thread during session.run — no IPC heartbeats.
+      // Re-arm short idle so it does not false-timeout; enforce a longer ORT silence ceiling.
+      parentKeepAliveTimer = setInterval(() => {
+        if (settled) return;
+        const silentMs = Date.now() - lastProgressAt;
+        if (silentMs >= AI_SEPARATION_ORT_SILENCE_TIMEOUT_MS) {
+          fail(
+            `Instrumental AI separation stalled during ORT ` +
+              `(no worker progress for ${Math.round(silentMs / 60000)} min; ` +
+              `phase=${lastPhase || 'none'}` +
+              `${lastProgressMessage ? `; ${lastProgressMessage}` : ''}). ` +
+              `Cancel and retry, or pick an algorithmic Download Instrumental method.`,
+            false,
+            'ort_silence_timeout'
+          );
+          return;
+        }
+        armIdleWatchdog();
+        logger?.debug('InstrumentalAiSeparator', 'AI parent keep-alive (worker may be in ORT)', {
+          elapsedMs: Date.now() - startedAt,
+          lastPhase,
+          lastProgressMessage,
+          silentMs,
+          separateSent,
+          ortSilenceTimeoutMs: AI_SEPARATION_ORT_SILENCE_TIMEOUT_MS
+        });
+      }, AI_SEPARATION_PARENT_KEEPALIVE_MS);
     };
 
     const sendSeparate = () => {
@@ -318,6 +372,7 @@ export async function separateInstrumentalWithAi(
       } else {
         worker.proc.send(payload);
       }
+      startParentKeepAlive();
     };
 
     const onMsg = (raw: unknown) => {
@@ -334,6 +389,10 @@ export async function separateInstrumentalWithAi(
       if (!msg?.type) return;
       if (msg.type === 'progress') {
         // Any progress (including worker-ready ping) proves the child is alive.
+        lastProgressAt = Date.now();
+        if (typeof msg.message === 'string' && msg.message) {
+          lastProgressMessage = msg.message;
+        }
         armIdleWatchdog();
         if (msg.requestId === 0) {
           logger?.debug('InstrumentalAiSeparator', 'AI worker ready ping', {
@@ -425,6 +484,8 @@ export async function separateInstrumentalWithAi(
       workerScript: worker.script,
       timeoutMs: hardTimeoutMs,
       idleTimeoutMs: AI_SEPARATION_IDLE_TIMEOUT_MS,
+      ortSilenceTimeoutMs: AI_SEPARATION_ORT_SILENCE_TIMEOUT_MS,
+      parentKeepAliveMs: AI_SEPARATION_PARENT_KEEPALIVE_MS,
       readyTimeoutMs: AI_WORKER_READY_TIMEOUT_MS,
       durationSec: options.durationSec ?? null,
       note: 'Waiting for worker ready ping before sending separate (avoids dropped IPC)'
@@ -444,9 +505,10 @@ export async function separateInstrumentalWithAi(
     }, AI_WORKER_READY_TIMEOUT_MS);
     hardTimer = setTimeout(() => {
       fail(
-        `Instrumental AI separation timed out after ${Math.round(hardTimeoutMs / 60000)} min (track ~${Math.round(
-          options.durationSec || 240
-        )}s). CPU WASM can be slow; retry or use an algorithmic instrumental method.`,
+        `Instrumental AI separation timed out after ${Math.round(hardTimeoutMs / 60000)} min ` +
+          `(track ~${Math.round(options.durationSec || 240)}s; last phase=${lastPhase || 'none'}` +
+          `${lastProgressMessage ? `; ${lastProgressMessage}` : ''}). ` +
+          `CPU ORT WASM is slow for long tracks; cancel, retry, or use an algorithmic instrumental method.`,
         false,
         'hard_timeout'
       );

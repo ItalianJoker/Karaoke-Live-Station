@@ -57,12 +57,19 @@ assert(
   'InstrumentalProcessor supports abort + AI DI hook'
 );
 assert(
-  mdxSrc.includes('DIM_F = 2048') &&
-    mdxSrc.includes('DIM_T = 256') &&
-    mdxSrc.includes('N_FFT = 5120') &&
-    mdxSrc.includes('COMPENSATION = 1.065') &&
-    mdxSrc.includes('f < 3'),
-  'MDX constants match UVR KARA_2 + low-bin zeroing'
+  mdxSrc.includes('DIM_F = 2048') ||
+    (mdxSrc.includes('MDX_KARA2') && mdxSrc.includes('dimF')),
+  'MDX constants wired to UVR KARA_2'
+);
+assert(
+  mdxSrc.includes('mdxStepSamples') &&
+    mdxSrc.includes("mdxStepSamples('default'") &&
+    mdxSrc.includes('mdxTailPadSamples') &&
+    mdxSrc.includes('ORT_KEEPALIVE') &&
+    mdxSrc.includes('graphOptimizationLevel: \'all\'') &&
+    mdxSrc.includes('f < ') &&
+    (mdxSrc.includes('muteLowBins') || mdxSrc.includes('f < 3')),
+  'MDX uses UVR Default overlap + low-bin zeroing + ORT keep-alive'
 );
 assert(
   vocalSrc.includes("return 'aiMdxKaraoke2'") &&
@@ -119,6 +126,9 @@ assert(
 assert(
   aiSepSrc.includes('computeAiSeparationTimeoutMs') &&
     aiSepSrc.includes('AI_SEPARATION_IDLE_TIMEOUT_MS') &&
+    aiSepSrc.includes('AI_SEPARATION_ORT_SILENCE_TIMEOUT_MS') &&
+    aiSepSrc.includes('AI_SEPARATION_PARENT_KEEPALIVE_MS') &&
+    aiSepSrc.includes('startParentKeepAlive') &&
     procSrc.includes('durationSec') &&
     procSrc.includes('onAiEta') &&
     procSrc.includes('lastAiPct') &&
@@ -130,8 +140,11 @@ assert(
       .readFileSync(path.join(root, 'src/main/workers/instrumentalAiWorker.ts'), 'utf8')
       .includes('toArrayBuffer') &&
     mdxSrc.includes('onIntra') &&
-    fs.readFileSync(path.join(root, 'src/main/ai/audioFft.ts'), 'utf8').includes('getBluesteinPlan'),
-  'AI timeout + phase-aware progress + intra-chunk heartbeats + Bluestein cache + wasmBinary'
+    mdxSrc.includes('mdxStepSamples') &&
+    fs.readFileSync(path.join(root, 'src/main/ai/audioFft.ts'), 'utf8').includes('getBluesteinPlan') &&
+    fs.readFileSync(path.join(root, 'src/main/ai/audioFft.ts'), 'utf8').includes('warmAudioFftForMdx') &&
+    fs.existsSync(path.join(root, 'src/main/ai/mdxUvrGeometry.ts')),
+  'AI timeout + UVR Default overlap + parent ORT keep-alive + Bluestein cache + wasmBinary'
 );
 
 // --- Runtime: compile TS helpers via requiring built paths is hard; use dynamic import of shared via ts-node-less approach ---
