@@ -20,6 +20,11 @@ import type { OfflineVocalModelId, VocalModelDownloadProgress } from '../shared/
 /**
  * Secure IPC Bridge contract exposed to the renderer window via contextBridge.
  * Enforces isolation between Node.js / Electron APIs and React UI components.
+ *
+ * **Safety-First:** channel names and this surface are frozen unless an explicit
+ * breaking change is requested. Do not rename keys or remove Watchlist APIs
+ * (`onStageCrashed`, `downloads.findExisting`, `vocalModels.*`, `ortWasm.*`) —
+ * they may be unused by current renderer UI but remain live for main/dynamic callers.
  */
 export interface KaraokeAPI {
   // 1. Playback State Synchronization (Master <-> Main <-> Slave)
@@ -43,7 +48,7 @@ export interface KaraokeAPI {
   toggleStageFullscreen: () => Promise<{ isFullScreen: boolean }>;
   /** Listens for Stage window open/close status changes */
   onStageStatusChange: (callback: (status: { isOpen: boolean }) => void) => () => void;
-  /** Listens for Stage window renderer crash notifications */
+  /** Listens for Stage window renderer crash notifications (Watchlist: main emits; wire UI later) */
   onStageCrashed: (callback: (details: unknown) => void) => () => void;
   /** Signals that Stage window DOM, styles, and state are fully loaded and ready for rendering */
   signalStageReady: () => void;
@@ -106,7 +111,7 @@ export interface KaraokeAPI {
     cancel: (downloadId: string) => Promise<boolean>;
     /** Cancels all queued/in-flight downloads (Download menu clear) */
     cancelAll: () => Promise<{ cancelledIds: string[] }>;
-    /** Looks up an existing local library/cache copy before downloading */
+    /** Looks up an existing local library/cache copy before downloading (Watchlist: used by main DownloadManager; keep surface) */
     findExisting: (options: {
       url?: string;
       trackId?: string;
@@ -142,6 +147,7 @@ export interface KaraokeAPI {
   };
 
   // 6b. Offline AI models for Download Instrumental (userData/models) — not live dual-stem
+  // Watchlist: renderer may not call these; InstrumentalProcessor / managers use main-side equivalents.
   vocalModels: {
     isModelCached: (modelId: OfflineVocalModelId) => Promise<boolean>;
     ensureModel: (
@@ -168,7 +174,7 @@ export interface KaraokeAPI {
     onDownloadProgress: (callback: (progress: VocalModelDownloadProgress) => void) => () => void;
   };
 
-  // 6c. ORT WASM under userData/ort
+  // 6c. ORT WASM under userData/ort (Watchlist: keep for renderer/diagnostics; main OrtWasmManager is primary)
   ortWasm: {
     ensure: () => Promise<{
       success: boolean;

@@ -34,14 +34,24 @@ interface ActiveMidiVoice {
 }
 
 /**
- * - Media element audio routing with stereo phase vocoder pitch shifting (-8 to +8 semitones)
+ * Master Web Audio graph for Control Desk playback (media + MIDI/KAR).
+ *
+ * - Media element audio routing with stereo SoundTouch WSOLA pitch (−8…+8)
  * - Independent tempo scaling (0.50x to 1.50x)
- * - Guide-vocal removal: realtime algorithmic mid/side DSP only
+ * - Guide-vocal removal: realtime algorithmic mid/side DSP only (never live AI)
  * - Auto-ducking BGM attenuation when microphone input or host talks
  * - AudioWorklet-based General MIDI / SoundFont 2 synthesis via SpessaSynth
  * - Real-time channel muting (channels 0-15) without desynchronizing lyrics
- * - Continuous 100ms timeline sync and event scheduling
+ * - Continuous MIDI event scheduling (5 ms clock — see {@link startSchedulerTimer})
  * - Secondary device CUE / Pre-listening routing (setSinkId)
+ *
+ * **Critical invariants (Safety-First):**
+ * - `latencyHint: 'playback'` on AudioContext (stable buffer, not interactive)
+ * - Master gain = `volume²` clamped [0,1] ({@link computePerceptualGain})
+ * - Pitch 0 bypasses SoundTouch via {@link PitchShifterNode}
+ * - SpessaSynth MIDI scheduler ticks every **5 ms** (worker or fallback interval)
+ *
+ * @see scripts/verify-critical-invariants.js
  */
 export class AudioGraphManager {
   private audioCtx: AudioContext | null = null;
@@ -108,11 +118,15 @@ export class AudioGraphManager {
    * Lazily initializes and resumes the main AudioContext, wiring the master gain,
    * delay sync, and ducking nodes.
    *
+   * Why `latencyHint: 'playback'`: favors larger, stable buffers for karaoke PA
+   * over lowest-latency interactive mode (reduces underruns under UI load).
+   *
    * @returns The active AudioContext instance
    */
   public async initAudioContext(): Promise<AudioContext> {
     if (!this.audioCtx) {
       const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      // INVARIANT: keep latencyHint 'playback' — do not switch to 'interactive' without measuring Stage sync.
       this.audioCtx = new AudioCtxClass({ latencyHint: 'playback' });
 
       // Master Output Graph
@@ -360,16 +374,16 @@ export class AudioGraphManager {
   /**
    * Computes perceptual gain using a quadratic audio taper curve.
    *
+   * **Critical invariant:** `gain = volume²` with volume clamped to [0, 1].
+   * Do not replace with a linear fader or alternate exponents without operator UX sign-off
+   * (Suite 1 + `verify-critical-invariants.js` lock this curve).
+   *
    * Psychoacoustic rationale: Human perception of sound pressure level is logarithmic
-   * (governed by the Weber-Fechner law). A linear gain fader produces an unnatural response
-   * where volume changes precipitously near 0 and remains almost flat between 0.5 and 1.0.
-   * Using a quadratic power curve (Gain = volume^2) provides a natural, smooth, and progressive
-   * volume taper across the entire 0.0 to 1.0 slider travel:
-   * - volume = 1.00 -> gain = 1.0000 (0.0 dB, full scale)
-   * - volume = 0.75 -> gain = 0.5625 (-5.0 dB)
-   * - volume = 0.50 -> gain = 0.2500 (-12.0 dB, perceived as half loudness)
-   * - volume = 0.25 -> gain = 0.0625 (-24.1 dB, soft background level)
-   * - volume = 0.00 -> gain = 0.0000 (-infinity dB, complete silence)
+   * (Weber-Fechner). A linear gain fader changes precipitously near 0 and stays flat
+   * between 0.5 and 1.0. Quadratic taper examples:
+   * - volume = 1.00 → gain = 1.0000 (0.0 dB)
+   * - volume = 0.50 → gain = 0.2500 (−12.0 dB, perceived half loudness)
+   * - volume = 0.00 → gain = 0.0000
    *
    * @param volume - Slider position normalized from 0.0 (silent) to 1.0 (full)
    * @param isMuted - When true, forces output gain to 0.0 regardless of slider level
@@ -651,7 +665,12 @@ export class AudioGraphManager {
   }
 
   /**
-   * Starts high-resolution 5ms background clock loop using Web Worker or interval.
+   * Starts the SpessaSynth / MIDI high-resolution clock.
+   *
+   * **Critical invariant:** tick every **5 ms** (Worker preferred, `setInterval` fallback).
+   * Why: event priority order + lyric sync depend on this cadence; coarsening it
+   * desynchronizes KAR lyrics and note-ons under load. Do not add Control↔Stage latency
+   * in this path.
    */
   private startSchedulerTimer(): void {
     this.stopSchedulerTimer();
@@ -681,7 +700,7 @@ export class AudioGraphManager {
       };
       this.workerTimer.postMessage('start');
     } catch {
-      // Fallback to window.setInterval if Web Worker creation fails
+      // Fallback to window.setInterval if Web Worker creation fails — still 5 ms.
       this.fallbackIntervalId = window.setInterval(() => {
         this.tickMidiScheduler();
       }, 5);

@@ -10,6 +10,7 @@
  * 6. Default Settings & Feature Flags
  * 7. Vocal Remover — algorithmic mid/side DSP + offline AI (MDX / HTDemucs / BS-Roformer)
  * 8. SIAE History Tracking & Duplicate Protection (120s Threshold, Natural End, ISO 8601 Timestamps)
+ * Plus: critical domain invariants source-lock, AI vocal path routing, MessageEvent unwrap, MDX geometry/settings
  */
 
 const fs = require('fs');
@@ -2335,6 +2336,50 @@ console.log('\n\x1b[36m▶ Suite: AI worker IPC MessageEvent unwrap\x1b[0m');
       (ipcRun.stdout || '').includes('verify-ai-worker-ipc-unwrap: all checks passed'),
     'verify-ai-worker-ipc-unwrap: MessageEvent unwrap + hardening wiring',
     (ipcRun.stderr || ipcRun.stdout || `exit ${ipcRun.status}`).slice(0, 600)
+  );
+}
+
+// -------------------------------------------------------------
+// Suite: Critical domain invariants (Safety-First source-lock)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Critical domain invariants\x1b[0m');
+
+{
+  const { spawnSync } = require('child_process');
+  const invVerify = path.resolve(__dirname, 'verify-critical-invariants.js');
+  assert(fs.existsSync(invVerify), 'verify-critical-invariants.js exists');
+  const invRun = spawnSync(process.execPath, [invVerify], {
+    cwd: path.resolve(__dirname, '..'),
+    encoding: 'utf8',
+    timeout: 60000
+  });
+  assert(
+    invRun.status === 0 &&
+      (invRun.stdout || '').includes('verify-critical-invariants: all checks passed'),
+    'verify-critical-invariants: pitch0 / volume² / MessageEvent / SIAE 120s / queue_cache GC / SpessaSynth',
+    (invRun.stderr || invRun.stdout || `exit ${invRun.status}`).slice(0, 600)
+  );
+}
+
+// -------------------------------------------------------------
+// Suite: AI vocal path routing (Download Instrumental)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: AI vocal path (Download Instrumental)\x1b[0m');
+
+{
+  const { spawnSync } = require('child_process');
+  const vocalVerify = path.resolve(__dirname, 'verify-ai-vocal-path.js');
+  assert(fs.existsSync(vocalVerify), 'verify-ai-vocal-path.js exists');
+  const vocalRun = spawnSync(process.execPath, [vocalVerify], {
+    cwd: path.resolve(__dirname, '..'),
+    encoding: 'utf8',
+    timeout: 180000
+  });
+  assert(
+    vocalRun.status === 0 &&
+      (vocalRun.stdout || '').includes('All AI vocal path checks passed'),
+    'verify-ai-vocal-path: AI vs DSP routing + abort + default aiMdxKaraoke2',
+    (vocalRun.stderr || vocalRun.stdout || `exit ${vocalRun.status}`).slice(0, 600)
   );
 }
 
