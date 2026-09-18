@@ -695,6 +695,7 @@ assert(
     instrumentalAiSepSource.includes('durationSec') &&
     instrumentalAiSepSource.includes('assertAiInputIsWav') &&
     instrumentalAiSepSource.includes('output_missing') &&
+    instrumentalAiSepSource.includes('attachWorkerStdioLogging') &&
     instrumentalProcessorSource.includes('onAiEta') &&
     instrumentalProcessorSource.includes('readPcmWavDurationSec') &&
     instrumentalProcessorSource.includes('lastAiPct') &&
@@ -715,6 +716,13 @@ assert(
       .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
       .includes('ortBackend') &&
     fs
+      .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
+      .includes('unwrapAiWorkerInboundMessage') &&
+    fs
+      .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
+      .includes("await import('demucs-web')") &&
+    fs.existsSync(path.resolve(__dirname, '../src/main/workers/aiWorkerMessage.ts')) &&
+    fs
       .readFileSync(path.resolve(__dirname, '../src/main/ai/MdxNetSeparator.ts'), 'utf8')
       .includes('onIntra') &&
     fs
@@ -724,7 +732,7 @@ assert(
       .readFileSync(path.resolve(__dirname, '../src/main/ai/audioFft.ts'), 'utf8')
       .includes('getBluesteinPlan') &&
     fs.existsSync(path.resolve(__dirname, '../src/main/ai/mdxUvrGeometry.ts')),
-  'AI separation: UVR Default overlap, ORT keep-alive, ready-ping, output verify, timeouts'
+  'AI separation: UVR Default overlap, ORT keep-alive, ready-ping, MessageEvent unwrap, timeouts'
 );
 
 assert(
@@ -2231,6 +2239,28 @@ console.log('\n\x1b[36m▶ Suite: UVR-MDX geometry (timeout / overlap)\x1b[0m');
     geomRun.status === 0 && (geomRun.stdout || '').includes('verify-mdx-uvr-geometry: all checks passed'),
     'verify-mdx-uvr-geometry: Default overlap fewer chunks than 50% OLA',
     (geomRun.stderr || geomRun.stdout || `exit ${geomRun.status}`).slice(0, 600)
+  );
+}
+
+// -------------------------------------------------------------
+// Suite: AI worker parentPort MessageEvent unwrap
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: AI worker IPC MessageEvent unwrap\x1b[0m');
+
+{
+  const { spawnSync } = require('child_process');
+  const ipcVerify = path.resolve(__dirname, 'verify-ai-worker-ipc-unwrap.js');
+  assert(fs.existsSync(ipcVerify), 'verify-ai-worker-ipc-unwrap.js exists');
+  const ipcRun = spawnSync(process.execPath, [ipcVerify], {
+    cwd: path.resolve(__dirname, '..'),
+    encoding: 'utf8',
+    timeout: 60000
+  });
+  assert(
+    ipcRun.status === 0 &&
+      (ipcRun.stdout || '').includes('verify-ai-worker-ipc-unwrap: all checks passed'),
+    'verify-ai-worker-ipc-unwrap: MessageEvent unwrap + hardening wiring',
+    (ipcRun.stderr || ipcRun.stdout || `exit ${ipcRun.status}`).slice(0, 600)
   );
 }
 
