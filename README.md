@@ -656,17 +656,36 @@ If you find **Karaoke Live Station** valuable for your shows, venues, or private
 | **onnxruntime-web** | ORT WASM engine for Download Instrumental AI (UVR-MDX-NET / HTDemucs) |
 | **demucs-web** | HTDemucs ONNX wrapper (lazy-loaded on HTDemucs path only) |
 | **fft.js** | Bluestein STFT / iSTFT for MDX (`audioFft.ts`) |
-| **ffmpeg-static** | Instrumental demux / remux and thumbnails |
+| **ffmpeg-static** | Instrumental demux / remux and thumbnails (ASAR-unpacked) |
+| **better-sqlite3** | Catalog + SIAE history (WAL; ASAR-unpacked) |
 | **electron** | Main + utilityProcess AI worker (ORT off the UI thread) |
-| **zustand** | Persisted settings (instrumental method + MDX knobs) |
+| **zustand** | Persisted settings (`useKaraokeStore` in `src/renderer/store/karaokeStore.ts`) |
+| **soundtouchjs** | Live pitch WSOLA (bypassed at pitch 0) |
+| **spessasynth_lib** | MIDI/KAR SoundFont synth (5 ms scheduler, `latencyHint: 'playback'`) |
+| **qrcode** | Guest Portal LAN QR generation |
+| **clsx** / **tailwind-merge** | Declared class-name helpers (Watchlist: unused in current `src/`; do not remove without audit) |
 
-### AI Context Guidelines (for developers / agents)
+### AI Context & Critical Invariants (for developers / agents)
 
+**AI context**
 - **Live Vocal Remover (`V`)** = algorithmic mid/side DSP only; never AI / live dual-stem.
 - **Download Instrumental** = offline AI (models under `userData/models`) or DSP; method is independent from live.
 - Code comments in **English**; UI/manuals IT/EN/ES/FR.
 - Do not revive closed no-merge UI restyle PRs; do not merge/release-overwrite until Luca says **Si**.
 - MDX advanced knobs (`mdxSegmentSize` / `mdxOverlap` / `mdxEnableOrt`) only when method is `aiMdxKaraoke2`; otherwise omit them from the worker payload.
+- Frozen contracts: IPC / `electronAPI` (`src/preload/index.ts`), `src/shared/types.ts`, Zustand `useKaraokeStore` shape, SQLite WAL schema. Dynamic/preload/Socket.IO/global-shortcut handlers → **Watchlist** (never delete as “dead”).
+
+**Critical invariants (must not regress)**
+| Invariant | Location | Rule |
+| :--- | :--- | :--- |
+| Pitch 0 = SoundTouch bypass | `PitchShifterNode` | `semitones === 0` → ScriptProcessor off path (zero CPU) |
+| Volume gain = volume² | `AudioGraphManager.computePerceptualGain` | Clamp volume to [0,1]; mute → 0 |
+| AI worker MessageEvent unwrap | `aiWorkerMessage.unwrapAiWorkerInboundMessage` | Prefer bare `type`; else `raw.data` |
+| SIAE ≥ 120s | `karaokeStore.logCurrentTrackExecution` | Natural end **or** elapsed ≥ 120s |
+| GC only `queue_cache/` | Store + `DownloadManager.deleteCachedFile` | Never delete under `libraryPath` |
+| SpessaSynth 5 ms + playback | `AudioGraphManager` | `latencyHint: 'playback'`; scheduler interval **5 ms** |
+
+Automated lock: `scripts/verify-critical-invariants.js` (also run via `npm test`).
 
 ---
 
@@ -682,14 +701,20 @@ Karaoke Live Station is powered by open-source libraries, open standards, and co
 | **SoundTouch / SoundTouchJS** | Olli Parviainen & Jakub Fiala | LGPL 2.1 / MIT | [gitlab.com/soundtouch/soundtouch](https://gitlab.com/soundtouch/soundtouch) • [github.com/jakubfiala/soundtouchjs](https://github.com/jakubfiala/soundtouchjs) | Studio-grade WSOLA algorithm for pitch shifting and tempo stretching |
 | **GeneralUser GS SoundFont** | S. Christian Collins | Permissive GeneralUser License | [schristiancollins.com](http://www.schristiancollins.com/generaluser.php) | High-definition 31 MB General MIDI SoundFont bank bundled for realistic instruments |
 | **better-sqlite3** | Joshua Wise | MIT | [github.com/WiseLibs/better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | High-performance synchronous SQLite driver in WAL mode (media library & SIAE history) |
+| **ONNX Runtime Web** | Microsoft | MIT | [github.com/microsoft/onnxruntime](https://github.com/microsoft/onnxruntime) | WASM inference for Download Instrumental AI (UVR-MDX-NET / Demucs) |
+| **demucs-web** | demucs-web authors | See package | [npmjs.com/package/demucs-web](https://www.npmjs.com/package/demucs-web) | HTDemucs ONNX helper (lazy-loaded) |
+| **fft.js** | Jens Nockert / contributors | MIT | [github.com/indutny/fft.js](https://github.com/indutny/fft.js) | Bluestein FFT for MDX STFT / iSTFT |
 | **Electron** | OpenJS Foundation & Electron Contributors | MIT | [electronjs.org](https://www.electronjs.org/) | Multi-window native desktop runtime (Control Desk & Stage Display) |
-| **React** | Meta Platforms, Inc. | MIT | [react.dev](https://react.dev/) | Reactive, component-based UI layer for operator console and stage displays |
+| **React** / **react-dom** | Meta Platforms, Inc. | MIT | [react.dev](https://react.dev/) | Reactive, component-based UI layer for operator console and stage displays |
 | **Tailwind CSS** | Tailwind Labs, Inc. | MIT | [tailwindcss.com](https://tailwindcss.com/) | High-performance CSS framework powering the 9 visual themes |
 | **Express** | OpenJS Foundation | MIT | [expressjs.com](https://expressjs.com/) | Embedded lightweight HTTP server powering the local LAN Guest Portal |
 | **Socket.IO** | Automattic & Socket.IO Contributors | MIT | [socket.io](https://socket.io/) | Real-time full-duplex WebSocket communication between guest mobiles and DJ desk |
+| **qrcode** | Ryan Day / contributors | MIT | [github.com/soldair/node-qrcode](https://github.com/soldair/node-qrcode) | QR encoding for Guest Portal URL |
 | **Lucide Icons** | Lucide Contributors | ISC | [lucide.dev](https://lucide.dev/) | Clean, consistent vector iconography throughout the application |
 | **Zustand** | Paul Henschel & Zustand contributors | MIT | [github.com/pmndrs/zustand](https://github.com/pmndrs/zustand) | Centralized, reactive global application state management |
 | **i18next & react-i18next** | i18next Community | MIT | [i18next.com](https://www.i18next.com/) | Comprehensive internationalization framework (English, Italian, Spanish, French) |
+| **clsx** | Luke Edwards | MIT | [github.com/lukeed/clsx](https://github.com/lukeed/clsx) | Class-name composition helper (declared; see Watchlist) |
+| **tailwind-merge** | Dany Castillo | MIT | [github.com/dcastil/tailwind-merge](https://github.com/dcastil/tailwind-merge) | Tailwind class conflict merge helper (declared; see Watchlist) |
 
 ---
 

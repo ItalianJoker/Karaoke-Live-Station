@@ -68,6 +68,11 @@ export interface KaraokeStoreState {
   updateQueueItemSinger: (queueId: string, singerName: string) => void;
   jumpToQueueItem: (queueIndex: number) => void;
   advanceToNextTrack: (options?: { naturalEnd?: boolean }) => QueueItem | null;
+  /**
+   * Logs SIAE borderò when criteria are met.
+   * **Critical invariant:** natural end **or** elapsed ≥ 120 seconds; never log below that
+   * unless naturalEnd. Duplicate-guarded via `alreadyLogged`.
+   */
   logCurrentTrackExecution: (options?: { naturalEnd?: boolean }) => boolean;
   clearQueue: () => void;
 
@@ -205,10 +210,18 @@ let transitionTimer: ReturnType<typeof setTimeout> | null = null;
 /**
  * Deletes a cached media file from queue_cache if it is no longer referenced
  * by any item in the remaining queue.
+ *
+ * **Critical invariant (Safety-First):** GC only touches paths under `queue_cache/`
+ * or with a `qc_` prefix. Never delete files under `libraryPath` / permanent library.
+ * Main-process {@link DownloadManager.deleteCachedFile} also refuses paths outside
+ * queue_cache and temp.
+ *
+ * @param filePath - Candidate cache path (ignored when missing or non-cache)
+ * @param remainingQueue - Queue after removal; skip delete if path still referenced
  */
 export function cleanupQueueCacheFileIfUnreferenced(filePath?: string, remainingQueue: QueueItem[] = []): void {
   if (!filePath || typeof window === 'undefined' || !window.karaokeApi?.downloads?.deleteCachedFile) return;
-  // Only garbage collect files located in queue_cache or with qc_ prefix
+  // INVARIANT: never GC permanent library media
   if (!filePath.includes('queue_cache') && !filePath.includes('qc_')) return;
 
   const isStillReferenced = remainingQueue.some(
@@ -686,6 +699,7 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
 
         const isNaturalEnd = options?.naturalEnd === true;
         const currentElapsedSec = playback.currentTime || 0;
+        // INVARIANT: SIAE threshold is 120s — do not lower without legal/ops sign-off
         const reachedMinThreshold = currentElapsedSec >= 120;
 
         // Strict criteria: must reach natural end OR be played for at least 120s (2 minutes)

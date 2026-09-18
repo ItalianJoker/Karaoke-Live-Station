@@ -1281,6 +1281,16 @@ export class DownloadManager {
     };
   }
 
+  /**
+   * Deletes a file under `queue_cache/` or `temp/` only.
+   *
+   * **Critical invariant (Safety-First):** refuses any path outside those roots —
+   * never deletes permanent `libraryPath` media. Paired with renderer
+   * `cleanupQueueCacheFileIfUnreferenced` path-string guard.
+   *
+   * @param filePath - Absolute path candidate
+   * @returns `{ success: true }` only when unlink ran under an allowed root
+   */
   public async deleteCachedFile(filePath: string): Promise<{ success: boolean }> {
     if (!filePath || typeof filePath !== 'string') return { success: false };
 
@@ -1291,6 +1301,7 @@ export class DownloadManager {
       const isInCache = resolvedPath.startsWith(resolvedCache + path.sep);
       const isInTemp = resolvedPath.startsWith(resolvedTemp + path.sep);
 
+      // INVARIANT: libraryPath and other user media are never deletable here
       if (!isInCache && !isInTemp) {
         console.warn('Security guard: Refused deletion of file outside queue_cache/temp:', filePath);
         return { success: false };

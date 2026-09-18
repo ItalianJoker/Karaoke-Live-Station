@@ -9,16 +9,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- None yet.
+- **Critical domain invariants source-lock** — `scripts/verify-critical-invariants.js` (pitch-0 SoundTouch bypass, volume², AI MessageEvent unwrap, SIAE ≥120s, queue_cache-only GC, SpessaSynth 5 ms + `latencyHint: 'playback'`, ASAR unpack for `better-sqlite3` / `ffmpeg-static`); wired into `npm test` together with `verify-ai-vocal-path.js`.
+- **README AI Context & Critical Invariants** — dual-audience block (human + agents) documenting frozen IPC/Zustand/SQLite contracts and the six absolute guardrails; expanded library citation table (ORT, demucs-web, fft.js, qrcode, clsx, tailwind-merge).
 
 ### Changed
 - **Library / Web search** — Removed the “Cantante assegnato…” preselect field. Singer assignment happens only in the add-to-queue modal (enqueue / assign). Regia theme chrome unchanged.
+- **Safety-First documentation pass (slice 1)** — high-density Why/TSDoc on hot audio, store GC, DownloadManager delete guard, AI worker unwrap, and preload Watchlist surfaces. No IPC / Zustand / SQLite schema / Control↔Stage sync behavior changes.
 
 ### Fixed
-- None yet.
+- None (documentation + non-regression locks only).
+
+### Performance
+- None in this slice (granular Zustand selectors deferred to Watchlist).
+
+### Dependencies
+- Inventory only: `clsx` / `tailwind-merge` remain declared but unused in `src/` (Watchlist — do not remove without follow-up). Lucide imports already named/tree-shakeable; no packaging change.
+
+### Refactoring
+- Conservative comments/TSDoc only; no dead-code deletions of dynamic/preload/Socket.IO/shortcut handlers.
+
+### Tests
+- `npm test` includes critical-invariants + AI vocal-path verifies; existing suites unchanged in semantics.
+
+### Documentation
+- README Critical Invariants + library table; CHANGELOG / RELEASE_NOTES (IT+EN) for this Safety-First slice.
 
 ### Breaking Changes
-- None yet.
+- None.
 
 ## [1.1.0] — yt-dlp error -1 Download Instrumental (refresh) — 2026-09-18
 

@@ -2,12 +2,17 @@ import { SoundTouch } from 'soundtouchjs';
 
 /**
  * PitchShifterNode
- * 
+ *
  * High-quality stereo real-time pitch shifter using SoundTouch WSOLA
  * (Waveform Similarity Overlap-Add).
  * Transposes audio pitch from -8 to +8 semitones while maintaining 100% constant playback speed,
  * completely eliminating comb-filtering distortion, metallic flanging, and volume wobbles.
- * When semitones === 0, audio passes through with zero latency and zero CPU cost.
+ *
+ * **Critical invariant (Safety-First):** when semitones === 0, SoundTouch WSOLA is
+ * bypassed (`input → output` direct). ScriptProcessor must stay off the realtime
+ * path at pitch 0 — leaving it connected causes audible underruns under UI load.
+ *
+ * @see scripts/verify-critical-invariants.js
  */
 export class PitchShifterNode {
   private processor: ScriptProcessorNode;
@@ -85,6 +90,14 @@ export class PitchShifterNode {
     }
   }
 
+  /**
+   * Sets live pitch offset in whole semitones (−8…+8).
+   *
+   * Why: `clamped === 0` must disconnect ScriptProcessor (bypass). Non-zero
+   * reconnects WSOLA. Do not keep the processor hot at pitch 0 “for convenience”.
+   *
+   * @param semitones - Requested offset; rounded and clamped to [−8, +8]
+   */
   public setPitchOffset(semitones: number): void {
     const clamped = Math.max(-8, Math.min(8, Math.round(semitones)));
     if (clamped === this.semitones) return;
