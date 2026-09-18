@@ -1327,6 +1327,17 @@ export const ControlWindow: React.FC = () => {
                     message: mediaErr?.message,
                     src: e.currentTarget.currentSrc
                   });
+                  // Mid-session USB unplug / deleted file — surface MissingFileModal (no uncaught rejection)
+                  const track = useKaraokeStore.getState().queue[0]?.track;
+                  const queueId = useKaraokeStore.getState().queue[0]?.queueId;
+                  if (track && trackNeedsLocalFileCheck(track)) {
+                    pauseResetForMissingFile();
+                    openMissingForQueueItem(
+                      track,
+                      track.localFilePath || e.currentTarget.currentSrc || '',
+                      queueId
+                    );
+                  }
                 }}
                 onLoadedMetadata={(e) => {
                   const video = e.currentTarget;
