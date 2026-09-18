@@ -86,9 +86,6 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   const webSearchOffsetRef = useRef(0);
   /** Bumped on cancel so late yt-dlp results are ignored and loading flags stay clear. */
   const webSearchGenRef = useRef(0);
-  const [completedDownloads, setCompletedDownloads] = useState<
-    Array<{ id: string; title: string; artist: string }>
-  >([]);
   const [localTracks, setLocalTracks] = useState<KaraokeMediaTrack[]>([]);
   const storeSingers = useKaraokeStore((state) => state.singers);
   const singers = React.useMemo(() => {
@@ -226,18 +223,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
           }
         }
 
-        if (payload.status === 'completed') {
-          const associatedTrack = trackMap[payload.downloadId];
-          if (associatedTrack) {
-            setCompletedDownloads((prev) => {
-              if (prev.some((c) => c.id === payload.downloadId)) return prev;
-              return [
-                { id: payload.downloadId, title: associatedTrack.title, artist: associatedTrack.artist },
-                ...prev
-              ].slice(0, 12);
-            });
-          }
-        }
+        // Download success status stays in the header Downloads menu only —
+        // no overlay "Download completato" badge in the library panel.
 
         if (payload.status === 'completed' && payload.outputFilePath) {
           const associatedTrack = trackMap[payload.downloadId];
@@ -936,35 +923,6 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
           </datalist>
         </div>
       </div>
-
-      {/* Completed download badges (dismissible) */}
-      {completedDownloads.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {completedDownloads.map((item) => (
-            <div
-              key={item.id}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-950/70 border border-emerald-700/60 text-emerald-300 text-[11px] font-semibold shadow-sm"
-              data-testid="download-complete-badge"
-            >
-              <span>
-                {t('library.downloadComplete', 'Download completato')}: {item.title}
-                {item.artist ? ` — ${item.artist}` : ''}
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setCompletedDownloads((prev) => prev.filter((d) => d.id !== item.id))
-                }
-                className="p-0.5 rounded-full hover:bg-emerald-900/80 text-emerald-200 hover:text-white transition-colors"
-                title={t('common.close', 'Chiudi')}
-                aria-label={t('common.close', 'Chiudi')}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Results List */}
       <div

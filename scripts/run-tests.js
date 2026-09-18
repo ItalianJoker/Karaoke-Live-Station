@@ -1277,10 +1277,15 @@ assert(
   'Library persists query and filters results reactively via db.searchTracks'
 );
 assert(
-  libraryPanelSourceP45.includes('download-complete-badge') &&
-    libraryPanelSourceP45.includes('Download completato') &&
-    libraryPanelSourceP45.includes('setCompletedDownloads'),
-  'Dismissible Download completato badge is implemented'
+  !libraryPanelSourceP45.includes('download-complete-badge') &&
+    !libraryPanelSourceP45.includes('setCompletedDownloads') &&
+    !libraryPanelSourceP45.includes('completedDownloads'),
+  'Library panel no longer shows overlay Download completato badge (status stays in Downloads menu)'
+);
+assert(
+  controlWindowSourceP45.includes("dl.status === 'completed'") &&
+    controlWindowSourceP45.includes("t('library.downloadCompleted')"),
+  'Downloads menu still surfaces completed download status'
 );
 assert(
   libraryPanelSourceP45.includes('thumbnailUrl') || libraryPanelSourceP45.includes('thumbnail'),
