@@ -9,22 +9,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- **Missing local media handling** — IPC `library:check-file-exists` → `{ exists, path }` (preload `checkFileExists` → boolean). Library enqueue and Control play/jump/auto-advance probe local paths before AudioGraph/`<video>`; on miss: pause/reset, mark `missingTrackIds` (rose-500/70 + FileX/AlertCircle), open `MissingFileModal` with **Elimina** / **Lascia in elenco**. Never auto-deletes catalog/queue. Remote/YouTube without `localFilePath` and empty/web URLs skip fs. (feat(library): missing local file handling)
+- None yet.
 
 ### Changed
 - None yet.
 
 ### Fixed
-- **Download Instrumental yt-dlp HTTP 429** — `--sub-langs all,-live_chat` requested ~130 subtitle languages and YouTube rate-limited the whole download. Use `.*-orig` (original-language auto-subs only; valid Python regex — not bare `*-orig`).
+- None yet.
 
 ### Breaking Changes
 - None yet.
 
-## [1.2.0] — Drag & Drop, scan latency, SoundFont, Safety-First — 2026-09-18
+## [1.2.0] — Drag & Drop, scan, SoundFont, missing files, yt-dlp `.*-orig` — 2026-09-18
 
-New GitHub Release `v1.2.0` after batch PRs #40–#44 + #46–#47 (#45 skipped). Does **not** overwrite `v1.1.0`.
+Overwrite of GitHub Release `v1.2.0` after PRs **#48** + **#49** (on top of batch #40–#44 + #46–#47; #45 skipped). Same version number; does **not** touch `v1.1.0`.
 
 ### Added
+- **Missing local media handling** — IPC `library:check-file-exists` → `{ exists, path }` (preload `checkFileExists` → boolean). Library enqueue and Control play/jump/auto-advance probe local paths before AudioGraph/`<video>`; on miss: pause/reset, mark `missingTrackIds` (rose-500/70 + FileX/AlertCircle), open `MissingFileModal` with **Elimina** / **Lascia in elenco**. Mid-play USB unplug / deleted file opens the same modal via `<video onError>`. Never auto-deletes catalog/queue. Remote/YouTube without `localFilePath` and empty/web URLs skip fs. (PR #49)
 - **OS filesystem Drag & Drop import** — Drop karaoke media onto Local Library (catalog) or Control queue (catalog + enqueue). Formats: `.mp4`/`.webm`/`.mkv`/`.avi`, `.mp3`+`.cdg`, `.mid`/`.kar`. IPC `library:import-files`, preload `library.importFiles` + `webUtils.getPathForFile`, batch SQLite transaction for multi-file, video thumbnails with yields between files. Overlay only when `dataTransfer.types` includes `Files` (queue reorder unchanged). (PR #47)
 - **SoundFont dropdown** — Settings → Audio lists bundled/present banks; **Altro…** opens a file picker for an external `.sf2` / `.sf3`. Selection persists in `midiSoundFontPath` and loads via existing AudioGraphManager / SpessaSynth path (scheduler / latencyHint unchanged). (PR #44)
 - **Critical domain invariants source-lock** — `scripts/verify-critical-invariants.js` (pitch-0 SoundTouch bypass, volume², AI MessageEvent unwrap, SIAE ≥120s, queue_cache-only GC, SpessaSynth 5 ms + `latencyHint: 'playback'`, ASAR unpack for `better-sqlite3` / `ffmpeg-static`); wired into `npm test` together with `verify-ai-vocal-path.js`. (PR #41)
@@ -37,8 +38,9 @@ New GitHub Release `v1.2.0` after batch PRs #40–#44 + #46–#47 (#45 skipped).
 - **Download completed overlay** — Removed the green dismissible Library overlay badge; completion / errors remain in the header Downloads menu. (PR #42)
 
 ### Fixed
+- **Download Instrumental yt-dlp HTTP 429** — `--sub-langs all,-live_chat` requested ~130 subtitle languages and YouTube rate-limited the whole download. Use `.*-orig` (original-language auto-subs only; valid Python regex — not bare `*-orig`). (PR #48)
 - **AppImage SoundFont path** — Bundled `GeneralUser-GS.sf2` is seeded to `<userData>/soundfonts/` (like ORT/yt-dlp). Persisted `/tmp/.mount_*` AppImage paths are treated as ephemeral and re-resolved on startup so `karaoke://local` no longer 404s. Packaging: top-level `extraResources` ships `public/soundfonts` + `public/ort` **once** (platform blocks only add `bin/` — avoids electron-builder EEXIST/EBUSY double-link). (PR #44)
-- **yt-dlp `--sub-langs` invalid regex** — Replaced `en.*,it.*,es.*,fr.*,*-orig` with documented `all,-live_chat` for instrumental auto-subs; log non-zero exit / spawn failures to the structured Logger as well as the Download panel. (PR #40)
+- **yt-dlp `--sub-langs` invalid regex** — Replaced `en.*,it.*,es.*,fr.*,*-orig` with a valid selector; later tightened to `.*-orig` (PR #48). Log non-zero exit / spawn failures to the structured Logger as well as the Download panel. (PR #40)
 
 ### Breaking Changes
 - None.
