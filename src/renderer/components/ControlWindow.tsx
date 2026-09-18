@@ -857,7 +857,7 @@ export const ControlWindow: React.FC = () => {
           <img
             src={appLogo}
             alt="Karaoke Live Station"
-            className="w-10 h-10 object-contain drop-shadow-[0_2px_8px_rgba(99,102,241,0.35)] shrink-0"
+            className="w-10 h-10 object-contain drop-shadow-[0_2px_10px_rgba(62,207,190,0.35)] shrink-0"
           />
           <div>
             <h1 className="font-extrabold text-sm tracking-wide text-white">{t('app.title')}</h1>
