@@ -9,7 +9,7 @@
 <a name="v110-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.1.0 (refresh)
 
-Aggiornamento della release **v1.1.0** (overwrite GitHub): **Interrompi ricerca** Web (yt-dlp) + **fix IPC MessageEvent** utility worker AI + scan libreria ricorsivo + AI UVR Default / keep-alive ORT + race worker extract WAV + sync Web dopo Elimina + avvisi Download + log debug AI + naming WAV + Actions Node 24 + staging Instrumental + path `//home/...` + SoundFont + progresso ~45% + Carica altri / Pulisci coda + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
+Aggiornamento della release **v1.1.0** (overwrite GitHub): **impostazioni avanzate UVR-MDX-NET (ETA)** per Scarica strumentale + revert restyle Indigo Regia (#36) + **Interrompi ricerca** Web (yt-dlp) + **fix IPC MessageEvent** utility worker AI + scan libreria ricorsivo + AI UVR / keep-alive ORT + race worker extract WAV + sync Web dopo Elimina + avvisi Download + log debug AI + naming WAV + Actions Node 24 + staging Instrumental + path `//home/...` + SoundFont + progresso ~45% + Carica altri / Pulisci coda + velocità/ETA + timeout AI + impostazioni separate + annulla + AI strumentale + ricerca senza accenti.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,14 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **Interrompi ricerca*
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa refresh
+
+### 🎛️ Scarica strumentale — Impostazioni avanzate UVR-MDX-NET (ETA)
+- Con metodo **UVR-MDX-NET Karaoke 2**, Impostazioni → Audio mostra **Impostazioni Avanzate UVR-MDX-NET (Ottimizzazione ETA)**: dimensione segmento (default **256**), overlap frazionario (default **0.25**), toggle accelerazione ORT WASM (graph opts + SIMD; ORT resta obbligatorio).
+- I knobs persistono in AppSettings e **non** vengono inviati al worker per Demucs / Roformer / DSP.
+- L’overlap runtime usa la frazione Impostazioni (`mdxStepSamples`); l’overlap UVR «Default» resta disponibile per helper/export.
+
+### ↩️ UI — revert Dark Stage Indigo Regia
+- Annullato il restyle Indigo Regia e la rimozione del preselect **Cantante assegnato** introdotti da PR #36 (chrome Regia e UX cantante tornano al comportamento precedente).
 
 ### ⏹️ Ricerca Web — Interrompi ricerca
 - Pulsante **Interrompi ricerca** (IT/EN/ES/FR) mentre la ricerca Web o «Carica altri» è in corso: abort yt-dlp via IPC, azzera lo stato di loading, evita risultati in ritardo.
@@ -141,7 +149,7 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **Interrompi ricerca*
 <a name="v110-english"></a>
 # 🇬🇧 Release Notes — Version 1.1.0 (refresh)
 
-GitHub Release **v1.1.0** overwrite: **Stop web search** (yt-dlp cancel) + **AI utility-worker MessageEvent IPC unwrap** + recursive library scan + UVR Default / ORT keep-alive + Instrumental AI worker ready race (extract WAV) + Web search after library delete + manual download warnings + AI debug logs + WAV naming + Actions Node 24 + Instrumental staging + path `//home/...` + SoundFont + ~45% progress + Load more / Clear downloads + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
+GitHub Release **v1.1.0** overwrite: **UVR-MDX-NET advanced ETA settings** for Download Instrumental + revert Indigo Regia restyle (#36) + **Stop web search** (yt-dlp cancel) + **AI utility-worker MessageEvent IPC unwrap** + recursive library scan + UVR / ORT keep-alive + Instrumental AI worker ready race (extract WAV) + Web search after library delete + manual download warnings + AI debug logs + WAV naming + Actions Node 24 + Instrumental staging + path `//home/...` + SoundFont + ~45% progress + Load more / Clear downloads + speed/ETA + AI timeout + split Settings + cancel + Instrumental AI + accent-insensitive search.
 
 ## 📦 Installers
 
@@ -154,6 +162,14 @@ GitHub Release **v1.1.0** overwrite: **Stop web search** (yt-dlp cancel) + **AI 
 | **macOS** | `Karaoke Live Station-1.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new in this refresh
+
+### 🎛️ Download Instrumental — UVR-MDX-NET advanced ETA settings
+- When method is **UVR-MDX-NET Karaoke 2**, Settings → Audio shows **Advanced UVR-MDX-NET Settings (ETA Optimization)**: segment size (default **256**), fractional overlap (default **0.25**), honest ORT WASM CPU acceleration toggle (graph opts + SIMD; ORT still required).
+- Knobs persist in AppSettings and are **omitted** from the AI worker payload for Demucs / Roformer / DSP.
+- Runtime overlap uses the Settings fraction (`mdxStepSamples`); UVR “Default” overlap remains available for helpers/exports.
+
+### ↩️ UI — revert Dark Stage Indigo Regia
+- Undoes the Indigo Regia restyle and assigned-singer preselect removal from PR #36 (Regia chrome and singer UX restored to pre-#36 behavior).
 
 ### ⏹️ Web search — Stop search
 - **Stop search** button (IT/EN/ES/FR) while Web search or “Load more” is running: abort yt-dlp via IPC, clear loading UI, ignore late results.
