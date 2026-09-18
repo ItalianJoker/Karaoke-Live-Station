@@ -8,14 +8,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
-## [1.1.0] — Dark Stage Indigo Regia restyle + singer UX (refresh) — 2026-09-18
-
-Overwrite of GitHub Release `v1.1.0` after UI chrome restyle (approved indigo Regia mockup) + remove Library/Web “Cantante assegnato” preselect.
-
-### Changed
-- **Regia visual chrome** — self-hosted Outfit + Source Sans 3; atmosphere gradients; softer borders; accent-rim panel elevation; theme tokens remapped so all 9 Settings themes share the new chrome (default remains dark-stage indigo `#6366f1` / `#070b14`).
-- **Singer assignment UX** — removed the Library / Web search “Cantante assegnato…” quick field; singer is chosen only when enqueueing (assign modal / queue / preview).
-
 ## [1.1.0] — Stop web search + AI worker MessageEvent IPC (refresh) — 2026-09-18
 
 Overwrite of GitHub Release `v1.1.0` after PR #32 (Interrompi ricerca / cancel stuck YouTube web search) + PR #33 (utilityProcess parentPort MessageEvent unwrap so Instrumental AI `separate` runs).
