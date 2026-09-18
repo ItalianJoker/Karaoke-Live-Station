@@ -7,12 +7,14 @@
  *   out: { type:'progress', requestId, phase, progress, message }
  *        { type:'done', requestId, outputWav }
  *        { type:'error', requestId, message }
+ *
+ * Note: Electron parentPort delivers MessageEvent { data, ports } — unwrap via
+ * {@link unwrapAiWorkerInboundMessage}. Fork IPC delivers the bare payload.
  */
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
 import * as ort from 'onnxruntime-web';
-import { DemucsProcessor, CONSTANTS } from 'demucs-web';
 import {
   isAiVocalRemoverMethod,
   methodToModelId,
@@ -20,6 +22,7 @@ import {
 } from '../../shared/vocalRemover';
 import { MdxNetSeparator, MDX_SAMPLE_RATE } from '../ai/MdxNetSeparator';
 import { readPcmWavFile, writePcmWavFile } from '../ai/wavPcm';
+import { unwrapAiWorkerInboundMessage } from './aiWorkerMessage';
 
 type SeparateRequest = {
   type: 'separate';
@@ -138,6 +141,8 @@ async function separateDemucs(
   outputWav: string,
   requestId: number
 ): Promise<void> {
+  // Lazy-load demucs-web only on HTDemucs path so MDX boot does not require() ESM.
+  const { DemucsProcessor, CONSTANTS } = await import('demucs-web');
   const wasmPaths = ortWasmConfigFromDir(ortDir);
   ort.env.wasm.numThreads = 1;
   ort.env.wasm.simd = true;
@@ -255,7 +260,8 @@ async function handleSeparate(req: SeparateRequest): Promise<void> {
 }
 
 function onMessage(raw: unknown): void {
-  const data = raw as SeparateRequest;
+  // utilityProcess parentPort → MessageEvent { data, ports }; fork IPC → bare payload.
+  const data = unwrapAiWorkerInboundMessage(raw) as SeparateRequest | null;
   if (!data || data.type !== 'separate') return;
   void handleSeparate(data).catch((err) => {
     post({

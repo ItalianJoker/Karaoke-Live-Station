@@ -156,6 +156,26 @@ function spawnWorker(): WorkerHandle {
   return { kind: 'fork', proc, script };
 }
 
+/** Drain piped worker stdio so crash traces are not lost (stdio:'pipe' without readers). */
+function attachWorkerStdioLogging(worker: WorkerHandle, logger?: Logger): void {
+  const emit = (stream: 'stdout' | 'stderr', chunk: Buffer | string) => {
+    const text = String(chunk).replace(/\r?\n$/, '');
+    if (!text) return;
+    for (const line of text.split(/\r?\n/)) {
+      if (!line) continue;
+      if (stream === 'stderr') {
+        logger?.warn('InstrumentalAiSeparator', `AI worker stderr: ${line}`);
+      } else {
+        logger?.debug('InstrumentalAiSeparator', `AI worker stdout: ${line}`);
+      }
+    }
+  };
+  const stdout = worker.proc.stdout;
+  const stderr = worker.proc.stderr;
+  stdout?.on('data', (chunk: Buffer | string) => emit('stdout', chunk));
+  stderr?.on('data', (chunk: Buffer | string) => emit('stderr', chunk));
+}
+
 /**
  * Run one AI separation job. Creates a short-lived worker per call so ORT memory
  * is released after the instrumental remux.
@@ -185,6 +205,7 @@ export async function separateInstrumentalWithAi(
   const modelId = methodToModelId(method);
   const catalog = OFFLINE_VOCAL_MODELS[modelId];
   const worker = spawnWorker();
+  attachWorkerStdioLogging(worker, logger);
   let requestId = 1;
   let settled = false;
   let separateSent = false;
