@@ -265,10 +265,11 @@ h3,
 /*
  * Focus ring — keyboard/accessibility polish.
  * Prefer outline-offset: 0. A positive offset expands the outline path so
- * corners look rounder/softer than the control and leave uneven gaps
- * (especially visible on rounded selects).
+ * corners look rounder/softer than the control and leave uneven gaps.
+ * Native <select> is excluded: Chromium/Electron still paints outline out of
+ * sync with select border-radius; selects use the box-shadow rule below.
  */
-:where(button, a, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+:where(button, a, input, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 0;
 }
@@ -278,16 +279,16 @@ h3,
 }
 
 /*
- * Native <select> chrome (Settings + similar menus): use a box-shadow ring so
- * the focus stroke follows border-radius uniformly across all themes. Outline
- * alone still mismatches native select painting in Electron/Chromium when the
- * popup is open.
+ * Native <select> chrome (Settings + similar menus): accent border + box-shadow
+ * ring follows border-radius uniformly across all themes. Kill outline hard —
+ * outline + offset left corner gaps / uneven thickness on rounded selects.
  */
 html body select:focus,
 html body select:focus-visible {
-  outline: none;
+  outline: none !important;
+  outline-offset: 0 !important;
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 75%, transparent);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 /* Align native range controls with theme accent */
