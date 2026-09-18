@@ -66,7 +66,8 @@ Aggiornamento della release **v1.1.0** (overwrite GitHub): **fix yt-dlp error -1
 - Log `debug` più ricchi lungo la pipeline Instrumental (extract / modello / ORT / remux / cleanup), senza segreti.
 - Extract demux: `{id}.extract.wav` (stem dell’MP4 sorgente); output AI: `{id}.instrumental.extract.wav`; cleanup temp per `downloadId`.
 
-### 🛠️ CI — Actions su runtime Node 24
+### 🛠️ CI — pin Ubuntu 24.04 + Actions su runtime Node 24
+- Job Linux Actions fissati su `ubuntu-24.04` (non più `ubuntu-latest`) per evitare il passaggio automatico a Ubuntu 26 (ottobre 2026); `windows-latest` / `macos-latest` invariati.
 - `actions/checkout`, `setup-node`, `upload-artifact` aggiornati a major Node 24; toolchain app resta su Node 20.
 
 ### 📥 Scarica strumentale — staging originale affidabile
@@ -211,7 +212,8 @@ GitHub Release **v1.1.0** overwrite: **yt-dlp error -1 fix** (Download Instrumen
 - Richer `debug` logs across the Instrumental pipeline (extract / model / ORT / remux / cleanup), no secrets.
 - Demux extract: `{id}.extract.wav` (source MP4 stem); AI output: `{id}.instrumental.extract.wav`; per-`downloadId` temp cleanup.
 
-### 🛠️ CI — Actions on Node 24 runtimes
+### 🛠️ CI — pin Ubuntu 24.04 + Actions on Node 24 runtimes
+- Linux Actions jobs pinned to `ubuntu-24.04` (not `ubuntu-latest`) to avoid the automatic move to Ubuntu 26 (October 2026); `windows-latest` / `macos-latest` unchanged.
 - Bumped `actions/checkout`, `setup-node`, `upload-artifact` to Node 24 majors; app toolchain stays on Node 20.
 
 ### 📥 Download Instrumental — reliable original staging

@@ -12,7 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - None yet.
 
 ### Changed
-- None yet.
+- **CI** — Linux GitHub Actions jobs pinned from `ubuntu-latest` to `ubuntu-24.04` (LTS) so the Oct 2026 migration of `ubuntu-latest` → Ubuntu 26 does not surprise the build matrix; `windows-latest` / `macos-latest` unchanged.
 
 ### Fixed
 - None yet.
