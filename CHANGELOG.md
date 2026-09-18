@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+## [1.1.0] — Recursive library scan + UVR Default AI chunking (refresh) — 2026-09-18
+
+Overwrite of GitHub Release `v1.1.0` after PR #30 (recursive library subfolder scan) + PR #31 (UVR-aligned MDX chunking / ORT keep-alive).
+
 ### Fixed
 - **Instrumental AI stuck → timeout** — UVR-MDX Karaoke 2 now uses UVR GUI **Default** overlap (`step = chunk_size - n_fft`) with zero-pad/trim/Hann OLA instead of ~50% triangular windows (~2× fewer ORT runs). Parent keep-alive + 45 min ORT-silence ceiling avoid false idle kills while WASM blocks IPC during `session.run`. Clearer stall/timeout logs; FFT scratch lanes + plan warm-up.
 - **Library scan misses subfolders** — Refresh Library / startup reindex and download “already on disk” matching now walk all relative subdirectories under `libraryPath` (same audio/video / Instrumental / incomplete-file filters; path-based ids avoid double-count).
