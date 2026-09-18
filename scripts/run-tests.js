@@ -2627,7 +2627,8 @@ console.log('\n\x1b[36m▶ Suite 12: OS filesystem drag-drop import\x1b[0m');
     mainIndexSource.includes("ipcMain.handle('library:import-files'") &&
       mainIndexSource.includes('discoverLibraryFilesFromPaths') &&
       mainIndexSource.includes('importFiles') &&
-      mainIndexSource.includes('upsertTracksBatch'),
+      mainIndexSource.includes('upsertTracksBatch') &&
+      mainIndexSource.includes('enqueueThumbnailBackfill'),
     'Main exposes library:import-files with batch upsert'
   );
   assert(

@@ -1424,51 +1424,60 @@ class KaraokeMainProcess {
   /**
    * Import absolute media paths (OS drag-and-drop) into the SQLite catalog.
    *
-   * Why: multi-drop must stay responsive — thumbs are generated only for video
-   * files with a yield between ffmpeg calls; multi-row writes use one transaction.
+   * Why: multi-drop must stay responsive — reuse #46 scan pattern: peek cached
+   * thumbs only on the hot path, batch upsert, then async FFmpeg backfill.
    * Does not alter scanFolder behavior.
    *
    * @param filePaths - Absolute filesystem paths from the renderer
-   * @returns Catalogued tracks (with thumbnails when video + ffmpeg succeed)
+   * @returns Catalogued tracks (cached thumbs when present; missing video thumbs backfilled async)
    */
   private async importFiles(filePaths: string[]): Promise<KaraokeMediaTrack[]> {
     const found = discoverLibraryFilesFromPaths(filePaths);
     if (!found.length) return [];
 
-    const tracks: KaraokeMediaTrack[] = found.map((item) => ({
-      id: item.idHint,
-      source: item.source,
-      title: item.title,
-      artist: item.artist,
-      durationSec: 0,
-      uri: buildKaraokeLocalUri(item.absolutePath),
-      localFilePath: item.absolutePath,
-      thumbnailUrl: undefined,
-      hasEmbeddedLyrics: item.hasEmbeddedLyrics,
-      isMultiplex: false,
-      isEmbeddable: true
-    }));
-
-    // Batch persist first so the catalog is durable even if thumb generation is slow.
-    this.db.upsertTracksBatch(tracks);
-
-    for (let i = 0; i < tracks.length; i++) {
-      const track = tracks[i];
-      const filePath = track.localFilePath;
-      if (!filePath) continue;
-      const ext = path.extname(filePath).toLowerCase();
-      if (ext !== '.mp4' && ext !== '.webm' && ext !== '.mkv' && ext !== '.avi') {
-        continue;
+    const existingByPath = new Map<string, KaraokeMediaTrack>();
+    try {
+      for (const t of this.db.getAllTracks()) {
+        if (t.localFilePath) {
+          existingByPath.set(t.localFilePath.toLowerCase(), t);
+        }
       }
-      // Yield so IPC / UI keep breathing during multi-drop ffmpeg work.
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      const thumb = this.getOrGenerateThumbnail(filePath);
-      if (thumb) {
-        track.thumbnailUrl = thumb;
-        this.db.upsertTrack(track);
-      }
+    } catch (err) {
+      this.logger.warn('LibraryImport', 'Failed loading existing catalog for thumb reuse', {
+        error: String(err)
+      });
     }
 
+    const needThumbIds: string[] = [];
+    const tracks: KaraokeMediaTrack[] = [];
+
+    for (const item of found) {
+      const prev = existingByPath.get(item.absolutePath.toLowerCase());
+      let thumb = prev?.thumbnailUrl;
+      if (!thumb) {
+        thumb = this.peekCachedThumbnail(item.absolutePath);
+      }
+      const track: KaraokeMediaTrack = {
+        id: item.idHint,
+        source: item.source,
+        title: item.title,
+        artist: item.artist,
+        durationSec: 0,
+        uri: buildKaraokeLocalUri(item.absolutePath),
+        localFilePath: item.absolutePath,
+        thumbnailUrl: thumb,
+        hasEmbeddedLyrics: item.hasEmbeddedLyrics,
+        isMultiplex: false,
+        isEmbeddable: true
+      };
+      if (!thumb && track.localFilePath && this.isVideoThumbnailCandidate(track.localFilePath)) {
+        needThumbIds.push(track.id);
+      }
+      tracks.push(track);
+    }
+
+    this.db.upsertTracksBatch(tracks);
+    this.enqueueThumbnailBackfill(needThumbIds);
     return tracks;
   }
 
