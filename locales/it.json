@@ -58,7 +58,9 @@
     "confirmClear": "Sei sicuro di voler svuotare l'intera scaletta della coda?",
     "cleared": "Coda svuotata con successo",
     "hintPlayOrDoubleClick": "Doppio click o Play per avviare",
-    "confirmRemove": "Rimuovere questo brano dalla coda?"
+    "confirmRemove": "Rimuovere questo brano dalla coda?",
+    "dropToImport": "Trascina qui i file media per importarli e metterli in coda",
+    "importDropped": "Importati e messi in coda {{count}} brano/i"
   },
   "singers": {
     "title": "Gestione Cantanti",
@@ -104,7 +106,11 @@
     "modeWeb": "Web / YouTube",
     "scanFolder": "Aggiorna Libreria",
     "scanSuccess": "Aggiornamento completato: {{count}} brani catalogati!",
-    "downloading": "Download in corso...",
+    "dropToImport": "Trascina qui i file media per aggiungerli alla libreria",
+    "importSuccess": "Importati {{count}} brano/i in libreria",
+    "importNoFiles": "Nessun file karaoke supportato in questo drop (mp4/webm/mkv/avi, mp3+cdg, mid/kar)",
+    "importFailed": "Impossibile importare i file trascinati",
+    "downloading": "Download in corso…",
     "downloadsActive": "Download in Corso",
     "saveToLibrary": "Salva in Libreria",
     "savedSuccess": "Brano salvato correttamente nella libreria locale: {{title}}",

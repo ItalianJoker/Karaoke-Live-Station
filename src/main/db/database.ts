@@ -279,10 +279,10 @@ export class DatabaseManager {
 
   /**
    * Batch upsert inside a single SQLite transaction (one prepare, one commit).
-   * Used by library scan so ~N tracks do not each auto-commit.
+   * Used by library scan and OS drag-drop import so ~N tracks do not each auto-commit.
    * Still runs path-dedupe delete per track (anti-ghost) inside the same transaction.
    *
-   * @param tracks - Tracks discovered by a folder scan
+   * @param tracks - Tracks to insert/update (order preserved for callers)
    */
   public upsertTracksBatch(tracks: KaraokeMediaTrack[]): void {
     if (!tracks.length) return;

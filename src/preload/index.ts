@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from 'electron';
 import {
   ActivePlaybackState,
   KaraokeMediaTrack,
@@ -82,6 +82,16 @@ export interface KaraokeAPI {
   library: {
     /** Scans a local filesystem folder for media files */
     scanFolder: (folderPath: string) => Promise<KaraokeMediaTrack[]>;
+    /**
+     * Catalog absolute filesystem paths (OS drag-and-drop import).
+     * Why: additive IPC — does not replace or alter scanFolder.
+     */
+    importFiles: (filePaths: string[]) => Promise<KaraokeMediaTrack[]>;
+    /**
+     * Resolve an absolute path for a File from an HTML5 drop / input.
+     * Prefers Electron webUtils.getPathForFile; falls back to legacy File.path.
+     */
+    getPathForFile: (file: File) => string;
     /** Searches YouTube for karaoke backing tracks (optional offset/limit for Load more) */
     searchYouTube: (
       query: string,
@@ -331,6 +341,21 @@ const karaokeApi: KaraokeAPI = {
   // Library Scanner & YouTube Search
   library: {
     scanFolder: (folderPath: string) => ipcRenderer.invoke('library:scan-folder', folderPath),
+    importFiles: (filePaths: string[]) => ipcRenderer.invoke('library:import-files', filePaths),
+    /**
+     * Absolute path for a dropped File (sandbox-safe).
+     * Watchlist: keep even if some call sites look unused — required by OS DnD.
+     */
+    getPathForFile: (file: File) => {
+      try {
+        const fromWebUtils = webUtils.getPathForFile(file);
+        if (fromWebUtils) return fromWebUtils;
+      } catch {
+        // Fall through to legacy File.path (older Electron / non-sandbox)
+      }
+      const legacy = (file as File & { path?: string }).path;
+      return typeof legacy === 'string' ? legacy : '';
+    },
     searchYouTube: (query: string, options?: { offset?: number; limit?: number }) =>
       ipcRenderer.invoke('search:youtube', query, options),
     cancelYouTubeSearch: () => ipcRenderer.invoke('search:youtube:cancel'),
@@ -414,7 +439,10 @@ const karaokeApi: KaraokeAPI = {
       ]),
     openMediaFile: () =>
       ipcRenderer.invoke('dialog:open-file', [
-        { name: 'Karaoke Files (*.mp4, *.mp3, *.mid, *.kar, *.cdg)', extensions: ['mp4', 'mp3', 'mid', 'kar', 'cdg', 'webm'] }
+        {
+          name: 'Karaoke Files (*.mp4, *.webm, *.mkv, *.avi, *.mp3, *.mid, *.kar, *.cdg)',
+          extensions: ['mp4', 'webm', 'mkv', 'avi', 'mp3', 'mid', 'kar', 'cdg']
+        }
       ]),
     openDirectory: () => ipcRenderer.invoke('dialog:open-directory'),
     openImageFile: () =>

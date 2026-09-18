@@ -58,7 +58,9 @@
     "confirmClear": "Are you sure you want to clear the entire playback queue?",
     "cleared": "Queue cleared successfully",
     "hintPlayOrDoubleClick": "Double-click or Play to start",
-    "confirmRemove": "Remove this track from the queue?"
+    "confirmRemove": "Remove this track from the queue?",
+    "dropToImport": "Drop media files to import and add to the queue",
+    "importDropped": "Imported and queued {{count}} track(s)"
   },
   "singers": {
     "title": "Singers Management",
@@ -104,6 +106,10 @@
     "modeWeb": "Web / YouTube",
     "scanFolder": "Refresh Library",
     "scanSuccess": "Library refresh complete: {{count}} tracks cataloged!",
+    "dropToImport": "Drop media files to add them to the library",
+    "importSuccess": "Imported {{count}} track(s) into the library",
+    "importNoFiles": "No supported karaoke files in this drop (mp4/webm/mkv/avi, mp3+cdg, mid/kar)",
+    "importFailed": "Could not import dropped files",
     "downloading": "Downloading...",
     "downloadsActive": "Active Downloads",
     "saveToLibrary": "Save to Library",

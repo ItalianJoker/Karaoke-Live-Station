@@ -32,7 +32,7 @@ import {
 } from '../shared/vocalRemover';
 import { ORT_WASM_ASSET_FILES } from '../shared/ortWasm';
 import { resolveKaraokeLocalFilePath, buildKaraokeLocalUri } from '../shared/karaokeLocalPath';
-import { discoverLibraryMedia } from '../shared/libraryScanner';
+import { discoverLibraryMedia, discoverLibraryFilesFromPaths } from '../shared/libraryScanner';
 
 /**
  * Returns the corresponding MIME content-type for audio/video media files.
@@ -902,6 +902,14 @@ class KaraokeMainProcess {
       return this.scanFolder(folderPath);
     });
 
+    /**
+     * Catalog absolute filesystem paths from OS drag-and-drop (or equivalent).
+     * Why: extends the library surface without changing scanFolder contracts.
+     */
+    ipcMain.handle('library:import-files', async (_event, filePaths: string[]) => {
+      return this.importFiles(Array.isArray(filePaths) ? filePaths : []);
+    });
+
     ipcMain.handle(
       'search:youtube',
       async (
@@ -1306,10 +1314,10 @@ class KaraokeMainProcess {
 
   /**
    * Recursively scans a filesystem directory (and all relative subfolders) for
-   * karaoke files (.mp4, .webm, .mp3+.cdg, .mid, .kar), extracts song titles and
-   * artist names from filename patterns ("Artist - Title"), and persists them
-   * to the SQLite library table. Discovery logic lives in shared/libraryScanner
-   * so recursive coverage is unit-tested without Electron.
+   * karaoke files (.mp4, .webm, .mkv, .avi, .mp3+.cdg, .mid, .kar), extracts song
+   * titles and artist names from filename patterns ("Artist - Title"), and
+   * persists them to the SQLite library table. Discovery logic lives in
+   * shared/libraryScanner so recursive coverage is unit-tested without Electron.
    *
    * Scan path is FFmpeg-free: reuses DB / disk cache thumbnails only, then batch-upserts
    * in one SQLite transaction. Missing video thumbs are filled by async backfill.
@@ -1411,6 +1419,66 @@ class KaraokeMainProcess {
       fs.mkdirSync(thumbsDir, { recursive: true });
     }
     return this.thumbnailCacheFilePath(localFilePath);
+  }
+
+  /**
+   * Import absolute media paths (OS drag-and-drop) into the SQLite catalog.
+   *
+   * Why: multi-drop must stay responsive — reuse #46 scan pattern: peek cached
+   * thumbs only on the hot path, batch upsert, then async FFmpeg backfill.
+   * Does not alter scanFolder behavior.
+   *
+   * @param filePaths - Absolute filesystem paths from the renderer
+   * @returns Catalogued tracks (cached thumbs when present; missing video thumbs backfilled async)
+   */
+  private async importFiles(filePaths: string[]): Promise<KaraokeMediaTrack[]> {
+    const found = discoverLibraryFilesFromPaths(filePaths);
+    if (!found.length) return [];
+
+    const existingByPath = new Map<string, KaraokeMediaTrack>();
+    try {
+      for (const t of this.db.getAllTracks()) {
+        if (t.localFilePath) {
+          existingByPath.set(t.localFilePath.toLowerCase(), t);
+        }
+      }
+    } catch (err) {
+      this.logger.warn('LibraryImport', 'Failed loading existing catalog for thumb reuse', {
+        error: String(err)
+      });
+    }
+
+    const needThumbIds: string[] = [];
+    const tracks: KaraokeMediaTrack[] = [];
+
+    for (const item of found) {
+      const prev = existingByPath.get(item.absolutePath.toLowerCase());
+      let thumb = prev?.thumbnailUrl;
+      if (!thumb) {
+        thumb = this.peekCachedThumbnail(item.absolutePath);
+      }
+      const track: KaraokeMediaTrack = {
+        id: item.idHint,
+        source: item.source,
+        title: item.title,
+        artist: item.artist,
+        durationSec: 0,
+        uri: buildKaraokeLocalUri(item.absolutePath),
+        localFilePath: item.absolutePath,
+        thumbnailUrl: thumb,
+        hasEmbeddedLyrics: item.hasEmbeddedLyrics,
+        isMultiplex: false,
+        isEmbeddable: true
+      };
+      if (!thumb && track.localFilePath && this.isVideoThumbnailCandidate(track.localFilePath)) {
+        needThumbIds.push(track.id);
+      }
+      tracks.push(track);
+    }
+
+    this.db.upsertTracksBatch(tracks);
+    this.enqueueThumbnailBackfill(needThumbIds);
+    return tracks;
   }
 
   /**

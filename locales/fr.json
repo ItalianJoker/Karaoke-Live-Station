@@ -58,7 +58,9 @@
     "confirmClear": "Êtes-vous sûr de vouloir vider l'ensemble de la file d'attente ?",
     "cleared": "File d'attente vidée avec succès",
     "hintPlayOrDoubleClick": "Double-clic ou Play pour démarrer",
-    "confirmRemove": "Retirer ce titre de la file ?"
+    "confirmRemove": "Retirer ce titre de la file ?",
+    "dropToImport": "Déposez des fichiers média pour les importer et les ajouter à la file",
+    "importDropped": "{{count}} morceau(x) importé(s) et mis en file"
   },
   "singers": {
     "title": "Gestion des Chanteurs",
@@ -104,6 +106,10 @@
     "modeWeb": "Web / YouTube",
     "scanFolder": "Actualiser Bibliothèque",
     "scanSuccess": "Actualisation terminée : {{count}} morceaux catalogués !",
+    "dropToImport": "Déposez des fichiers média pour les ajouter à la bibliothèque",
+    "importSuccess": "{{count}} morceau(x) importé(s) dans la bibliothèque",
+    "importNoFiles": "Aucun fichier karaoké pris en charge dans ce dépôt (mp4/webm/mkv/avi, mp3+cdg, mid/kar)",
+    "importFailed": "Impossible d'importer les fichiers déposés",
     "downloading": "Téléchargement...",
     "downloadsActive": "Téléchargements Actifs",
     "saveToLibrary": "Enregistrer dans la Bibliothèque",
