@@ -1138,10 +1138,15 @@ assert(
 );
 
 const mainScanSource = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+const libraryScannerSourceDedupe = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/libraryScanner.ts'),
+  'utf8'
+);
 const databaseSourceDedupe = fs.readFileSync(path.resolve(__dirname, '../src/main/db/database.ts'), 'utf8');
 assert(
-  mainScanSource.includes('.part') &&
-    mainScanSource.includes('stableYtId') &&
+  mainScanSource.includes('discoverLibraryMedia') &&
+    libraryScannerSourceDedupe.includes('.part') &&
+    libraryScannerSourceDedupe.includes('stableYtId') &&
     databaseSourceDedupe.includes('deleteTracksByLocalPathExcept') &&
     databaseSourceDedupe.includes('dedupeTracksByIdentity'),
   'Library scan skips incomplete files, prefers YouTube ids, and DB collapses path duplicates'
@@ -1518,6 +1523,138 @@ assert(
     libraryMembershipSource.includes('collectDeletedLibraryMatchKeys'),
   'Shared libraryMembership exports revert + identity match helpers'
 );
+
+// -------------------------------------------------------------
+// Suite: Recursive library scan (subfolders under library root)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Recursive library media discovery\x1b[0m');
+
+{
+  const mainIndexSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/index.ts'),
+    'utf8'
+  );
+  const downloadManagerSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+    'utf8'
+  );
+  const scannerSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/shared/libraryScanner.ts'),
+    'utf8'
+  );
+
+  assert(
+    scannerSource.includes('export function discoverLibraryMedia') &&
+      scannerSource.includes('export function findMediaMatchInTree') &&
+      /walk\s*\(/.test(scannerSource) &&
+      scannerSource.includes('isDirectoryEntry'),
+    'libraryScanner exports recursive discover + media-match helpers'
+  );
+  assert(
+    mainIndexSource.includes("from '../shared/libraryScanner'") &&
+      mainIndexSource.includes('discoverLibraryMedia'),
+    'Main scanFolder uses shared discoverLibraryMedia (recursive)'
+  );
+  assert(
+    downloadManagerSource.includes('findMediaMatchInTree') &&
+      downloadManagerSource.includes("from '../../shared/libraryScanner'"),
+    'DownloadManager existing-media match walks library subfolders'
+  );
+
+  const { spawnSync } = require('child_process');
+  const scannerPath = path.resolve(__dirname, '../src/shared/libraryScanner.ts');
+  const probe = spawnSync(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      '--no-warnings',
+      '-e',
+      `
+      import fs from 'fs';
+      import path from 'path';
+      import os from 'os';
+      import {
+        discoverLibraryMedia,
+        findMediaMatchInTree,
+        LIBRARY_SCAN_MIN_BYTES
+      } from ${JSON.stringify(scannerPath)};
+
+      const assert = (c, m) => { if (!c) { console.error('PROBE_FAIL', m); process.exit(2); } };
+
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kls-lib-scan-'));
+      try {
+        const nested = path.join(root, 'Italian', 'Battisti');
+        const deep = path.join(nested, 'Hits');
+        fs.mkdirSync(deep, { recursive: true });
+        fs.mkdirSync(path.join(root, '.git'), { recursive: true });
+        fs.mkdirSync(path.join(root, 'node_modules', 'pkg'), { recursive: true });
+
+        const pad = (n) => Buffer.alloc(Math.max(n, LIBRARY_SCAN_MIN_BYTES), 1);
+        fs.writeFileSync(path.join(root, 'Top - Level.mp4'), pad(4096));
+        fs.writeFileSync(path.join(nested, 'Lucio Battisti - La canzone.mp4'), pad(4096));
+        fs.writeFileSync(
+          path.join(deep, 'dQw4w9WgXcQ_Artist - Song (Instrumental).mp4'),
+          pad(4096)
+        );
+        fs.writeFileSync(path.join(deep, 'Tiny.mp4'), Buffer.alloc(100));
+        fs.writeFileSync(path.join(deep, 'Incomplete.mp4.part'), pad(4096));
+        fs.writeFileSync(path.join(deep, 'Pair.mp3'), pad(4096));
+        fs.writeFileSync(path.join(deep, 'Pair.cdg'), pad(4096));
+        fs.writeFileSync(path.join(root, '.git', 'ignored.mp4'), pad(4096));
+        fs.writeFileSync(path.join(root, 'node_modules', 'pkg', 'dep.mp4'), pad(4096));
+
+        const found = discoverLibraryMedia(root);
+        const paths = found.map((t) => t.absolutePath).sort();
+        assert(found.length === 4, 'count-4-got-' + found.length);
+        assert(paths.some((p) => p.endsWith('Top - Level.mp4')), 'top-level');
+        assert(paths.some((p) => p.includes(path.join('Italian', 'Battisti')) && p.endsWith('La canzone.mp4')), 'nested-artist');
+        assert(paths.some((p) => p.includes(path.join('Hits')) && p.includes('(Instrumental)')), 'deep-instrumental');
+        assert(paths.some((p) => p.endsWith('Pair.mp3')), 'mp3-cdg-pair');
+        assert(!paths.some((p) => p.endsWith('Tiny.mp4')), 'skip-tiny');
+        assert(!paths.some((p) => p.includes('.part')), 'skip-part');
+        assert(!paths.some((p) => p.includes('.git')), 'skip-dot-git');
+        assert(!paths.some((p) => p.includes('node_modules')), 'skip-node-modules');
+
+        const instrumental = found.find((t) => t.title.includes('Instrumental'));
+        assert(instrumental && instrumental.idHint === 'dQw4w9WgXcQ', 'yt-id-hint');
+        assert(instrumental.artist === 'Artist', 'yt-artist');
+
+        const pair = found.find((t) => t.absolutePath.endsWith('Pair.mp3'));
+        assert(pair && pair.hasEmbeddedLyrics === true, 'cdg-lyrics-flag');
+
+        // Same basename in different folders must not collide (path-based ids)
+        const ids = new Set(found.map((t) => t.idHint));
+        assert(ids.size === found.length, 'unique-ids');
+
+        const match = findMediaMatchInTree(
+          root,
+          { ytId: 'dQw4w9WgXcQ', fingerprint: 'yt:dQw4w9WgXcQ', expectedBase: null },
+          new Set(['.mp4', '.mp3', '.webm', '.mid', '.kar'])
+        );
+        assert(match && match.matchedBy === 'id', 'dedup-finds-nested');
+        assert(match.localFilePath.includes('Instrumental'), 'dedup-path');
+
+        const miss = findMediaMatchInTree(
+          root,
+          { ytId: 'xxxxxxxxxxx', fingerprint: 'yt:xxxxxxxxxxx', expectedBase: 'nope' },
+          new Set(['.mp4'])
+        );
+        assert(miss === null, 'dedup-miss');
+
+        console.log('PROBE_OK');
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+      `
+    ],
+    { encoding: 'utf8' }
+  );
+  assert(
+    probe.status === 0 && (probe.stdout || '').includes('PROBE_OK'),
+    'libraryScanner: recursive discovery + filters + nested dedup match',
+    (probe.stderr || probe.stdout || `exit ${probe.status}`).slice(0, 500)
+  );
+}
 
 assert(
   libraryPanelScopedSource.includes('setLocalResults') &&

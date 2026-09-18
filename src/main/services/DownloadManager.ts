@@ -18,6 +18,7 @@ import type { OfflineVocalModelManager } from './OfflineVocalModelManager';
 import type { OrtWasmManager } from './OrtWasmManager';
 import type { Logger } from './Logger';
 import { buildKaraokeLocalUri } from '../../shared/karaokeLocalPath';
+import { findMediaMatchInTree } from '../../shared/libraryScanner';
 import {
   isYtDlpTransientMediaName,
   parseYtDlpOutputPath,
@@ -374,43 +375,15 @@ export class DownloadManager {
     return null;
   }
 
+  /**
+   * Recursive match under a library / cache root so media in relative subfolders
+   * is found the same way as top-level files (avoids re-download / double catalog).
+   */
   private scanDirectoryForMatch(
     directory: string,
     keys: { ytId: string | null; fingerprint: string; expectedBase: string | null }
   ): { localFilePath: string; matchedBy: ExistingLocalMedia['matchedBy'] } | null {
-    try {
-      if (!directory || !fs.existsSync(directory)) return null;
-      const entries = fs.readdirSync(directory, { withFileTypes: true });
-      const expectedLower = keys.expectedBase?.toLowerCase() || null;
-      const fpToken = keys.fingerprint.startsWith('yt:')
-        ? keys.fingerprint.slice(3)
-        : keys.fingerprint.slice(0, 12);
-
-      for (const entry of entries) {
-        if (!entry.isFile()) continue;
-        const ext = path.extname(entry.name).toLowerCase();
-        if (!MEDIA_EXTENSIONS.has(ext)) continue;
-        const fullPath = path.join(directory, entry.name);
-        const nameLower = entry.name.toLowerCase();
-        const baseLower = path.basename(entry.name, ext).toLowerCase();
-
-        if (keys.ytId && nameLower.includes(keys.ytId.toLowerCase())) {
-          return { localFilePath: path.resolve(fullPath), matchedBy: 'id' };
-        }
-        if (fpToken && nameLower.includes(fpToken.toLowerCase())) {
-          return { localFilePath: path.resolve(fullPath), matchedBy: 'hash' };
-        }
-        if (expectedLower && (baseLower === expectedLower || baseLower.endsWith(expectedLower))) {
-          return { localFilePath: path.resolve(fullPath), matchedBy: 'filename' };
-        }
-        if (expectedLower && baseLower.includes(expectedLower)) {
-          return { localFilePath: path.resolve(fullPath), matchedBy: 'filename' };
-        }
-      }
-    } catch (err) {
-      console.warn('Failed scanning directory for existing media:', directory, err);
-    }
-    return null;
+    return findMediaMatchInTree(directory, keys, MEDIA_EXTENSIONS);
   }
 
   /**
