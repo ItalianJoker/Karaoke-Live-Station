@@ -23,15 +23,35 @@ export const DOWNLOAD_MEDIA_EXTENSIONS = new Set([
 /**
  * yt-dlp `--sub-langs` value for Download Instrumental auto-subs (lyric burn-in).
  *
- * Prefer original-language auto-subs only (`it-orig`, `en-orig`, …). Each
- * comma-separated token is a **Python regex** — use `.*-orig`, never the
- * shell-style glob `*-orig` (leading `*` → “nothing to repeat” → yt-dlp exit 1
- * with `Wrong regex for subtitlelangs`). Avoid `all,-live_chat`: requesting
- * ~130 subtitle languages triggers YouTube HTTP 429 and fails the whole download.
+ * Prefer original-language auto-subs (`it-orig`, `en-orig`, …) plus YouTube’s
+ * `default` track. Each comma-separated token is a **Python regex** — use
+ * `.*-orig`, never the shell-style glob `*-orig` (leading `*` → “nothing to
+ * repeat” → yt-dlp exit 1 with `Wrong regex for subtitlelangs`). Avoid
+ * `all,-live_chat`: requesting ~130 subtitle languages triggers YouTube HTTP
+ * 429 and fails the whole download.
  *
  * @see https://github.com/yt-dlp/yt-dlp#subtitle-options
  */
-export const YTDLP_INSTRUMENTAL_SUB_LANGS = '.*-orig';
+export const YTDLP_INSTRUMENTAL_SUB_LANGS = '.*-orig,default';
+
+/**
+ * Whether yt-dlp should fetch auto-subs for an instrumental download.
+ *
+ * Subs are opt-in (`includeSubtitles === true`) and never requested for
+ * audio-only jobs. Missing / unmatched subs must not fail the download —
+ * burn-in is best-effort after staging.
+ */
+export function shouldWriteInstrumentalAutoSubs(options: {
+  instrumental?: boolean;
+  isAudioOnly?: boolean;
+  includeSubtitles?: boolean;
+}): boolean {
+  return (
+    options.instrumental === true &&
+    options.isAudioOnly !== true &&
+    options.includeSubtitles === true
+  );
+}
 
 /**
  * yt-dlp `-o` template for a staged download.

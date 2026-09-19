@@ -29,6 +29,7 @@ import { textMatchesSearch } from '../../shared/textNormalize';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { useScopedLibrarySearch } from '../hooks/useScopedLibrarySearch';
 import { VideoPreviewModal, extractVersionTags } from './VideoPreviewModal';
+import { InstrumentalSubtitlesModal } from './InstrumentalSubtitlesModal';
 import { dataTransferHasFiles, resolveDroppedAbsolutePaths } from '../utils/fsDragDrop';
 import {
   checkTrackLocalFileExists,
@@ -118,6 +119,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   const [activeDownloads, setActiveDownloads] = useState<Record<string, DownloadProgressPayload>>({});
   const [trackMap, setTrackMap] = useState<Record<string, KaraokeMediaTrack>>({});
   const [previewTrack, setPreviewTrack] = useState<KaraokeMediaTrack | null>(null);
+  /** Pending Download Instrumental track waiting for subtitle-policy modal */
+  const [instrumentalSubtitlesTrack, setInstrumentalSubtitlesTrack] =
+    useState<KaraokeMediaTrack | null>(null);
   const [trackPendingDelete, setTrackPendingDelete] = useState<KaraokeMediaTrack | null>(null);
   const [isDeletingTrack, setIsDeletingTrack] = useState(false);
   // When auto-archive is on, YouTube→queue waits for library file before enqueue (no remote/temp pointer).
@@ -682,7 +686,10 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         : localTracks
       : searchResults;
 
-  const handleStartDownload = async (track: KaraokeMediaTrack, opts?: { instrumental?: boolean }) => {
+  const handleStartDownload = async (
+    track: KaraokeMediaTrack,
+    opts?: { instrumental?: boolean; includeSubtitles?: boolean }
+  ) => {
     if (!window.karaokeApi) return;
     if (settings.autoArchiveWebTracks && !settings.libraryPath?.trim()) {
       showToast(t('errors.libraryPathRequired', 'Imposta la cartella libreria nelle impostazioni prima di scaricare.'));
@@ -703,6 +710,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       const isMdx = method === 'aiMdxKaraoke2';
       const isAi =
         method === 'aiMdxKaraoke2' || method === 'aiHtDemucs' || method === 'aiBsRoformer';
+      const includeSubtitles =
+        instrumental && opts?.includeSubtitles === true ? true : undefined;
       const result = await window.karaokeApi.downloads.start({
         url: track.uri,
         titleHint,
@@ -719,7 +728,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
               mdxEnableOrt: settings.mdxEnableOrt
             }
           : {}),
-        ...(isAi ? { aiCpuThreads: settings.aiCpuThreads } : {})
+        ...(isAi ? { aiCpuThreads: settings.aiCpuThreads } : {}),
+        ...(includeSubtitles ? { includeSubtitles: true } : {})
       });
 
       const mappedTrack: KaraokeMediaTrack = instrumental
@@ -752,6 +762,23 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       // Pre-queue start failures (IPC/bridge) never get a Downloads menu row
       showToast(t('errors.downloadFailed', { error: String(err) }));
     }
+  };
+
+  /**
+   * Download Instrumental entry: honor persisted subtitle policy, else open modal.
+   * Normal (non-instrumental) download never uses this path.
+   */
+  const handleInstrumentalDownloadClick = (track: KaraokeMediaTrack) => {
+    const policy = settings.instrumentalSubtitlesPolicy || 'ask';
+    if (policy === 'always') {
+      void handleStartDownload(track, { instrumental: true, includeSubtitles: true });
+      return;
+    }
+    if (policy === 'never') {
+      void handleStartDownload(track, { instrumental: true, includeSubtitles: false });
+      return;
+    }
+    setInstrumentalSubtitlesTrack(track);
   };
 
   const executeAddToQueue = async (
@@ -1157,9 +1184,10 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                       {isInstrumentalDownloadEligibleTitle(track.title) && (
                         <button
                           type="button"
-                          onClick={() => handleStartDownload(track, { instrumental: true })}
+                          onClick={() => handleInstrumentalDownloadClick(track)}
                           className="p-2 bg-slate-800/80 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
                           title={t('library.downloadInstrumental')}
+                          data-testid="download-instrumental-btn"
                         >
                           <Music className="w-3.5 h-3.5" />
                         </button>
@@ -1392,6 +1420,24 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         midiSoundFontPath={settings.midiSoundFontPath}
         onClose={() => setPreviewTrack(null)}
         onAddToQueue={(trk, sName, placement) => executeAddToQueue(trk, sName, placement)}
+      />
+
+      <InstrumentalSubtitlesModal
+        isOpen={instrumentalSubtitlesTrack !== null}
+        track={instrumentalSubtitlesTrack}
+        onClose={() => setInstrumentalSubtitlesTrack(null)}
+        onConfirm={(choice, remember) => {
+          const track = instrumentalSubtitlesTrack;
+          setInstrumentalSubtitlesTrack(null);
+          if (!track) return;
+          const includeSubtitles = choice === 'with-subs';
+          if (remember) {
+            updateSettings({
+              instrumentalSubtitlesPolicy: includeSubtitles ? 'always' : 'never'
+            });
+          }
+          void handleStartDownload(track, { instrumental: true, includeSubtitles });
+        }}
       />
 
       {trackPendingDelete && (

@@ -181,6 +181,12 @@ export interface AppSettings {
   enableSiaeReporting: boolean;
   /** Automatically import completed YouTube downloads into the local catalog */
   autoArchiveWebTracks: boolean;
+  /**
+   * Download Instrumental subtitle policy.
+   * - `ask` (default): show InstrumentalSubtitlesModal before starting
+   * - `always` / `never`: skip modal and apply `includeSubtitles` accordingly
+   */
+  instrumentalSubtitlesPolicy: 'ask' | 'always' | 'never';
 
   /** Duration (seconds) of the "Now Singing" intro banner */
   bannerIntroDurationSec: number;
@@ -400,6 +406,11 @@ export interface StartDownloadOptions {
    * Main resolves/clamps before the worker; renderer may pass the raw setting.
    */
   aiCpuThreads?: number | null;
+  /**
+   * When true (instrumental video only): yt-dlp fetches auto-subs for lyric burn-in.
+   * Omitted / false → no `--write-auto-sub`. Missing subs never fail the download.
+   */
+  includeSubtitles?: boolean;
 }
 
 /**

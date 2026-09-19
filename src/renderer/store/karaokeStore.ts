@@ -141,6 +141,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   enableGuestPortal: true,
   enableSiaeReporting: true,
   autoArchiveWebTracks: true,
+  /** Ask before fetching YouTube auto-subs on Download Instrumental */
+  instrumentalSubtitlesPolicy: 'ask',
   showPitchOnStage: true,
   showSpeedOnStage: true,
   stageMessages: createDefaultStageMessages(),
@@ -322,6 +324,13 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
             updated.autoOpenStageOnLaunch = Boolean(partial.autoOpenStageOnLaunch);
           } else if (typeof updated.autoOpenStageOnLaunch !== 'boolean') {
             updated.autoOpenStageOnLaunch = true;
+          }
+          if (partial.instrumentalSubtitlesPolicy !== undefined || updated.instrumentalSubtitlesPolicy) {
+            const raw = String(updated.instrumentalSubtitlesPolicy || 'ask');
+            updated.instrumentalSubtitlesPolicy =
+              raw === 'always' || raw === 'never' ? raw : 'ask';
+          } else {
+            updated.instrumentalSubtitlesPolicy = 'ask';
           }
           const maxDl = Number(updated.maxSimultaneousDownloads);
           updated.maxSimultaneousDownloads =
@@ -1045,6 +1054,11 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           typeof mergedSettings.autoOpenStageOnLaunch === 'boolean'
             ? mergedSettings.autoOpenStageOnLaunch
             : true;
+        {
+          const raw = String(mergedSettings.instrumentalSubtitlesPolicy || 'ask');
+          mergedSettings.instrumentalSubtitlesPolicy =
+            raw === 'always' || raw === 'never' ? raw : 'ask';
+        }
         const maxDl = Number(mergedSettings.maxSimultaneousDownloads);
         mergedSettings.maxSimultaneousDownloads =
           Number.isFinite(maxDl) && maxDl >= 1 ? Math.min(8, Math.floor(maxDl)) : 2;

@@ -25,7 +25,8 @@ import {
   isYtDlpTransientMediaName,
   parseYtDlpOutputPath,
   resolveDownloadedMediaPath as resolveDownloadedMediaInTemp,
-  resolvePathAgainstTempDir
+  resolvePathAgainstTempDir,
+  shouldWriteInstrumentalAutoSubs
 } from './downloadStaging';
 
 /** Media extensions considered when matching existing local karaoke files. */
@@ -47,7 +48,8 @@ export {
   buildYtDlpOutputTemplate,
   isYtDlpTransientMediaName,
   parseYtDlpOutputPath,
-  resolvePathAgainstTempDir
+  resolvePathAgainstTempDir,
+  shouldWriteInstrumentalAutoSubs
 };
 export { resolveDownloadedMediaInTemp as resolveDownloadedMediaPath };
 
@@ -84,6 +86,11 @@ export interface DownloadOptions {
   mdxEnableOrt?: boolean;
   /** Resolved ORT WASM thread count for AI instrumental (omit for DSP). */
   aiCpuThreads?: number;
+  /**
+   * When true (and instrumental + video): request yt-dlp auto-subs for lyric burn-in.
+   * Default / omitted = false (no `--write-auto-sub`). Missing subs never fail the job.
+   */
+  includeSubtitles?: boolean;
 }
 
 /**
@@ -572,8 +579,8 @@ export class DownloadManager {
     }
 
     // Best-effort auto-subs for optional lyric burn-in on instrumental remux.
-    // --sub-langs tokens are Python regexes; prefer .*-orig (never a leading * quantifier).
-    if (instrumental && !options.isAudioOnly) {
+    // Opt-in only (includeSubtitles === true). --sub-langs: .*-orig,default (never bare all).
+    if (shouldWriteInstrumentalAutoSubs({ ...options, instrumental })) {
       args.push(
         '--write-auto-sub',
         '--sub-langs',

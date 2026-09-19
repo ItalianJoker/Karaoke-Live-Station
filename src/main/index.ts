@@ -1188,6 +1188,8 @@ class KaraokeMainProcess {
           mdxOverlap?: number;
           mdxEnableOrt?: boolean;
           aiCpuThreads?: number | null;
+          /** Opt-in yt-dlp auto-subs for instrumental lyric burn-in */
+          includeSubtitles?: boolean;
         }
       ) => {
         const libraryPath =
