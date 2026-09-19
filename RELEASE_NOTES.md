@@ -1,4 +1,4 @@
-# 🎤 Karaoke Live Station v1.3.0 — Release Notes
+# 🎤 Karaoke Live Station v1.4.0 — Release Notes
 
 <p align="center">
   <a href="#-italiano">🇮🇹 <strong>Italiano</strong></a> • <a href="#-english">🇬🇧 <strong>English</strong></a>
@@ -6,84 +6,74 @@
 
 ---
 
-<a name="v130-italiano"></a>
-# 🇮🇹 Note di Rilascio — Versione 1.3.0
+<a name="v140-italiano"></a>
+# 🇮🇹 Note di Rilascio — Versione 1.4.0
 
-Bump codice a **1.3.0** (bozza — **nessun tag GitHub release finché Luca non dice Si**). Parte dalla baseline **v1.2.0**.
-
-> **In coda (bozza PR, ancora Unreleased):** Bungee come DSP pitch/speed predefinito (Wasm MPL-2.0, solo prebuilt — nessun C++ in-repo), SoundTouch selezionabile, range dinamici ±8/±4. Versione pacchetto resta **1.3.0** finché non si decide merge/release.
+Release GitHub **v1.4.0** (nuovo tag; **non** tocca `v1.3.0` / `v1.2.0` / `v1.1.0`). Parte dalla baseline **v1.3.0**. PRs **#52** + **#53**.
 
 ## 📦 File di Installazione
 
 | Piattaforma | File | Descrizione |
 | :--- | :--- | :--- |
-| **Windows** | `Karaoke Live Station 1.3.0.exe` | Eseguibile portatile |
-| **Windows** | `Karaoke Live Station-1.3.0-win.zip` | Archivio completo Windows 64-bit |
-| **Linux** | `Karaoke Live Station-1.3.0.AppImage` | AppImage universale |
-| **Linux** | `karaoke-live-station_1.3.0_amd64.deb` | Pacchetto Debian/Ubuntu |
-| **macOS** | `Karaoke Live Station-1.3.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
+| **Windows** | `Karaoke Live Station 1.4.0.exe` | Eseguibile portatile |
+| **Windows** | `Karaoke Live Station-1.4.0-win.zip` | Archivio completo Windows 64-bit |
+| **Linux** | `Karaoke Live Station-1.4.0.AppImage` | AppImage universale |
+| **Linux** | `karaoke-live-station_1.4.0_amd64.deb` | Pacchetto Debian/Ubuntu |
+| **macOS** | `Karaoke Live Station-1.4.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa versione
 
-### 🖥️ Avvio Regia / Palco
-- **Massimizza Regia all’avvio** (`autoMaximizeControlOnLaunch`, default on) — `maximize()`, non fullscreen esclusivo.
-- **Apri Schermo Palco all’avvio** (`autoOpenStageOnLaunch`, default on). Se off, il Palco resta chiuso fino a **P** / **F2** / pulsante Stage.
-- Preferenze di boot salvate anche in `userData/launch-prefs.json` (leggibili prima dell’hydrate Control).
+### 🎵 DSP pitch/speed — Bungee predefinito (#52)
+- Motore media predefinito **Bungee** (phase vocoder Wasm AudioWorklet, MPL-2.0 — solo prebuilt in `public/workers/`, nessun sorgente C++ in-repo).
+- **SoundTouch WSOLA** resta selezionabile in Impostazioni come motore legacy/leggero.
+- Range UI: ±8 ST (Bungee) / ±4 ST (SoundTouch). Bypass bit-perfect a pitch 0 e velocità 1.00x.
+- Fallback silenzioso a SoundTouch se Bungee non inizializza. MIDI/KAR invariato (SpessaSynth).
 
-### 🧠 AI strumentale — core CPU manuali
-- Impostazioni → **Libreria & Download**: mostra core disponibili, slider + numerico **1..N**, pulsante **Reimposta su Massimo (N)**.
-- Default `aiCpuThreads: null` = tutti i core. Clamp &lt;1→1, &gt;N→N; mai ≤0/NaN.
-- MDX / Demucs: `ort.env.wasm.numThreads`, SIMD on, provider `webgpu` con fallback WASM.
+### 📥 Scarica strumentale — modal sottotitoli (#53)
+- Conferma prima del download: con sottotitoli / solo strumentale / annulla (Esc / click fuori).
+- Policy persistente `ask` / `always` / `never` (`instrumentalSubtitlesPolicy`).
+- Auto-subs yt-dlp solo se `includeSubtitles: true`; `--sub-langs .*-orig,default` (anti-429, niente bare `all`).
+- Download normale (non strumentale) invariato, senza modal.
 
-### ⚙️ Impostazioni
-- Modal più ampia (`max-w-5xl`, `h-[88vh]`), sidebar ~220px, griglia a 2 colonne.
-- Metodo Download Strumentale + MDX avanzate + core AI spostati in **Libreria & Download**. Audio: SoundFont, CUE/Master, sync A/V, Rimozione Vocale live, normalizzazione.
-- Badge versione UI **v1.3.0**.
+### 🏷️ Versione
+- Badge UI / pacchetto **v1.4.0**.
 
-## ✅ Baseline 1.2.0
-Resta incluso: file locali mancanti, Drag & Drop, scan ~16k, SoundFont AppImage + Altro, yt-dlp `.*-orig`, Safety-First slice 1.
-
-## 🧪 In bozza (PR separata — merge solo dopo Si)
-- **Modal sottotitoli Scarica strumentale** — conferma prima del download; policy `ask`/`always`/`never`; `--sub-langs .*-orig,default` (anti-429); sottotitoli solo se `includeSubtitles: true`.
+## ✅ Baseline 1.3.0
+Resta incluso: massimizza Regia all’avvio, Schermo Palco on/off, core CPU AI strumentale, Settings più ampia, baseline 1.2.0.
 
 ---
 
-<a name="v130-english"></a>
-# 🇬🇧 Release Notes — Version 1.3.0
+<a name="v140-english"></a>
+# 🇬🇧 Release Notes — Version 1.4.0
 
-Code bump to **1.3.0** (draft — **no GitHub release tag until Luca says Si**). Builds on **v1.2.0** baseline.
-
-> **Queued (draft PR, still Unreleased):** Bungee as default pitch/speed DSP (Wasm MPL-2.0, prebuilts only — no C++ in-repo), SoundTouch selectable, dynamic ±8/±4 ranges. Package version stays **1.3.0** until merge/release.
+GitHub release **v1.4.0** (new tag; does **not** touch `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on **v1.3.0** baseline. PRs **#52** + **#53**.
 
 ## 📦 Installer Files
 
 | Platform | File | Description |
 | :--- | :--- | :--- |
-| **Windows** | `Karaoke Live Station 1.3.0.exe` | Portable executable |
-| **Windows** | `Karaoke Live Station-1.3.0-win.zip` | Full Windows 64-bit archive |
-| **Linux** | `Karaoke Live Station-1.3.0.AppImage` | Universal AppImage |
-| **Linux** | `karaoke-live-station_1.3.0_amd64.deb` | Debian/Ubuntu package |
-| **macOS** | `Karaoke Live Station-1.3.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
+| **Windows** | `Karaoke Live Station 1.4.0.exe` | Portable executable |
+| **Windows** | `Karaoke Live Station-1.4.0-win.zip` | Full Windows 64-bit archive |
+| **Linux** | `Karaoke Live Station-1.4.0.AppImage` | Universal AppImage |
+| **Linux** | `karaoke-live-station_1.4.0_amd64.deb` | Debian/Ubuntu package |
+| **macOS** | `Karaoke Live Station-1.4.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new
 
-### 🖥️ Launch — Control / Stage
-- **Maximize Regia on launch** (`autoMaximizeControlOnLaunch`, default on) — `maximize()`, not exclusive fullscreen.
-- **Open Stage on launch** (`autoOpenStageOnLaunch`, default on). When off, Stage stays closed until **P** / **F2** / Stage button.
-- Boot prefs also written to `userData/launch-prefs.json` (readable before Control hydrates).
+### 🎵 Pitch/speed DSP — Bungee default (#52)
+- Default media engine is **Bungee** (phase-vocoder Wasm AudioWorklet, MPL-2.0 — runtime prebuilts only under `public/workers/`, no C++ source tree).
+- **SoundTouch WSOLA** remains selectable in Settings as the legacy/light engine.
+- UI ranges: ±8 ST (Bungee) / ±4 ST (SoundTouch). Bit-perfect bypass at pitch 0 and speed 1.00x.
+- Silent fallback to SoundTouch if Bungee init fails. MIDI/KAR unchanged (SpessaSynth).
 
-### 🧠 Instrumental AI — manual CPU cores
-- Settings → **Library & Download**: available cores, slider + numeric **1..N**, **Reset to Maximum (N)**.
-- Default `aiCpuThreads: null` = all cores. Clamp &lt;1→1, &gt;N→N; never ≤0/NaN.
-- MDX / Demucs: `ort.env.wasm.numThreads`, SIMD on, `webgpu` with WASM fallback.
+### 📥 Download Instrumental — subtitles modal (#53)
+- Confirm before download: with subtitles / instrumental only / cancel (Esc / outside click).
+- Persisted policy `ask` / `always` / `never` (`instrumentalSubtitlesPolicy`).
+- yt-dlp auto-subs only when `includeSubtitles: true`; `--sub-langs .*-orig,default` (anti-429, no bare `all`).
+- Normal (non-instrumental) download unchanged — no modal.
 
-### ⚙️ Settings
-- Wider modal (`max-w-5xl`, `h-[88vh]`), ~220px sidebar, 2-column grids.
-- Download Instrumental method + MDX advanced + AI cores moved to **Library & Download**. Audio keeps SoundFont, CUE/Master, A/V sync, live vocal remover DSP, normalization.
-- UI version badge **v1.3.0**.
+### 🏷️ Version
+- UI badge / package **v1.4.0**.
 
-## ✅ 1.2.0 baseline
-Still includes: missing local files, Drag & Drop, ~16k scan, AppImage SoundFont + Altro, yt-dlp `.*-orig`, Safety-First slice 1.
-
-## 🧪 Draft (separate PR — merge only after Si)
-- **Download Instrumental subtitles modal** — confirm before download; policy `ask`/`always`/`never`; `--sub-langs .*-orig,default` (anti-429); subs only when `includeSubtitles: true`.
+## ✅ 1.3.0 baseline
+Still includes: maximize Control on launch, Stage on/off at boot, instrumental AI CPU cores, wider Settings, plus the 1.2.0 baseline.

@@ -111,7 +111,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settingsSearch, setSettingsSearch] = useState('');
   const [cpuCoreCount, setCpuCoreCount] = useState(detectUiCpuCoreCount());
-  const [appVersion, setAppVersion] = useState('1.3.0');
+  const [appVersion, setAppVersion] = useState('1.4.0');
 
   const isSearching = settingsSearch.trim().length > 0;
 
@@ -174,7 +174,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         .then((v) => {
           if (typeof v === 'string' && v.trim()) setAppVersion(v.trim());
         })
-        .catch(() => setAppVersion('1.3.0'));
+        .catch(() => setAppVersion('1.4.0'));
     }
   }, [isOpen]);
 

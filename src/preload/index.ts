@@ -256,7 +256,7 @@ export interface KaraokeAPI {
     checkFirewall: () => Promise<FirewallCheckResult>;
     /** Logical CPU core count from main (os.cpus) for AI thread UI */
     getCpuCoreCount: () => Promise<number>;
-    /** App semver from Electron package.json (e.g. 1.3.0) */
+    /** App semver from Electron package.json (e.g. 1.4.0) */
     getAppVersion: () => Promise<string>;
   };
 

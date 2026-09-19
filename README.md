@@ -58,6 +58,7 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 - **Streaming HTTP 206 Partial Content**: Protocollo proprietario `karaoke://local/` con streaming a chunk byte-range. Lo schermo del palco può essere aperto, chiuso o riaperto a brano in corso senza pause né desincronizzazioni.
 - **Protezione Istanza Singola (Single Instance Lock)**: Previene l'apertura accidentale di istanze duplicate; qualsiasi avvio concorrente ripristina e mette a fuoco la console di regia principale già aperta.
 - **Avvio Regia / Palco (v1.3.0)**: Opzione per massimizzare la Regia all’avvio (`maximize()`, non fullscreen esclusivo) e per aprire o meno lo Schermo Palco. Se il Palco è spento all’avvio, riaprilo con **P** / **F2** o il pulsante Stage. Impostazioni più ampie (sidebar) con metodo Download Strumentale, MDX avanzate e **core CPU AI** sotto Libreria & Download (default: tutti i core rilevati).
+- **DSP pitch/speed (v1.4.0)**: Motore predefinito **Bungee** (Wasm AudioWorklet, MPL-2.0); **SoundTouch** selezionabile. Modal conferma sottotitoli su **Scarica strumentale** (`ask`/`always`/`never`); yt-dlp `--sub-langs .*-orig,default`.
 
 ### 🎨 9 Temi Grafici & Schermo Palco Ottimizzato Edge-to-Edge
 - **9 Combinazioni Cromatiche Complete**: Personalizzazione indipendente per Regia e Palco (*Dark Stage, Midnight Neon, Club Gold, Ocean Breeze, Sunset Crimson, Emerald Matrix, Royal Amethyst, High Contrast, Light Studio*).
@@ -372,6 +373,7 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 - **HTTP 206 Partial Content Streaming**: Custom `karaoke://local/` protocol with byte-range streaming. The stage screen can be closed and reopened mid-song without pausing or desynchronizing audio.
 - **Single Instance Lock Protection**: Native single-instance enforcement prevents duplicate windows; any concurrent launch immediately refocuses and restores the existing control console.
 - **Launch Control / Stage (v1.3.0)**: Option to maximize Regia on launch (`maximize()`, not exclusive fullscreen) and to open or skip Stage. If Stage is off at launch, reopen with **P** / **F2** or the Stage button. Wider Settings (sidebar) move Download Instrumental method, MDX advanced, and **AI CPU cores** under Library & Download (default: all detected cores).
+- **Pitch/speed DSP (v1.4.0)**: Default **Bungee** engine (Wasm AudioWorklet, MPL-2.0); **SoundTouch** selectable. **Download Instrumental** subtitle confirm modal (`ask`/`always`/`never`); yt-dlp `--sub-langs .*-orig,default`.
 
 ### 🎨 9 Color Themes & Edge-to-Edge Stage Screen
 - **9 Distinct Visual Themes**: Independent theme customization for both Control Console and Stage Screen (*Dark Stage, Midnight Neon, Club Gold, Ocean Breeze, Sunset Crimson, Emerald Matrix, Royal Amethyst, High Contrast, Light Studio*).

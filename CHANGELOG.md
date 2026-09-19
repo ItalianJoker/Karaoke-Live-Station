@@ -9,19 +9,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- **Bungee default pitch/speed DSP** — Wasm AudioWorklet phase vocoder (`public/workers/bungee_processor.js` + `bungee.wasm`, MPL-2.0 upstream https://github.com/bungee-audio-stretch/bungee; runtime prebuilts only, no C++ source vendored). Settings `dspEngine: 'bungee' | 'soundtouch'` (default `bungee`). Control pitch UI ±8 for Bungee / ±4 for SoundTouch. True bypass when pitch 0 && speed 1.00x. Silent fallback to SoundTouch if Bungee init fails. MIDI/KAR unchanged (SpessaSynth). (this PR)
-- **Instrumental subtitles confirmation modal** — Clicking Scarica strumentale opens `InstrumentalSubtitlesModal` (title/artist + amber ASR warning) before download. Actions: with subtitles / instrumental only / cancel (Esc / outside). Optional remember → `instrumentalSubtitlesPolicy: 'ask' | 'always' | 'never'`. `DownloadOptions.includeSubtitles` opt-in; normal download unchanged. (this PR)
+- None yet.
 
 ### Changed
-- SoundTouch WSOLA remains selectable as legacy/light engine (hard ±4 ST); no longer the sole media pitch path.
-- README / RELEASE_NOTES attribution for Bungee (MPL-2.0) + `public/workers/BUNGEE_NOTICE.md`.
-- **yt-dlp instrumental `--sub-langs`** — Extended from `.*-orig` to `.*-orig,default` (still no bare `all`; 429-safe). Auto-subs flags only when `instrumental && includeSubtitles === true`. (this PR)
+- None yet.
 
 ### Fixed
 - None yet.
 
 ### Breaking Changes
-- None (missing `dspEngine` in persisted settings coerces to `bungee`).
+- None yet.
+
+## [1.4.0] — Bungee DSP default + instrumental subtitles modal — 2026-09-19
+
+Code version bump to **1.4.0**. New GitHub release tag **v1.4.0** (does **not** overwrite `v1.3.0` / `v1.2.0` / `v1.1.0`). Folds PRs **#52** + **#53**. Builds on `v1.3.0` baseline.
+
+### Added
+- **Bungee default pitch/speed DSP** — Wasm AudioWorklet phase vocoder (`public/workers/bungee_processor.js` + `bungee.wasm`, MPL-2.0 upstream https://github.com/bungee-audio-stretch/bungee; runtime prebuilts only, no C++ source vendored). Settings `dspEngine: 'bungee' | 'soundtouch'` (default `bungee`). Control pitch UI ±8 for Bungee / ±4 for SoundTouch. True bypass when pitch 0 && speed 1.00x. Silent fallback to SoundTouch if Bungee init fails. MIDI/KAR unchanged (SpessaSynth). (PR #52)
+- **Instrumental subtitles confirmation modal** — Clicking Scarica strumentale opens `InstrumentalSubtitlesModal` (title/artist + amber ASR warning) before download. Actions: with subtitles / instrumental only / cancel (Esc / outside). Optional remember → `instrumentalSubtitlesPolicy: 'ask' | 'always' | 'never'`. `DownloadOptions.includeSubtitles` opt-in; normal download unchanged. (PR #53)
+
+### Changed
+- SoundTouch WSOLA remains selectable as legacy/light engine (hard ±4 ST); no longer the sole media pitch path.
+- README / RELEASE_NOTES attribution for Bungee (MPL-2.0) + `public/workers/BUNGEE_NOTICE.md`.
+- **yt-dlp instrumental `--sub-langs`** — Extended from `.*-orig` to `.*-orig,default` (still no bare `all`; 429-safe). Auto-subs flags only when `instrumental && includeSubtitles === true`. (PR #53)
+- App version **1.4.0** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer. (this release)
+
+### Fixed
+- None.
+
+### Breaking Changes
+- None (missing `dspEngine` in persisted settings coerces to `bungee`; missing `instrumentalSubtitlesPolicy` coerces to `ask`).
 
 ## [1.3.0] — Startup maximize / Stage launch / AI CPU cores / Settings layout — 2026-09-19
 

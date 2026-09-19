@@ -813,7 +813,7 @@ class KaraokeMainProcess {
     });
 
     ipcMain.handle('system:get-app-version', () => {
-      return app.getVersion() || '1.3.0';
+      return app.getVersion() || '1.4.0';
     });
 
     ipcMain.handle('window:toggle-stage-fullscreen', () => {
