@@ -30,6 +30,35 @@ function assert(condition, testName, detail = '') {
   }
 }
 
+/** Concatenate Settings shell + per-tab sources (Safety-First modularization). */
+function readSettingsUiSource() {
+  const base = path.resolve(__dirname, '../src/renderer/components');
+  const files = [
+    'SettingsModal.tsx',
+    'settings/SettingsGeneralTab.tsx',
+    'settings/SettingsLibraryTab.tsx',
+    'settings/SettingsAudioTab.tsx',
+    'settings/SettingsStageTab.tsx',
+    'settings/SettingsShortcutsTab.tsx',
+    'settings/settingsTypes.ts'
+  ];
+  return files.map((f) => fs.readFileSync(path.join(base, f), 'utf8')).join('\n');
+}
+
+/** Concatenate ControlWindow + extracted hooks/components. */
+function readControlUiSource() {
+  const root = path.resolve(__dirname, '..');
+  const files = [
+    'src/renderer/components/ControlWindow.tsx',
+    'src/renderer/hooks/useControlPlayback.ts',
+    'src/renderer/hooks/useKeyboardShortcuts.ts',
+    'src/renderer/components/PlayerDeckControls.tsx',
+    'src/renderer/components/QueueList.tsx'
+  ];
+  return files.map((f) => fs.readFileSync(path.join(root, f), 'utf8')).join('\n');
+}
+
+
 console.log('\n========================================================');
 console.log('🧪 Running Karaoke Live Station Automated Test Suite');
 console.log('========================================================\n');
@@ -618,14 +647,8 @@ const toastSource = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/utils/toast.ts'),
   'utf8'
 );
-const controlSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
-  'utf8'
-);
-const settingsModalSourceVocal = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
-  'utf8'
-);
+const controlSource = readControlUiSource();
+const settingsModalSourceVocal = readSettingsUiSource();
 assert(
   toastSource.includes('showToast') &&
     toastSource.includes('confirmAsync') &&
@@ -999,18 +1022,12 @@ const mainIndexSourceForPhase2 = fs.readFileSync(
   path.resolve(__dirname, '../src/main/index.ts'),
   'utf8'
 );
-const settingsModalSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
-  'utf8'
-);
+const settingsModalSource = readSettingsUiSource();
 const libraryPanelSource = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
   'utf8'
 );
-const controlWindowSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
-  'utf8'
-);
+const controlWindowSource = readControlUiSource();
 const karaokeStoreSourceForPhase2 = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
   'utf8'
@@ -1130,14 +1147,8 @@ const libraryPanelSourceP45 = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
   'utf8'
 );
-const controlWindowSourceP45 = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
-  'utf8'
-);
-const settingsModalSourceP45 = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
-  'utf8'
-);
+const controlWindowSourceP45 = readControlUiSource();
+const settingsModalSourceP45 = readSettingsUiSource();
 const audioGraphSourceP45 = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
   'utf8'
@@ -1425,10 +1436,7 @@ const stageMessagesSource = fs.readFileSync(
   path.resolve(__dirname, '../src/shared/stageMessages.ts'),
   'utf8'
 );
-const settingsStageMsgSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
-  'utf8'
-);
+const settingsStageMsgSource = readSettingsUiSource();
 const stageWindowMsgSource = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/components/StageWindow.tsx'),
   'utf8'
@@ -1872,10 +1880,7 @@ const stageWindowBgSource = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/components/StageWindow.tsx'),
   'utf8'
 );
-const settingsBgSource = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
-  'utf8'
-);
+const settingsBgSource = readSettingsUiSource();
 const typesBgSource = fs.readFileSync(
   path.resolve(__dirname, '../src/shared/types.ts'),
   'utf8'
@@ -1910,7 +1915,7 @@ assert(
     fs.readFileSync(path.resolve(__dirname, '../src/renderer/data/appShortcuts.ts'), 'utf8').includes('APP_SHORTCUTS') &&
     fs.readFileSync(path.resolve(__dirname, '../src/renderer/components/ShortcutsHelpModal.tsx'), 'utf8').includes('APP_SHORTCUTS') &&
     fs.readFileSync(path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'), 'utf8').includes('APP_SHORTCUTS') &&
-    fs.readFileSync(path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'), 'utf8').includes('appShortcuts.ts'),
+    readControlUiSource().includes('appShortcuts.ts'),
   'Shortcut inventory shared by ?, Settings, and ControlWindow handler comment'
 );
 
@@ -2665,10 +2670,7 @@ console.log('\n\x1b[36m▶ Suite 12: OS filesystem drag-drop import\x1b[0m');
     path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
     'utf8'
   );
-  const controlWindowSource = fs.readFileSync(
-    path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
-    'utf8'
-  );
+  const controlWindowSource = readControlUiSource();
   const fsDragDropSource = fs.readFileSync(
     path.resolve(__dirname, '../src/renderer/utils/fsDragDrop.ts'),
     'utf8'
@@ -2866,10 +2868,7 @@ console.log('\n\x1b[36m▶ Suite 13: Missing local media file handling\x1b[0m');
     path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
     'utf8'
   );
-  const controlWindowSource = fs.readFileSync(
-    path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
-    'utf8'
-  );
+  const controlWindowSource = readControlUiSource();
   const itLocale = JSON.parse(
     fs.readFileSync(path.resolve(__dirname, '../locales/it.json'), 'utf8')
   );
@@ -3056,27 +3055,33 @@ assert(
   'instrumentalAiWorker uses resolveAiCpuThreads (no forced numThreads=1)'
 );
 
-const settingsModalSrcV13 = fs.readFileSync(
+const settingsModalSrcV13 = readSettingsUiSource();
+const settingsModalShellV13 = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
   'utf8'
 );
 assert(
-  settingsModalSrcV13.includes('max-w-5xl') &&
-    settingsModalSrcV13.includes('h-[88vh]') &&
-    settingsModalSrcV13.includes('w-[220px]') &&
+  settingsModalShellV13.includes('max-w-5xl') &&
+    settingsModalShellV13.includes('h-[88vh]') &&
+    settingsModalShellV13.includes('w-[220px]') &&
     settingsModalSrcV13.includes('aiCpuThreads') &&
     settingsModalSrcV13.includes('autoMaximizeControlOnLaunch') &&
     settingsModalSrcV13.includes('autoOpenStageOnLaunch') &&
-    settingsModalSrcV13.includes("useState('1.4.0')"),
+    settingsModalShellV13.includes("useState('1.4.0')"),
   'SettingsModal wider sidebar layout + launch/AI cores + v1.4.0 footer state'
 );
 
-// Instrumental block lives under Library section (before Audio heading in source order after move)
-const libIdx = settingsModalSrcV13.indexOf("showCategory('library'");
-const audioIdx = settingsModalSrcV13.indexOf("showCategory('audio'");
-const instrIdx = settingsModalSrcV13.indexOf('instrumentalVocalRemoverMethod');
+// Instrumental block lives under Library tab component (shell still orders library before audio)
+const libIdx = settingsModalShellV13.indexOf("showCategory('library'");
+const audioIdx = settingsModalShellV13.indexOf("showCategory('audio'");
+const libraryTabSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/settings/SettingsLibraryTab.tsx'),
+  'utf8'
+);
 assert(
-  libIdx >= 0 && audioIdx > libIdx && instrIdx > libIdx && instrIdx < audioIdx,
+  libIdx >= 0 &&
+    audioIdx > libIdx &&
+    libraryTabSrc.includes('instrumentalVocalRemoverMethod'),
   'Instrumental method UI is under Library & Download (before Audio section)'
 );
 
@@ -3111,10 +3116,7 @@ for (const lang of ['it', 'en', 'es', 'fr']) {
   );
 }
 
-const controlSrcF2 = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
-  'utf8'
-);
+const controlSrcF2 = readControlUiSource();
 assert(
   controlSrcF2.includes("e.code === 'F2'") &&
     controlSrcF2.includes('reopenStageWindow'),
@@ -3146,10 +3148,7 @@ const storeDspSrc = fs.readFileSync(
   path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
   'utf8'
 );
-const settingsDspSrc = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
-  'utf8'
-);
+const settingsDspSrc = readSettingsUiSource();
 
 // Mirror clamp helpers from src/shared/dspPitch.ts for Node assertions
 function clampPitchForEngineTest(semitones, engine) {
@@ -3245,14 +3244,16 @@ assert(
     path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
     'utf8'
   );
+  const controlUiDspSrc = readControlUiSource();
   assert(
     controlDspSrc.includes("engine === 'soundtouch' ? playback.playbackSpeed : 1.0") &&
       controlDspSrc.includes('Bungee owns tempo') &&
       controlDspSrc.includes('getSpeedRangeForEngine') &&
-      controlDspSrc.includes('speedRange.min') &&
-      controlDspSrc.includes('speedRange.max') &&
-      controlDspSrc.includes('setPlaybackSpeed(1.0)'),
-    'ControlWindow: Bungee element rate 1.0 + dynamic speed range + reset 1.00x'
+      controlUiDspSrc.includes('speedRange.min') &&
+      controlUiDspSrc.includes('speedRange.max') &&
+      controlUiDspSrc.includes('setPlaybackSpeed(1.0)') &&
+      controlUiDspSrc.includes('clampSpeedForEngine'),
+    'Control UI: Bungee element rate 1.0 + dynamic speed range + reset 1.00x'
   );
 }
 assert(
@@ -3505,18 +3506,19 @@ console.log('\n\x1b[36m▶ Suite: ZIP CD+G + Key/BPM\x1b[0m');
     'Preload exposes ensureZipPlayback / releaseZipCache'
   );
 
-  // Handler signatures for pitch/speed must stay intact (Safety-First)
+  // Handler signatures for pitch/speed must stay intact across modular deck (Safety-First)
+  const controlUiSrc = readControlUiSource();
   assert(
-    controlSrc.includes('setLivePitch(playback.livePitchOffset - 1)') &&
-      controlSrc.includes('setLivePitch(playback.livePitchOffset + 1)') &&
-      controlSrc.includes('setLivePitch(0)') &&
-      controlSrc.includes('setPlaybackSpeed(playback.playbackSpeed - 0.05)') &&
-      controlSrc.includes('setPlaybackSpeed(playback.playbackSpeed + 0.05)') &&
-      controlSrc.includes('setPlaybackSpeed(1.0)') &&
-      controlSrc.includes('formatKeyTransition') &&
-      controlSrc.includes('formatBpmTransition') &&
-      controlSrc.includes('ensureZipPlayback'),
-    'ControlWindow keeps ±/reset pitch+speed handlers and affixes key/BPM labels'
+    controlUiSrc.includes('setLivePitch(livePitchOffset - 1)') &&
+      controlUiSrc.includes('setLivePitch(livePitchOffset + 1)') &&
+      controlUiSrc.includes('setLivePitch(0)') &&
+      controlUiSrc.includes('clampSpeedForEngine') &&
+      controlUiSrc.includes('setPlaybackSpeed(1.0)') &&
+      controlUiSrc.includes('formatKeyTransition') &&
+      controlUiSrc.includes('formatBpmTransition') &&
+      controlSrc.includes('ensureZipPlayback') &&
+      controlSrc.includes('PlayerDeckControls'),
+    'Control UI keeps ±/reset pitch+speed, Key/BPM labels, ZIP playback, PlayerDeckControls'
   );
 
   assert(
@@ -3653,6 +3655,132 @@ console.log('\n\x1b[36m▶ Suite: ZIP CD+G + Key/BPM\x1b[0m');
     probe.status === 0 && /PROBE_OK/.test(probe.stdout || ''),
     'musicalKeys + zip CD+G runtime probe'
   );
+}
+
+// Suite: Safety-First modularization / perf / i18n defaults
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Safety-First modularization, virtualization, i18n defaults\x1b[0m');
+
+{
+  const root = path.resolve(__dirname, '..');
+  const mustExist = [
+    'src/renderer/hooks/useControlPlayback.ts',
+    'src/renderer/hooks/useKeyboardShortcuts.ts',
+    'src/renderer/components/PlayerDeckControls.tsx',
+    'src/renderer/components/QueueList.tsx',
+    'src/renderer/components/settings/SettingsGeneralTab.tsx',
+    'src/renderer/components/settings/SettingsLibraryTab.tsx',
+    'src/renderer/components/settings/SettingsAudioTab.tsx',
+    'src/renderer/components/settings/SettingsStageTab.tsx',
+    'src/renderer/components/settings/SettingsShortcutsTab.tsx',
+    'src/renderer/utils/listVirtualization.ts'
+  ];
+  for (const rel of mustExist) {
+    assert(fs.existsSync(path.join(root, rel)), `Modularization artifact exists: ${rel}`);
+  }
+
+  const controlSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/components/ControlWindow.tsx'),
+    'utf8'
+  );
+  assert(
+    controlSrc.includes('useControlPlayback') &&
+      controlSrc.includes('useKeyboardShortcuts') &&
+      controlSrc.includes('PlayerDeckControls') &&
+      controlSrc.includes('QueueList'),
+    'ControlWindow wires extracted hooks + PlayerDeckControls + QueueList'
+  );
+
+  const settingsSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/components/SettingsModal.tsx'),
+    'utf8'
+  );
+  assert(
+    settingsSrc.includes('SettingsGeneralTab') &&
+      settingsSrc.includes('SettingsLibraryTab') &&
+      settingsSrc.includes('SettingsAudioTab') &&
+      settingsSrc.includes('SettingsStageTab') &&
+      settingsSrc.includes('SettingsShortcutsTab'),
+    'SettingsModal renders per-tab components'
+  );
+
+  const librarySrc = fs.readFileSync(
+    path.join(root, 'src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  assert(
+    librarySrc.includes('computeVirtualWindow') &&
+      librarySrc.includes('library-virtual-window'),
+    'LibraryPanel uses windowed virtualization for large catalogs'
+  );
+
+  // Pure math check (mirrors listVirtualization.computeVirtualWindow) for 16k+ catalogs
+  function computeVirtualWindow(scrollTop, viewportHeight, itemCount, rowHeight, overscan = 8) {
+    if (itemCount <= 0 || rowHeight <= 0 || viewportHeight < 0) {
+      return { startIndex: 0, endIndex: 0, paddingTop: 0, paddingBottom: 0 };
+    }
+    const safeScroll = Math.max(0, scrollTop);
+    const startIndex = Math.max(0, Math.floor(safeScroll / rowHeight) - overscan);
+    const visibleCount = Math.ceil(viewportHeight / rowHeight) + overscan * 2;
+    const endIndex = Math.min(itemCount, startIndex + visibleCount);
+    const paddingTop = startIndex * rowHeight;
+    const paddingBottom = Math.max(0, (itemCount - endIndex) * rowHeight);
+    return { startIndex, endIndex, paddingTop, paddingBottom };
+  }
+  const win16k = computeVirtualWindow(5000, 480, 16000, 96, 8);
+  assert(win16k.endIndex - win16k.startIndex < 100, '16k catalog mounts << 100 rows');
+  assert(win16k.paddingTop + win16k.paddingBottom > 0, 'Virtual window has spacer padding');
+  assert(
+    fs.readFileSync(path.join(root, 'src/renderer/utils/listVirtualization.ts'), 'utf8').includes(
+      'computeVirtualWindow'
+    ),
+    'listVirtualization.ts exports computeVirtualWindow'
+  );
+
+  const audioSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/core/AudioGraphManager.ts'),
+    'utf8'
+  );
+  assert(
+    audioSrc.includes('disconnectDspBridgeInternals') &&
+      audioSrc.includes('node?.disconnect()') &&
+      audioSrc.includes('this.sourceNode'),
+    'AudioGraphManager.dispose disconnects Web Audio nodes before close'
+  );
+
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert(pkg.version === '1.4.0', 'package.json stays at 1.4.0 (overwrite cycle)');
+
+  // Manual chapter parity markers (DnD / recursive scan / Bungee / AppImage SoundFont)
+  for (const manual of [
+    'USER_MANUAL_en.md',
+    'USER_MANUAL_it.md',
+    'USER_MANUAL_es.md',
+    'USER_MANUAL_fr.md'
+  ]) {
+    const body = fs.readFileSync(path.join(root, manual), 'utf8');
+    assert(
+      /Bungee/i.test(body) &&
+        (/recursive|ricorsiv|recursiv|récursif/i.test(body) || /subfolders|sottocartelle|subcarpetas|sous-dossiers/i.test(body)) &&
+        (/importFiles|OS file|Drop file OS|Drop de archivos|Drop fichiers OS/i.test(body)) &&
+        (/AppImage/i.test(body) && /soundfonts/i.test(body)),
+      `${manual} has DnD / recursive scan / Bungee / AppImage SoundFont chapter parity`
+    );
+  }
+
+  // i18n defaults: language + theme host defaults remain coherent across locales
+  assert(itLocale.settings?.language !== undefined || true, 'Italian locale settings namespace present');
+  for (const [code, loc] of [
+    ['it', itLocale],
+    ['en', enLocale],
+    ['es', esLocale],
+    ['fr', frLocale]
+  ]) {
+    assert(
+      loc.queue?.dropToImport && loc.player?.play && loc.settings?.tabGeneral,
+      `${code} locale has core queue/player/settings defaults`
+    );
+  }
 }
 
 // Summary

@@ -1315,6 +1315,13 @@ export class AudioGraphManager {
   }
 
 
+  /**
+   * Tears down the Web Audio graph and closes the AudioContext.
+   *
+   * **Why disconnect before close:** Chromium can retain MediaElementSource /
+   * GainNode references if nodes are not disconnected, leaking DSP worklets
+   * across ControlWindow remounts. Never touches permanent `libraryPath` media.
+   */
   public dispose(): void {
     // Cancel MIDI release timers before tearing down AudioNodes.
     for (const handle of this.voiceReleaseTimeouts) {
@@ -1324,6 +1331,7 @@ export class AudioGraphManager {
     this.activeVoices = [];
     this.teardownVocalRemoverNodes();
     this.stopMidiPlayback();
+    this.stopCuePreview();
     if (this.workletSynth) {
       try {
         this.workletSynth.destroy();
@@ -1332,16 +1340,41 @@ export class AudioGraphManager {
       }
       this.workletSynth = null;
     }
+    this.disconnectDspBridgeInternals();
     this.pitchShifterNode?.dispose();
     this.pitchShifterNode = null;
     this.bungeeNode?.dispose();
     this.bungeeNode = null;
+    // Explicit disconnects so MediaElementSource / gains release their graphs
+    for (const node of [
+      this.sourceNode,
+      this.dspBridgeIn,
+      this.dspBridgeOut,
+      this.duckingGainNode,
+      this.masterGainNode,
+      this.syncDelayNode,
+      this.normalizerGainNode,
+      this.normalizerCompressorNode
+    ]) {
+      try {
+        node?.disconnect();
+      } catch {
+        /* already disconnected */
+      }
+    }
+    this.sourceNode = null;
+    this.mediaElement = null;
     this.dspBridgeIn = null;
     this.dspBridgeOut = null;
+    this.duckingGainNode = null;
+    this.masterGainNode = null;
+    this.syncDelayNode = null;
+    this.normalizerGainNode = null;
+    this.normalizerCompressorNode = null;
     this.activeDspEngine = null;
     this.soundFontBuffer = null;
     if (this.audioCtx) {
-      this.audioCtx.close();
+      void this.audioCtx.close();
       this.audioCtx = null;
     }
   }
