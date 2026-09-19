@@ -9,45 +9,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- **Native `.zip` CD+G karaoke packs** — Library scan/import discovers ZIP archives that contain an MP3/WAV + `.cdg` pair (Central Directory inspect). Playback extracts on demand to `userData/temp/zip_cache/<trackId>/`, serves via `karaoke://local/`, and cleans up on dequeue / app quit. Title/artist from the ZIP filename. No version bump (ships after v1.4.0).
-- **Key + BPM detection** — Catalog columns `initialKey` / `initialBpm`; async chromagram/onset analysis (MIDI tempo + key-signature meta; audio via FFmpeg PCM). Regia pitch/speed pills show live `base→result` / `bpm→eff` beside existing ±/reset controls (label-only fallback when unknown). Shared helpers in `musicalKeys.ts` (`transposeKey`, `effectiveBpm`).
-- **AI GPU-First** — Settings → Library & Download: `aiEnableGpu` (default on) + live GPU badge (green name / amber CPU multithread). IPC `system:get-gpu-status`. ORT providers `webgpu`→`wasm` when enabled+supported; else WASM + `aiCpuThreads`.
-- **HTDemucs advanced settings** — When Download Instrumental method is HTDemucs: `demucsShifts` (0|1|2), `demucsSegmentSize` (5–20 s), `demucsOverlap` (0.10–0.50). Payload omitted for MDX (and vice versa).
-- **`scripts/verify-ai-options-pipeline.js`** — GPU providers, threads, MDX/Demucs payload separation, coerce Roformer/DSP → Karaoke 2, locale Basic Algorithm strings; wired into `npm test`.
-- Safety-First modularization: ControlWindow hooks (`useControlPlayback`, `useKeyboardShortcuts`) + `PlayerDeckControls` + `QueueList`; SettingsModal per-tab components; library list windowed virtualization for 16k+ catalogs; dual-audience TSDoc on new exports.
+- None yet.
 
 ### Changed
-- **Download Instrumental method selector** — AI only: `aiMdxKaraoke2` | `aiHtDemucs` (default Karaoke 2). Removed DSP and BS-Roformer from the download Settings UI. Live Regia vocal remover DSP modes unchanged.
-- **Experimental → Basic Algorithm** — Live vocal remover labels in it/en/es/fr (`Algoritmo Base` / `Basic Algorithm` / `Algoritmo Básico` / `Algorithme de Base`); removed Experimental tags from stable HTDemucs blurbs.
-- Granular Zustand selectors in extracted Control hooks/components; AudioGraphManager.dispose disconnects Web Audio nodes before `AudioContext.close`; user manuals (it/en/es/fr) chapter parity for OS DnD import, recursive library scan, Bungee/SoundTouch DSP, AppImage SoundFont seeding.
-- Stay at package version **1.4.0** for upcoming overwrite (no 1.5.0 bump).
+- None yet.
 
 ### Fixed
-- **Bungee pitch + time-stretch no-op** — AudioWorklet processor: drop `export default`, Emscripten `ENVIRONMENT_IS_WORKER` detects `AudioWorkletGlobalScope`. `BungeePitchShifterNode.create` waits for Wasm `initialized` (timeout → SoundTouch). Graph re-applies pitch **and** speed on wire; Bungee keeps `HTMLMediaElement.playbackRate = 1.0` (WASM owns tempo, no double rate / chipmunk); SoundTouch still uses element rate. Bypass exits for pitch≠0 **or** speed≠1.0.
-- **Per-engine speed UI matrix** — Bungee Control 0.50–1.50 (absolute 0.50–2.00); SoundTouch Control 0.75–1.25 (absolute 0.50–1.50). `getSpeedRangeForEngine` / `clampSpeedForEngine`; engine switch re-clamps (e.g. 0.60→0.75).
+- None yet.
 
 ### Breaking Changes
-- Persisted Download Instrumental methods that were DSP or `aiBsRoformer` coerce to `aiMdxKaraoke2`.
+- None yet.
 
-## [1.4.0] — Bungee DSP default + instrumental subtitles modal — 2026-09-19
+## [1.4.0] — Bungee DSP + ZIP CD+G + AI GPU-First + Safety-First — 2026-09-19
 
-Code version bump to **1.4.0**. New GitHub release tag **v1.4.0** (does **not** overwrite `v1.3.0` / `v1.2.0` / `v1.1.0`). Folds PRs **#52** + **#53**. Builds on `v1.3.0` baseline.
+Overwrite of GitHub Release **v1.4.0** after PRs **#52**–**#57** (same version; does **not** touch `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on `v1.3.0` baseline. Package stays **1.4.0** (no 1.5.0).
 
 ### Added
 - **Bungee default pitch/speed DSP** — Wasm AudioWorklet phase vocoder (`public/workers/bungee_processor.js` + `bungee.wasm`, MPL-2.0 upstream https://github.com/bungee-audio-stretch/bungee; runtime prebuilts only, no C++ source vendored). Settings `dspEngine: 'bungee' | 'soundtouch'` (default `bungee`). Control pitch UI ±8 for Bungee / ±4 for SoundTouch. True bypass when pitch 0 && speed 1.00x. Silent fallback to SoundTouch if Bungee init fails. MIDI/KAR unchanged (SpessaSynth). (PR #52)
 - **Instrumental subtitles confirmation modal** — Clicking Scarica strumentale opens `InstrumentalSubtitlesModal` (title/artist + amber ASR warning) before download. Actions: with subtitles / instrumental only / cancel (Esc / outside). Optional remember → `instrumentalSubtitlesPolicy: 'ask' | 'always' | 'never'`. `DownloadOptions.includeSubtitles` opt-in; normal download unchanged. (PR #53)
+- **Native `.zip` CD+G karaoke packs** — Library scan/import discovers ZIP archives that contain an MP3/WAV + `.cdg` pair (Central Directory inspect). Playback extracts on demand to `userData/temp/zip_cache/<trackId>/`, serves via `karaoke://local/`, and cleans up on dequeue / app quit. Title/artist from the ZIP filename. (PR #54)
+- **Key + BPM detection** — Catalog columns `initialKey` / `initialBpm`; async chromagram/onset analysis (MIDI tempo + key-signature meta; audio via FFmpeg PCM). Regia pitch/speed pills show live `base→result` / `bpm→eff` beside existing ±/reset controls (label-only fallback when unknown). Shared helpers in `musicalKeys.ts` (`transposeKey`, `effectiveBpm`). (PR #54)
+- **AI GPU-First** — Settings → Library & Download: `aiEnableGpu` (default on) + live GPU badge (green name / amber CPU multithread). IPC `system:get-gpu-status`. ORT providers `webgpu`→`wasm` when enabled+supported; else WASM + `aiCpuThreads`. (PR #55)
+- **HTDemucs advanced settings** — When Download Instrumental method is HTDemucs: `demucsShifts` (0|1|2), `demucsSegmentSize` (5–20 s), `demucsOverlap` (0.10–0.50). Payload omitted for MDX (and vice versa). (PR #55)
+- **`scripts/verify-ai-options-pipeline.js`** — GPU providers, threads, MDX/Demucs payload separation, coerce Roformer/DSP → Karaoke 2, locale Basic Algorithm strings; wired into `npm test`. (PR #55)
+- **Safety-First modularization** — ControlWindow hooks (`useControlPlayback`, `useKeyboardShortcuts`) + `PlayerDeckControls` + `QueueList`; SettingsModal per-tab components; library list windowed virtualization for 16k+ catalogs; dual-audience TSDoc on new exports. (PR #57)
 
 ### Changed
-- SoundTouch WSOLA remains selectable as legacy/light engine (hard ±4 ST); no longer the sole media pitch path.
-- README / RELEASE_NOTES attribution for Bungee (MPL-2.0) + `public/workers/BUNGEE_NOTICE.md`.
+- SoundTouch WSOLA remains selectable as legacy/light engine (hard ±4 ST); no longer the sole media pitch path. (PR #52)
+- README / RELEASE_NOTES attribution for Bungee (MPL-2.0) + `public/workers/BUNGEE_NOTICE.md`. (PR #52)
 - **yt-dlp instrumental `--sub-langs`** — Extended from `.*-orig` to `.*-orig,default` (still no bare `all`; 429-safe). Auto-subs flags only when `instrumental && includeSubtitles === true`. (PR #53)
+- **Download Instrumental method selector** — AI only: `aiMdxKaraoke2` | `aiHtDemucs` (default Karaoke 2). Removed DSP and BS-Roformer from the download Settings UI. Live Regia vocal remover DSP modes unchanged. (PR #55)
+- **Experimental → Basic Algorithm** — Live vocal remover labels in it/en/es/fr (`Algoritmo Base` / `Basic Algorithm` / `Algoritmo Básico` / `Algorithme de Base`); removed Experimental tags from stable HTDemucs blurbs. (PR #55)
+- Granular Zustand selectors in extracted Control hooks/components; AudioGraphManager.dispose disconnects Web Audio nodes before `AudioContext.close`; user manuals (it/en/es/fr) chapter parity for OS DnD import, recursive library scan, Bungee/SoundTouch DSP, AppImage SoundFont seeding. (PR #57)
 - App version **1.4.0** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer. (this release)
 
 ### Fixed
-- None.
+- **Bungee pitch + time-stretch no-op** — AudioWorklet processor: drop `export default`, Emscripten `ENVIRONMENT_IS_WORKER` detects `AudioWorkletGlobalScope`. `BungeePitchShifterNode.create` waits for Wasm `initialized` (timeout → SoundTouch). Graph re-applies pitch **and** speed on wire; Bungee keeps `HTMLMediaElement.playbackRate = 1.0` (WASM owns tempo, no double rate / chipmunk); SoundTouch still uses element rate. Bypass exits for pitch≠0 **or** speed≠1.0. (PR #56)
+- **Per-engine speed UI matrix** — Bungee Control 0.50–1.50 (absolute 0.50–2.00); SoundTouch Control 0.75–1.25 (absolute 0.50–1.50). `getSpeedRangeForEngine` / `clampSpeedForEngine`; engine switch re-clamps (e.g. 0.60→0.75). (PR #56)
 
 ### Breaking Changes
-- None (missing `dspEngine` in persisted settings coerces to `bungee`; missing `instrumentalSubtitlesPolicy` coerces to `ask`).
+- Persisted Download Instrumental methods that were DSP or `aiBsRoformer` coerce to `aiMdxKaraoke2`. (PR #55)
+- Missing `dspEngine` in persisted settings coerces to `bungee`; missing `instrumentalSubtitlesPolicy` coerces to `ask`. (PR #52 / #53)
 
 ## [1.3.0] — Startup maximize / Stage launch / AI CPU cores / Settings layout — 2026-09-19
 
@@ -117,7 +119,6 @@ Overwrite of GitHub Release `v1.1.0` after PR #38 (revert Indigo Regia / assigne
 
 ### Breaking Changes
 - None.
-
 ## [1.1.0] — Stop web search + AI worker MessageEvent IPC (refresh) — 2026-09-18
 
 Overwrite of GitHub Release `v1.1.0` after PR #32 (Interrompi ricerca / cancel stuck YouTube web search) + PR #33 (utilityProcess parentPort MessageEvent unwrap so Instrumental AI `separate` runs).
