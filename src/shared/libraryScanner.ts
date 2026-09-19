@@ -39,6 +39,7 @@ export const LIBRARY_SCAN_MIN_BYTES = 2048;
 /**
  * Primary media extensions accepted by folder scan and OS drag-drop import.
  * Why: keep discovery aligned with playback MIME + thumbnail support (.mkv/.avi).
+ * `.zip` = native CD+G karaoke packs (MP3/WAV + CDG inside); validated via Central Directory.
  */
 export const LIBRARY_PRIMARY_EXTENSIONS = new Set([
   '.mp4',
@@ -47,7 +48,8 @@ export const LIBRARY_PRIMARY_EXTENSIONS = new Set([
   '.avi',
   '.mp3',
   '.mid',
-  '.kar'
+  '.kar',
+  '.zip'
 ]);
 
 export type DiscoveredLibraryTrack = {
@@ -153,7 +155,7 @@ export function parseLibraryFilenameMeta(baseName: string): {
 
 /**
  * Choose primary media extension + source from a same-basename extension set.
- * Priority: MIDI/KAR → mp4 → webm → mkv → avi → mp3. `.cdg` is companion-only.
+ * Priority: MIDI/KAR → mp4 → webm → mkv → avi → mp3 → zip(CD+G). `.cdg` is companion-only.
  */
 export function pickPrimaryLibraryExtension(exts: string[]): {
   source: DiscoveredLibraryTrack['source'];
@@ -166,6 +168,7 @@ export function pickPrimaryLibraryExtension(exts: string[]): {
   const hasAvi = exts.includes('.avi');
   const hasMid = exts.includes('.mid');
   const hasKar = exts.includes('.kar');
+  const hasZip = exts.includes('.zip');
 
   let source: DiscoveredLibraryTrack['source'] = 'local_library';
   let targetExt = '';
@@ -183,10 +186,67 @@ export function pickPrimaryLibraryExtension(exts: string[]): {
     targetExt = '.avi';
   } else if (hasMp3) {
     targetExt = '.mp3';
+  } else if (hasZip) {
+    // Native CD+G karaoke ZIP — validated later in buildDiscoveredTrack
+    targetExt = '.zip';
   }
 
   if (!targetExt) return null;
   return { source, targetExt };
+}
+
+/**
+ * Lightweight ZIP Central Directory check: does the archive contain audio (.mp3/.wav) + .cdg?
+ * Why: kept inside libraryScanner (no cross-module import) so Node `--experimental-strip-types`
+ * probes that import this file stay green without .js/.ts extension games.
+ * Full extract lives in `zipCdg.ts` (main process).
+ */
+function zipContainsCdgKaraokePair(zipPath: string): boolean {
+  try {
+    const st = fs.statSync(zipPath);
+    if (!st.isFile() || st.size < LIBRARY_SCAN_MIN_BYTES) return false;
+    const tailSize = Math.min(st.size, 22 + 0xffff + 65536);
+    const fd = fs.openSync(zipPath, 'r');
+    try {
+      const tail = Buffer.alloc(tailSize);
+      fs.readSync(fd, tail, 0, tailSize, st.size - tailSize);
+      let eocd = -1;
+      for (let i = tail.length - 22; i >= 0; i--) {
+        if (tail.readUInt32LE(i) === 0x06054b50) {
+          eocd = i;
+          break;
+        }
+      }
+      if (eocd < 0) return false;
+      const cdSize = tail.readUInt32LE(eocd + 12);
+      const cdOffset = tail.readUInt32LE(eocd + 16);
+      if (cdSize <= 0 || cdSize > 32 * 1024 * 1024) return false;
+      const cdBuf = Buffer.alloc(cdSize);
+      fs.readSync(fd, cdBuf, 0, cdSize, cdOffset);
+      let hasAudio = false;
+      let hasCdg = false;
+      let off = 0;
+      while (off + 46 <= cdBuf.length) {
+        if (cdBuf.readUInt32LE(off) !== 0x02014b50) break;
+        const nameLen = cdBuf.readUInt16LE(off + 28);
+        const extraLen = cdBuf.readUInt16LE(off + 30);
+        const commentLen = cdBuf.readUInt16LE(off + 32);
+        const name = cdBuf.slice(off + 46, off + 46 + nameLen).toString('utf8').replace(/\\/g, '/');
+        const lower = name.toLowerCase();
+        if (name && !name.endsWith('/') && !lower.startsWith('__macosx/')) {
+          if (lower.endsWith('.mp3') || lower.endsWith('.wav')) hasAudio = true;
+          if (lower.endsWith('.cdg')) hasCdg = true;
+          if (hasAudio && hasCdg) return true;
+        }
+        off += 46 + nameLen + extraLen + commentLen;
+      }
+      return hasAudio && hasCdg;
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return false;
+  }
 }
 
 function buildDiscoveredTrack(
@@ -212,8 +272,13 @@ function buildDiscoveredTrack(
     return null;
   }
 
+  // Karaoke ZIP packs must contain an audio+CDG pair (Central Directory inspect).
+  if (picked.targetExt === '.zip') {
+    if (!zipContainsCdgKaraokePair(fullFilePath)) return null;
+  }
+
   const meta = parseLibraryFilenameMeta(baseName);
-  const hasCdg = exts.includes('.cdg');
+  const hasCdg = exts.includes('.cdg') || picked.targetExt === '.zip';
   const hasKar = exts.includes('.kar');
 
   return {

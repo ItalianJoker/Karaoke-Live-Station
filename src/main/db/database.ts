@@ -41,8 +41,8 @@ export class DatabaseManager {
    */
   private prepareTrackStatements(): void {
     this.upsertTrackStmt = this.db.prepare(`
-      INSERT INTO tracks (id, source, title, artist, durationSec, uri, localFilePath, thumbnailUrl, hasEmbeddedLyrics, isMultiplex, isEmbeddable, addedAt)
-      VALUES (@id, @source, @title, @artist, @durationSec, @uri, @localFilePath, @thumbnailUrl, @hasEmbeddedLyrics, @isMultiplex, @isEmbeddable, @addedAt)
+      INSERT INTO tracks (id, source, title, artist, durationSec, uri, localFilePath, thumbnailUrl, hasEmbeddedLyrics, isMultiplex, isEmbeddable, initialKey, initialBpm, addedAt)
+      VALUES (@id, @source, @title, @artist, @durationSec, @uri, @localFilePath, @thumbnailUrl, @hasEmbeddedLyrics, @isMultiplex, @isEmbeddable, @initialKey, @initialBpm, @addedAt)
       ON CONFLICT(id) DO UPDATE SET
         source = excluded.source,
         title = excluded.title,
@@ -53,7 +53,9 @@ export class DatabaseManager {
         thumbnailUrl = excluded.thumbnailUrl,
         hasEmbeddedLyrics = excluded.hasEmbeddedLyrics,
         isMultiplex = excluded.isMultiplex,
-        isEmbeddable = excluded.isEmbeddable
+        isEmbeddable = excluded.isEmbeddable,
+        initialKey = COALESCE(excluded.initialKey, tracks.initialKey),
+        initialBpm = COALESCE(excluded.initialBpm, tracks.initialBpm)
     `);
     this.deleteByPathExceptStmt = this.db.prepare(
       `DELETE FROM tracks WHERE localFilePath = ? AND id != ?`
@@ -74,6 +76,8 @@ export class DatabaseManager {
       hasEmbeddedLyrics: track.hasEmbeddedLyrics ? 1 : 0,
       isMultiplex: track.isMultiplex ? 1 : 0,
       isEmbeddable: track.isEmbeddable ? 1 : 0,
+      initialKey: track.initialKey ?? null,
+      initialBpm: track.initialBpm ?? null,
       addedAt: Date.now()
     };
   }
@@ -108,6 +112,8 @@ export class DatabaseManager {
         hasEmbeddedLyrics INTEGER DEFAULT 0,
         isMultiplex INTEGER DEFAULT 0,
         isEmbeddable INTEGER DEFAULT 1,
+        initialKey TEXT,
+        initialBpm REAL,
         addedAt INTEGER NOT NULL
       );
 
@@ -154,6 +160,50 @@ export class DatabaseManager {
     } catch {
       // Column already exists
     }
+    // Key / BPM catalog columns (nullable — analysis is async / best-effort)
+    try {
+      this.db.exec('ALTER TABLE tracks ADD COLUMN initialKey TEXT;');
+    } catch {
+      // Column already exists
+    }
+    try {
+      this.db.exec('ALTER TABLE tracks ADD COLUMN initialBpm REAL;');
+    } catch {
+      // Column already exists
+    }
+  }
+
+  /** Map a SQLite tracks row to KaraokeMediaTrack (shared by all readers). */
+  private mapTrackRow(r: {
+    id: string;
+    source: string;
+    title: string;
+    artist: string;
+    durationSec: number;
+    uri: string;
+    localFilePath: string | null;
+    thumbnailUrl: string | null;
+    hasEmbeddedLyrics: number;
+    isMultiplex: number;
+    isEmbeddable: number;
+    initialKey?: string | null;
+    initialBpm?: number | null;
+  }): KaraokeMediaTrack {
+    return {
+      id: r.id,
+      source: r.source as KaraokeMediaTrack['source'],
+      title: r.title,
+      artist: r.artist,
+      durationSec: r.durationSec,
+      uri: r.uri,
+      localFilePath: r.localFilePath ?? undefined,
+      thumbnailUrl: r.thumbnailUrl ?? undefined,
+      hasEmbeddedLyrics: Boolean(r.hasEmbeddedLyrics),
+      isMultiplex: Boolean(r.isMultiplex),
+      isEmbeddable: Boolean(r.isEmbeddable),
+      initialKey: r.initialKey ?? undefined,
+      initialBpm: r.initialBpm != null ? Number(r.initialBpm) : undefined
+    };
   }
 
   /**
@@ -173,21 +223,11 @@ export class DatabaseManager {
       hasEmbeddedLyrics: number;
       isMultiplex: number;
       isEmbeddable: number;
+      initialKey: string | null;
+      initialBpm: number | null;
     }>;
 
-    const mapped = rows.map((r) => ({
-      id: r.id,
-      source: r.source as KaraokeMediaTrack['source'],
-      title: r.title,
-      artist: r.artist,
-      durationSec: r.durationSec,
-      uri: r.uri,
-      localFilePath: r.localFilePath ?? undefined,
-      thumbnailUrl: r.thumbnailUrl ?? undefined,
-      hasEmbeddedLyrics: Boolean(r.hasEmbeddedLyrics),
-      isMultiplex: Boolean(r.isMultiplex),
-      isEmbeddable: Boolean(r.isEmbeddable)
-    }));
+    const mapped = rows.map((r) => this.mapTrackRow(r));
     return this.dedupeTracksByIdentity(mapped);
   }
 
@@ -252,20 +292,10 @@ export class DatabaseManager {
       hasEmbeddedLyrics: number;
       isMultiplex: number;
       isEmbeddable: number;
+      initialKey: string | null;
+      initialBpm: number | null;
     }>;
-    return rows.map((r) => ({
-      id: r.id,
-      source: r.source as KaraokeMediaTrack['source'],
-      title: r.title,
-      artist: r.artist,
-      durationSec: r.durationSec,
-      uri: r.uri,
-      localFilePath: r.localFilePath ?? undefined,
-      thumbnailUrl: r.thumbnailUrl ?? undefined,
-      hasEmbeddedLyrics: Boolean(r.hasEmbeddedLyrics),
-      isMultiplex: Boolean(r.isMultiplex),
-      isEmbeddable: Boolean(r.isEmbeddable)
-    }));
+    return rows.map((r) => this.mapTrackRow(r));
   }
 
   /**
@@ -325,22 +355,32 @@ export class DatabaseManager {
           hasEmbeddedLyrics: number;
           isMultiplex: number;
           isEmbeddable: number;
+          initialKey: string | null;
+          initialBpm: number | null;
         }
       | undefined;
     if (!row) return null;
-    return {
-      id: row.id,
-      source: row.source as KaraokeMediaTrack['source'],
-      title: row.title,
-      artist: row.artist,
-      durationSec: row.durationSec,
-      uri: row.uri,
-      localFilePath: row.localFilePath ?? undefined,
-      thumbnailUrl: row.thumbnailUrl ?? undefined,
-      hasEmbeddedLyrics: Boolean(row.hasEmbeddedLyrics),
-      isMultiplex: Boolean(row.isMultiplex),
-      isEmbeddable: Boolean(row.isEmbeddable)
-    };
+    return this.mapTrackRow(row);
+  }
+
+  /**
+   * Persist async key/BPM analysis without clobbering other track fields.
+   * Why: analysis must not race a full upsert from a concurrent library scan.
+   */
+  public updateTrackKeyBpm(
+    trackId: string,
+    initialKey?: string,
+    initialBpm?: number
+  ): void {
+    if (!trackId) return;
+    this.db
+      .prepare(
+        `UPDATE tracks SET
+          initialKey = COALESCE(?, initialKey),
+          initialBpm = COALESCE(?, initialBpm)
+         WHERE id = ?`
+      )
+      .run(initialKey ?? null, initialBpm ?? null, trackId);
   }
 
   /** Deletes a single track by primary key. */

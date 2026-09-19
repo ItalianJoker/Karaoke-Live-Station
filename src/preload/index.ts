@@ -109,6 +109,24 @@ export interface KaraokeAPI {
      * Empty / http(s) / protocol URIs skip fs (main returns exists:true); this unwraps to boolean.
      */
     checkFileExists: (filePath: string) => Promise<boolean>;
+    /**
+     * Extract a karaoke CD+G ZIP into temp/zip_cache/<trackId>/ for playback.
+     * Returns karaoke:// URIs for audio + CDG; does not alter catalog localFilePath.
+     */
+    ensureZipPlayback: (payload: {
+      trackId: string;
+      zipPath: string;
+    }) => Promise<{
+      success: boolean;
+      audioPath?: string;
+      cdgPath?: string;
+      audioUri?: string;
+      cdgUri?: string;
+      audioExt?: '.mp3' | '.wav';
+      error?: string;
+    }>;
+    /** Optional hint to drop one track's zip extract cache */
+    releaseZipCache: (trackId: string) => Promise<{ success: boolean }>;
   };
 
   // 5. SIAE Reporting
@@ -385,7 +403,10 @@ const karaokeApi: KaraokeAPI = {
         | undefined;
       if (typeof result === 'boolean') return result;
       return Boolean(result?.exists);
-    }
+    },
+    ensureZipPlayback: (payload: { trackId: string; zipPath: string }) =>
+      ipcRenderer.invoke('library:ensure-zip-playback', payload),
+    releaseZipCache: (trackId: string) => ipcRenderer.invoke('library:release-zip-cache', trackId)
   },
 
   // SIAE Reporting

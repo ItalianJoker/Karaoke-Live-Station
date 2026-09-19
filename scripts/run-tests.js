@@ -3303,6 +3303,267 @@ console.log('\n\x1b[36m▶ Suite: Instrumental subtitles modal + sub-langs gatin
   );
 }
 
+// -------------------------------------------------------------
+// Suite: ZIP CD+G + Key/BPM (musicalKeys, zip inspect, UI lock)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: ZIP CD+G + Key/BPM\x1b[0m');
+
+{
+  const zlib = require('zlib');
+  const { spawnSync } = require('child_process');
+
+  /** Build a minimal STORE-method ZIP (no compression) for unit probes. */
+  function buildStoreZip(files) {
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+    for (const { name, data } of files) {
+      const nameBuf = Buffer.from(name, 'utf8');
+      const local = Buffer.alloc(30 + nameBuf.length);
+      local.writeUInt32LE(0x04034b50, 0);
+      local.writeUInt16LE(20, 4);
+      local.writeUInt16LE(0, 6);
+      local.writeUInt16LE(0, 8); // STORE
+      local.writeUInt16LE(0, 10);
+      local.writeUInt16LE(0, 12);
+      local.writeUInt32LE(0, 14); // crc optional for our reader
+      local.writeUInt32LE(data.length, 18);
+      local.writeUInt32LE(data.length, 22);
+      local.writeUInt16LE(nameBuf.length, 26);
+      local.writeUInt16LE(0, 28);
+      nameBuf.copy(local, 30);
+      const localFull = Buffer.concat([local, data]);
+      localParts.push(localFull);
+
+      const central = Buffer.alloc(46 + nameBuf.length);
+      central.writeUInt32LE(0x02014b50, 0);
+      central.writeUInt16LE(20, 4);
+      central.writeUInt16LE(20, 6);
+      central.writeUInt16LE(0, 8);
+      central.writeUInt16LE(0, 10);
+      central.writeUInt16LE(0, 12);
+      central.writeUInt16LE(0, 14);
+      central.writeUInt32LE(0, 16);
+      central.writeUInt32LE(data.length, 20);
+      central.writeUInt32LE(data.length, 24);
+      central.writeUInt16LE(nameBuf.length, 28);
+      central.writeUInt16LE(0, 30);
+      central.writeUInt16LE(0, 32);
+      central.writeUInt16LE(0, 34);
+      central.writeUInt16LE(0, 36);
+      central.writeUInt32LE(0, 38);
+      central.writeUInt32LE(offset, 42);
+      nameBuf.copy(central, 46);
+      centralParts.push(central);
+      offset += localFull.length;
+    }
+    const centralDir = Buffer.concat(centralParts);
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(0, 4);
+    eocd.writeUInt16LE(0, 6);
+    eocd.writeUInt16LE(files.length, 8);
+    eocd.writeUInt16LE(files.length, 10);
+    eocd.writeUInt32LE(centralDir.length, 12);
+    eocd.writeUInt32LE(offset, 16);
+    eocd.writeUInt16LE(0, 20);
+    return Buffer.concat([...localParts, centralDir, eocd]);
+  }
+
+  const musicalKeysPath = path.resolve(__dirname, '../src/shared/musicalKeys.ts');
+  const zipCdgPath = path.resolve(__dirname, '../src/shared/zipCdg.ts');
+  const scannerPath = path.resolve(__dirname, '../src/shared/libraryScanner.ts');
+  const controlSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+    'utf8'
+  );
+  const dbSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/db/database.ts'), 'utf8');
+  const typesSrc = fs.readFileSync(path.resolve(__dirname, '../src/shared/types.ts'), 'utf8');
+  const mainSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+  const preloadSrc = fs.readFileSync(path.resolve(__dirname, '../src/preload/index.ts'), 'utf8');
+
+  assert(
+    fs.existsSync(musicalKeysPath) &&
+      fs.readFileSync(musicalKeysPath, 'utf8').includes('export function transposeKey') &&
+      fs.readFileSync(musicalKeysPath, 'utf8').includes('export function effectiveBpm'),
+    'musicalKeys.ts exports transposeKey + effectiveBpm'
+  );
+
+  assert(
+    typesSrc.includes('initialKey?:') && typesSrc.includes('initialBpm?:'),
+    'KaraokeMediaTrack has optional initialKey / initialBpm'
+  );
+
+  assert(
+    dbSrc.includes('initialKey TEXT') &&
+      dbSrc.includes('initialBpm REAL') &&
+      dbSrc.includes('updateTrackKeyBpm'),
+    'DB migrates initialKey/initialBpm + updateTrackKeyBpm'
+  );
+
+  assert(
+    mainSrc.includes('library:ensure-zip-playback') &&
+      mainSrc.includes('ZipCdgCache') &&
+      mainSrc.includes('TrackAnalysisService') &&
+      mainSrc.includes('zipCdgCache.cleanupAll'),
+    'Main wires zip extract IPC + analysis + quit cleanup'
+  );
+
+  assert(
+    preloadSrc.includes('ensureZipPlayback') && preloadSrc.includes('releaseZipCache'),
+    'Preload exposes ensureZipPlayback / releaseZipCache'
+  );
+
+  // Handler signatures for pitch/speed must stay intact (Safety-First)
+  assert(
+    controlSrc.includes('setLivePitch(playback.livePitchOffset - 1)') &&
+      controlSrc.includes('setLivePitch(playback.livePitchOffset + 1)') &&
+      controlSrc.includes('setLivePitch(0)') &&
+      controlSrc.includes('setPlaybackSpeed(playback.playbackSpeed - 0.05)') &&
+      controlSrc.includes('setPlaybackSpeed(playback.playbackSpeed + 0.05)') &&
+      controlSrc.includes('setPlaybackSpeed(1.0)') &&
+      controlSrc.includes('formatKeyTransition') &&
+      controlSrc.includes('formatBpmTransition') &&
+      controlSrc.includes('ensureZipPlayback'),
+    'ControlWindow keeps ±/reset pitch+speed handlers and affixes key/BPM labels'
+  );
+
+  assert(
+    fs.readFileSync(scannerPath, 'utf8').includes("'.zip'") &&
+      fs.readFileSync(scannerPath, 'utf8').includes('zipContainsCdgKaraokePair') &&
+      fs.readFileSync(scannerPath, 'utf8').includes("picked.targetExt === '.zip'"),
+    'libraryScanner discovers .zip via Central Directory inspect'
+  );
+
+  const probe = spawnSync(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      '--no-warnings',
+      '-e',
+      `
+      import fs from 'fs';
+      import path from 'path';
+      import os from 'os';
+      import {
+        transposeKey,
+        effectiveBpm,
+        formatKeyTransition,
+        formatBpmTransition,
+        parseMusicalKey
+      } from ${JSON.stringify(musicalKeysPath)};
+      import {
+        inspectZipForCdgPair,
+        extractZipCdgPair
+      } from ${JSON.stringify(zipCdgPath)};
+
+      const assert = (c, m) => { if (!c) { console.error('PROBE_FAIL', m); process.exit(2); } };
+
+      // transpose examples
+      assert(transposeKey('Am', 2) === 'Bm', 'Am +2 → Bm');
+      assert(transposeKey('C', 1) === 'C#', 'C +1 → C#');
+      assert(transposeKey('F', -1) === 'E', 'F -1 → E');
+      assert(transposeKey(undefined, 3) === undefined, 'undefined key → undefined');
+      assert(transposeKey('', 1) === undefined, 'empty key → undefined');
+
+      // effective BPM
+      assert(effectiveBpm(120, 1.05) === 126, '120 * 1.05 → 126');
+      assert(effectiveBpm(100, 0.5) === 50, '100 * 0.5 → 50');
+      assert(effectiveBpm(undefined, 1.2) === undefined, 'undefined bpm → undefined');
+      assert(effectiveBpm(0, 1.1) === undefined, 'zero bpm → undefined');
+
+      // UI transition labels
+      assert(formatKeyTransition('Am', 0) === 'Am', 'key @0 stays Am');
+      assert(formatKeyTransition('Am', 2) === 'Am→Bm', 'key transition Am→Bm');
+      assert(formatKeyTransition(undefined, 2) === undefined, 'no key → undefined label');
+      assert(formatBpmTransition(120, 1.0) === '120', 'bpm @1.0 stays 120');
+      assert(formatBpmTransition(120, 1.05) === '120→126', 'bpm transition');
+      assert(formatBpmTransition(undefined, 1.1) === undefined, 'no bpm → undefined label');
+      assert(parseMusicalKey('Bb')?.pitchClass === 10, 'Bb pitch class');
+
+      // ZIP CD+G pair (STORE method)
+      const pad = (n) => Buffer.alloc(Math.max(n, 2048), 7);
+      const buildZip = (files) => {
+        const localParts = [];
+        const centralParts = [];
+        let offset = 0;
+        for (const { name, data } of files) {
+          const nameBuf = Buffer.from(name, 'utf8');
+          const local = Buffer.alloc(30 + nameBuf.length);
+          local.writeUInt32LE(0x04034b50, 0);
+          local.writeUInt16LE(20, 4);
+          local.writeUInt16LE(0, 8);
+          local.writeUInt32LE(data.length, 18);
+          local.writeUInt32LE(data.length, 22);
+          local.writeUInt16LE(nameBuf.length, 26);
+          nameBuf.copy(local, 30);
+          const localFull = Buffer.concat([local, data]);
+          localParts.push(localFull);
+          const central = Buffer.alloc(46 + nameBuf.length);
+          central.writeUInt32LE(0x02014b50, 0);
+          central.writeUInt16LE(20, 4);
+          central.writeUInt16LE(20, 6);
+          central.writeUInt32LE(data.length, 20);
+          central.writeUInt32LE(data.length, 24);
+          central.writeUInt16LE(nameBuf.length, 28);
+          central.writeUInt32LE(offset, 42);
+          nameBuf.copy(central, 46);
+          centralParts.push(central);
+          offset += localFull.length;
+        }
+        const centralDir = Buffer.concat(centralParts);
+        const eocd = Buffer.alloc(22);
+        eocd.writeUInt32LE(0x06054b50, 0);
+        eocd.writeUInt16LE(files.length, 8);
+        eocd.writeUInt16LE(files.length, 10);
+        eocd.writeUInt32LE(centralDir.length, 12);
+        eocd.writeUInt32LE(offset, 16);
+        return Buffer.concat([...localParts, centralDir, eocd]);
+      };
+
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kls-zip-cdg-'));
+      try {
+        const zipPath = path.join(root, 'Lucio - Anima.zip');
+        fs.writeFileSync(
+          zipPath,
+          buildZip([
+            { name: 'Artist - Song.mp3', data: pad(4096) },
+            { name: 'Artist - Song.cdg', data: pad(4096) }
+          ])
+        );
+        const pair = inspectZipForCdgPair(zipPath);
+        assert(pair && pair.audioExt === '.mp3' && /\\.cdg$/i.test(pair.cdgEntry), 'inspect finds mp3+cdg');
+        const dest = path.join(root, 'out');
+        const extracted = extractZipCdgPair(zipPath, dest, pair);
+        assert(fs.existsSync(extracted.audioPath) && fs.existsSync(extracted.cdgPath), 'extract writes pair');
+
+        // Non-karaoke zip must not pair
+        const junk = path.join(root, 'Not Karaoke.zip');
+        fs.writeFileSync(
+          junk,
+          buildZip([{ name: 'readme.txt', data: pad(4096) }])
+        );
+        assert(inspectZipForCdgPair(junk) == null, 'non-CDG zip returns null');
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+
+      console.log('PROBE_OK');
+      `
+    ],
+    { encoding: 'utf8' }
+  );
+
+  if (probe.status !== 0) {
+    console.error(probe.stdout || '');
+    console.error(probe.stderr || '');
+  }
+  assert(
+    probe.status === 0 && /PROBE_OK/.test(probe.stdout || ''),
+    'musicalKeys + zip CD+G runtime probe'
+  );
+}
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');
