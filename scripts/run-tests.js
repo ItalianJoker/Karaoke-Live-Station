@@ -733,21 +733,26 @@ assert(
     offlineModelManagerSource.includes('Model cache hit') &&
     offlineModelManagerSource.includes('explainCacheMiss') &&
     fs
-      .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
+      .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiSeparateCore.ts'), 'utf8')
       .includes('wasmBinary') &&
     fs
-      .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
+      .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiSeparateCore.ts'), 'utf8')
       .includes('toArrayBuffer') &&
     fs
-      .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
+      .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiSeparateCore.ts'), 'utf8')
       .includes('ortBackend') &&
     fs
       .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
       .includes('unwrapAiWorkerInboundMessage') &&
     fs
-      .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'), 'utf8')
+      .readFileSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiSeparateCore.ts'), 'utf8')
       .includes("await import('demucs-web')") &&
     fs.existsSync(path.resolve(__dirname, '../src/main/workers/aiWorkerMessage.ts')) &&
+    fs.existsSync(path.resolve(__dirname, '../src/main/workers/instrumentalAiGpuRenderer.ts')) &&
+    fs.existsSync(path.resolve(__dirname, '../src/main/services/InstrumentalAiHiddenRenderer.ts')) &&
+    fs
+      .readFileSync(path.resolve(__dirname, '../src/main/services/InstrumentalAiSeparator.ts'), 'utf8')
+      .includes('hidden-renderer') &&
     fs
       .readFileSync(path.resolve(__dirname, '../src/main/ai/MdxNetSeparator.ts'), 'utf8')
       .includes('onIntra') &&
@@ -3066,6 +3071,10 @@ const aiWorkerSrc = fs.readFileSync(
   path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'),
   'utf8'
 );
+const aiSeparateCoreSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/workers/instrumentalAiSeparateCore.ts'),
+  'utf8'
+);
 assert(
   mdxSepSrc.includes('resolveAiCpuThreads') &&
     mdxSepSrc.includes('ort.env.wasm.numThreads') &&
@@ -3078,9 +3087,10 @@ assert(
   'MdxNetSeparator uses dynamic threads + GPU-gated webgpu/wasm (no forced numThreads=1)'
 );
 assert(
-  aiWorkerSrc.includes('resolveAiCpuThreads') &&
-    !/ort\.env\.wasm\.numThreads\s*=\s*1/.test(aiWorkerSrc),
-  'instrumentalAiWorker uses resolveAiCpuThreads (no forced numThreads=1)'
+  aiSeparateCoreSrc.includes('resolveAiCpuThreads') &&
+    aiWorkerSrc.includes('runInstrumentalAiSeparate') &&
+    !/ort\.env\.wasm\.numThreads\s*=\s*1/.test(aiSeparateCoreSrc),
+  'instrumentalAiSeparateCore uses resolveAiCpuThreads (no forced numThreads=1)'
 );
 
 const settingsModalSrcV13 = readSettingsUiSource();
@@ -3317,6 +3327,19 @@ assert(
       bungeeProc.includes('Module["_free"]=_free') &&
       bungeeProc.includes('Module["HEAPF32"]=HEAPF32'),
     'bungee_processor.js: Module exposes _malloc/_free/HEAPF32 for AudioWorklet'
+  );
+  assert(
+    bungeeProc.includes('WASM_MAX_FRAMES = 8192') &&
+      bungeeProc.includes('fifoPushInterleaved') &&
+      bungeeProc.includes('fifoClear') &&
+      bungeeProc.includes('fifoPop') &&
+      !bungeeProc.includes('Math.min(outputFrames, frameCount)'),
+    'bungee_processor.js: 8192-frame Wasm buffers + output FIFO (no excess-frame discard)'
+  );
+  assert(
+    bungeeNodeSrc.includes("this.send('reset')") &&
+      bungeeNodeSrc.includes('Flush worklet FIFO'),
+    'BungeePitchShifterNode: reset/FIFO flush on bypass routing'
   );
 }
 assert(

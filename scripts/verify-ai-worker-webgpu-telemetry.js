@@ -23,10 +23,22 @@ function assert(cond, msg, detail) {
 const shared = fs.readFileSync(path.join(root, 'src/shared/aiWorkerWebGpu.ts'), 'utf8');
 const mdx = fs.readFileSync(path.join(root, 'src/main/ai/MdxNetSeparator.ts'), 'utf8');
 const worker = fs.readFileSync(path.join(root, 'src/main/workers/instrumentalAiWorker.ts'), 'utf8');
+const sepCore = fs.readFileSync(
+  path.join(root, 'src/main/workers/instrumentalAiSeparateCore.ts'),
+  'utf8'
+);
 const sep = fs.readFileSync(path.join(root, 'src/main/services/InstrumentalAiSeparator.ts'), 'utf8');
 const proc = fs.readFileSync(path.join(root, 'src/main/services/InstrumentalProcessor.ts'), 'utf8');
 const probe = fs.readFileSync(path.join(root, 'src/main/ai/probeGpuStatus.ts'), 'utf8');
 const probeScript = fs.readFileSync(path.join(root, 'scripts/probe-worker-webgpu.js'), 'utf8');
+const hidden = fs.readFileSync(
+  path.join(root, 'src/main/services/InstrumentalAiHiddenRenderer.ts'),
+  'utf8'
+);
+const gpuRenderer = fs.readFileSync(
+  path.join(root, 'src/main/workers/instrumentalAiGpuRenderer.ts'),
+  'utf8'
+);
 
 assert(
   shared.includes('probeWorkerWebGpu') &&
@@ -49,13 +61,13 @@ assert(
 );
 
 assert(
-  worker.includes('probeWorkerWebGpu') &&
-    worker.includes('resolveWorkerOrtProviders') &&
-    worker.includes('ortFallbackReason') &&
-    worker.includes("createAndRun(['webgpu'])") &&
-    worker.includes('formatOrtInitError') &&
-    !/catch\s*\{\s*\n\s*\/\/ WebGPU EP may be unavailable/.test(worker),
-  'instrumentalAiWorker: Demucs webgpu-only + logged fallback'
+  worker.includes('runInstrumentalAiSeparate') &&
+    worker.includes('unwrapAiWorkerInboundMessage') &&
+    sepCore.includes('resolveWorkerOrtProviders') &&
+    sepCore.includes("createAndRun(['webgpu'])") &&
+    sepCore.includes('formatOrtInitError') &&
+    !/catch\s*\{\s*\n\s*\/\/ WebGPU EP may be unavailable/.test(sepCore),
+  'instrumentalAiWorker + separateCore: Demucs webgpu-only + logged fallback'
 );
 
 assert(
@@ -78,9 +90,10 @@ assert(
 assert(
   probe.includes('workerWebGpuAvailable') &&
     probe.includes('workerOrtBackend') &&
-    probe.includes('backend not found') &&
-    probe.includes('isSupported: false'),
-  'probeGpuStatus: honest worker WASM (isSupported false; hardware separate)'
+    probe.includes('getInstrumentalAiHiddenRenderer') &&
+    probe.includes('probeWebGpu') &&
+    (probe.includes('adapterOk') || probe.includes('isSupported: workerWebGpuAvailable')),
+  'probeGpuStatus: Hidden Renderer WebGPU probe (not hardcoded utilityProcess false)'
 );
 
 assert(
@@ -88,6 +101,35 @@ assert(
     probeScript.includes('hasNavigatorGpu') &&
     probeScript.includes('backend not found'),
   'scripts/probe-worker-webgpu.js present'
+);
+
+assert(
+  hidden.includes('show: false') &&
+    hidden.includes('backgroundThrottling: false') &&
+    hidden.includes('BrowserWindow') &&
+    hidden.includes('executeJavaScript') &&
+    hidden.includes('userData') &&
+    hidden.includes('requestAdapter') &&
+    sep.includes('hidden-renderer') &&
+    sep.includes('getInstrumentalAiHiddenRenderer') &&
+    sep.includes('gpuToggleOn') &&
+    !sep.includes('aiEnableGpu !== false && options.aiGpuSupported === true'),
+  'Hidden Renderer: asar-safe shell + executeJavaScript probe; route on live GPU toggle (not sticky snapshot)'
+);
+
+assert(
+  gpuRenderer.includes('ipcRenderer') &&
+    gpuRenderer.includes('runInstrumentalAiSeparate') &&
+    gpuRenderer.includes('requestAdapter') &&
+    sepCore.includes('runInstrumentalAiSeparate') &&
+    sepCore.includes("createAndRun(['webgpu'])"),
+  'GPU renderer entry + shared separate core with WebGPU-then-WASM'
+);
+
+assert(
+  sep.includes("worker.kind === 'hidden-renderer' ? true") &&
+    sep.includes('Routing Instrumental AI to Hidden Renderer WebGPU'),
+  'Hidden Renderer forces aiGpuSupported on wire; logs routing decision'
 );
 
 const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'kls-webgpu-'));

@@ -316,13 +316,13 @@
     "demucsOverlap": "Chevauchement",
     "demucsOverlapDesc": "Chevauchement fractionnaire entre fenêtres Demucs (0,10–0,50). Plus de chevauchement améliore la continuité mais augmente l’ETA.",
     "aiEnableGpu": "Accélération GPU IA",
-    "aiEnableGpuDesc": "Si activée, l’IA instrumentale préfère WebGPU lorsque le worker IA peut l’héberger. Aujourd’hui le worker n’a pas WebGPU : la séparation utilise WASM CPU avec les cœurs ci-dessous — le badge n’indique pas GPU actif tant que WebGPU n’est pas réellement disponible.",
+    "aiEnableGpuDesc": "Si activée, l’IA instrumentale préfère WebGPU via un renderer Chromium masqué lorsqu’un adaptateur GPU est disponible. Si le GPU est désactivé ou indisponible, la séparation utilise WASM CPU avec les cœurs ci-dessous. Le badge n’est vert que lorsque WebGPU est réellement actif.",
     "aiGpuBadgeSupported": "GPU disponible",
     "aiGpuBadgeCpuFallback": "Repli CPU multithread",
-    "aiGpuBadgeGpu": "GPU : {{name}}",
+    "aiGpuBadgeGpu": "GPU : WebGPU Active ({{name}})",
     "aiGpuBadgeCpu": "CPU : {{detail}}",
-    "aiGpuBadgeWasmWorker": "WASM CPU (WebGPU indisponible dans le worker IA)",
-    "aiGpuBadgeHardwareOnly": "GPU matériel détecté : {{name}} — l’IA utilise quand même WASM"
+    "aiGpuBadgeWasmWorker": "WASM CPU",
+    "aiGpuBadgeHardwareOnly": "GPU matériel détecté : {{name}} — l’IA utilise quand même WASM (pas d’adaptateur WebGPU)"
   },
   "history": {
     "title": "Historique de Lecture",

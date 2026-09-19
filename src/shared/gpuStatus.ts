@@ -3,25 +3,25 @@
  * Populated by main-process IPC `system:get-gpu-status`.
  *
  * Honesty contract (Instrumental AI):
- * - `isSupported` means the **AI worker** can host ORT WebGPU — not merely that
- *   Chromium/main sees a GPU. Today AI runs in `utilityProcess` without
- *   `navigator.gpu`, so this is false and providers resolve to WASM.
+ * - `isSupported` means the **AI engine** can host ORT WebGPU — via the Hidden
+ *   BrowserWindow renderer (`navigator.gpu` + adapter), not merely that
+ *   Chromium/main sees a GPU. utilityProcess never has WebGPU.
  * - `hardwareGpuPresent` / `gpuName` still describe the machine GPU for operators.
  */
 export type GpuStatus = {
   /**
-   * True only when Instrumental AI ORT can use the WebGPU execution provider.
-   * False → WASM CPU path (Settings must not imply “GPU active”).
+   * True only when Instrumental AI ORT can use the WebGPU execution provider
+   * (Hidden Renderer adapter OK). False → WASM CPU path.
    */
   isSupported: boolean;
   /** True when main-process Chromium reports a usable GPU (WebGPU/WebGL/compositing). */
   hardwareGpuPresent?: boolean;
   /**
-   * Explicit: utilityProcess WebGPU EP availability for Instrumental AI.
-   * Always false while separation runs in utilityProcess / Node fork.
+   * Explicit: Hidden Renderer WebGPU EP availability for Instrumental AI.
+   * False when no adapter / GPU off → utilityProcess WASM.
    */
   workerWebGpuAvailable?: boolean;
-  /** Actual ORT backend Instrumental AI will use given current architecture. */
+  /** Actual ORT backend Instrumental AI will prefer given current architecture. */
   workerOrtBackend?: 'webgpu' | 'wasm';
   /** Short operator-facing reason when worker cannot use WebGPU. */
   workerOrtNote?: string;
@@ -36,5 +36,6 @@ export const GPU_STATUS_UNSUPPORTED: GpuStatus = {
   hardwareGpuPresent: false,
   workerWebGpuAvailable: false,
   workerOrtBackend: 'wasm',
-  workerOrtNote: 'Instrumental AI runs in utilityProcess without navigator.gpu (ORT WebGPU unavailable)'
+  workerOrtNote:
+    'Instrumental AI: no WebGPU adapter in Hidden Renderer — utilityProcess WASM fallback'
 };

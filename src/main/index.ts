@@ -151,6 +151,11 @@ protocol.registerSchemesAsPrivileged([
 
 // Allow background and stage windows to play media without requiring direct user click gestures
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+// Best-effort WebGPU for Hidden Renderer AI (utilityProcess never gets navigator.gpu).
+app.commandLine.appendSwitch('enable-unsafe-webgpu');
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('enable-features', 'Vulkan');
+}
 
 /**
  * Main application coordinator orchestrating Electron windows, SQLite database,
@@ -447,6 +452,14 @@ class KaraokeMainProcess {
       }
       this.downloadManager.cleanupTempFiles();
       this.zipCdgCache.cleanupAll();
+      try {
+        const { getInstrumentalAiHiddenRenderer } = await import(
+          './services/InstrumentalAiHiddenRenderer'
+        );
+        getInstrumentalAiHiddenRenderer(this.logger).dispose();
+      } catch {
+        /* ignore dispose errors on quit */
+      }
       this.db.close();
     });
 
@@ -1297,10 +1310,25 @@ class KaraokeMainProcess {
         let aiGpuSupported = false;
         if (isAi && aiEnableGpu) {
           try {
+            // Live Hidden Renderer probe (executeJavaScript) — not utilityProcess.
             const gpu = await probeGpuStatus();
-            aiGpuSupported = gpu.isSupported === true;
-          } catch {
+            aiGpuSupported = gpu.isSupported === true || gpu.workerWebGpuAvailable === true;
+            this.logger.info('Download', 'AI GPU probe for instrumental start', {
+              aiEnableGpu,
+              aiGpuSupported,
+              workerWebGpuAvailable: gpu.workerWebGpuAvailable ?? null,
+              hardwareGpuPresent: gpu.hardwareGpuPresent ?? null,
+              workerOrtNote: gpu.workerOrtNote ?? null,
+              gpuName: gpu.gpuName ?? null
+            });
+          } catch (err) {
             aiGpuSupported = false;
+            this.logger.warn(
+              'Download',
+              `AI GPU probe failed — will re-probe at separate time: ${
+                err instanceof Error ? err.message : String(err)
+              }`
+            );
           }
         }
         return await this.downloadManager.startDownload({

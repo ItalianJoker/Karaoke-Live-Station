@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import { Logger } from './Logger';
+import { getInstrumentalAiHiddenRenderer } from './InstrumentalAiHiddenRenderer';
 import type { AiVocalRemoverMethod } from '../../shared/vocalRemover';
 import { methodToModelId, OFFLINE_VOCAL_MODELS } from '../../shared/vocalRemover';
 import { isMdxInstrumentalMethod, mdxPayloadForMethod } from '../../shared/mdxAdvancedSettings';
@@ -18,6 +19,7 @@ import {
   isDemucsInstrumentalMethod,
   demucsPayloadForMethod
 } from '../../shared/demucsAdvancedSettings';
+import type { InstrumentalAiSeparateRequest } from '../workers/instrumentalAiSeparateCore';
 
 export type InstrumentalAiProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
@@ -165,7 +167,8 @@ function resolveWorkerScript(): string {
 
 type WorkerHandle =
   | { kind: 'utility'; proc: UtilityProcess; script: string }
-  | { kind: 'fork'; proc: ChildProcess; script: string };
+  | { kind: 'fork'; proc: ChildProcess; script: string }
+  | { kind: 'hidden-renderer'; script: string };
 
 function spawnWorker(): WorkerHandle {
   const script = resolveWorkerScript();
@@ -183,12 +186,60 @@ function spawnWorker(): WorkerHandle {
   return { kind: 'fork', proc, script };
 }
 
+/**
+ * Prefer Hidden BrowserWindow when Settings wants GPU and a live Hidden Renderer
+ * probe reports a WebGPU adapter. Do NOT gate solely on the download-start
+ * `aiGpuSupported` snapshot (v1.4.0 logs: aiEnableGpu=true but snapshot false
+ * kept workerKind=utility forever). Re-probe here; utility WASM only when GPU
+ * is off or no adapter.
+ */
+async function resolveWorkerHandle(
+  options: InstrumentalAiSeparateOptions,
+  logger?: Logger
+): Promise<WorkerHandle> {
+  const gpuToggleOn = options.aiEnableGpu !== false;
+  if (gpuToggleOn) {
+    try {
+      const hidden = getInstrumentalAiHiddenRenderer(logger);
+      if (await hidden.isWebGpuReady()) {
+        logger?.info('InstrumentalAiSeparator', 'Routing Instrumental AI to Hidden Renderer WebGPU', {
+          aiEnableGpu: options.aiEnableGpu ?? null,
+          aiGpuSupportedSnapshot: options.aiGpuSupported ?? null,
+          probe: hidden.getCachedProbe()
+        });
+        return {
+          kind: 'hidden-renderer',
+          script: 'instrumentalAiGpuRenderer (Hidden BrowserWindow)'
+        };
+      }
+      logger?.info(
+        'InstrumentalAiSeparator',
+        'Hidden Renderer WebGPU adapter unavailable — using utilityProcess WASM',
+        {
+          aiEnableGpu: options.aiEnableGpu ?? null,
+          aiGpuSupportedSnapshot: options.aiGpuSupported ?? null,
+          probe: hidden.getCachedProbe()
+        }
+      );
+    } catch (err) {
+      logger?.warn(
+        'InstrumentalAiSeparator',
+        `Hidden Renderer probe failed — WASM fallback: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  }
+  return spawnWorker();
+}
+
 /** Drain piped worker stdio so crash traces are not lost (stdio:'pipe' without readers). */
 function attachWorkerStdioLogging(
-  worker: WorkerHandle,
+  worker: Exclude<WorkerHandle, { kind: 'hidden-renderer' }> | null,
   logger?: Logger,
   onOrtStderrHint?: (hint: string) => void
 ): void {
+  if (!worker) return;
   const emit = (stream: 'stdout' | 'stderr', chunk: Buffer | string) => {
     const text = String(chunk).replace(/\r?\n$/, '');
     if (!text) return;
@@ -245,7 +296,7 @@ export async function separateInstrumentalWithAi(
 
   const modelId = methodToModelId(method);
   const catalog = OFFLINE_VOCAL_MODELS[modelId];
-  const worker = spawnWorker();
+  const worker = await resolveWorkerHandle(options, logger);
   let requestId = 1;
   let settled = false;
   let separateSent = false;
@@ -263,7 +314,10 @@ export async function separateInstrumentalWithAi(
   let lastOrtFallbackReason: string | undefined;
   let lastOrtNumThreads: number | undefined = options.aiCpuThreads;
 
-  attachWorkerStdioLogging(worker, logger, (hint) => {
+  attachWorkerStdioLogging(
+    worker.kind === 'hidden-renderer' ? null : worker,
+    logger,
+    (hint) => {
     if (!lastOrtFallbackReason) {
       lastOrtFallbackReason = hint;
     } else if (!lastOrtFallbackReason.includes(hint)) {
@@ -281,6 +335,10 @@ export async function separateInstrumentalWithAi(
 
   const kill = () => {
     try {
+      if (worker.kind === 'hidden-renderer') {
+        getInstrumentalAiHiddenRenderer(logger).clearJobHandler();
+        return;
+      }
       if (worker.kind === 'utility') worker.proc.kill();
       else worker.proc.kill();
     } catch {
@@ -460,7 +518,10 @@ export async function separateInstrumentalWithAi(
         outputWav,
         aiCpuThreads: options.aiCpuThreads,
         aiEnableGpu: options.aiEnableGpu,
-        aiGpuSupported: options.aiGpuSupported,
+        // Hidden Renderer path: force supported so ORT prefers WebGPU EP.
+        // utility/fork path: false so worker skips doomed webgpu session.create.
+        aiGpuSupported:
+          worker.kind === 'hidden-renderer' ? true : options.aiGpuSupported === true,
         // Only attach MDX knobs for aiMdxKaraoke2 — Demucs must not receive them.
         ...(mdxPayload || {}),
         // Only attach Demucs knobs for aiHtDemucs — MDX must not receive them.
@@ -478,7 +539,12 @@ export async function separateInstrumentalWithAi(
         mdxAdvanced: isMdxInstrumentalMethod(method) ? mdxPayload : null,
         demucsAdvanced: isDemucsInstrumentalMethod(method) ? demucsPayload : null
       });
-      if (worker.kind === 'utility') {
+      if (worker.kind === 'hidden-renderer') {
+        void getInstrumentalAiHiddenRenderer(logger).startSeparate(
+          payload as InstrumentalAiSeparateRequest,
+          { onMessage: onMsg }
+        );
+      } else if (worker.kind === 'utility') {
         worker.proc.postMessage(payload);
       } else {
         worker.proc.send(payload);
@@ -499,6 +565,8 @@ export async function separateInstrumentalWithAi(
         ortNumThreads?: number;
       };
       if (!msg?.type) return;
+      // Ignore Hidden Renderer probe-result noise on the job channel.
+      if (msg.type === 'probe-result') return;
       if (msg.type === 'progress') {
         // Any progress (including worker-ready ping) proves the child is alive.
         lastProgressAt = Date.now();
@@ -580,7 +648,7 @@ export async function separateInstrumentalWithAi(
           );
         }
       });
-    } else {
+    } else if (worker.kind === 'fork') {
       worker.proc.on('message', onMsg);
       worker.proc.on('exit', (code) => {
         if (!settled) {
@@ -593,6 +661,28 @@ export async function separateInstrumentalWithAi(
         }
       });
       worker.proc.on('error', (err) => fail(err.message, false, 'worker_spawn_error'));
+    } else {
+      // hidden-renderer: window may already be warm (ready ping fired before attach).
+      // Probe ensures the window exists, then synthesize ready so sendSeparate runs.
+      const hidden = getInstrumentalAiHiddenRenderer(logger);
+      void (async () => {
+        try {
+          await hidden.probeWebGpu();
+          onMsg({
+            type: 'progress',
+            requestId: 0,
+            phase: 'ready',
+            progress: 0,
+            message: 'Instrumental AI Hidden Renderer ready'
+          });
+        } catch (err) {
+          fail(
+            err instanceof Error ? err.message : String(err),
+            false,
+            'hidden_renderer_ready_error'
+          );
+        }
+      })();
     }
 
     signal?.addEventListener('abort', onAbort, { once: true });
@@ -609,9 +699,8 @@ export async function separateInstrumentalWithAi(
       modelLabel: catalog?.label,
       modelBytes: safeSize(modelPath),
       ortDir,
-      // Actual EP unknown until worker reports; preference from Settings/probe:
-      ortBackendPreferred:
-        options.aiEnableGpu !== false && options.aiGpuSupported === true ? 'webgpu' : 'wasm',
+      // Preference label only — live routing uses Hidden Renderer probe in resolveWorkerHandle.
+      ortBackendPreferred: worker.kind === 'hidden-renderer' ? 'webgpu' : 'wasm',
       ortBackend: 'pending',
       ortNumThreads: options.aiCpuThreads ?? null,
       aiEnableGpu: options.aiEnableGpu ?? null,

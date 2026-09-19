@@ -49,7 +49,8 @@ assert(
 
 assert(
   !/^import\s+\{[^}]*DemucsProcessor[^}]*\}\s+from\s+['"]demucs-web['"]/m.test(workerSrc) &&
-    workerSrc.includes("await import('demucs-web')"),
+    fs.readFileSync(path.join(root, 'src/main/workers/instrumentalAiSeparateCore.ts'), 'utf8')
+      .includes("await import('demucs-web')"),
   'demucs-web is lazy-imported only on HTDemucs path (no top-level require)'
 );
 

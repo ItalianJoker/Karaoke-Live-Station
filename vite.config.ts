@@ -48,6 +48,22 @@ export default defineConfig({
         }
       },
       {
+        // Hidden BrowserWindow entry — real navigator.gpu / ORT WebGPU EP
+        entry: path.resolve(__dirname, 'src/main/workers/instrumentalAiGpuRenderer.ts'),
+        vite: {
+          build: {
+            outDir: path.resolve(__dirname, 'dist-electron/main'),
+            emptyOutDir: false,
+            rollupOptions: {
+              output: {
+                entryFileNames: 'instrumentalAiGpuRenderer.js'
+              },
+              external: ['onnxruntime-web', 'demucs-web', 'fft.js', 'electron']
+            }
+          }
+        }
+      },
+      {
         entry: path.resolve(__dirname, 'src/preload/index.ts'),
         vite: {
           build: {

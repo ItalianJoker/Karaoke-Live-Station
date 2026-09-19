@@ -37,7 +37,7 @@ const librarySrc = fs.readFileSync(
   'utf8'
 );
 const workerSrc = fs.readFileSync(
-  path.join(root, 'src/main/workers/instrumentalAiWorker.ts'),
+  path.join(root, 'src/main/workers/instrumentalAiSeparateCore.ts'),
   'utf8'
 );
 const mdxSrc = fs.readFileSync(path.join(root, 'src/main/ai/MdxNetSeparator.ts'), 'utf8');

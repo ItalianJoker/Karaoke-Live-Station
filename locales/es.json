@@ -316,13 +316,13 @@
     "demucsOverlap": "Solapamiento",
     "demucsOverlapDesc": "Solapamiento fraccionario entre ventanas Demucs (0,10–0,50). Más solapamiento mejora continuidad pero aumenta el ETA.",
     "aiEnableGpu": "Aceleración GPU AI",
-    "aiEnableGpuDesc": "Si está activada, la IA instrumental prefiere WebGPU cuando el worker AI puede usarlo. Hoy el worker no tiene WebGPU: la separación usa WASM CPU con los núcleos de abajo — la insignia no indica GPU activa hasta que WebGPU esté realmente disponible.",
+    "aiEnableGpuDesc": "Si está activada, la IA instrumental prefiere WebGPU mediante un renderizador Chromium oculto cuando hay un adaptador GPU. Si la GPU está desactivada o no disponible, la separación usa WASM CPU con los núcleos de abajo. La insignia es verde solo cuando WebGPU está realmente activo.",
     "aiGpuBadgeSupported": "GPU disponible",
     "aiGpuBadgeCpuFallback": "Reserva CPU multithread",
-    "aiGpuBadgeGpu": "GPU: {{name}}",
+    "aiGpuBadgeGpu": "GPU: WebGPU Activa ({{name}})",
     "aiGpuBadgeCpu": "CPU: {{detail}}",
-    "aiGpuBadgeWasmWorker": "WASM CPU (WebGPU no disponible en el worker AI)",
-    "aiGpuBadgeHardwareOnly": "GPU de hardware detectada: {{name}} — la IA sigue usando WASM"
+    "aiGpuBadgeWasmWorker": "WASM CPU",
+    "aiGpuBadgeHardwareOnly": "GPU de hardware detectada: {{name}} — la IA sigue usando WASM (sin adaptador WebGPU)"
   },
   "history": {
     "title": "Historial de Reproducción",

@@ -154,7 +154,8 @@ setTimeout(() => process.exit(0), 50);
         'If utilityProcess hasNavigatorGpu=false, ORT WebGPU EP will log ' +
         '"backend not found" / strip webgpu and run WASM (100% CPU with aiCpuThreads=all cores). ' +
         'Electron --enable-unsafe-webgpu helps BrowserWindow, not utilityProcess. ' +
-        'Long-term: onnxruntime-node (DirectML/CUDA) or run ORT in a hidden BrowserWindow.',
+        'Production path: Hidden BrowserWindow (InstrumentalAiHiddenRenderer) for real WebGPU; ' +
+        'utilityProcess remains the WASM fallback when GPU is off or no adapter.',
       probeScript: pathToFileURL(__filename).href
     })
   );
