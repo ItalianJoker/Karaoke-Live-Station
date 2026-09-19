@@ -1,27 +1,21 @@
 /**
  * Main-process GPU probe for Instrumental AI Settings badge + EP preference.
  *
- * Uses Electron `app.getGPUFeatureStatus` / `getGPUInfo` when available.
- *
- * Honesty: Chromium/main may report a GPU while Instrumental AI still runs in
- * `utilityProcess.fork`, where ORT WebGPU is unavailable (`backend not found`).
- * `isSupported` therefore reflects **worker ORT WebGPU capability** (currently
- * always false), not hardware presence. Hardware is surfaced via
- * `hardwareGpuPresent` / `gpuName` so the UI can say “CPU WASM fallback” without
- * pretending GPU inference is active.
+ * Uses Electron `app.getGPUFeatureStatus` / `getGPUInfo` for hardware presence,
+ * then probes the Hidden BrowserWindow for real `navigator.gpu` + adapter
+ * (ORT WebGPU EP). utilityProcess never has WebGPU — do not treat hardware
+ * alone as “GPU active” for Instrumental AI.
  */
 import { app } from 'electron';
 import type { GpuStatus } from '../../shared/gpuStatus';
 import { GPU_STATUS_UNSUPPORTED } from '../../shared/gpuStatus';
+import { getInstrumentalAiHiddenRenderer } from '../services/InstrumentalAiHiddenRenderer';
 
 function isGpuFeatureEnabled(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   // Electron reports e.g. 'enabled', 'enabled_on', 'disabled', 'disabled_software', …
   return value === 'enabled' || value.startsWith('enabled');
 }
-
-const WORKER_ORT_NOTE =
-  'Instrumental AI utilityProcess has no navigator.gpu — ORT uses WASM CPU (WebGPU EP backend not found)';
 
 /**
  * Probe GPU support for Settings badge + whether AI should prefer WebGPU EP.
@@ -63,15 +57,35 @@ export async function probeGpuStatus(): Promise<GpuStatus> {
 
     const hardwareGpuPresent = webgpuOk || webglOk || compositingOk;
 
-    // Instrumental AI separation runs in utilityProcess — ORT WebGPU EP is not
-    // available there (production: "backend not found"). Do not set isSupported
-    // from hardware alone or Settings/providers will claim a false GPU path.
+    // Real AI WebGPU = Hidden Renderer adapter (not utilityProcess, not hardware-only).
+    let workerWebGpuAvailable = false;
+    let workerOrtNote =
+      'Instrumental AI: probing Hidden Renderer WebGPU (utilityProcess has no navigator.gpu)';
+    try {
+      const hidden = getInstrumentalAiHiddenRenderer();
+      const probe = await hidden.probeWebGpu();
+      workerWebGpuAvailable = probe.adapterOk === true;
+      if (workerWebGpuAvailable) {
+        workerOrtNote = 'Instrumental AI Hidden Renderer: WebGPU adapter available';
+      } else {
+        workerOrtNote =
+          probe.reason ||
+          'Hidden Renderer has no WebGPU adapter — Instrumental AI uses WASM CPU in utilityProcess';
+      }
+    } catch (err) {
+      workerWebGpuAvailable = false;
+      workerOrtNote =
+        err instanceof Error
+          ? `Hidden Renderer probe failed: ${err.message}`
+          : 'Hidden Renderer WebGPU probe failed';
+    }
+
     return {
-      isSupported: false,
+      isSupported: workerWebGpuAvailable,
       hardwareGpuPresent,
-      workerWebGpuAvailable: false,
-      workerOrtBackend: 'wasm',
-      workerOrtNote: WORKER_ORT_NOTE,
+      workerWebGpuAvailable,
+      workerOrtBackend: workerWebGpuAvailable ? 'webgpu' : 'wasm',
+      workerOrtNote,
       gpuName,
       vendor
     };

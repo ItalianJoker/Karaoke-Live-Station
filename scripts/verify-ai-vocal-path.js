@@ -135,10 +135,10 @@ assert(
     procSrc.includes('lastAiPct') &&
     procSrc.includes("case 'separate'") &&
     fs
-      .readFileSync(path.join(root, 'src/main/workers/instrumentalAiWorker.ts'), 'utf8')
+      .readFileSync(path.join(root, 'src/main/workers/instrumentalAiSeparateCore.ts'), 'utf8')
       .includes('wasmBinary') &&
     fs
-      .readFileSync(path.join(root, 'src/main/workers/instrumentalAiWorker.ts'), 'utf8')
+      .readFileSync(path.join(root, 'src/main/workers/instrumentalAiSeparateCore.ts'), 'utf8')
       .includes('toArrayBuffer') &&
     mdxSrc.includes('onIntra') &&
     mdxSrc.includes('mdxStepSamples') &&

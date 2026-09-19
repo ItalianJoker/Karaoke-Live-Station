@@ -188,8 +188,11 @@ export class BungeePitchShifterNode {
 
     this.bypassActive = bypass;
     if (bypass || !this.worklet) {
+      // Flush worklet FIFO / grain state so re-engage does not play stale audio.
+      this.send('reset');
       this._input.connect(this._output);
     } else {
+      this.send('reset');
       this.send('setMix', 1.0);
       this._input.connect(this.worklet);
       this.worklet.connect(this._output);

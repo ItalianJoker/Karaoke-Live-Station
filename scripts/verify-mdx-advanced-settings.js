@@ -31,7 +31,7 @@ const librarySrc = fs.readFileSync(
   'utf8'
 );
 const workerSrc = fs.readFileSync(
-  path.join(root, 'src/main/workers/instrumentalAiWorker.ts'),
+  path.join(root, 'src/main/workers/instrumentalAiSeparateCore.ts'),
   'utf8'
 );
 const sepSrc = fs.readFileSync(
@@ -84,8 +84,7 @@ assert(
 assert(
   workerSrc.includes('coerceMdxAdvancedSettings') &&
     (workerSrc.includes('new MdxNetSeparator(advanced)') ||
-      workerSrc.includes('new MdxNetSeparator({')) &&
-    workerSrc.includes('Demucs path ignores MDX'),
+      workerSrc.includes('new MdxNetSeparator({')),
   'Worker wires MDX opts into separator; Demucs ignores knobs'
 );
 

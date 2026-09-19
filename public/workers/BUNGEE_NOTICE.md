@@ -32,5 +32,9 @@ After copying, **re-apply the Karaoke Live Station AudioWorklet patches** (requi
 3. Expose Emscripten alloc + heaps on the Module object (MODULARIZE locals are not on Module by default — AppImage otherwise throws `BungeeModule._malloc is not a function`):
    - In `assignWasmExports`: `Module["_malloc"]=_malloc;Module["_free"]=_free`
    - In `updateMemoryViews`: mirror `HEAPF32` (and sibling HEAP views) onto `Module[…]`
+4. Definitive pitch/speed continuity (negative pitch mute fix):
+   - Allocate Wasm input/output scratch for **8192 stereo frames** (`WASM_MAX_FRAMES`), not `blockSize` (128).
+   - Implement a stereo **output FIFO** (enqueue all Bungee frames; dequeue exactly one Web Audio quantum). Never `Math.min(outputFrames, frameCount)` discard.
+   - Clear the FIFO on `reset` and when entering neutral bypass.
 
 `BungeePitchShifterNode.create` waits for the worklet `initialized` message (timeout → SoundTouch fallback).

@@ -151,6 +151,11 @@ protocol.registerSchemesAsPrivileged([
 
 // Allow background and stage windows to play media without requiring direct user click gestures
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+// Best-effort WebGPU for Hidden Renderer AI (utilityProcess never gets navigator.gpu).
+app.commandLine.appendSwitch('enable-unsafe-webgpu');
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('enable-features', 'Vulkan');
+}
 
 /**
  * Main application coordinator orchestrating Electron windows, SQLite database,
@@ -447,6 +452,14 @@ class KaraokeMainProcess {
       }
       this.downloadManager.cleanupTempFiles();
       this.zipCdgCache.cleanupAll();
+      try {
+        const { getInstrumentalAiHiddenRenderer } = await import(
+          './services/InstrumentalAiHiddenRenderer'
+        );
+        getInstrumentalAiHiddenRenderer(this.logger).dispose();
+      } catch {
+        /* ignore dispose errors on quit */
+      }
       this.db.close();
     });
 
