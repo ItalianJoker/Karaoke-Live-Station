@@ -125,7 +125,9 @@ assert(
 
 assert(
   mdxSrc.includes('resolveAiOrtExecutionProviders') &&
-    mdxSrc.includes("preferGpu ? ['webgpu', 'wasm'] : ['wasm']") &&
+    (mdxSrc.includes('resolveWorkerOrtProviders') ||
+      mdxSrc.includes("preferGpu ? ['webgpu', 'wasm'] : ['wasm']") ||
+      mdxSrc.includes("executionProviders: ['webgpu']")) &&
     (mdxSrc.includes("graphOptimizationLevel: this.enableOrtAcceleration ? 'all' : 'disabled'") ||
       mdxSrc.includes("this.enableOrtAcceleration ? 'all' : 'disabled'")) &&
     mdxSrc.includes('ort.env.wasm.numThreads = this.numThreads'),

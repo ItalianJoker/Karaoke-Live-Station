@@ -384,8 +384,14 @@ async function removeVocalsAi(
   stageClock.mark('ort_ready', {
     ortDir,
     ortWasmBytes: safeFileSizeBytes(path.join(ortDir, 'ort-wasm-simd-threaded.wasm')),
-    ortBackend: 'wasm',
-    ortNumThreads: options.aiCpuThreads ?? 1
+    // Preference only — worker reports actual EP after session.create.
+    ortBackendPreferred:
+      options.aiEnableGpu !== false && options.aiGpuSupported === true ? 'webgpu' : 'wasm',
+    ortBackend: 'pending',
+    // Do not coerce null/undefined → 1 (null means “all cores”; main usually resolves to N).
+    ortNumThreads: options.aiCpuThreads ?? null,
+    aiEnableGpu: options.aiEnableGpu ?? null,
+    aiGpuSupported: options.aiGpuSupported ?? null
   });
 
   throwIfAborted(options.signal);
@@ -403,6 +409,9 @@ async function removeVocalsAi(
   let lastAiPct = 45;
   let lastLoggedPhase: string | null = null;
   let lastLoggedPctBucket = -1;
+  let lastOrtBackend: string = 'pending';
+  let lastOrtFallbackReason: string | undefined;
+  let lastOrtNumThreads: number | null | undefined = options.aiCpuThreads ?? null;
 
   logger?.debug('InstrumentalProcessor', 'AI separation input path check', {
     sourceMp4,
@@ -459,6 +468,15 @@ async function removeVocalsAi(
         demucsOverlap: options.demucsOverlap
       }),
       onProgress: (info) => {
+        if (info.ortBackend === 'webgpu' || info.ortBackend === 'wasm') {
+          lastOrtBackend = info.ortBackend;
+        }
+        if (typeof info.ortFallbackReason === 'string' && info.ortFallbackReason) {
+          lastOrtFallbackReason = info.ortFallbackReason;
+        }
+        if (typeof info.ortNumThreads === 'number' && Number.isFinite(info.ortNumThreads)) {
+          lastOrtNumThreads = info.ortNumThreads;
+        }
         const ratio = Math.max(0, Math.min(1, info.progress));
         let mapped: number;
         switch (info.phase) {
@@ -493,6 +511,9 @@ async function removeVocalsAi(
             progress: ratio,
             mappedPercent: lastAiPct,
             message: info.message,
+            ortBackend: lastOrtBackend,
+            ortFallbackReason: lastOrtFallbackReason ?? null,
+            ortNumThreads: lastOrtNumThreads,
             elapsedMs: Date.now() - aiStartedAt,
             aiInputPath: extractedWav
           });
@@ -527,7 +548,10 @@ async function removeVocalsAi(
     outputWav: instrumentalWav,
     outputWavBytes: outBytes,
     aiElapsedMs: Date.now() - aiStartedAt,
-    aiOutputExists: true
+    aiOutputExists: true,
+    ortBackend: lastOrtBackend,
+    ortFallbackReason: lastOrtFallbackReason ?? null,
+    ortNumThreads: lastOrtNumThreads
   });
 }
 

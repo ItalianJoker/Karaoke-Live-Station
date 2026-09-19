@@ -9,13 +9,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- None yet.
+- **AI worker WebGPU telemetry + honest WASM UI** — Instrumental AI reports actual `ortBackend` (`webgpu`|`wasm`) + `ortFallbackReason` to logs/progress (no silent WASM fallback). Stderr parse for ORT `webgpu` / `backend not found`. Diagnostic `scripts/probe-worker-webgpu.js`. Shared `aiWorkerWebGpu` probe skips WebGPU when `navigator.gpu` is missing in `utilityProcess`. Settings GPU badge stays amber WASM when the AI worker cannot host WebGPU (hardware GPU name shown as note only — never false “GPU active”).
 
 ### Changed
 - **Settings AI layout** — Library & Download: GPU card is toggle + badge only; AI instrumental CPU cores live in a sibling CPU card; MDX `mdxEnableOrt` (ONNX Runtime CPU acceleration) grouped into that CPU card (MDX-only visibility unchanged). No settings key / IPC / default changes.
+- MDX/HTDemucs try WebGPU-only then WASM (avoids ORT silently stripping webgpu from a combined EP list). InstrumentalProcessor/AiSeparator no longer log `ortNumThreads: 1` when threads are unresolved/null. `probeGpuStatus.isSupported` means worker ORT WebGPU capability (currently false), not Chromium hardware presence.
 
 ### Fixed
-- None yet.
+- **Bungee `BungeeModule._malloc is not a function`** — Emscripten MODULARIZE locals (`_malloc` / `HEAPF32`) are now mirrored onto the Module object in `public/workers/bungee_processor.js` so AudioWorklet init succeeds (no forced SoundTouch fallback from missing alloc).
 
 ### Breaking Changes
 - None yet.
