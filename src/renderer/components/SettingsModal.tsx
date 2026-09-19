@@ -27,6 +27,8 @@ import {
   Music2,
   Library,
   Cpu,
+  AudioLines,
+  Info,
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AppTheme, StageMessageStyle, YtDlpStatus } from '../../shared/types';
@@ -65,6 +67,7 @@ import {
   MDX_SEGMENT_SIZES,
   isMdxInstrumentalMethod
 } from '../../shared/mdxAdvancedSettings';
+import { coerceDspPitchEngine, type DspPitchEngine } from '../../shared/dspPitch';
 import appLogo from '../assets/logo.png';
 
 const THEME_OPTIONS: { id: AppTheme; label: string }[] = [
@@ -468,6 +471,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     t('settings.audioNormalizationDesc'),
     'normalizzazione',
     'volume'
+  );
+  const matchDspEngine = matchesSearch(
+    t('settings.dspEngine'),
+    t('settings.dspEngineDesc'),
+    'bungee',
+    'soundtouch',
+    'pitch',
+    'dsp',
+    'tonalità',
+    'wsola'
   );
   const matchAutoAdvance = matchesSearch(
     t('settings.autoAdvance'),
@@ -1463,6 +1476,55 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
               )}
 
+
+              {(!isSearching || matchDspEngine) && (
+                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2">
+                  <label className="block font-semibold text-white text-xs flex items-center gap-1.5">
+                    <AudioLines className="w-3.5 h-3.5 text-cyan-400" />
+                    {t('settings.dspEngine')}
+                    <span
+                      className="inline-flex text-slate-400"
+                      title={t('settings.dspEngineCompareBody')}
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                    </span>
+                  </label>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    {t('settings.dspEngineDesc')}
+                  </p>
+                  <select
+                    value={coerceDspPitchEngine(settings.dspEngine)}
+                    onChange={(e) => {
+                      const next = coerceDspPitchEngine(e.target.value as DspPitchEngine);
+                      updateSettings({ dspEngine: next });
+                      if (window.karaokeApi?.logger?.log) {
+                        window.karaokeApi.logger.log(
+                          'info',
+                          'SettingsModal',
+                          `DSP pitch engine → ${next}`
+                        );
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs"
+                  >
+                    <option value="bungee">{t('settings.dspEngineBungee')}</option>
+                    <option value="soundtouch">{t('settings.dspEngineSoundTouch')}</option>
+                  </select>
+                  <div className="text-[11px] text-slate-400 leading-relaxed space-y-1 border-t border-slate-800/80 pt-2">
+                    <p>
+                      <span className="text-indigo-300 font-semibold">Bungee</span>
+                      {' — '}
+                      {t('settings.dspEngineBungeeBlurb')}
+                    </p>
+                    <p>
+                      <span className="text-amber-300 font-semibold">SoundTouch</span>
+                      {' — '}
+                      {t('settings.dspEngineSoundTouchBlurb')}
+                    </p>
+                    <p className="text-slate-500">{t('settings.dspEngineMidiNote')}</p>
+                  </div>
+                </div>
+              )}
 
               {(!isSearching || matchVocalRemoverAlgo) && (
                 <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2">

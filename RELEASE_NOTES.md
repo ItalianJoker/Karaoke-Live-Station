@@ -11,6 +11,8 @@
 
 Bump codice a **1.3.0** (bozza — **nessun tag GitHub release finché Luca non dice Si**). Parte dalla baseline **v1.2.0**.
 
+> **In coda (bozza PR, ancora Unreleased):** Bungee come DSP pitch/speed predefinito (Wasm MPL-2.0, solo prebuilt — nessun C++ in-repo), SoundTouch selezionabile, range dinamici ±8/±4. Versione pacchetto resta **1.3.0** finché non si decide merge/release.
+
 ## 📦 File di Installazione
 
 | Piattaforma | File | Descrizione |
@@ -47,6 +49,8 @@ Resta incluso: file locali mancanti, Drag & Drop, scan ~16k, SoundFont AppImage 
 # 🇬🇧 Release Notes — Version 1.3.0
 
 Code bump to **1.3.0** (draft — **no GitHub release tag until Luca says Si**). Builds on **v1.2.0** baseline.
+
+> **Queued (draft PR, still Unreleased):** Bungee as default pitch/speed DSP (Wasm MPL-2.0, prebuilts only — no C++ in-repo), SoundTouch selectable, dynamic ±8/±4 ranges. Package version stays **1.3.0** until merge/release.
 
 ## 📦 Installer Files
 

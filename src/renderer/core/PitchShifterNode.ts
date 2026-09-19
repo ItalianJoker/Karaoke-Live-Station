@@ -1,18 +1,22 @@
 import { SoundTouch } from 'soundtouchjs';
+import { SOUNDTOUCH_PITCH_MAX, SOUNDTOUCH_PITCH_MIN } from '../../shared/dspPitch';
 
 /**
  * PitchShifterNode
  *
  * High-quality stereo real-time pitch shifter using SoundTouch WSOLA
- * (Waveform Similarity Overlap-Add).
- * Transposes audio pitch from -8 to +8 semitones while maintaining 100% constant playback speed,
- * completely eliminating comb-filtering distortion, metallic flanging, and volume wobbles.
+ * (Waveform Similarity Overlap-Add) — legacy / light selectable engine.
+ * Hard UI/DSP clamp: {@link SOUNDTOUCH_PITCH_MIN}…{@link SOUNDTOUCH_PITCH_MAX} semitones
+ * at constant playback speed (tempo via HTMLMediaElement.playbackRate).
  *
  * **Critical invariant (Safety-First):** when semitones === 0, SoundTouch WSOLA is
  * bypassed (`input → output` direct). ScriptProcessor must stay off the realtime
  * path at pitch 0 — leaving it connected causes audible underruns under UI load.
  *
+ * Kept on the Watchlist even when Bungee is the default — do not delete this path.
+ *
  * @see scripts/verify-critical-invariants.js
+ * @see BungeePitchShifterNode
  */
 export class PitchShifterNode {
   private processor: ScriptProcessorNode;
@@ -91,15 +95,18 @@ export class PitchShifterNode {
   }
 
   /**
-   * Sets live pitch offset in whole semitones (−8…+8).
+   * Sets live pitch offset in whole semitones (SoundTouch hard clamp ±4).
    *
    * Why: `clamped === 0` must disconnect ScriptProcessor (bypass). Non-zero
    * reconnects WSOLA. Do not keep the processor hot at pitch 0 “for convenience”.
    *
-   * @param semitones - Requested offset; rounded and clamped to [−8, +8]
+   * @param semitones - Requested offset; rounded and clamped to SoundTouch range
    */
   public setPitchOffset(semitones: number): void {
-    const clamped = Math.max(-8, Math.min(8, Math.round(semitones)));
+    const clamped = Math.max(
+      SOUNDTOUCH_PITCH_MIN,
+      Math.min(SOUNDTOUCH_PITCH_MAX, Math.round(semitones))
+    );
     if (clamped === this.semitones) return;
 
     this.semitones = clamped;

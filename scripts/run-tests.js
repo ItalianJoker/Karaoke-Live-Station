@@ -3060,6 +3060,115 @@ assert(
   'ControlWindow F2 reopens Stage (alongside P)'
 );
 
+// -------------------------------------------------------------
+// Suite: Bungee default DSP + SoundTouch selectable + ranges / bypass / fallback
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Bungee DSP default + SoundTouch selectable\x1b[0m');
+
+const dspPitchShared = fs.readFileSync(
+  path.resolve(__dirname, '../src/shared/dspPitch.ts'),
+  'utf8'
+);
+const bungeeNodeSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/BungeePitchShifterNode.ts'),
+  'utf8'
+);
+const pitchShifterSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/PitchShifterNode.ts'),
+  'utf8'
+);
+const audioGraphDspSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
+  'utf8'
+);
+const storeDspSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+  'utf8'
+);
+const settingsDspSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+  'utf8'
+);
+
+// Mirror clamp helpers from src/shared/dspPitch.ts for Node assertions
+function clampPitchForEngineTest(semitones, engine) {
+  const min = engine === 'soundtouch' ? -4 : -8;
+  const max = engine === 'soundtouch' ? 4 : 8;
+  const n = Number.isFinite(semitones) ? Math.round(semitones) : 0;
+  return Math.max(min, Math.min(max, n));
+}
+function isDspNeutralBypassTest(pitch, speed) {
+  return pitch === 0 && Math.abs(speed - 1) < 1e-6;
+}
+
+assert(
+  /dspEngine:\s*'bungee'/.test(storeDspSrc),
+  'Default settings.dspEngine === bungee'
+);
+assert(
+  dspPitchShared.includes("export type DspPitchEngine = 'bungee' | 'soundtouch'") &&
+    dspPitchShared.includes('BUNGEE_PITCH_UI_MIN = -8') &&
+    dspPitchShared.includes('SOUNDTOUCH_PITCH_MIN = -4'),
+  'Shared semitone ranges: Bungee UI ±8, SoundTouch ±4'
+);
+assert(
+  clampPitchForEngineTest(9, 'bungee') === 8 &&
+    clampPitchForEngineTest(-9, 'bungee') === -8 &&
+    clampPitchForEngineTest(5, 'soundtouch') === 4 &&
+    clampPitchForEngineTest(-5, 'soundtouch') === -4,
+  'Semitone clamp per engine (Bungee ±8, SoundTouch ±4)'
+);
+assert(
+  isDspNeutralBypassTest(0, 1.0) === true &&
+    isDspNeutralBypassTest(1, 1.0) === false &&
+    isDspNeutralBypassTest(0, 1.05) === false,
+  'Bypass when pitch 0 & speed 1.0 only'
+);
+assert(
+  bungeeNodeSrc.includes('isDspNeutralBypass') &&
+    bungeeNodeSrc.includes('applyBypassRouting') &&
+    bungeeNodeSrc.includes('bungee-audio-stretch/bungee') &&
+    bungeeNodeSrc.includes('MPL-2.0'),
+  'BungeePitchShifterNode: true bypass + upstream MPL attribution at load site'
+);
+assert(
+  pitchShifterSrc.includes('SOUNDTOUCH_PITCH_MIN') &&
+    pitchShifterSrc.includes('bypassActive = true') &&
+    pitchShifterSrc.includes('const needsProcessor = clamped !== 0'),
+  'SoundTouch path retained with pitch-0 ScriptProcessor bypass'
+);
+assert(
+  audioGraphDspSrc.includes('setDspEngine') &&
+    audioGraphDspSrc.includes('BungeePitchShifterNode') &&
+    audioGraphDspSrc.includes('falling back to SoundTouch') &&
+    audioGraphDspSrc.includes('PitchShifterNode'),
+  'AudioGraphManager: Bungee default + silent SoundTouch fallback; SoundTouch path kept'
+);
+assert(
+  settingsDspSrc.includes("value=\"bungee\"") &&
+    settingsDspSrc.includes("value=\"soundtouch\"") &&
+    settingsDspSrc.includes('dspEngine'),
+  'SettingsModal exposes Bungee / SoundTouch engine select'
+);
+assert(
+  fs.existsSync(path.resolve(__dirname, '../public/workers/bungee_processor.js')) &&
+    fs.existsSync(path.resolve(__dirname, '../public/workers/bungee.wasm')) &&
+    fs.existsSync(path.resolve(__dirname, '../public/workers/BUNGEE_NOTICE.md')),
+  'Prebuilt Bungee Wasm assets + NOTICE present (no C++ tree)'
+);
+assert(
+  !fs.existsSync(path.resolve(__dirname, '../vendor/bungee')) &&
+    !fs.existsSync(path.resolve(__dirname, '../third_party/bungee')),
+  'No vendored Bungee C++ source tree in repo'
+);
+assert(
+  enLocale.settings?.dspEngine &&
+    itLocale.settings?.dspEngine &&
+    esLocale.settings?.dspEngine &&
+    frLocale.settings?.dspEngine,
+  'i18n DSP engine keys present in en/it/es/fr'
+);
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');

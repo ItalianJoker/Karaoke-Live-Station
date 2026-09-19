@@ -26,6 +26,7 @@ import {
   MDX_DEFAULT_SEGMENT_SIZE
 } from '../../shared/mdxAdvancedSettings';
 import { coerceAiCpuThreads } from '../../shared/aiCpuThreads';
+import { clampPitchForEngine, coerceDspPitchEngine } from '../../shared/dspPitch';
 
 export type MissingFileContext = 'library' | 'queue';
 
@@ -136,6 +137,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   maxSimultaneousDownloads: 2,
   enableAutoDuckingBGM: false,
   enableAudioNormalization: true,
+  dspEngine: 'bungee',
   enableGuestPortal: true,
   enableSiaeReporting: true,
   autoArchiveWebTracks: true,
@@ -383,7 +385,8 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
       },
 
       setLivePitch: (pitchOffset) => {
-        const clamped = Math.max(-8, Math.min(8, pitchOffset));
+        const engine = coerceDspPitchEngine(get().settings.dspEngine);
+        const clamped = clampPitchForEngine(pitchOffset, engine);
         get().setPlaybackState({ livePitchOffset: clamped });
 
         // Update the pitch of the active song in the queue
@@ -512,7 +515,8 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
       queue: [],
 
       setQueueItemPitch: (queueId: string, pitchOffset: number) => {
-        const clamped = Math.max(-8, Math.min(8, pitchOffset));
+        const engine = coerceDspPitchEngine(get().settings.dspEngine);
+        const clamped = clampPitchForEngine(pitchOffset, engine);
         set((state) => {
           const itemIndex = state.queue.findIndex((q) => q.queueId === queueId);
           if (itemIndex === -1) return state;
@@ -587,7 +591,10 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           track,
           assignedSingerId,
           assignedSingerName: singerName?.trim() || undefined,
-          pitchOffset: typeof pitchOffset === 'number' ? Math.max(-8, Math.min(8, pitchOffset)) : 0,
+          pitchOffset:
+            typeof pitchOffset === 'number'
+              ? clampPitchForEngine(pitchOffset, coerceDspPitchEngine(get().settings.dspEngine))
+              : 0,
           requestedAt: now,
           isVIPOverride: isVIP,
           forceEnd,
@@ -1029,6 +1036,7 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         mergedSettings.mdxOverlap = coerceMdxOverlap(mergedSettings.mdxOverlap);
         mergedSettings.mdxEnableOrt = coerceMdxEnableOrt(mergedSettings.mdxEnableOrt);
         mergedSettings.aiCpuThreads = coerceAiCpuThreads(mergedSettings.aiCpuThreads);
+        mergedSettings.dspEngine = coerceDspPitchEngine(mergedSettings.dspEngine);
         mergedSettings.autoMaximizeControlOnLaunch =
           typeof mergedSettings.autoMaximizeControlOnLaunch === 'boolean'
             ? mergedSettings.autoMaximizeControlOnLaunch

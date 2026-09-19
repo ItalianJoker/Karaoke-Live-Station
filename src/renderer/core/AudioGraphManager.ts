@@ -1,6 +1,13 @@
 import { MidiLyricEvent, MidiParsedSong } from '../../shared/types';
+import {
+  clampPitchForEngine,
+  clampPlaybackSpeed,
+  coerceDspPitchEngine,
+  type DspPitchEngine
+} from '../../shared/dspPitch';
 import { MidiParser, TimedMidiEvent } from './MidiParser';
 import { PitchShifterNode } from './PitchShifterNode';
+import { BungeePitchShifterNode } from './BungeePitchShifterNode';
 import { WorkletSynthesizer } from 'spessasynth_lib';
 import {
   AlgorithmicVocalRemoverNode,
@@ -36,7 +43,8 @@ interface ActiveMidiVoice {
 /**
  * Master Web Audio graph for Control Desk playback (media + MIDI/KAR).
  *
- * - Media element audio routing with stereo SoundTouch WSOLA pitch (−8…+8)
+ * - Media element pitch/speed DSP: **Bungee** (default, Wasm AudioWorklet) or
+ *   **SoundTouch** WSOLA (selectable legacy/light) — see {@link setDspEngine}
  * - Independent tempo scaling (0.50x to 1.50x)
  * - Guide-vocal removal: realtime algorithmic mid/side DSP only (never live AI)
  * - Auto-ducking BGM attenuation when microphone input or host talks
@@ -48,8 +56,9 @@ interface ActiveMidiVoice {
  * **Critical invariants (Safety-First):**
  * - `latencyHint: 'playback'` on AudioContext (stable buffer, not interactive)
  * - Master gain = `volume²` clamped [0,1] ({@link computePerceptualGain})
- * - Pitch 0 bypasses SoundTouch via {@link PitchShifterNode}
+ * - Pitch 0 (+ speed 1.0 for Bungee) bypasses DSP (bit-perfect / zero CPU)
  * - SpessaSynth MIDI scheduler ticks every **5 ms** (worker or fallback interval)
+ * - MIDI/KAR pitch is note-number transpose — never routed through media DSP
  *
  * @see scripts/verify-critical-invariants.js
  */
@@ -57,7 +66,18 @@ export class AudioGraphManager {
   private audioCtx: AudioContext | null = null;
   private mediaElement: HTMLMediaElement | null = null;
   private sourceNode: MediaElementAudioSourceNode | null = null;
+  /** Stable bridge so vocal-remover wiring survives engine swaps. */
+  private dspBridgeIn: GainNode | null = null;
+  private dspBridgeOut: GainNode | null = null;
+  /** SoundTouch WSOLA path — kept selectable; do not remove. */
   private pitchShifterNode: PitchShifterNode | null = null;
+  /** Bungee Wasm path (default). */
+  private bungeeNode: BungeePitchShifterNode | null = null;
+  /** Operator preference from Settings (`dspEngine`). */
+  private preferredDspEngine: DspPitchEngine = 'bungee';
+  /** Engine currently wired into the bridge (may be SoundTouch after silent fallback). */
+  private activeDspEngine: DspPitchEngine | null = null;
+  private dspInitGeneration = 0;
 
   // Vocal Remover — algorithmic mid/side DSP only (live); AI ids coerce to default algo
   private vocalRemoverNode: AlgorithmicVocalRemoverNode | null = null;
@@ -242,16 +262,13 @@ export class AudioGraphManager {
 
   /**
    * Builds vocal-remover routing:
-   * MediaElementSource → AlgorithmicVocalRemoverNode → PitchShifter
+   * MediaElementSource → AlgorithmicVocalRemoverNode → DSP bridge → ducking
    */
   private setupVocalRemoverGraph(): void {
     if (!this.audioCtx || !this.sourceNode || !this.duckingGainNode) return;
 
-    if (!this.pitchShifterNode) {
-      this.pitchShifterNode = new PitchShifterNode(this.audioCtx);
-      this.pitchShifterNode.setPitchOffset(this.currentPitchOffset);
-      this.pitchShifterNode.output.connect(this.duckingGainNode);
-    }
+    this.ensureDspBridge();
+    void this.ensureDspEngine();
 
     this.teardownVocalRemoverNodes();
 
@@ -262,6 +279,114 @@ export class AudioGraphManager {
     }
 
     this.setupAlgorithmicVocalRemoverGraph();
+  }
+
+  /**
+   * Creates stable GainNode bridges once so engine swaps do not rewire vocal remover.
+   */
+  private ensureDspBridge(): void {
+    if (!this.audioCtx || !this.duckingGainNode) return;
+    if (!this.dspBridgeIn) {
+      this.dspBridgeIn = this.audioCtx.createGain();
+    }
+    if (!this.dspBridgeOut) {
+      this.dspBridgeOut = this.audioCtx.createGain();
+      this.dspBridgeOut.connect(this.duckingGainNode);
+    }
+  }
+
+  /**
+   * Ensures the preferred DSP engine is loaded and wired.
+   * Silent fallback to SoundTouch when Bungee Wasm/Worklet init fails.
+   */
+  private async ensureDspEngine(): Promise<void> {
+    if (!this.audioCtx || !this.dspBridgeIn || !this.dspBridgeOut) return;
+    const generation = ++this.dspInitGeneration;
+    const preferred = this.preferredDspEngine;
+
+    if (preferred === 'bungee') {
+      if (!this.bungeeNode) {
+        try {
+          // Upstream Wasm: https://github.com/bungee-audio-stretch/bungee (MPL-2.0).
+          // Runtime assets only under public/workers/ — no C++ source in-tree.
+          this.bungeeNode = await BungeePitchShifterNode.create(this.audioCtx);
+          this.log('info', 'Bungee pitch/speed DSP initialized (Wasm AudioWorklet)');
+        } catch (err) {
+          this.log(
+            'warn',
+            'Bungee DSP init failed — falling back to SoundTouch WSOLA',
+            err
+          );
+          if (generation !== this.dspInitGeneration) return;
+          this.wireSoundTouchEngine();
+          return;
+        }
+      }
+      if (generation !== this.dspInitGeneration) return;
+      if (this.preferredDspEngine !== 'bungee') {
+        this.wireSoundTouchEngine();
+        return;
+      }
+      this.wireBungeeEngine();
+      return;
+    }
+
+    this.wireSoundTouchEngine();
+  }
+
+  private disconnectDspBridgeInternals(): void {
+    if (!this.dspBridgeIn) return;
+    try {
+      this.dspBridgeIn.disconnect();
+    } catch {
+      /* ignore */
+    }
+    try {
+      this.pitchShifterNode?.output.disconnect();
+    } catch {
+      /* ignore */
+    }
+    try {
+      this.bungeeNode?.output.disconnect();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  private wireBungeeEngine(): void {
+    if (!this.dspBridgeIn || !this.dspBridgeOut || !this.bungeeNode) return;
+    this.disconnectDspBridgeInternals();
+    this.dspBridgeIn.connect(this.bungeeNode.input);
+    this.bungeeNode.output.connect(this.dspBridgeOut);
+    this.activeDspEngine = 'bungee';
+    this.bungeeNode.setPitchOffset(this.currentPitchOffset);
+    this.bungeeNode.setPlaybackSpeed(this.currentPlaybackSpeed);
+    this.applyMediaElementRateForActiveEngine();
+  }
+
+  private wireSoundTouchEngine(): void {
+    if (!this.audioCtx || !this.dspBridgeIn || !this.dspBridgeOut) return;
+    if (!this.pitchShifterNode) {
+      this.pitchShifterNode = new PitchShifterNode(this.audioCtx);
+    }
+    this.disconnectDspBridgeInternals();
+    this.dspBridgeIn.connect(this.pitchShifterNode.input);
+    this.pitchShifterNode.output.connect(this.dspBridgeOut);
+    this.activeDspEngine = 'soundtouch';
+    this.pitchShifterNode.setPitchOffset(this.currentPitchOffset);
+    this.applyMediaElementRateForActiveEngine();
+  }
+
+  /**
+   * Bungee owns tempo via Wasm; SoundTouch keeps HTMLMediaElement.playbackRate.
+   */
+  private applyMediaElementRateForActiveEngine(): void {
+    if (!this.mediaElement || this.isMidiMode) return;
+    if (this.activeDspEngine === 'bungee') {
+      this.mediaElement.playbackRate = 1.0;
+    } else {
+      this.mediaElement.playbackRate = this.currentPlaybackSpeed;
+    }
   }
 
   private teardownVocalRemoverNodes(): void {
@@ -276,11 +401,11 @@ export class AudioGraphManager {
   }
 
   private setupAlgorithmicVocalRemoverGraph(): void {
-    if (!this.audioCtx || !this.sourceNode || !this.pitchShifterNode) return;
+    if (!this.audioCtx || !this.sourceNode || !this.dspBridgeIn) return;
     this.vocalRemoverNode = new AlgorithmicVocalRemoverNode(this.audioCtx);
     this.vocalRemoverNode.setAlgorithm(this.vocalRemoverAlgorithm);
     this.sourceNode.connect(this.vocalRemoverNode.input);
-    this.vocalRemoverNode.output.connect(this.pitchShifterNode.input);
+    this.vocalRemoverNode.output.connect(this.dspBridgeIn);
     this.vocalRemoverNode.setEnabled(this.isVocalRemoverEnabled);
   }
 
@@ -335,16 +460,46 @@ export class AudioGraphManager {
   // ==========================================
   // Pitch & Speed DSP Controls
   // ==========================================
+
+  /**
+   * Selects the media pitch/speed DSP engine (`bungee` default, `soundtouch` legacy).
+   * Public API for pitch/speed ({@link setPitchOffset}, {@link setPlaybackSpeed}) is unchanged.
+   * On Bungee init failure the graph silently falls back to SoundTouch.
+   */
+  public setDspEngine(engine: DspPitchEngine | string): void {
+    const next = coerceDspPitchEngine(engine);
+    if (next === this.preferredDspEngine && this.activeDspEngine === next) return;
+    this.preferredDspEngine = next;
+    if (this.audioCtx && this.dspBridgeIn) {
+      void this.ensureDspEngine();
+    }
+  }
+
+  /** Currently preferred DSP engine from Settings (before silent fallback). */
+  public getDspEngine(): DspPitchEngine {
+    return this.preferredDspEngine;
+  }
+
+  /** Engine actually wired (may differ after Bungee fallback). */
+  public getActiveDspEngine(): DspPitchEngine | null {
+    return this.activeDspEngine;
+  }
+
   /**
    * Updates real-time pitch transposition in semitones without modifying speed.
+   * Range depends on the preferred engine (Bungee UI ±8, SoundTouch ±4).
    *
-   * @param semitones - Transposition offset (-8 to +8)
+   * @param semitones - Transposition offset
    */
   public setPitchOffset(semitones: number): void {
-    const clamped = Math.max(-8, Math.min(8, semitones));
+    const clamped = clampPitchForEngine(semitones, this.preferredDspEngine);
     if (clamped === this.currentPitchOffset) return;
     this.currentPitchOffset = clamped;
-    this.pitchShifterNode?.setPitchOffset(this.currentPitchOffset);
+    if (this.activeDspEngine === 'bungee') {
+      this.bungeeNode?.setPitchOffset(clamped);
+    } else {
+      this.pitchShifterNode?.setPitchOffset(clamped);
+    }
     if (this.isMidiMode) {
       this.silenceAllVoices();
     }
@@ -352,11 +507,12 @@ export class AudioGraphManager {
 
   /**
    * Adjusts playback rate / speed (0.50x to 1.50x) without modifying pitch.
+   * Bungee applies speed in Wasm; SoundTouch uses HTMLMediaElement.playbackRate.
    *
    * @param speed - Playback speed multiplier
    */
   public setPlaybackSpeed(speed: number): void {
-    const clamped = Math.max(0.50, Math.min(1.50, speed));
+    const clamped = clampPlaybackSpeed(speed);
     if (clamped === this.currentPlaybackSpeed) return;
     this.currentPlaybackSpeed = clamped;
 
@@ -366,7 +522,10 @@ export class AudioGraphManager {
       this.midiPlaybackStartTimeMs = performance.now() - (currentMs / this.currentPlaybackSpeed);
     }
 
-    if (this.mediaElement && !this.isMidiMode) {
+    if (this.activeDspEngine === 'bungee') {
+      this.bungeeNode?.setPlaybackSpeed(clamped);
+      this.applyMediaElementRateForActiveEngine();
+    } else if (this.mediaElement && !this.isMidiMode) {
       this.mediaElement.playbackRate = this.currentPlaybackSpeed;
     }
   }
@@ -1113,6 +1272,11 @@ export class AudioGraphManager {
     }
     this.pitchShifterNode?.dispose();
     this.pitchShifterNode = null;
+    this.bungeeNode?.dispose();
+    this.bungeeNode = null;
+    this.dspBridgeIn = null;
+    this.dspBridgeOut = null;
+    this.activeDspEngine = null;
     this.soundFontBuffer = null;
     if (this.audioCtx) {
       this.audioCtx.close();

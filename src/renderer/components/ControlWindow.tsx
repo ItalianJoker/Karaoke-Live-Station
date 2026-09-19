@@ -31,10 +31,13 @@ import {
   XCircle,
   HelpCircle,
   AlertCircle,
-  FileX
+  FileX,
+  Info,
+  AudioLines
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AudioGraphManager } from '../core/AudioGraphManager';
+import { getPitchRangeForEngine, coerceDspPitchEngine } from '../../shared/dspPitch';
 import { MidiChannelMixer } from './MidiChannelMixer';
 import { LibraryPanel } from './LibraryPanel';
 import { HistoryPanel } from './HistoryPanel';
@@ -91,6 +94,7 @@ export const ControlWindow: React.FC = () => {
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [showPortalQrModal, setShowPortalQrModal] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showDspCompare, setShowDspCompare] = useState(false);
   const [showDownloadsMenu, setShowDownloadsMenu] = useState(false);
   const [headerDownloads, setHeaderDownloads] = useState<Record<string, DownloadProgressPayload>>(
     {}
@@ -180,6 +184,7 @@ export const ControlWindow: React.FC = () => {
 
   const currentQueueItem = queue[0];
   const currentTrack = currentQueueItem?.track;
+  const pitchRange = getPitchRangeForEngine(coerceDspPitchEngine(settings.dspEngine));
   const isMidiTrack = Boolean(
     currentTrack &&
       (currentTrack.uri.endsWith('.mid') ||
@@ -636,6 +641,7 @@ export const ControlWindow: React.FC = () => {
 
   useEffect(() => {
     if (!audioGraphRef.current) return;
+    audioGraphRef.current.setDspEngine(settings.dspEngine || 'bungee');
     audioGraphRef.current.setPitchOffset(playback.livePitchOffset);
     audioGraphRef.current.setPlaybackSpeed(playback.playbackSpeed);
     audioGraphRef.current.setMutedMidiChannels(playback.mutedMidiChannels);
@@ -652,7 +658,10 @@ export const ControlWindow: React.FC = () => {
       videoRef.current.preservesPitch = true;
       (videoRef.current as any).mozPreservesPitch = true;
       (videoRef.current as any).webkitPreservesPitch = true;
-      videoRef.current.playbackRate = playback.playbackSpeed;
+      // Bungee owns tempo in Wasm — keep element at 1.0. SoundTouch uses element rate.
+      const engine = settings.dspEngine || 'bungee';
+      videoRef.current.playbackRate =
+        engine === 'soundtouch' ? playback.playbackSpeed : 1.0;
     }
   }, [
     playback.livePitchOffset,
@@ -664,7 +673,8 @@ export const ControlWindow: React.FC = () => {
     playback.isMuted,
     settings.audioVideoSyncOffsetMs,
     settings.enableAudioNormalization,
-    settings.vocalRemoverAlgorithm
+    settings.vocalRemoverAlgorithm,
+    settings.dspEngine
   ]);
 
   // Keep SoundFont in sync if changed from settings
@@ -1081,15 +1091,48 @@ export const ControlWindow: React.FC = () => {
             Cantanti
           </button>
 
-          {/* Scorciatoie da Tastiera */}
-          <button
-            type="button"
-            onClick={() => setShowShortcutsModal(true)}
-            className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95"
-            title={t('shortcuts.title', 'Scorciatoie da Tastiera') + ' (F1 / ?)'}
-          >
-            <HelpCircle className="w-4 h-4 text-indigo-400 hover:text-indigo-300" />
-          </button>
+          {/* Scorciatoie + DSP engine comparison (HelpCircle / Info) */}
+          <div className="relative flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShowShortcutsModal(true)}
+              className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95"
+              title={t('shortcuts.title', 'Scorciatoie da Tastiera') + ' (F1 / ?)'}
+            >
+              <HelpCircle className="w-4 h-4 text-indigo-400 hover:text-indigo-300" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDspCompare((v) => !v)}
+              className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95"
+              title={t('settings.dspEngineCompareTitle')}
+              aria-expanded={showDspCompare}
+            >
+              <Info className="w-4 h-4 text-cyan-400 hover:text-cyan-300" />
+            </button>
+            {showDspCompare && (
+              <div className="absolute right-0 top-full mt-2 w-80 z-50 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 space-y-2 text-[11px] text-slate-300">
+                <div className="flex items-center gap-1.5 text-cyan-400 font-bold uppercase tracking-wider text-[10px]">
+                  <AudioLines className="w-3.5 h-3.5" />
+                  {t('settings.dspEngineCompareTitle')}
+                </div>
+                <p className="leading-relaxed">{t('settings.dspEngineCompareBody')}</p>
+                <ul className="space-y-1.5 list-none pl-0">
+                  <li>
+                    <span className="text-indigo-300 font-semibold">Bungee</span>
+                    {' — '}
+                    {t('settings.dspEngineBungeeBlurb')}
+                  </li>
+                  <li>
+                    <span className="text-amber-300 font-semibold">SoundTouch</span>
+                    {' — '}
+                    {t('settings.dspEngineSoundTouchBlurb')}
+                  </li>
+                </ul>
+                <p className="text-slate-500 leading-relaxed">{t('settings.dspEngineMidiNote')}</p>
+              </div>
+            )}
+          </div>
 
           {/* Downloads menu — active/queued progress (replaces alert list above library rows) */}
           <div className="relative" ref={downloadsMenuRef}>
@@ -1491,13 +1534,13 @@ export const ControlWindow: React.FC = () => {
                 </button>
               </div>
 
-              {/* Pitch Controls (-8 to +8 Semitoni) */}
+              {/* Pitch Controls (range depends on DSP engine) */}
               <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm">
                 <span className="text-[11px] font-semibold text-slate-300" title="Tonalità in semitoni">{t('player.pitch')}:</span>
                 <button
                   type="button"
                   onClick={() => setLivePitch(playback.livePitchOffset - 1)}
-                  disabled={playback.livePitchOffset <= -8}
+                  disabled={playback.livePitchOffset <= pitchRange.min}
                   className="w-5 h-5 rounded-full bg-slate-700 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-slate-700 hover:text-white text-xs font-bold flex items-center justify-center transition-colors text-slate-200"
                   title="Abbassa tonalità (-1 semitono, CTRL + Freccia Giù)"
                 >
@@ -1514,7 +1557,7 @@ export const ControlWindow: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setLivePitch(playback.livePitchOffset + 1)}
-                  disabled={playback.livePitchOffset >= 8}
+                  disabled={playback.livePitchOffset >= pitchRange.max}
                   className="w-5 h-5 rounded-full bg-slate-700 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-slate-700 hover:text-white text-xs font-bold flex items-center justify-center transition-colors text-slate-200"
                   title="Alza tonalità (+1 semitono, CTRL + Freccia Su)"
                 >

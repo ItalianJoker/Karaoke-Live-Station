@@ -9,16 +9,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- None yet.
+- **Bungee default pitch/speed DSP** — Wasm AudioWorklet phase vocoder (`public/workers/bungee_processor.js` + `bungee.wasm`, MPL-2.0 upstream https://github.com/bungee-audio-stretch/bungee; runtime prebuilts only, no C++ source vendored). Settings `dspEngine: 'bungee' | 'soundtouch'` (default `bungee`). Control pitch UI ±8 for Bungee / ±4 for SoundTouch. True bypass when pitch 0 && speed 1.00x. Silent fallback to SoundTouch if Bungee init fails. MIDI/KAR unchanged (SpessaSynth). (this PR)
 
 ### Changed
-- None yet.
+- SoundTouch WSOLA remains selectable as legacy/light engine (hard ±4 ST); no longer the sole media pitch path.
+- README / RELEASE_NOTES attribution for Bungee (MPL-2.0) + `public/workers/BUNGEE_NOTICE.md`.
 
 ### Fixed
 - None yet.
 
 ### Breaking Changes
-- None yet.
+- None (missing `dspEngine` in persisted settings coerces to `bungee`).
 
 ## [1.3.0] — Startup maximize / Stage launch / AI CPU cores / Settings layout — 2026-09-19
 
