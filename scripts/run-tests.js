@@ -2004,6 +2004,8 @@ const controlWindowSourceAccent = fs.readFileSync(
 assert(
   databaseSourceAccent.includes('fold_diacritics') &&
     databaseSourceAccent.includes('normalizeForSearch') &&
+    databaseSourceAccent.includes('titleNorm') &&
+    databaseSourceAccent.includes('artistNorm') &&
     guestServerSourceAccent.includes('textMatchesSearch') &&
     libraryPanelSourceAccent.includes('textMatchesSearch') &&
     historyPanelSourceAccent.includes('textMatchesSearch') &&
@@ -2752,13 +2754,68 @@ console.log('\n\x1b[36m▶ Suite 12: OS filesystem drag-drop import\x1b[0m');
     controlWindowSource.includes('library.importFiles') &&
       controlWindowSource.includes('queue-panel-drop-zone') &&
       controlWindowSource.includes('dataTransferHasFiles') &&
-      controlWindowSource.includes('addToQueue'),
-    'ControlWindow queue OS drop → importFiles + addToQueue'
+      controlWindowSource.includes('addToQueueBatch'),
+    'ControlWindow queue OS drop → importFiles + addToQueueBatch'
   );
   assert(
     /library:scan-folder/.test(mainIndexSource) &&
       preloadSource.includes("ipcRenderer.invoke('library:scan-folder'"),
     'Existing scanFolder IPC preserved alongside import-files'
+  );
+
+  // Large-library / DnD perf contracts (25k-safe paths)
+  assert(
+    databaseSource.includes('getTracksByLocalPaths') &&
+      databaseSource.includes('getTracksMissingThumbnails') &&
+      databaseSource.includes('titleNorm') &&
+      /titleNorm LIKE/.test(databaseSource) &&
+      !/fold_diacritics\(title\) LIKE/.test(databaseSource),
+    'DB search uses titleNorm; targeted path/thumb queries exist'
+  );
+  assert(
+    /private async importFiles[\s\S]*getTracksByLocalPaths/.test(mainIndexSource) &&
+      !/private async importFiles[\s\S]*getAllTracks\(\)/.test(mainIndexSource),
+    'importFiles uses getTracksByLocalPaths (not getAllTracks dump)'
+  );
+  assert(
+    mainIndexSource.includes('scheduleLibraryTrackUpdatedNotify') &&
+      mainIndexSource.includes("library:track-updated") &&
+      preloadSource.includes('onLibraryTrackUpdated') &&
+      libraryPanelSource.includes('onLibraryTrackUpdated'),
+    'Thumbnail backfill emits library:track-updated; LibraryPanel patches in-place'
+  );
+  assert(
+    mainIndexSource.includes('getTracksMissingThumbnails') &&
+      /ensureLocalThumbnails[\s\S]*getTracksMissingThumbnails/.test(mainIndexSource),
+    'ensureLocalThumbnails uses targeted missing-thumb query'
+  );
+  assert(
+    scannerSource.includes('dirCache') &&
+      /discoverLibraryFilesFromPaths[\s\S]*dirCache/.test(scannerSource),
+    'discoverLibraryFilesFromPaths memoizes directory readdir via dirCache'
+  );
+  const analysisSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/TrackAnalysisService.ts'),
+    'utf8'
+  );
+  assert(
+    analysisSource.includes('queuedTrackIds') &&
+      !/queue\.some\(/.test(analysisSource),
+    'TrackAnalysisService enqueue uses queuedTrackIds Set (no queue.some)'
+  );
+  const storeSourcePerf = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+    'utf8'
+  );
+  assert(
+    storeSourcePerf.includes('addToQueueBatch') &&
+      libraryPanelSource.includes('ids.has(t.id)') &&
+      libraryPanelSource.includes('paths.has(t.localFilePath)'),
+    'Set-based library drop dedup + addToQueueBatch exist'
+  );
+  assert(
+    fs.existsSync(path.resolve(__dirname, 'benchmark-large-library.js')),
+    'scripts/benchmark-large-library.js exists for 25k micro-benchmarks'
   );
 
   const { spawnSync } = require('child_process');

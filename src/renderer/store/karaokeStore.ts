@@ -91,6 +91,16 @@ export interface KaraokeStoreState {
   // 4. Queue & Fair Queue Algorithm (Volatile)
   queue: QueueItem[];
   addToQueue: (track: KaraokeMediaTrack, singerName?: string, isVIP?: boolean, pitchOffset?: number, placement?: 'auto' | 'end') => void;
+  /** Batch enqueue — one Zustand set + one syncQueueCache (OS multi-file queue drops). */
+  addToQueueBatch: (
+    items: Array<{
+      track: KaraokeMediaTrack;
+      singerName?: string;
+      isVIP?: boolean;
+      pitchOffset?: number;
+      placement?: 'auto' | 'end';
+    }>
+  ) => void;
   setQueueItemPitch: (queueId: string, pitchOffset: number) => void;
   updateTrackInQueue: (trackId: string, updates: Partial<KaraokeMediaTrack>) => void;
   removeFromQueue: (queueId: string) => void;
@@ -674,6 +684,47 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
             window.karaokeApi.syncQueueCache(sorted);
           }
 
+          return { queue: sorted };
+        });
+      },
+
+      addToQueueBatch: (items) => {
+        if (!items?.length) return;
+        const engine = coerceDspPitchEngine(get().settings.dspEngine);
+        const newItems: QueueItem[] = [];
+        let tick = Date.now();
+        for (const entry of items) {
+          const { track, singerName, isVIP = false, pitchOffset = 0, placement = 'auto' } = entry;
+          let assignedSingerId: string | undefined;
+          let songsSung = 0;
+          if (singerName && singerName.trim().length > 0) {
+            const profile = get().getOrCreateSingerProfile(singerName);
+            assignedSingerId = profile.id;
+            songsSung = profile.songsSungCount;
+          }
+          const now = tick++;
+          const forceEnd = placement === 'end';
+          newItems.push({
+            queueId: `q_${now}_${Math.random().toString(36).substring(2, 6)}`,
+            track,
+            assignedSingerId,
+            assignedSingerName: singerName?.trim() || undefined,
+            pitchOffset:
+              typeof pitchOffset === 'number'
+                ? clampPitchForEngine(pitchOffset, engine)
+                : 0,
+            requestedAt: now,
+            isVIPOverride: isVIP,
+            forceEnd,
+            fairScore: calculateFairScore(songsSung, now, isVIP, forceEnd)
+          });
+        }
+        set((state) => {
+          const updatedRaw = [...state.queue, ...newItems];
+          const sorted = sortQueueByFairAlgorithm(updatedRaw, state.settings.enableFairQueue);
+          if (typeof window !== 'undefined' && window.karaokeApi) {
+            window.karaokeApi.syncQueueCache(sorted);
+          }
           return { queue: sorted };
         });
       },

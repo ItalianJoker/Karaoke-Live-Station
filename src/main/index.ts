@@ -184,6 +184,9 @@ class KaraokeMainProcess {
   /** Paths already attempted this session — avoid infinite retry on decode failures. */
   private thumbnailBackfillAttempted = new Set<string>();
   private libraryReindexNotifyTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Coalesced track patches for thumbnail backfill (avoids full catalog re-fetch every 750ms). */
+  private pendingTrackUpdates = new Map<string, KaraokeMediaTrack>();
+  private libraryTrackUpdateTimer: ReturnType<typeof setTimeout> | null = null;
   /** On-demand ZIP CD+G extract cache under userData/temp/zip_cache. */
   private zipCdgCache: ZipCdgCache;
   /** Async key/BPM analysis (never blocks play-start). */
@@ -1426,9 +1429,7 @@ class KaraokeMainProcess {
       }
       this.db.upsertTrack(track);
       // Notify renderer windows to reindex/refresh library immediately
-      if (this.controlWindow && !this.controlWindow.isDestroyed()) {
-        this.controlWindow.webContents.send('library:reindexed');
-      }
+      this.scheduleLibraryReindexedNotify();
       return track;
     });
 
@@ -1711,9 +1712,11 @@ class KaraokeMainProcess {
     const found = discoverLibraryFilesFromPaths(filePaths);
     if (!found.length) return [];
 
+    // Targeted path lookup — never dump the full catalog for a small drop.
     const existingByPath = new Map<string, KaraokeMediaTrack>();
     try {
-      for (const t of this.db.getAllTracks()) {
+      const paths = found.map((f) => f.absolutePath);
+      for (const t of this.db.getTracksByLocalPaths(paths)) {
         if (t.localFilePath) {
           existingByPath.set(t.localFilePath.toLowerCase(), t);
         }
@@ -1920,6 +1923,19 @@ class KaraokeMainProcess {
       const id = this.thumbnailBackfillQueue.shift();
       if (!id) {
         this.thumbnailBackfillRunning = false;
+        // Queue drained — allow a single throttled full reindex if anything still pending.
+        if (this.pendingTrackUpdates.size) {
+          // Flush coalesced patches immediately on drain.
+          if (this.libraryTrackUpdateTimer) {
+            clearTimeout(this.libraryTrackUpdateTimer);
+            this.libraryTrackUpdateTimer = null;
+          }
+          const batch = Array.from(this.pendingTrackUpdates.values());
+          this.pendingTrackUpdates.clear();
+          if (batch.length && this.controlWindow && !this.controlWindow.isDestroyed()) {
+            this.controlWindow.webContents.send('library:track-updated', batch);
+          }
+        }
         return;
       }
 
@@ -1940,7 +1956,8 @@ class KaraokeMainProcess {
           if (thumb) {
             track.thumbnailUrl = thumb;
             this.db.upsertTrack(track);
-            this.scheduleLibraryReindexedNotify();
+            // Patch Local list in-place — do not dump getAllTracks every 750ms.
+            this.scheduleLibraryTrackUpdatedNotify(track);
           }
         } catch (err) {
           this.logger.warn('Thumbnail', 'Failed persisting async thumbnail', {
@@ -1956,12 +1973,31 @@ class KaraokeMainProcess {
   }
 
   /**
-   * Throttled library:reindexed so Local list picks up thumbs without spamming IPC.
+   * Coalesce thumbnail/key patches onto the Control window without a full reindex.
+   */
+  private scheduleLibraryTrackUpdatedNotify(track: KaraokeMediaTrack): void {
+    this.pendingTrackUpdates.set(track.id, track);
+    if (this.libraryTrackUpdateTimer) return;
+    this.libraryTrackUpdateTimer = setTimeout(() => {
+      this.libraryTrackUpdateTimer = null;
+      const batch = Array.from(this.pendingTrackUpdates.values());
+      this.pendingTrackUpdates.clear();
+      if (!batch.length) return;
+      if (this.controlWindow && !this.controlWindow.isDestroyed()) {
+        this.controlWindow.webContents.send('library:track-updated', batch);
+      }
+    }, 200);
+  }
+
+  /**
+   * Throttled library:reindexed — used for one-shot saves; thumb backfill uses track-updated.
+   * Skips while async thumb queue is still pumping to avoid the 750ms full-catalog storm.
    */
   private scheduleLibraryReindexedNotify(): void {
     if (this.libraryReindexNotifyTimer) return;
     this.libraryReindexNotifyTimer = setTimeout(() => {
       this.libraryReindexNotifyTimer = null;
+      if (this.thumbnailBackfillQueue.length || this.thumbnailBackfillRunning) return;
       if (this.controlWindow && !this.controlWindow.isDestroyed()) {
         this.controlWindow.webContents.send('library:reindexed');
       }
@@ -1975,13 +2011,8 @@ class KaraokeMainProcess {
   private ensureLocalThumbnails(): void {
     try {
       const needIds: string[] = [];
-      for (const t of this.db.getAllTracks()) {
-        if (
-          !t.thumbnailUrl &&
-          t.localFilePath &&
-          (t.source === 'local_library' || t.source === 'youtube') &&
-          this.isVideoThumbnailCandidate(t.localFilePath)
-        ) {
+      for (const t of this.db.getTracksMissingThumbnails()) {
+        if (t.localFilePath && this.isVideoThumbnailCandidate(t.localFilePath)) {
           needIds.push(t.id);
         }
       }

@@ -192,10 +192,39 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     const unSubReindex = window.karaokeApi?.downloads?.onLibraryReindexed?.(() => {
       loadLocalCatalog();
     });
+    const unSubTrackUpdated = window.karaokeApi?.downloads?.onLibraryTrackUpdated?.(
+      (tracks) => {
+        if (!tracks?.length) return;
+        setLocalTracks((prev) => {
+          const byId = new Map(prev.map((t) => [t.id, t]));
+          const byPath = new Map(
+            prev
+              .filter((t) => t.localFilePath)
+              .map((t) => [t.localFilePath!.toLowerCase(), t.id])
+          );
+          for (const updated of tracks) {
+            const pathKey = updated.localFilePath?.toLowerCase();
+            const existingId = byId.has(updated.id)
+              ? updated.id
+              : pathKey
+                ? byPath.get(pathKey)
+                : undefined;
+            if (existingId) {
+              const prevTrack = byId.get(existingId)!;
+              byId.set(existingId, { ...prevTrack, ...updated, id: existingId });
+            } else {
+              byId.set(updated.id, updated);
+            }
+          }
+          return Array.from(byId.values());
+        });
+      }
+    );
 
     return () => {
       window.removeEventListener('karaoke:library-refreshed', handleLibraryRefreshed);
       unSubReindex?.();
+      unSubTrackUpdated?.();
     };
   }, [settings.libraryPath]);
 
@@ -563,14 +592,19 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         return;
       }
       setLocalTracks((prev) => {
+        const ids = new Set<string>();
+        const paths = new Set<string>();
+        const uris = new Set<string>();
+        for (const n of imported) {
+          ids.add(n.id);
+          if (n.localFilePath) paths.add(n.localFilePath);
+          if (n.uri) uris.add(n.uri);
+        }
         const filtered = prev.filter(
           (t) =>
-            !imported.some(
-              (n) =>
-                n.id === t.id ||
-                (n.localFilePath && t.localFilePath && n.localFilePath === t.localFilePath) ||
-                n.uri === t.uri
-            )
+            !ids.has(t.id) &&
+            !(t.localFilePath && paths.has(t.localFilePath)) &&
+            !(t.uri && uris.has(t.uri))
         );
         return [...imported, ...filtered];
       });

@@ -155,7 +155,7 @@ export const ControlWindow: React.FC = () => {
   const toggleMidiChannelMute = useKaraokeStore((state) => state.toggleMidiChannelMute);
 
   const queue = useKaraokeStore((state) => state.queue);
-  const addToQueue = useKaraokeStore((state) => state.addToQueue);
+  const addToQueueBatch = useKaraokeStore((state) => state.addToQueueBatch);
   const updateTrackInQueue = useKaraokeStore((state) => state.updateTrackInQueue);
   const updateQueueItemSinger = useKaraokeStore((state) => state.updateQueueItemSinger);
   const advanceToNextTrack = useKaraokeStore((state) => state.advanceToNextTrack);
@@ -271,9 +271,15 @@ export const ControlWindow: React.FC = () => {
         showToast(t('library.importNoFiles'), 'warning');
         return;
       }
-      for (const track of imported) {
-        addToQueue(track, undefined, false, 0, 'auto');
-      }
+      addToQueueBatch(
+        imported.map((track) => ({
+          track,
+          singerName: undefined,
+          isVIP: false,
+          pitchOffset: 0,
+          placement: 'auto' as const
+        }))
+      );
       showToast(t('queue.importDropped', { count: imported.length }), 'success');
     } catch (err) {
       console.error('Queue OS drop import error:', err);
