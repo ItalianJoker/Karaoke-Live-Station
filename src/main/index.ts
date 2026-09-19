@@ -35,6 +35,8 @@ import { ORT_WASM_ASSET_FILES } from '../shared/ortWasm';
 import { resolveKaraokeLocalFilePath, buildKaraokeLocalUri } from '../shared/karaokeLocalPath';
 import { discoverLibraryMedia, discoverLibraryFilesFromPaths } from '../shared/libraryScanner';
 import { coerceAiCpuThreads, resolveAiCpuThreads } from '../shared/aiCpuThreads';
+import { ZipCdgCache } from './services/ZipCdgCache';
+import { TrackAnalysisService } from './services/TrackAnalysisService';
 
 /** Launch prefs persisted for main-process boot (before Control sync:settings). */
 type LaunchPrefs = {
@@ -172,6 +174,10 @@ class KaraokeMainProcess {
   /** Paths already attempted this session — avoid infinite retry on decode failures. */
   private thumbnailBackfillAttempted = new Set<string>();
   private libraryReindexNotifyTimer: ReturnType<typeof setTimeout> | null = null;
+  /** On-demand ZIP CD+G extract cache under userData/temp/zip_cache. */
+  private zipCdgCache: ZipCdgCache;
+  /** Async key/BPM analysis (never blocks play-start). */
+  private trackAnalysis: TrackAnalysisService;
 
   /** userData/launch-prefs.json — readable at boot before Control hydrates localStorage. */
   private getLaunchPrefsPath(): string {
@@ -226,6 +232,12 @@ class KaraokeMainProcess {
 
     this.db = new DatabaseManager(userDataPath);
     this.downloadManager = new DownloadManager(tempDownloadDir, queueCacheDir);
+    this.zipCdgCache = new ZipCdgCache(tempDownloadDir);
+    this.trackAnalysis = new TrackAnalysisService(
+      this.db,
+      tempDownloadDir,
+      resolveFfmpegPath()
+    );
     this.ytDlpUpdater = new YtDlpUpdater(userDataPath, this.logger);
     this.vocalModelManager = new OfflineVocalModelManager(this.logger);
     this.ortWasmManager = new OrtWasmManager(this.logger);
@@ -429,6 +441,7 @@ class KaraokeMainProcess {
         await this.guestServer.stop();
       }
       this.downloadManager.cleanupTempFiles();
+      this.zipCdgCache.cleanupAll();
       this.db.close();
     });
 
@@ -766,7 +779,9 @@ class KaraokeMainProcess {
         }
       }
       if (command.action === 'sync:queue' && command.payload) {
-        this.currentQueue = command.payload as QueueItem[];
+        const nextQueue = command.payload as QueueItem[];
+        this.releaseZipCacheForDequeued(this.currentQueue, nextQueue);
+        this.currentQueue = nextQueue;
       }
       if (this.stageWindow && !this.stageWindow.isDestroyed()) {
         this.stageWindow.webContents.send('playback:command', command);
@@ -774,6 +789,7 @@ class KaraokeMainProcess {
     });
 
     ipcMain.on('queue:update-cache', (_event, queue: QueueItem[]) => {
+      this.releaseZipCacheForDequeued(this.currentQueue, queue);
       this.currentQueue = queue;
       if (this.guestServer) {
         this.guestServer.notifyQueueChanged();
@@ -994,6 +1010,46 @@ class KaraokeMainProcess {
      */
     ipcMain.handle('library:import-files', async (_event, filePaths: string[]) => {
       return this.importFiles(Array.isArray(filePaths) ? filePaths : []);
+    });
+
+    /**
+     * Extract a karaoke CD+G ZIP on demand into temp/zip_cache/<trackId>/.
+     * Async + setImmediate yields so Regia stays responsive during inflate.
+     */
+    ipcMain.handle(
+      'library:ensure-zip-playback',
+      async (_event, payload: { trackId: string; zipPath: string }) => {
+        try {
+          const trackId = (payload?.trackId || '').trim();
+          const zipPath = (payload?.zipPath || '').trim();
+          if (!trackId || !zipPath) {
+            return { success: false, error: 'trackId and zipPath required' };
+          }
+          const extracted = await this.zipCdgCache.ensureExtracted(trackId, zipPath);
+          const catalog = this.db.getTrackById(trackId);
+          if (catalog) this.trackAnalysis.enqueue(catalog);
+          return {
+            success: true,
+            audioPath: extracted.audioPath,
+            cdgPath: extracted.cdgPath,
+            audioUri: buildKaraokeLocalUri(extracted.audioPath),
+            cdgUri: buildKaraokeLocalUri(extracted.cdgPath),
+            audioExt: extracted.audioExt
+          };
+        } catch (err) {
+          this.logger.warn('ZipCdg', 'ensure-zip-playback failed', err);
+          return {
+            success: false,
+            error: err instanceof Error ? err.message : String(err)
+          };
+        }
+      }
+    );
+
+    /** Release one track's zip extract cache (optional renderer hint). */
+    ipcMain.handle('library:release-zip-cache', (_event, trackId: string) => {
+      if (trackId) this.zipCdgCache.releaseTrack(trackId);
+      return { success: true };
     });
 
     ipcMain.handle(
@@ -1487,7 +1543,10 @@ class KaraokeMainProcess {
         thumbnailUrl: thumb,
         hasEmbeddedLyrics: item.hasEmbeddedLyrics,
         isMultiplex: false,
-        isEmbeddable: true
+        isEmbeddable: true,
+        // Preserve prior async analysis across rescan upserts
+        initialKey: prev?.initialKey,
+        initialBpm: prev?.initialBpm
       };
       if (!thumb && track.localFilePath && this.isVideoThumbnailCandidate(track.localFilePath)) {
         needThumbIds.push(track.id);
@@ -1497,7 +1556,28 @@ class KaraokeMainProcess {
 
     this.db.upsertTracksBatch(discovered);
     this.enqueueThumbnailBackfill(needThumbIds);
+    // Background key/BPM — must not delay scan IPC return
+    setImmediate(() => this.trackAnalysis.enqueueMany(discovered));
     return discovered;
+  }
+
+  /**
+   * Drop zip_cache dirs for tracks that left the queue (dequeue / clear).
+   * Safety-First: only touches temp/zip_cache via ZipCdgCache.
+   */
+  private releaseZipCacheForDequeued(prev: QueueItem[], next: QueueItem[]): void {
+    try {
+      const nextIds = new Set(next.map((q) => q.track.id));
+      for (const item of prev) {
+        const lp = item.track.localFilePath || '';
+        if (!lp.toLowerCase().endsWith('.zip')) continue;
+        if (!nextIds.has(item.track.id)) {
+          this.zipCdgCache.releaseTrack(item.track.id);
+        }
+      }
+    } catch (err) {
+      this.logger.warn('ZipCdg', 'releaseZipCacheForDequeued failed', err);
+    }
   }
 
   /** True when the file extension can yield an FFmpeg frame thumbnail. */
@@ -1593,7 +1673,9 @@ class KaraokeMainProcess {
         thumbnailUrl: thumb,
         hasEmbeddedLyrics: item.hasEmbeddedLyrics,
         isMultiplex: false,
-        isEmbeddable: true
+        isEmbeddable: true,
+        initialKey: prev?.initialKey,
+        initialBpm: prev?.initialBpm
       };
       if (!thumb && track.localFilePath && this.isVideoThumbnailCandidate(track.localFilePath)) {
         needThumbIds.push(track.id);
@@ -1603,6 +1685,7 @@ class KaraokeMainProcess {
 
     this.db.upsertTracksBatch(tracks);
     this.enqueueThumbnailBackfill(needThumbIds);
+    setImmediate(() => this.trackAnalysis.enqueueMany(tracks));
     return tracks;
   }
 

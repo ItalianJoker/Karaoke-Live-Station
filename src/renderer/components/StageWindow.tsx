@@ -277,8 +277,20 @@ export const StageWindow: React.FC = () => {
       return;
     }
 
-    if (activeTrack.localFilePath && activeTrack.localFilePath.endsWith('.mp3')) {
-      const cdgPath = activeTrack.localFilePath.replace(/\.mp3$/i, '.cdg');
+    // Resolve CD+G path: runtime extract (zip), explicit cdgFilePath, or sibling of .mp3/.wav
+    let cdgPath: string | null = null;
+    if (activeTrack.cdgFilePath) {
+      cdgPath = activeTrack.cdgFilePath;
+    } else if (activeTrack.localFilePath) {
+      const lp = activeTrack.localFilePath;
+      if (/\.mp3$/i.test(lp)) {
+        cdgPath = lp.replace(/\.mp3$/i, '.cdg');
+      } else if (/\.wav$/i.test(lp)) {
+        cdgPath = lp.replace(/\.wav$/i, '.cdg');
+      }
+    }
+
+    if (cdgPath) {
       fetch(`karaoke://local/${encodeURIComponent(cdgPath)}`)
         .then((res) => {
           if (!res.ok) throw new Error('No CDG file');
@@ -298,7 +310,7 @@ export const StageWindow: React.FC = () => {
       cdgParserRef.current = null;
       setHasCdgLoaded(false);
     }
-  }, [activeTrack?.id]);
+  }, [activeTrack?.id, activeTrack?.cdgFilePath, activeTrack?.localFilePath]);
 
   // Render CDG frame at current playback time
   useEffect(() => {

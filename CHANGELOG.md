@@ -9,7 +9,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- None yet.
+- **Native `.zip` CD+G karaoke packs** — Library scan/import discovers ZIP archives that contain an MP3/WAV + `.cdg` pair (Central Directory inspect). Playback extracts on demand to `userData/temp/zip_cache/<trackId>/`, serves via `karaoke://local/`, and cleans up on dequeue / app quit. Title/artist from the ZIP filename. No version bump (ships after v1.4.0).
+- **Key + BPM detection** — Catalog columns `initialKey` / `initialBpm`; async chromagram/onset analysis (MIDI tempo + key-signature meta; audio via FFmpeg PCM). Regia pitch/speed pills show live `base→result` / `bpm→eff` beside existing ±/reset controls (label-only fallback when unknown). Shared helpers in `musicalKeys.ts` (`transposeKey`, `effectiveBpm`).
 
 ### Changed
 - None yet.

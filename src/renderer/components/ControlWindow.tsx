@@ -38,6 +38,7 @@ import {
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AudioGraphManager } from '../core/AudioGraphManager';
 import { getPitchRangeForEngine, coerceDspPitchEngine } from '../../shared/dspPitch';
+import { formatBpmTransition, formatKeyTransition } from '../../shared/musicalKeys';
 import { MidiChannelMixer } from './MidiChannelMixer';
 import { LibraryPanel } from './LibraryPanel';
 import { HistoryPanel } from './HistoryPanel';
@@ -773,6 +774,56 @@ export const ControlWindow: React.FC = () => {
 
       if (cancelled) return;
 
+      // Native CD+G ZIP: extract on demand, then play audio via karaoke://local/
+      let playUri = currentTrack.uri;
+      if (
+        currentTrack.localFilePath &&
+        /\.zip$/i.test(currentTrack.localFilePath) &&
+        window.karaokeApi?.library?.ensureZipPlayback
+      ) {
+        const alreadyExtracted =
+          currentTrack.cdgFilePath &&
+          currentTrack.uri &&
+          !/\.zip$/i.test(currentTrack.uri) &&
+          currentTrack.uri.includes('zip_cache');
+        if (!alreadyExtracted) {
+          try {
+            const zipResult = await window.karaokeApi.library.ensureZipPlayback({
+              trackId: currentTrack.id,
+              zipPath: currentTrack.localFilePath
+            });
+            if (cancelled) return;
+            if (!zipResult?.success || !zipResult.audioUri) {
+              pauseResetForMissingFile();
+              openMissingForQueueItem(
+                currentTrack,
+                currentTrack.localFilePath,
+                currentQueueItem.queueId
+              );
+              return;
+            }
+            playUri = zipResult.audioUri;
+            updateTrackInQueue(currentTrack.id, {
+              uri: zipResult.audioUri,
+              cdgFilePath: zipResult.cdgPath
+            });
+          } catch (err) {
+            console.error('ZIP CD+G extract failed:', err);
+            if (!cancelled) {
+              pauseResetForMissingFile();
+              openMissingForQueueItem(
+                currentTrack,
+                currentTrack.localFilePath,
+                currentQueueItem.queueId
+              );
+            }
+            return;
+          }
+        } else {
+          playUri = currentTrack.uri;
+        }
+      }
+
       const mediaKey = `${currentQueueItem.queueId}::${currentTrack.localFilePath || currentTrack.uri}`;
       const isNewTrackLoaded = loadedTrackMediaKeyRef.current !== mediaKey;
 
@@ -805,6 +856,10 @@ export const ControlWindow: React.FC = () => {
               await audioGraphRef.current?.initContext();
               const song = await audioGraphRef.current?.loadMidiSong(buffer);
               if (song && loadedTrackMediaKeyRef.current === mediaKeyToLoad) {
+                // Prefer MIDI-declared BPM when catalog has none yet
+                if (song.initialBpm && !currentTrack.initialBpm) {
+                  updateTrackInQueue(currentTrack.id, { initialBpm: song.initialBpm });
+                }
                 setPlaybackState({ duration: song.durationMs / 1000, currentTime: 0 });
                 if (useKaraokeStore.getState().playback.isPlaying) {
                   audioGraphRef.current?.playMidi();
@@ -841,7 +896,7 @@ export const ControlWindow: React.FC = () => {
             audioGraphRef.current?.stopMidiPlayback();
             setPlaybackState({ activeLyricsText: undefined, currentTime: 0 });
 
-            videoRef.current.src = currentTrack.uri;
+            videoRef.current.src = playUri;
             videoRef.current.load();
             videoRef.current.preservesPitch = true;
             (videoRef.current as any).mozPreservesPitch = true;
@@ -884,6 +939,7 @@ export const ControlWindow: React.FC = () => {
     currentTrack?.id,
     currentTrack?.uri,
     currentTrack?.localFilePath,
+    currentTrack?.cdgFilePath,
     playback.isPlaying,
     isMidiTrack,
     downloadProgress
@@ -1534,14 +1590,25 @@ export const ControlWindow: React.FC = () => {
                 </button>
               </div>
 
-              {/* Pitch Controls (range depends on DSP engine) */}
-              <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm">
-                <span className="text-[11px] font-semibold text-slate-300" title="Tonalità in semitoni">{t('player.pitch')}:</span>
+              {/* Pitch Controls (range depends on DSP engine) — key label affixed side-by-side */}
+              <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm shrink-0">
+                <span className="text-[11px] font-semibold text-slate-300 shrink-0" title="Tonalità in semitoni">
+                  {t('player.pitch')}:
+                  {(() => {
+                    const keyLabel = formatKeyTransition(
+                      currentTrack?.initialKey,
+                      playback.livePitchOffset
+                    );
+                    return keyLabel ? (
+                      <span className="ml-1 font-mono text-indigo-300/90 font-bold">{keyLabel}</span>
+                    ) : null;
+                  })()}
+                </span>
                 <button
                   type="button"
                   onClick={() => setLivePitch(playback.livePitchOffset - 1)}
                   disabled={playback.livePitchOffset <= pitchRange.min}
-                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-slate-700 hover:text-white text-xs font-bold flex items-center justify-center transition-colors text-slate-200"
+                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-slate-700 hover:text-white text-xs font-bold flex items-center justify-center transition-colors text-slate-200 shrink-0"
                   title="Abbassa tonalità (-1 semitono, CTRL + Freccia Giù)"
                 >
                   -
@@ -1549,7 +1616,7 @@ export const ControlWindow: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setLivePitch(0)}
-                  className="font-mono font-bold text-xs min-w-[42px] px-1.5 py-0.5 rounded-full text-center text-indigo-400 hover:bg-indigo-950/70 hover:text-indigo-200 transition-colors cursor-pointer"
+                  className="font-mono font-bold text-xs min-w-[42px] px-1.5 py-0.5 rounded-full text-center text-indigo-400 hover:bg-indigo-950/70 hover:text-indigo-200 transition-colors cursor-pointer shrink-0"
                   title="Clicca per azzerare la tonalità (0 ST)"
                 >
                   {playback.livePitchOffset > 0 ? `+${playback.livePitchOffset}` : playback.livePitchOffset} ST
@@ -1558,28 +1625,39 @@ export const ControlWindow: React.FC = () => {
                   type="button"
                   onClick={() => setLivePitch(playback.livePitchOffset + 1)}
                   disabled={playback.livePitchOffset >= pitchRange.max}
-                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-slate-700 hover:text-white text-xs font-bold flex items-center justify-center transition-colors text-slate-200"
+                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-slate-700 hover:text-white text-xs font-bold flex items-center justify-center transition-colors text-slate-200 shrink-0"
                   title="Alza tonalità (+1 semitono, CTRL + Freccia Su)"
                 >
                   +
                 </button>
               </div>
 
-              {/* Speed Controls (0.50x to 1.50x) */}
-              <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm">
-                <span className="text-[11px] font-semibold text-slate-300">{t('player.speed')}:</span>
+              {/* Speed Controls (0.50x to 1.50x) — BPM label affixed side-by-side */}
+              <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm shrink-0">
+                <span className="text-[11px] font-semibold text-slate-300 shrink-0">
+                  {t('player.speed')}:
+                  {(() => {
+                    const bpmLabel = formatBpmTransition(
+                      currentTrack?.initialBpm,
+                      playback.playbackSpeed
+                    );
+                    return bpmLabel ? (
+                      <span className="ml-1 font-mono text-emerald-300/90 font-bold">{bpmLabel}</span>
+                    ) : null;
+                  })()}
+                </span>
                 <button
                   type="button"
                   onClick={() => setPlaybackSpeed(playback.playbackSpeed - 0.05)}
                   disabled={playback.playbackSpeed <= 0.501}
-                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-slate-700 text-xs font-bold flex items-center justify-center text-slate-200 transition-all"
+                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-slate-700 text-xs font-bold flex items-center justify-center text-slate-200 transition-all shrink-0"
                   title="Rallenta tempo (-0.05x, CTRL + Freccia Sinistra)"
                 >
                   -
                 </button>
                 <span
                   onClick={() => setPlaybackSpeed(1.0)}
-                  className="font-mono font-bold text-xs w-9 text-center text-emerald-400 hover:underline cursor-pointer"
+                  className="font-mono font-bold text-xs w-9 text-center text-emerald-400 hover:underline cursor-pointer shrink-0"
                   title="Clicca per ripristinare tempo 1.00x"
                 >
                   {playback.playbackSpeed.toFixed(2)}x
@@ -1588,7 +1666,7 @@ export const ControlWindow: React.FC = () => {
                   type="button"
                   onClick={() => setPlaybackSpeed(playback.playbackSpeed + 0.05)}
                   disabled={playback.playbackSpeed >= 1.499}
-                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-slate-700 text-xs font-bold flex items-center justify-center text-slate-200 transition-all"
+                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-slate-700 text-xs font-bold flex items-center justify-center text-slate-200 transition-all shrink-0"
                   title="Aumenta tempo (+0.05x, CTRL + Freccia Destra)"
                 >
                   +

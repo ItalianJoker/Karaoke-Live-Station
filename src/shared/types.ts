@@ -243,6 +243,21 @@ export interface KaraokeMediaTrack {
   isMultiplex?: boolean;
   /** Indicates if the track can be embedded or played directly */
   isEmbeddable?: boolean;
+  /**
+   * Detected or MIDI-declared musical key (e.g. "Am", "F#").
+   * Optional — Regia pitch pill falls back to label-only when absent.
+   */
+  initialKey?: string;
+  /**
+   * Detected or MIDI-declared tempo in BPM.
+   * Optional — Regia speed pill falls back to label-only when absent.
+   */
+  initialBpm?: number;
+  /**
+   * Runtime-only path to extracted CD+G graphics (zip cache).
+   * Not required in SQLite; Stage uses this when present.
+   */
+  cdgFilePath?: string;
 }
 
 /**

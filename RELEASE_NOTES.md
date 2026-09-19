@@ -6,6 +6,8 @@
 
 ---
 
+> **In coda (Unreleased, post-v1.4.0)** — ZIP CD+G nativo + tonalità/BPM in Regia (nessun bump versione finché Si non mergea). Vedi `CHANGELOG.md` → `[Unreleased]`.
+
 <a name="v140-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.4.0
 
@@ -40,6 +42,10 @@ Release GitHub **v1.4.0** (nuovo tag; **non** tocca `v1.3.0` / `v1.2.0` / `v1.1.
 
 ## ✅ Baseline 1.3.0
 Resta incluso: massimizza Regia all’avvio, Schermo Palco on/off, core CPU AI strumentale, Settings più ampia, baseline 1.2.0.
+
+### 📦 In coda per il prossimo ciclo (Unreleased)
+- **ZIP CD+G nativo** — Scan/import `.zip` con MP3/WAV+`.cdg`; estrazione on-demand in `temp/zip_cache`; cleanup a dequeue/uscita.
+- **Tonalità + BPM** — Analisi async; pillole Pitch/Speed in Regia con etichetta `base→risultato` accanto a ± (controlli invariati).
 
 ---
 
@@ -77,3 +83,7 @@ GitHub release **v1.4.0** (new tag; does **not** touch `v1.3.0` / `v1.2.0` / `v1
 
 ## ✅ 1.3.0 baseline
 Still includes: maximize Control on launch, Stage on/off at boot, instrumental AI CPU cores, wider Settings, plus the 1.2.0 baseline.
+
+### 📦 Queued for the next cycle (Unreleased)
+- **Native ZIP CD+G** — Scan/import `.zip` with MP3/WAV+`.cdg`; on-demand extract under `temp/zip_cache`; cleanup on dequeue/quit.
+- **Key + BPM** — Async analysis; Control Pitch/Speed pills show `base→result` beside ± (handlers unchanged).
