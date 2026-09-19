@@ -1310,10 +1310,25 @@ class KaraokeMainProcess {
         let aiGpuSupported = false;
         if (isAi && aiEnableGpu) {
           try {
+            // Live Hidden Renderer probe (executeJavaScript) — not utilityProcess.
             const gpu = await probeGpuStatus();
-            aiGpuSupported = gpu.isSupported === true;
-          } catch {
+            aiGpuSupported = gpu.isSupported === true || gpu.workerWebGpuAvailable === true;
+            this.logger.info('Download', 'AI GPU probe for instrumental start', {
+              aiEnableGpu,
+              aiGpuSupported,
+              workerWebGpuAvailable: gpu.workerWebGpuAvailable ?? null,
+              hardwareGpuPresent: gpu.hardwareGpuPresent ?? null,
+              workerOrtNote: gpu.workerOrtNote ?? null,
+              gpuName: gpu.gpuName ?? null
+            });
+          } catch (err) {
             aiGpuSupported = false;
+            this.logger.warn(
+              'Download',
+              `AI GPU probe failed — will re-probe at separate time: ${
+                err instanceof Error ? err.message : String(err)
+              }`
+            );
           }
         }
         return await this.downloadManager.startDownload({

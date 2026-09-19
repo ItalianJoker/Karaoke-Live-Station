@@ -107,9 +107,14 @@ assert(
   hidden.includes('show: false') &&
     hidden.includes('backgroundThrottling: false') &&
     hidden.includes('BrowserWindow') &&
+    hidden.includes('executeJavaScript') &&
+    hidden.includes('userData') &&
+    hidden.includes('requestAdapter') &&
     sep.includes('hidden-renderer') &&
-    sep.includes('getInstrumentalAiHiddenRenderer'),
-  'Hidden Renderer host + InstrumentalAiSeparator routing'
+    sep.includes('getInstrumentalAiHiddenRenderer') &&
+    sep.includes('gpuToggleOn') &&
+    !sep.includes('aiEnableGpu !== false && options.aiGpuSupported === true'),
+  'Hidden Renderer: asar-safe shell + executeJavaScript probe; route on live GPU toggle (not sticky snapshot)'
 );
 
 assert(
@@ -119,6 +124,12 @@ assert(
     sepCore.includes('runInstrumentalAiSeparate') &&
     sepCore.includes("createAndRun(['webgpu'])"),
   'GPU renderer entry + shared separate core with WebGPU-then-WASM'
+);
+
+assert(
+  sep.includes("worker.kind === 'hidden-renderer' ? true") &&
+    sep.includes('Routing Instrumental AI to Hidden Renderer WebGPU'),
+  'Hidden Renderer forces aiGpuSupported on wire; logs routing decision'
 );
 
 const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'kls-webgpu-'));

@@ -187,18 +187,26 @@ function spawnWorker(): WorkerHandle {
 }
 
 /**
- * Prefer Hidden BrowserWindow when Settings wants GPU and the renderer reports
- * a WebGPU adapter. Otherwise utilityProcess / fork WASM.
+ * Prefer Hidden BrowserWindow when Settings wants GPU and a live Hidden Renderer
+ * probe reports a WebGPU adapter. Do NOT gate solely on the download-start
+ * `aiGpuSupported` snapshot (v1.4.0 logs: aiEnableGpu=true but snapshot false
+ * kept workerKind=utility forever). Re-probe here; utility WASM only when GPU
+ * is off or no adapter.
  */
 async function resolveWorkerHandle(
   options: InstrumentalAiSeparateOptions,
   logger?: Logger
 ): Promise<WorkerHandle> {
-  const wantGpu = options.aiEnableGpu !== false && options.aiGpuSupported === true;
-  if (wantGpu) {
+  const gpuToggleOn = options.aiEnableGpu !== false;
+  if (gpuToggleOn) {
     try {
       const hidden = getInstrumentalAiHiddenRenderer(logger);
       if (await hidden.isWebGpuReady()) {
+        logger?.info('InstrumentalAiSeparator', 'Routing Instrumental AI to Hidden Renderer WebGPU', {
+          aiEnableGpu: options.aiEnableGpu ?? null,
+          aiGpuSupportedSnapshot: options.aiGpuSupported ?? null,
+          probe: hidden.getCachedProbe()
+        });
         return {
           kind: 'hidden-renderer',
           script: 'instrumentalAiGpuRenderer (Hidden BrowserWindow)'
@@ -207,7 +215,11 @@ async function resolveWorkerHandle(
       logger?.info(
         'InstrumentalAiSeparator',
         'Hidden Renderer WebGPU adapter unavailable — using utilityProcess WASM',
-        { probe: hidden.getCachedProbe() }
+        {
+          aiEnableGpu: options.aiEnableGpu ?? null,
+          aiGpuSupportedSnapshot: options.aiGpuSupported ?? null,
+          probe: hidden.getCachedProbe()
+        }
       );
     } catch (err) {
       logger?.warn(
@@ -506,7 +518,10 @@ export async function separateInstrumentalWithAi(
         outputWav,
         aiCpuThreads: options.aiCpuThreads,
         aiEnableGpu: options.aiEnableGpu,
-        aiGpuSupported: options.aiGpuSupported,
+        // Hidden Renderer path: force supported so ORT prefers WebGPU EP.
+        // utility/fork path: false so worker skips doomed webgpu session.create.
+        aiGpuSupported:
+          worker.kind === 'hidden-renderer' ? true : options.aiGpuSupported === true,
         // Only attach MDX knobs for aiMdxKaraoke2 — Demucs must not receive them.
         ...(mdxPayload || {}),
         // Only attach Demucs knobs for aiHtDemucs — MDX must not receive them.
@@ -684,9 +699,8 @@ export async function separateInstrumentalWithAi(
       modelLabel: catalog?.label,
       modelBytes: safeSize(modelPath),
       ortDir,
-      // Actual EP unknown until worker reports; preference from Settings/probe:
-      ortBackendPreferred:
-        options.aiEnableGpu !== false && options.aiGpuSupported === true ? 'webgpu' : 'wasm',
+      // Preference label only — live routing uses Hidden Renderer probe in resolveWorkerHandle.
+      ortBackendPreferred: worker.kind === 'hidden-renderer' ? 'webgpu' : 'wasm',
       ortBackend: 'pending',
       ortNumThreads: options.aiCpuThreads ?? null,
       aiEnableGpu: options.aiEnableGpu ?? null,
