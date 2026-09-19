@@ -29,5 +29,8 @@ After copying, **re-apply the Karaoke Live Station AudioWorklet patches** (requi
 1. Remove the Emscripten glue trailing `export default createBungeeModule;` (keep `createBungeeModule` as a free function for `registerProcessor`).
 2. Widen worker detection so Wasm init runs inside AudioWorklet:
    `ENVIRONMENT_IS_WORKER=!!(globalThis.WorkerGlobalScope||globalThis.AudioWorkletGlobalScope)||typeof registerProcessor=="function"`
+3. Expose Emscripten alloc + heaps on the Module object (MODULARIZE locals are not on Module by default — AppImage otherwise throws `BungeeModule._malloc is not a function`):
+   - In `assignWasmExports`: `Module["_malloc"]=_malloc;Module["_free"]=_free`
+   - In `updateMemoryViews`: mirror `HEAPF32` (and sibling HEAP views) onto `Module[…]`
 
 `BungeePitchShifterNode.create` waits for the worklet `initialized` message (timeout → SoundTouch fallback).

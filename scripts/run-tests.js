@@ -2578,6 +2578,32 @@ console.log('\n\x1b[36m▶ Suite: AI options pipeline (GPU / Demucs / prune)\x1b
 }
 
 // -------------------------------------------------------------
+// Suite: AI worker WebGPU telemetry (utilityProcess / backend not found)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: AI worker WebGPU telemetry\x1b[0m');
+
+{
+  const { spawnSync } = require('child_process');
+  const webgpuVerify = path.resolve(__dirname, 'verify-ai-worker-webgpu-telemetry.js');
+  assert(fs.existsSync(webgpuVerify), 'verify-ai-worker-webgpu-telemetry.js exists');
+  assert(
+    fs.existsSync(path.resolve(__dirname, 'probe-worker-webgpu.js')),
+    'probe-worker-webgpu.js exists'
+  );
+  const webgpuRun = spawnSync(process.execPath, [webgpuVerify], {
+    cwd: path.resolve(__dirname, '..'),
+    encoding: 'utf8',
+    timeout: 120000
+  });
+  assert(
+    webgpuRun.status === 0 &&
+      (webgpuRun.stdout || '').includes('verify-ai-worker-webgpu-telemetry: all checks passed'),
+    'verify-ai-worker-webgpu-telemetry: probe skip + logged fallback + no silent catch',
+    (webgpuRun.stderr || webgpuRun.stdout || `exit ${webgpuRun.status}`).slice(0, 800)
+  );
+}
+
+// -------------------------------------------------------------
 // Suite: AI worker parentPort MessageEvent unwrap
 // -------------------------------------------------------------
 console.log('\n\x1b[36m▶ Suite: AI worker IPC MessageEvent unwrap\x1b[0m');
@@ -3044,7 +3070,9 @@ assert(
   mdxSepSrc.includes('resolveAiCpuThreads') &&
     mdxSepSrc.includes('ort.env.wasm.numThreads') &&
     mdxSepSrc.includes('resolveAiOrtExecutionProviders') &&
-    (mdxSepSrc.includes("preferGpu ? ['webgpu', 'wasm'] : ['wasm']") ||
+    (mdxSepSrc.includes('resolveWorkerOrtProviders') ||
+      mdxSepSrc.includes("preferGpu ? ['webgpu', 'wasm'] : ['wasm']") ||
+      mdxSepSrc.includes("executionProviders: ['webgpu']") ||
       mdxSepSrc.includes("executionProviders: ['webgpu', 'wasm']")) &&
     !/ort\.env\.wasm\.numThreads\s*=\s*1/.test(mdxSepSrc),
   'MdxNetSeparator uses dynamic threads + GPU-gated webgpu/wasm (no forced numThreads=1)'
@@ -3283,6 +3311,12 @@ assert(
       bungeeProc.includes('AudioWorkletGlobalScope') &&
       bungeeProc.includes("registerProcessor('bungee-processor'"),
     'bungee_processor.js: no ESM export default; AudioWorkletGlobalScope worker detect; registerProcessor present'
+  );
+  assert(
+    bungeeProc.includes('Module["_malloc"]=_malloc') &&
+      bungeeProc.includes('Module["_free"]=_free') &&
+      bungeeProc.includes('Module["HEAPF32"]=HEAPF32'),
+    'bungee_processor.js: Module exposes _malloc/_free/HEAPF32 for AudioWorklet'
   );
 }
 assert(

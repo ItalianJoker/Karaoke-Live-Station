@@ -40,12 +40,22 @@ import {
 } from '../../shared/mdxAdvancedSettings';
 import { resolveAiCpuThreads } from '../../shared/aiCpuThreads';
 import { resolveAiOrtExecutionProviders } from '../../shared/aiOrtProviders';
+import {
+  formatOrtInitError,
+  resolveWorkerOrtProviders,
+  type AiOrtBackend
+} from '../../shared/aiWorkerWebGpu';
 import os from 'os';
 
 export type MdxProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
   progress: number;
   message: string;
+  /** Actual ORT EP after session create (not the Settings preference). */
+  ortBackend?: AiOrtBackend;
+  /** Why WebGPU was skipped or fell back to WASM. */
+  ortFallbackReason?: string;
+  ortNumThreads?: number;
 };
 
 export type OrtWasmPathConfig =
@@ -115,8 +125,16 @@ export class MdxNetSeparator {
   private readonly overlapLabel: string;
   /** ORT WASM worker threads — clamped to [1, detectedCores]. */
   private readonly numThreads: number;
-  /** Prefer WebGPU when Settings GPU toggle + probe allow it. */
+  /**
+   * Prefer WebGPU when Settings GPU toggle + main probe allow it AND
+   * `navigator.gpu` exists in this process (usually false in utilityProcess).
+   */
   private readonly preferWebGpu: boolean;
+  /** Set when WebGPU was requested by Settings but skipped before session.create. */
+  private readonly skipWebGpuReason?: string;
+  /** Actual EP after loadModel (defaults wasm until create succeeds). */
+  private ortBackend: AiOrtBackend = 'wasm';
+  private ortFallbackReason?: string;
 
   private olaWindow: Float32Array;
   private chunkL: Float32Array;
@@ -134,14 +152,32 @@ export class MdxNetSeparator {
     this.overlapLabel = cfg.mdxOverlap.toFixed(2);
     const totalCpus = Math.max(1, os.cpus()?.length || 1);
     this.numThreads = resolveAiCpuThreads(options?.aiCpuThreads, totalCpus);
-    const providers = resolveAiOrtExecutionProviders(
-      options?.aiEnableGpu,
-      options?.aiGpuSupported
-    );
-    this.preferWebGpu = providers[0] === 'webgpu';
+    const resolved = resolveWorkerOrtProviders({
+      aiEnableGpu: options?.aiEnableGpu,
+      aiGpuSupported: options?.aiGpuSupported,
+      resolveProviders: resolveAiOrtExecutionProviders
+    });
+    this.preferWebGpu = resolved.preferWebGpu;
+    this.skipWebGpuReason = resolved.skipWebGpuReason;
+    if (resolved.skipWebGpuReason) {
+      this.ortFallbackReason = resolved.skipWebGpuReason;
+    }
     this.olaWindow = new Float32Array(this.chunkSize);
     this.chunkL = new Float32Array(this.chunkSize);
     this.chunkR = new Float32Array(this.chunkSize);
+  }
+
+  /** Actual ORT backend after {@link loadModel} (webgpu only if session create succeeded). */
+  public getOrtBackend(): AiOrtBackend {
+    return this.ortBackend;
+  }
+
+  public getOrtFallbackReason(): string | undefined {
+    return this.ortFallbackReason;
+  }
+
+  public getOrtNumThreads(): number {
+    return this.numThreads;
   }
 
   public onProgress(listener: ProgressListener): () => void {
@@ -204,30 +240,72 @@ export class MdxNetSeparator {
       warmAudioFftForMdx(N_FFT);
       // Yield so Control UI can paint before the heavy session create.
       await yieldToMainThread();
-      this.emit({ phase: 'model', progress: 0.15, message: 'Creating ORT session…' });
+      this.emit({
+        phase: 'model',
+        progress: 0.15,
+        message: this.preferWebGpu
+          ? 'Creating ORT session (WebGPU)…'
+          : this.skipWebGpuReason
+            ? `Creating ORT session (WASM — ${this.skipWebGpuReason})…`
+            : 'Creating ORT session (WASM)…',
+        ortBackend: this.preferWebGpu ? 'webgpu' : 'wasm',
+        ortFallbackReason: this.ortFallbackReason,
+        ortNumThreads: this.numThreads
+      });
       const graphOptimizationLevel = this.enableOrtAcceleration ? 'all' : 'disabled';
       const sessionOptionsBase = {
         graphOptimizationLevel: graphOptimizationLevel as 'all' | 'disabled'
       };
-      // GPU-First when enabled+supported; else WASM-only. Catch still falls back if EP missing.
-      const preferGpu = this.preferWebGpu;
-      try {
-        this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
-          ...sessionOptionsBase,
-          executionProviders: preferGpu ? ['webgpu', 'wasm'] : ['wasm']
-        });
-      } catch {
+      // Prefer WebGPU-only first so a silent WASM pick inside ['webgpu','wasm'] cannot
+      // look like a GPU hit. On failure, log the exact error and create WASM-only.
+      if (this.preferWebGpu) {
+        try {
+          this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
+            ...sessionOptionsBase,
+            executionProviders: ['webgpu']
+          });
+          this.ortBackend = 'webgpu';
+          this.ortFallbackReason = undefined;
+        } catch (err) {
+          const detail = formatOrtInitError(err);
+          this.ortFallbackReason = `WebGPU session.create failed: ${detail}`;
+          // Surface exact WebGPU init failure via stderr (piped to main Logger).
+          console.warn(`[MdxNetSeparator] ${this.ortFallbackReason}`);
+          this.emit({
+            phase: 'model',
+            progress: 0.2,
+            message: `WebGPU unavailable — falling back to WASM (${detail})`,
+            ortBackend: 'wasm',
+            ortFallbackReason: this.ortFallbackReason,
+            ortNumThreads: this.numThreads
+          });
+          this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
+            ...sessionOptionsBase,
+            executionProviders: ['wasm']
+          });
+          this.ortBackend = 'wasm';
+        }
+      } else {
         this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
           ...sessionOptionsBase,
           executionProviders: ['wasm']
         });
+        this.ortBackend = 'wasm';
       }
       this.inputName = this.session.inputNames[0] || 'input';
       this.modelReady = true;
+      const backendLabel =
+        this.ortBackend === 'webgpu'
+          ? 'WebGPU'
+          : `WASM ${this.numThreads} threads` +
+            (this.ortFallbackReason ? `; fallback: ${this.ortFallbackReason}` : '');
       this.emit({
         phase: 'model',
         progress: 1,
-        message: `UVR-MDX-NET Karaoke 2 ready (${this.numThreads} threads)`
+        message: `UVR-MDX-NET Karaoke 2 ready (${backendLabel})`,
+        ortBackend: this.ortBackend,
+        ortFallbackReason: this.ortFallbackReason,
+        ortNumThreads: this.numThreads
       });
     })();
 

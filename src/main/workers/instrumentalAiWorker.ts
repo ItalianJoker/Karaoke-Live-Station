@@ -32,6 +32,12 @@ import {
 } from '../../shared/demucsAdvancedSettings';
 import { resolveAiCpuThreads } from '../../shared/aiCpuThreads';
 import { resolveAiOrtExecutionProviders } from '../../shared/aiOrtProviders';
+import {
+  formatOrtInitError,
+  probeWorkerWebGpu,
+  resolveWorkerOrtProviders,
+  type AiOrtBackend
+} from '../../shared/aiWorkerWebGpu';
 import { MdxNetSeparator, MDX_SAMPLE_RATE } from '../ai/MdxNetSeparator';
 import { separateDemucsWithAdvancedOptions } from '../ai/demucsSeparateWithOptions';
 import { readPcmWavFile, writePcmWavFile } from '../ai/wavPcm';
@@ -67,7 +73,8 @@ type OutMessage =
       phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
       progress: number;
       message: string;
-      ortBackend?: string;
+      ortBackend?: AiOrtBackend;
+      ortFallbackReason?: string;
       ortNumThreads?: number;
     }
   | { type: 'done'; requestId: number; outputWav: string }
@@ -158,17 +165,34 @@ async function separateMdx(
       requestId,
       phase: info.phase,
       progress: info.progress,
-      message: info.message
+      message: info.message,
+      ortBackend: info.ortBackend,
+      ortFallbackReason: info.ortFallbackReason,
+      ortNumThreads: info.ortNumThreads ?? separator.getOrtNumThreads()
     });
   });
   await separator.loadModel(modelBuffer, ortWasmConfigFromDir(ortDir));
+  // Final backend snapshot after session create (also emitted on model progress=1).
+  post({
+    type: 'progress',
+    requestId,
+    phase: 'model',
+    progress: 1,
+    message: `MDX ORT backend=${separator.getOrtBackend()}`,
+    ortBackend: separator.getOrtBackend(),
+    ortFallbackReason: separator.getOrtFallbackReason(),
+    ortNumThreads: separator.getOrtNumThreads()
+  });
   const { left: outL, right: outR } = await separator.separateInstrumental(left, right, (ratio) => {
     post({
       type: 'progress',
       requestId,
       phase: 'separate',
       progress: ratio,
-      message: `MDX separating… ${Math.round(ratio * 100)}%`
+      message: `MDX separating… ${Math.round(ratio * 100)}%`,
+      ortBackend: separator.getOrtBackend(),
+      ortFallbackReason: separator.getOrtFallbackReason(),
+      ortNumThreads: separator.getOrtNumThreads()
     });
   });
   writePcmWavFile(outputWav, outL, outR, MDX_SAMPLE_RATE);
@@ -228,16 +252,19 @@ async function separateDemucs(
   });
 
   const advanced = coerceDemucsAdvancedSettings(demucsOpts);
-  const providers = resolveAiOrtExecutionProviders(
-    demucsOpts?.aiEnableGpu,
-    demucsOpts?.aiGpuSupported
-  );
+  const resolved = resolveWorkerOrtProviders({
+    aiEnableGpu: demucsOpts?.aiEnableGpu,
+    aiGpuSupported: demucsOpts?.aiGpuSupported,
+    resolveProviders: resolveAiOrtExecutionProviders
+  });
+  let ortBackend: AiOrtBackend = 'wasm';
+  let ortFallbackReason: string | undefined = resolved.skipWebGpuReason;
   const modelBuffer = toArrayBuffer(new Uint8Array(fs.readFileSync(modelPath)));
   const sessionOptionsBase = {
     graphOptimizationLevel: 'all' as const
   };
 
-  const createAndRun = async (executionProviders: string[]) => {
+  const createAndRun = async (executionProviders: AiOrtBackend[]) => {
     const sessionOptions = {
       ...sessionOptionsBase,
       executionProviders
@@ -255,7 +282,10 @@ async function separateDemucs(
           requestId,
           phase: 'separate',
           progress,
-          message: `HTDemucs separating… ${Math.round(progress * 100)}%`
+          message: `HTDemucs separating… ${Math.round(progress * 100)}%`,
+          ortBackend,
+          ortFallbackReason,
+          ortNumThreads: threads
         });
       }
     });
@@ -266,6 +296,8 @@ async function separateDemucs(
       phase: 'separate',
       progress: 0.1,
       message: 'Running HTDemucs inference…',
+      ortBackend,
+      ortFallbackReason,
       ortNumThreads: threads
     });
     const stems = await separateDemucsWithAdvancedOptions(
@@ -285,16 +317,69 @@ async function separateDemucs(
     writePcmWavFile(outputWav, outL, outR, CONSTANTS.SAMPLE_RATE);
   };
 
-  try {
-    await createAndRun(providers);
-  } catch {
-    // WebGPU EP may be unavailable in utilityProcess — retry WASM-only.
-    if (providers[0] === 'webgpu') {
+  if (resolved.preferWebGpu) {
+    post({
+      type: 'progress',
+      requestId,
+      phase: 'model',
+      progress: 0.08,
+      message: 'Creating HTDemucs ORT session (WebGPU)…',
+      ortBackend: 'webgpu',
+      ortNumThreads: threads
+    });
+    try {
+      ortBackend = 'webgpu';
+      ortFallbackReason = undefined;
+      await createAndRun(['webgpu']);
+    } catch (err) {
+      const detail = formatOrtInitError(err);
+      ortFallbackReason = `WebGPU session.create failed: ${detail}`;
+      console.warn(`[instrumentalAiWorker] HTDemucs ${ortFallbackReason}`);
+      ortBackend = 'wasm';
+      post({
+        type: 'progress',
+        requestId,
+        phase: 'model',
+        progress: 0.09,
+        message: `WebGPU unavailable — falling back to WASM (${detail})`,
+        ortBackend: 'wasm',
+        ortFallbackReason,
+        ortNumThreads: threads
+      });
       await createAndRun(['wasm']);
-    } else {
-      throw new Error('HTDemucs ORT session create failed (WASM)');
     }
+  } else {
+    if (ortFallbackReason) {
+      console.warn(
+        `[instrumentalAiWorker] HTDemucs skipping WebGPU: ${ortFallbackReason}`
+      );
+    }
+    ortBackend = 'wasm';
+    post({
+      type: 'progress',
+      requestId,
+      phase: 'model',
+      progress: 0.08,
+      message: ortFallbackReason
+        ? `Creating HTDemucs ORT session (WASM — ${ortFallbackReason})…`
+        : 'Creating HTDemucs ORT session (WASM)…',
+      ortBackend: 'wasm',
+      ortFallbackReason,
+      ortNumThreads: threads
+    });
+    await createAndRun(['wasm']);
   }
+
+  post({
+    type: 'progress',
+    requestId,
+    phase: 'model',
+    progress: 1,
+    message: `HTDemucs ORT backend=${ortBackend}`,
+    ortBackend,
+    ortFallbackReason,
+    ortNumThreads: threads
+  });
 }
 
 async function handleSeparate(req: SeparateRequest): Promise<void> {
@@ -322,15 +407,26 @@ async function handleSeparate(req: SeparateRequest): Promise<void> {
   const expectedId = methodToModelId(aiMethod);
   const totalCpus = Math.max(1, os.cpus()?.length || 1);
   const threads = resolveAiCpuThreads(req.aiCpuThreads, totalCpus);
+  const workerGpu = probeWorkerWebGpu();
   post({
     type: 'progress',
     requestId,
     phase: 'model',
     progress: 0,
-    message: `Preparing ${expectedId}…`,
+    message: `Preparing ${expectedId}… (navigator=${workerGpu.navigatorType}, gpu=${workerGpu.available ? 'yes' : 'no'})`,
+    // Preference only until session create — actual EP reported after load.
     ortBackend: 'wasm',
+    ortFallbackReason: workerGpu.available
+      ? undefined
+      : workerGpu.reason || 'WebGPU unavailable in worker',
     ortNumThreads: threads
   });
+  if (!workerGpu.available) {
+    console.warn(
+      `[instrumentalAiWorker] WebGPU probe: ${workerGpu.reason || 'unavailable'} ` +
+        `(aiEnableGpu=${String(req.aiEnableGpu)}, aiGpuSupported=${String(req.aiGpuSupported)})`
+    );
+  }
 
   switch (aiMethod) {
     case 'aiMdxKaraoke2':

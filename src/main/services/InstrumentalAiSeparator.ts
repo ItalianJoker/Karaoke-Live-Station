@@ -23,6 +23,11 @@ export type InstrumentalAiProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
   progress: number;
   message: string;
+  /** Actual ORT EP from the worker (after session create). */
+  ortBackend?: 'webgpu' | 'wasm';
+  /** Why WebGPU was skipped or fell back to WASM. */
+  ortFallbackReason?: string;
+  ortNumThreads?: number;
 };
 
 export type InstrumentalAiSeparateOptions = {
@@ -179,7 +184,11 @@ function spawnWorker(): WorkerHandle {
 }
 
 /** Drain piped worker stdio so crash traces are not lost (stdio:'pipe' without readers). */
-function attachWorkerStdioLogging(worker: WorkerHandle, logger?: Logger): void {
+function attachWorkerStdioLogging(
+  worker: WorkerHandle,
+  logger?: Logger,
+  onOrtStderrHint?: (hint: string) => void
+): void {
   const emit = (stream: 'stdout' | 'stderr', chunk: Buffer | string) => {
     const text = String(chunk).replace(/\r?\n$/, '');
     if (!text) return;
@@ -187,6 +196,16 @@ function attachWorkerStdioLogging(worker: WorkerHandle, logger?: Logger): void {
       if (!line) continue;
       if (stream === 'stderr') {
         logger?.warn('InstrumentalAiSeparator', `AI worker stderr: ${line}`);
+        // Production AppImage: ORT strips webgpu without always throwing on combined EPs.
+        const lower = line.toLowerCase();
+        if (
+          lower.includes('webgpu') &&
+          (lower.includes('backend not found') ||
+            lower.includes('not available') ||
+            lower.includes('removing requested execution provider'))
+        ) {
+          onOrtStderrHint?.(line.trim());
+        }
       } else {
         logger?.debug('InstrumentalAiSeparator', `AI worker stdout: ${line}`);
       }
@@ -227,7 +246,6 @@ export async function separateInstrumentalWithAi(
   const modelId = methodToModelId(method);
   const catalog = OFFLINE_VOCAL_MODELS[modelId];
   const worker = spawnWorker();
-  attachWorkerStdioLogging(worker, logger);
   let requestId = 1;
   let settled = false;
   let separateSent = false;
@@ -240,6 +258,26 @@ export async function separateInstrumentalWithAi(
   let lastPhase: string | null = null;
   let lastProgressAt = startedAt;
   let lastProgressMessage = '';
+  /** Last known ORT EP from worker progress (defaults unknown until reported). */
+  let lastOrtBackend: 'webgpu' | 'wasm' | 'unknown' = 'unknown';
+  let lastOrtFallbackReason: string | undefined;
+  let lastOrtNumThreads: number | undefined = options.aiCpuThreads;
+
+  attachWorkerStdioLogging(worker, logger, (hint) => {
+    if (!lastOrtFallbackReason) {
+      lastOrtFallbackReason = hint;
+    } else if (!lastOrtFallbackReason.includes(hint)) {
+      lastOrtFallbackReason = `${lastOrtFallbackReason} | ${hint}`;
+    }
+    if (lastOrtBackend === 'unknown' || lastOrtBackend === 'webgpu') {
+      lastOrtBackend = 'wasm';
+    }
+    logger?.warn('InstrumentalAiSeparator', 'ORT stderr indicates WebGPU EP unavailable', {
+      ortBackend: lastOrtBackend,
+      ortFallbackReason: lastOrtFallbackReason,
+      ortNumThreads: lastOrtNumThreads ?? null
+    });
+  });
 
   const kill = () => {
     try {
@@ -282,8 +320,11 @@ export async function separateInstrumentalWithAi(
         modelPath,
         modelVersion: catalog?.version,
         ortDir,
-        ortBackend: 'wasm',
-        ortNumThreads: 1,
+        ortBackend: lastOrtBackend,
+        ortFallbackReason: lastOrtFallbackReason ?? null,
+        ortNumThreads: lastOrtNumThreads ?? options.aiCpuThreads ?? null,
+        aiEnableGpu: options.aiEnableGpu ?? null,
+        aiGpuSupported: options.aiGpuSupported ?? null,
         inputWav,
         inputWavBytes: safeSize(inputWav),
         outputWav,
@@ -327,6 +368,11 @@ export async function separateInstrumentalWithAi(
         modelPath,
         modelVersion: catalog?.version,
         ortDir,
+        ortBackend: lastOrtBackend,
+        ortFallbackReason: lastOrtFallbackReason ?? null,
+        ortNumThreads: lastOrtNumThreads ?? options.aiCpuThreads ?? null,
+        aiEnableGpu: options.aiEnableGpu ?? null,
+        aiGpuSupported: options.aiGpuSupported ?? null,
         inputWav,
         inputWavBytes: safeSize(inputWav),
         outputWav,
@@ -426,6 +472,9 @@ export async function separateInstrumentalWithAi(
         inputWav,
         outputWav,
         waitMs: Date.now() - startedAt,
+        aiEnableGpu: options.aiEnableGpu ?? null,
+        aiGpuSupported: options.aiGpuSupported ?? null,
+        aiCpuThreads: options.aiCpuThreads ?? null,
         mdxAdvanced: isMdxInstrumentalMethod(method) ? mdxPayload : null,
         demucsAdvanced: isDemucsInstrumentalMethod(method) ? demucsPayload : null
       });
@@ -445,7 +494,8 @@ export async function separateInstrumentalWithAi(
         progress?: number;
         message?: string;
         outputWav?: string;
-        ortBackend?: string;
+        ortBackend?: 'webgpu' | 'wasm' | string;
+        ortFallbackReason?: string;
         ortNumThreads?: number;
       };
       if (!msg?.type) return;
@@ -454,6 +504,22 @@ export async function separateInstrumentalWithAi(
         lastProgressAt = Date.now();
         if (typeof msg.message === 'string' && msg.message) {
           lastProgressMessage = msg.message;
+        }
+        if (msg.ortBackend === 'webgpu' || msg.ortBackend === 'wasm') {
+          lastOrtBackend = msg.ortBackend;
+        }
+        if (typeof msg.ortFallbackReason === 'string' && msg.ortFallbackReason) {
+          lastOrtFallbackReason = msg.ortFallbackReason;
+          logger?.warn('InstrumentalAiSeparator', 'AI ORT WebGPU fallback', {
+            ortBackend: lastOrtBackend,
+            ortFallbackReason: lastOrtFallbackReason,
+            ortNumThreads: msg.ortNumThreads ?? lastOrtNumThreads ?? null,
+            phase: msg.phase ?? null,
+            message: msg.message ?? null
+          });
+        }
+        if (typeof msg.ortNumThreads === 'number' && Number.isFinite(msg.ortNumThreads)) {
+          lastOrtNumThreads = msg.ortNumThreads;
         }
         armIdleWatchdog();
         if (msg.requestId === 0) {
@@ -472,8 +538,9 @@ export async function separateInstrumentalWithAi(
           logger?.debug('InstrumentalAiSeparator', `AI worker phase=${msg.phase}`, {
             progress: msg.progress,
             message: msg.message,
-            ortBackend: msg.ortBackend || 'wasm',
-            ortNumThreads: msg.ortNumThreads ?? 1,
+            ortBackend: lastOrtBackend,
+            ortFallbackReason: lastOrtFallbackReason ?? null,
+            ortNumThreads: lastOrtNumThreads ?? null,
             inputWav,
             outputWav,
             elapsedMs: Date.now() - startedAt
@@ -482,7 +549,13 @@ export async function separateInstrumentalWithAi(
         onProgress?.({
           phase: msg.phase || 'separate',
           progress: typeof msg.progress === 'number' ? msg.progress : 0,
-          message: msg.message || ''
+          message: msg.message || '',
+          ortBackend:
+            msg.ortBackend === 'webgpu' || msg.ortBackend === 'wasm'
+              ? msg.ortBackend
+              : undefined,
+          ortFallbackReason: msg.ortFallbackReason,
+          ortNumThreads: msg.ortNumThreads
         });
         return;
       }
@@ -536,8 +609,13 @@ export async function separateInstrumentalWithAi(
       modelLabel: catalog?.label,
       modelBytes: safeSize(modelPath),
       ortDir,
-      ortBackend: 'wasm',
-      ortNumThreads: 1,
+      // Actual EP unknown until worker reports; preference from Settings/probe:
+      ortBackendPreferred:
+        options.aiEnableGpu !== false && options.aiGpuSupported === true ? 'webgpu' : 'wasm',
+      ortBackend: 'pending',
+      ortNumThreads: options.aiCpuThreads ?? null,
+      aiEnableGpu: options.aiEnableGpu ?? null,
+      aiGpuSupported: options.aiGpuSupported ?? null,
       inputWav,
       inputWavBytes: safeSize(inputWav),
       inputExt: path.extname(inputWav).toLowerCase(),
@@ -550,7 +628,8 @@ export async function separateInstrumentalWithAi(
       parentKeepAliveMs: AI_SEPARATION_PARENT_KEEPALIVE_MS,
       readyTimeoutMs: AI_WORKER_READY_TIMEOUT_MS,
       durationSec: options.durationSec ?? null,
-      note: 'Waiting for worker ready ping before sending separate (avoids dropped IPC)'
+      note:
+        'Waiting for worker ready ping before sending separate; ortBackend finalized after session.create'
     });
 
     armIdleWatchdog();

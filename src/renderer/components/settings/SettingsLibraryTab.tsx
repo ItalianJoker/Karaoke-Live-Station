@@ -419,13 +419,20 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
 
                 {(!isSearching || matchAiThreads) && (() => {
                   const gpuOn = coerceAiEnableGpu(settings.aiEnableGpu);
-                  const gpuSupported = gpuStatus?.isSupported === true;
-                  const gpuLabel =
-                    gpuSupported && gpuStatus?.gpuName
-                      ? gpuStatus.gpuName
-                      : gpuSupported
-                        ? t('settings.aiGpuBadgeSupported')
-                        : t('settings.aiGpuBadgeCpuFallback');
+                  // Honest EP: green only when AI worker can actually host WebGPU.
+                  const workerWebGpu =
+                    gpuStatus?.workerWebGpuAvailable === true || gpuStatus?.isSupported === true;
+                  const hardwareGpu =
+                    gpuStatus?.hardwareGpuPresent === true ||
+                    Boolean(gpuStatus?.gpuName && gpuStatus.gpuName.trim());
+                  const hwName =
+                    gpuStatus?.gpuName && gpuStatus.gpuName.trim()
+                      ? gpuStatus.gpuName.trim()
+                      : t('settings.aiGpuBadgeSupported');
+                  const badgeActiveGpu = gpuOn && workerWebGpu;
+                  const badgeDetail = badgeActiveGpu
+                    ? hwName
+                    : t('settings.aiGpuBadgeWasmWorker');
                   return (
                     <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-3">
                       <label className="flex items-start gap-3 cursor-pointer">
@@ -446,21 +453,30 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                           </span>
                           <div
                             className={`mt-2 inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-medium ${
-                              gpuOn && gpuSupported
+                              badgeActiveGpu
                                 ? 'border-emerald-700/60 bg-emerald-950/40 text-emerald-200'
                                 : 'border-amber-700/60 bg-amber-950/40 text-amber-200'
                             }`}
-                            title={gpuStatus?.vendor || undefined}
+                            title={
+                              gpuStatus?.workerOrtNote ||
+                              gpuStatus?.vendor ||
+                              undefined
+                            }
                           >
                             <span
                               className={`w-1.5 h-1.5 rounded-full ${
-                                gpuOn && gpuSupported ? 'bg-emerald-400' : 'bg-amber-400'
+                                badgeActiveGpu ? 'bg-emerald-400' : 'bg-amber-400'
                               }`}
                             />
-                            {gpuOn && gpuSupported
-                              ? t('settings.aiGpuBadgeGpu', { name: gpuLabel })
-                              : t('settings.aiGpuBadgeCpu', { detail: gpuLabel })}
+                            {badgeActiveGpu
+                              ? t('settings.aiGpuBadgeGpu', { name: badgeDetail })
+                              : t('settings.aiGpuBadgeCpu', { detail: badgeDetail })}
                           </div>
+                          {!badgeActiveGpu && hardwareGpu ? (
+                            <p className="mt-1.5 text-[10px] text-slate-500 leading-relaxed">
+                              {t('settings.aiGpuBadgeHardwareOnly', { name: hwName })}
+                            </p>
+                          ) : null}
                         </div>
                       </label>
                     </div>

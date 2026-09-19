@@ -311,11 +311,13 @@
     "demucsOverlap": "Overlap",
     "demucsOverlapDesc": "Fractional overlap between successive Demucs windows (0.10–0.50). Higher overlap improves continuity but increases ETA.",
     "aiEnableGpu": "AI GPU acceleration",
-    "aiEnableGpuDesc": "When on and a GPU is detected, Instrumental AI prefers WebGPU then WASM. When off (or no GPU), uses WASM with the CPU thread count below.",
+    "aiEnableGpuDesc": "When on, Instrumental AI prefers WebGPU if the AI worker can host it. Today the AI worker runs without WebGPU, so separation uses WASM CPU with the thread count below — the badge never claims GPU is active unless WebGPU is really available.",
     "aiGpuBadgeSupported": "GPU available",
     "aiGpuBadgeCpuFallback": "CPU multithread fallback",
     "aiGpuBadgeGpu": "GPU: {{name}}",
-    "aiGpuBadgeCpu": "CPU: {{detail}}"
+    "aiGpuBadgeCpu": "CPU: {{detail}}",
+    "aiGpuBadgeWasmWorker": "WASM CPU (WebGPU unavailable in AI worker)",
+    "aiGpuBadgeHardwareOnly": "Hardware GPU detected: {{name}} — AI still uses WASM"
   },
   "history": {
     "title": "Playback History",

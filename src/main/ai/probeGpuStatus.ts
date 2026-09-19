@@ -1,9 +1,14 @@
 /**
- * Main-process GPU probe for Instrumental AI (WebGPU EP eligibility + badge label).
+ * Main-process GPU probe for Instrumental AI Settings badge + EP preference.
  *
  * Uses Electron `app.getGPUFeatureStatus` / `getGPUInfo` when available.
- * Does not require a renderer WebGPU adapter — utilityProcess EP availability
- * still falls back to WASM on session.create failure.
+ *
+ * Honesty: Chromium/main may report a GPU while Instrumental AI still runs in
+ * `utilityProcess.fork`, where ORT WebGPU is unavailable (`backend not found`).
+ * `isSupported` therefore reflects **worker ORT WebGPU capability** (currently
+ * always false), not hardware presence. Hardware is surfaced via
+ * `hardwareGpuPresent` / `gpuName` so the UI can say “CPU WASM fallback” without
+ * pretending GPU inference is active.
  */
 import { app } from 'electron';
 import type { GpuStatus } from '../../shared/gpuStatus';
@@ -15,8 +20,11 @@ function isGpuFeatureEnabled(value: unknown): boolean {
   return value === 'enabled' || value.startsWith('enabled');
 }
 
+const WORKER_ORT_NOTE =
+  'Instrumental AI utilityProcess has no navigator.gpu — ORT uses WASM CPU (WebGPU EP backend not found)';
+
 /**
- * Probe GPU support for ORT WebGPU preference + Settings live badge.
+ * Probe GPU support for Settings badge + whether AI should prefer WebGPU EP.
  */
 export async function probeGpuStatus(): Promise<GpuStatus> {
   try {
@@ -50,14 +58,23 @@ export async function probeGpuStatus(): Promise<GpuStatus> {
         }
       }
     } catch {
-      /* GPUInfo optional — feature status is enough for isSupported */
+      /* GPUInfo optional — feature status is enough for hardwareGpuPresent */
     }
 
-    const isSupported = webgpuOk || webglOk || compositingOk;
-    if (!isSupported) {
-      return { ...GPU_STATUS_UNSUPPORTED, gpuName, vendor };
-    }
-    return { isSupported: true, gpuName, vendor };
+    const hardwareGpuPresent = webgpuOk || webglOk || compositingOk;
+
+    // Instrumental AI separation runs in utilityProcess — ORT WebGPU EP is not
+    // available there (production: "backend not found"). Do not set isSupported
+    // from hardware alone or Settings/providers will claim a false GPU path.
+    return {
+      isSupported: false,
+      hardwareGpuPresent,
+      workerWebGpuAvailable: false,
+      workerOrtBackend: 'wasm',
+      workerOrtNote: WORKER_ORT_NOTE,
+      gpuName,
+      vendor
+    };
   } catch {
     return { ...GPU_STATUS_UNSUPPORTED };
   }

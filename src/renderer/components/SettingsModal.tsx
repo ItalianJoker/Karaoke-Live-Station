@@ -439,6 +439,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     t('settings.mdxEnableOrtDesc'),
     t('settings.aiEnableGpu'),
     t('settings.aiEnableGpuDesc'),
+    t('settings.aiGpuBadgeWasmWorker'),
     'cpu',
     'core',
     'threads',

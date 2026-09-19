@@ -311,11 +311,13 @@
     "demucsOverlap": "Overlap",
     "demucsOverlapDesc": "Sovrapposizione frazionaria tra finestre Demucs successive (0,10–0,50). Più overlap migliora la continuità ma aumenta l’ETA.",
     "aiEnableGpu": "Accelerazione GPU AI",
-    "aiEnableGpuDesc": "Se attiva e la GPU è rilevata, l’AI strumentale preferisce WebGPU poi WASM. Se disattiva (o senza GPU), usa WASM con i core CPU sotto.",
+    "aiEnableGpuDesc": "Se attiva, l’AI strumentale preferisce WebGPU quando il worker AI può usarlo. Oggi il worker non ha WebGPU: la separazione usa WASM CPU con i core sotto — il badge non indica GPU attiva finché WebGPU non è davvero disponibile.",
     "aiGpuBadgeSupported": "GPU disponibile",
     "aiGpuBadgeCpuFallback": "Fallback CPU multithread",
     "aiGpuBadgeGpu": "GPU: {{name}}",
-    "aiGpuBadgeCpu": "CPU: {{detail}}"
+    "aiGpuBadgeCpu": "CPU: {{detail}}",
+    "aiGpuBadgeWasmWorker": "WASM CPU (WebGPU non disponibile nel worker AI)",
+    "aiGpuBadgeHardwareOnly": "GPU hardware rilevata: {{name}} — l’AI usa comunque WASM"
   },
   "history": {
     "title": "Storico Esecuzioni",
