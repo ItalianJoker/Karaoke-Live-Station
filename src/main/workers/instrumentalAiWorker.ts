@@ -4,8 +4,8 @@
  *
  * Protocol (parent ↔ child via Electron utilityProcess parentPort, or process IPC):
  *   in:  { type:'separate', requestId, method, modelPath, ortDir, inputWav, outputWav,
- *          mdxSegmentSize?, mdxOverlap?, mdxEnableOrt? }  // MDX-only knobs
- *   out: { type:'progress', requestId, phase, progress, message }
+ *          aiCpuThreads?, mdxSegmentSize?, mdxOverlap?, mdxEnableOrt? }
+ *   out: { type:'progress', requestId, phase, progress, message, ortNumThreads? }
  *        { type:'done', requestId, outputWav }
  *        { type:'error', requestId, message }
  *
@@ -14,6 +14,7 @@
  */
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { pathToFileURL } from 'url';
 import * as ort from 'onnxruntime-web';
 import {
@@ -24,6 +25,7 @@ import {
 import {
   coerceMdxAdvancedSettings
 } from '../../shared/mdxAdvancedSettings';
+import { resolveAiCpuThreads } from '../../shared/aiCpuThreads';
 import { MdxNetSeparator, MDX_SAMPLE_RATE } from '../ai/MdxNetSeparator';
 import { readPcmWavFile, writePcmWavFile } from '../ai/wavPcm';
 import { unwrapAiWorkerInboundMessage } from './aiWorkerMessage';
@@ -36,6 +38,8 @@ type SeparateRequest = {
   ortDir: string;
   inputWav: string;
   outputWav: string;
+  /** Resolved or raw thread preference; null/omit → all cores. */
+  aiCpuThreads?: number | null;
   /** MDX-only — ignored for Demucs / Roformer. */
   mdxSegmentSize?: number;
   mdxOverlap?: number;
@@ -99,7 +103,12 @@ async function separateMdx(
   inputWav: string,
   outputWav: string,
   requestId: number,
-  mdxOpts?: { mdxSegmentSize?: number; mdxOverlap?: number; mdxEnableOrt?: boolean }
+  mdxOpts?: {
+    mdxSegmentSize?: number;
+    mdxOverlap?: number;
+    mdxEnableOrt?: boolean;
+    aiCpuThreads?: number | null;
+  }
 ): Promise<void> {
   const wav = readPcmWavFile(inputWav);
   post({
@@ -121,7 +130,10 @@ async function separateMdx(
 
   const advanced = coerceMdxAdvancedSettings(mdxOpts);
   const modelBuffer = toArrayBuffer(new Uint8Array(fs.readFileSync(modelPath)));
-  const separator = new MdxNetSeparator(advanced);
+  const separator = new MdxNetSeparator({
+    ...advanced,
+    aiCpuThreads: mdxOpts?.aiCpuThreads
+  });
   separator.onProgress((info) => {
     post({
       type: 'progress',
@@ -149,12 +161,15 @@ async function separateDemucs(
   ortDir: string,
   inputWav: string,
   outputWav: string,
-  requestId: number
+  requestId: number,
+  aiCpuThreads?: number | null
 ): Promise<void> {
   // Lazy-load demucs-web only on HTDemucs path so MDX boot does not require() ESM.
   const { DemucsProcessor, CONSTANTS } = await import('demucs-web');
   const wasmPaths = ortWasmConfigFromDir(ortDir);
-  ort.env.wasm.numThreads = 1;
+  const totalCpus = Math.max(1, os.cpus()?.length || 1);
+  const threads = resolveAiCpuThreads(aiCpuThreads, totalCpus);
+  ort.env.wasm.numThreads = threads;
   ort.env.wasm.simd = true;
   ort.env.wasm.proxy = false;
   ort.env.wasm.wasmBinary = wasmPaths.wasmBinary.buffer.slice(
@@ -175,16 +190,24 @@ async function separateDemucs(
     requestId,
     phase: 'model',
     progress: 0.05,
-    message: 'Loading HTDemucs…'
+    message: 'Loading HTDemucs…',
+    ortNumThreads: threads
   });
 
   const modelBuffer = toArrayBuffer(new Uint8Array(fs.readFileSync(modelPath)));
+  const sessionOptionsBase = {
+    graphOptimizationLevel: 'all' as const
+  };
+  let sessionOptions: {
+    executionProviders: string[];
+    graphOptimizationLevel: 'all';
+  } = {
+    ...sessionOptionsBase,
+    executionProviders: ['webgpu', 'wasm']
+  };
   const demucs = new DemucsProcessor({
     ort,
-    sessionOptions: {
-      executionProviders: ['wasm'],
-      graphOptimizationLevel: 'all'
-    },
+    sessionOptions,
     onProgress: (info: { progress: number }) => {
       const progress = Math.max(0, Math.min(1, info.progress));
       post({
@@ -196,13 +219,52 @@ async function separateDemucs(
       });
     }
   });
-  await demucs.loadModel(modelBuffer);
+  try {
+    await demucs.loadModel(modelBuffer);
+  } catch {
+    // WebGPU EP may be unavailable in utilityProcess — retry WASM-only.
+    sessionOptions = { ...sessionOptionsBase, executionProviders: ['wasm'] };
+    const demucsWasm = new DemucsProcessor({
+      ort,
+      sessionOptions,
+      onProgress: (info: { progress: number }) => {
+        const progress = Math.max(0, Math.min(1, info.progress));
+        post({
+          type: 'progress',
+          requestId,
+          phase: 'separate',
+          progress,
+          message: `HTDemucs separating… ${Math.round(progress * 100)}%`
+        });
+      }
+    });
+    await demucsWasm.loadModel(modelBuffer);
+    post({
+      type: 'progress',
+      requestId,
+      phase: 'separate',
+      progress: 0.1,
+      message: 'Running HTDemucs inference…',
+      ortNumThreads: threads
+    });
+    const stems = await demucsWasm.separate(wav.left, wav.right);
+    const length = wav.left.length;
+    const outL = new Float32Array(length);
+    const outR = new Float32Array(length);
+    for (let i = 0; i < length; i++) {
+      outL[i] = stems.drums.left[i] + stems.bass.left[i] + stems.other.left[i];
+      outR[i] = stems.drums.right[i] + stems.bass.right[i] + stems.other.right[i];
+    }
+    writePcmWavFile(outputWav, outL, outR, CONSTANTS.SAMPLE_RATE);
+    return;
+  }
   post({
     type: 'progress',
     requestId,
     phase: 'separate',
     progress: 0.1,
-    message: 'Running HTDemucs inference…'
+    message: 'Running HTDemucs inference…',
+    ortNumThreads: threads
   });
   const stems = await demucs.separate(wav.left, wav.right);
   const length = wav.left.length;
@@ -238,6 +300,8 @@ async function handleSeparate(req: SeparateRequest): Promise<void> {
 
   const aiMethod = method as AiVocalRemoverMethod;
   const expectedId = methodToModelId(aiMethod);
+  const totalCpus = Math.max(1, os.cpus()?.length || 1);
+  const threads = resolveAiCpuThreads(req.aiCpuThreads, totalCpus);
   post({
     type: 'progress',
     requestId,
@@ -245,7 +309,7 @@ async function handleSeparate(req: SeparateRequest): Promise<void> {
     progress: 0,
     message: `Preparing ${expectedId}…`,
     ortBackend: 'wasm',
-    ortNumThreads: 1
+    ortNumThreads: threads
   });
 
   switch (aiMethod) {
@@ -253,12 +317,13 @@ async function handleSeparate(req: SeparateRequest): Promise<void> {
       await separateMdx(modelPath, ortDir, inputWav, outputWav, requestId, {
         mdxSegmentSize: req.mdxSegmentSize,
         mdxOverlap: req.mdxOverlap,
-        mdxEnableOrt: req.mdxEnableOrt
+        mdxEnableOrt: req.mdxEnableOrt,
+        aiCpuThreads: req.aiCpuThreads
       });
       break;
     case 'aiHtDemucs':
       // Demucs path ignores MDX segment/overlap/ORT knobs even if present on the wire.
-      await separateDemucs(modelPath, ortDir, inputWav, outputWav, requestId);
+      await separateDemucs(modelPath, ortDir, inputWav, outputWav, requestId, req.aiCpuThreads);
       break;
     case 'aiBsRoformer':
       throw new Error(

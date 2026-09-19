@@ -57,6 +57,7 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 - **Finestra Palco (Stage Screen)**: Schermo pulito per cantante e pubblico da inviare su TV o videoproiettore (supporto F11 / doppio clic per fullscreen senza bordi). Visualizza video MP4/WebM, grafica CD+G o testo karaoke sincronizzato con banner animati "Ora Canta" e "Preparati".
 - **Streaming HTTP 206 Partial Content**: Protocollo proprietario `karaoke://local/` con streaming a chunk byte-range. Lo schermo del palco può essere aperto, chiuso o riaperto a brano in corso senza pause né desincronizzazioni.
 - **Protezione Istanza Singola (Single Instance Lock)**: Previene l'apertura accidentale di istanze duplicate; qualsiasi avvio concorrente ripristina e mette a fuoco la console di regia principale già aperta.
+- **Avvio Regia / Palco (v1.3.0)**: Opzione per massimizzare la Regia all’avvio (`maximize()`, non fullscreen esclusivo) e per aprire o meno lo Schermo Palco. Se il Palco è spento all’avvio, riaprilo con **P** / **F2** o il pulsante Stage. Impostazioni più ampie (sidebar) con metodo Download Strumentale, MDX avanzate e **core CPU AI** sotto Libreria & Download (default: tutti i core rilevati).
 
 ### 🎨 9 Temi Grafici & Schermo Palco Ottimizzato Edge-to-Edge
 - **9 Combinazioni Cromatiche Complete**: Personalizzazione indipendente per Regia e Palco (*Dark Stage, Midnight Neon, Club Gold, Ocean Breeze, Sunset Crimson, Emerald Matrix, Royal Amethyst, High Contrast, Light Studio*).
@@ -311,6 +312,7 @@ Se trovi utile **Karaoke Live Station** per le tue serate, feste o eventi e desi
 - Commenti codice in **inglese**; UI/manuali IT/EN/ES/FR.
 - Non rivivere PR UI restyle chiuse senza merge; non merge/release overwrite senza **Si** di Luca.
 - Knobs MDX avanzati (`mdxSegmentSize` / `mdxOverlap` / `mdxEnableOrt`) solo se metodo = `aiMdxKaraoke2`; altrimenti non inviarli nel payload worker.
+- Thread ORT WASM (`aiCpuThreads`): `null` = tutti i core; clamp a `[1, os.cpus().length]` — mai ≤0/NaN.
 
 ---
 
@@ -368,6 +370,7 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 - **Stage Screen (Palco)**: Clean external display for singers and audience (TV/Projector output with `F11` / double-click borderless fullscreen). Renders MP4/WebM videos, CD+G graphics, or synchronized lyrics with animated "Now Singing" and "Get Ready" notification banners.
 - **HTTP 206 Partial Content Streaming**: Custom `karaoke://local/` protocol with byte-range streaming. The stage screen can be closed and reopened mid-song without pausing or desynchronizing audio.
 - **Single Instance Lock Protection**: Native single-instance enforcement prevents duplicate windows; any concurrent launch immediately refocuses and restores the existing control console.
+- **Launch Control / Stage (v1.3.0)**: Option to maximize Regia on launch (`maximize()`, not exclusive fullscreen) and to open or skip Stage. If Stage is off at launch, reopen with **P** / **F2** or the Stage button. Wider Settings (sidebar) move Download Instrumental method, MDX advanced, and **AI CPU cores** under Library & Download (default: all detected cores).
 
 ### 🎨 9 Color Themes & Edge-to-Edge Stage Screen
 - **9 Distinct Visual Themes**: Independent theme customization for both Control Console and Stage Screen (*Dark Stage, Midnight Neon, Club Gold, Ocean Breeze, Sunset Crimson, Emerald Matrix, Royal Amethyst, High Contrast, Light Studio*).
@@ -677,6 +680,7 @@ If you find **Karaoke Live Station** valuable for your shows, venues, or private
 - Code comments in **English**; UI/manuals IT/EN/ES/FR.
 - Do not revive closed no-merge UI restyle PRs; do not merge/release-overwrite until Luca says **Si**.
 - MDX advanced knobs (`mdxSegmentSize` / `mdxOverlap` / `mdxEnableOrt`) only when method is `aiMdxKaraoke2`; otherwise omit them from the worker payload.
+- ORT WASM threads (`aiCpuThreads`): `null` = all cores; clamp to `[1, os.cpus().length]` — never ≤0/NaN.
 - Frozen contracts: IPC / `electronAPI` (`src/preload/index.ts`), `src/shared/types.ts`, Zustand `useKaraokeStore` shape, SQLite WAL schema. Dynamic/preload/Socket.IO/global-shortcut handlers → **Watchlist** (never delete as “dead”).
 
 **Critical invariants (must not regress)**

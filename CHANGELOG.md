@@ -20,6 +20,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ### Breaking Changes
 - None yet.
 
+## [1.3.0] — Startup maximize / Stage launch / AI CPU cores / Settings layout — 2026-09-19
+
+Code version bump to **1.3.0** (draft PR — **no GitHub release tag until Luca Si**). Builds on `v1.2.0` baseline.
+
+### Added
+- **Maximize Regia on launch** — `autoMaximizeControlOnLaunch` (default `true`) calls `BrowserWindow.maximize()` on Control (not exclusive fullscreen). Prefs mirrored to `userData/launch-prefs.json` for boot before Control hydrates. (this PR)
+- **Stage on/off at launch** — `autoOpenStageOnLaunch` (default `true`); when false, skips `createStageWindow` at startup. Reopen via **P** / **F2**, header button, `window:reopen-stage`, or alias `stage:open`. (this PR)
+- **AI CPU cores (Download Instrumental)** — `aiCpuThreads: number | null` (`null` = all detected cores). Settings → Library & Download: available-core count, slider + numeric 1..N, reset-to-max. ORT `numThreads` clamped; `simd = true`; providers `webgpu`→`wasm` fallback. (this PR)
+
+### Changed
+- **SettingsModal layout** — `max-w-5xl` / `h-[88vh]`, left sidebar ~220px, content grids; footer shows **v1.3.0**. (this PR)
+- **Instrumental + MDX + AI cores** moved from Audio → **Library & Download** (under download storage). Audio keeps SoundFont, CUE/Master, A/V sync, live Rimozione Vocale DSP, normalization, auto-advance. (this PR)
+- App version **1.3.0** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer. (this PR)
+
+### Fixed
+- None.
+
+### Breaking Changes
+- None (persisted settings: missing `aiCpuThreads` → all cores; missing launch flags → true).
+
 ## [1.2.0] — Drag & Drop, scan, SoundFont, missing files, yt-dlp `.*-orig` — 2026-09-18
 
 Overwrite of GitHub Release `v1.2.0` after PRs **#48** + **#49** (on top of batch #40–#44 + #46–#47; #45 skipped). Same version number; does **not** touch `v1.1.0`.

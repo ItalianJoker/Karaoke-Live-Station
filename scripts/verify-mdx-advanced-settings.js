@@ -82,7 +82,8 @@ assert(
 
 assert(
   workerSrc.includes('coerceMdxAdvancedSettings') &&
-    workerSrc.includes('new MdxNetSeparator(advanced)') &&
+    (workerSrc.includes('new MdxNetSeparator(advanced)') ||
+      workerSrc.includes('new MdxNetSeparator({')) &&
     workerSrc.includes('Demucs path ignores MDX'),
   'Worker wires MDX opts into separator; Demucs ignores knobs'
 );
@@ -90,7 +91,8 @@ assert(
 assert(
   mdxSrc.includes('mdxStepSamples(cfg.mdxOverlap') &&
     mdxSrc.includes('enableOrtAcceleration') &&
-    mdxSrc.includes("graphOptimizationLevel: this.enableOrtAcceleration ? 'all' : 'disabled'"),
+    (mdxSrc.includes("graphOptimizationLevel: this.enableOrtAcceleration ? 'all' : 'disabled'") ||
+      mdxSrc.includes("this.enableOrtAcceleration ? 'all' : 'disabled'")),
   'MdxNetSeparator maps overlap fraction → step; ORT toggle controls graph opts + SIMD'
 );
 

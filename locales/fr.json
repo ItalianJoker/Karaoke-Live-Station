@@ -110,7 +110,7 @@
     "importSuccess": "{{count}} morceau(x) importé(s) dans la bibliothèque",
     "importNoFiles": "Aucun fichier karaoké pris en charge dans ce dépôt (mp4/webm/mkv/avi, mp3+cdg, mid/kar)",
     "importFailed": "Impossible d'importer les fichiers déposés",
-    "downloading": "Téléchargement...",
+    "downloading": "Téléchargement…",
     "downloadsActive": "Téléchargements Actifs",
     "saveToLibrary": "Enregistrer dans la Bibliothèque",
     "savedSuccess": "Morceau enregistré dans la bibliothèque locale : {{title}}",
@@ -148,7 +148,6 @@
     "downloadsEmpty": "Aucun téléchargement actif",
     "downloadingModel": "Téléchargement du modèle…",
     "queued": "En file",
-    "downloading": "Téléchargement…",
     "converting": "Conversion…",
     "convertingInstrumental": "Conversion instrumentale…",
     "downloadCompleted": "Terminé",
@@ -278,7 +277,15 @@
     "mdxOverlapChip075": "0.75 (studio — lent)",
     "mdxOverlapHighWarning": "Chevauchement élevé (≥ 0.75) : la séparation sera beaucoup plus lente (beaucoup plus de fenêtres ORT). Préférez 0.25–0.50 sauf besoin de continuité studio.",
     "mdxEnableOrt": "Accélération CPU ONNX Runtime",
-    "mdxEnableOrtDesc": "Activé : optimisations de graphe ORT WASM + SIMD. Désactivé : opts de graphe désactivées et SIMD off. ORT reste obligatoire pour MDX — cela ne contourne pas le moteur."
+    "mdxEnableOrtDesc": "Activé : optimisations de graphe ORT WASM + SIMD. Désactivé : opts de graphe désactivées et SIMD off. ORT reste obligatoire pour MDX — cela ne contourne pas le moteur.",
+    "autoMaximizeControl": "Maximiser la régie au démarrage",
+    "autoMaximizeControlDesc": "Ouvre la fenêtre de contrôle maximisée au démarrage. Utilise maximize(), pas le plein écran exclusif.",
+    "autoOpenStage": "Ouvrir l'écran scène au démarrage",
+    "autoOpenStageDesc": "Si désactivé, la scène reste fermée jusqu'à réouverture via P / F2 ou le bouton Stage.",
+    "aiCpuThreads": "Cœurs CPU pour l'IA instrumentale",
+    "aiCpuThreadsDesc": "Nombre de threads pour MDX / Demucs pendant le téléchargement instrumental. Par défaut : tous les cœurs détectés.",
+    "aiCpuCoresAvailable": "Cœurs CPU disponibles : {{count}}",
+    "aiCpuThreadsResetMax": "Réinitialiser au maximum ({{count}})"
   },
   "history": {
     "title": "Historique de Lecture",

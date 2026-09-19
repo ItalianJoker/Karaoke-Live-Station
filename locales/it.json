@@ -148,7 +148,6 @@
     "downloadsEmpty": "Nessun download attivo",
     "downloadingModel": "Download modello…",
     "queued": "In coda",
-    "downloading": "Download in corso…",
     "converting": "Conversione…",
     "convertingInstrumental": "Conversione strumentale…",
     "downloadCompleted": "Completato",
@@ -278,7 +277,15 @@
     "mdxOverlapChip075": "0.75 (studio — lento)",
     "mdxOverlapHighWarning": "Overlap elevato (≥ 0.75): la separazione sarà molto più lenta (molte più finestre ORT). Preferisci 0.25–0.50 salvo necessità di continuità da studio.",
     "mdxEnableOrt": "Accelerazione CPU ONNX Runtime",
-    "mdxEnableOrtDesc": "Attivo: ottimizzazioni grafo ORT WASM + SIMD. Disattivo: ottimizzazioni grafo disabilitate e SIMD off. ORT resta obbligatorio per MDX — non salta il motore."
+    "mdxEnableOrtDesc": "Attivo: ottimizzazioni grafo ORT WASM + SIMD. Disattivo: ottimizzazioni grafo disabilitate e SIMD off. ORT resta obbligatorio per MDX — non salta il motore.",
+    "autoMaximizeControl": "Massimizza Regia all'avvio",
+    "autoMaximizeControlDesc": "Apre la finestra di controllo massimizzata all'avvio. Usa maximize(), non fullscreen esclusivo.",
+    "autoOpenStage": "Apri Schermo Palco all'avvio",
+    "autoOpenStageDesc": "Se disattivo, il Palco resta chiuso finché non lo riapri con P / F2 o il pulsante Stage.",
+    "aiCpuThreads": "Core CPU per AI strumentale",
+    "aiCpuThreadsDesc": "Numero di thread per MDX / Demucs durante Download Strumentale. Di default usa tutti i core rilevati.",
+    "aiCpuCoresAvailable": "Core CPU disponibili: {{count}}",
+    "aiCpuThreadsResetMax": "Reimposta su Massimo ({{count}})"
   },
   "history": {
     "title": "Storico Esecuzioni",

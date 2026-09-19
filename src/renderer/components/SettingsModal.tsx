@@ -26,6 +26,7 @@ import {
   Monitor,
   Music2,
   Library,
+  Cpu,
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AppTheme, StageMessageStyle, YtDlpStatus } from '../../shared/types';
@@ -42,6 +43,11 @@ import {
   mergeStageMessages,
   patchStageMessages
 } from '../../shared/stageMessages';
+import {
+  clampAiCpuThreadsForUi,
+  coerceAiCpuThreads,
+  detectUiCpuCoreCount
+} from '../../shared/aiCpuThreads';
 import { APP_SHORTCUTS } from '../data/appShortcuts';
 import { FirewallGuideCard } from './FirewallGuideCard';
 import {
@@ -101,6 +107,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [showAutoArchiveConfirm, setShowAutoArchiveConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settingsSearch, setSettingsSearch] = useState('');
+  const [cpuCoreCount, setCpuCoreCount] = useState(detectUiCpuCoreCount());
+  const [appVersion, setAppVersion] = useState('1.3.0');
 
   const isSearching = settingsSearch.trim().length > 0;
 
@@ -143,6 +151,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
     if (window.karaokeApi?.ytdlp?.getStatus) {
       window.karaokeApi.ytdlp.getStatus().then(setYtdlpStatus);
+    }
+
+    if (window.karaokeApi?.system?.getCpuCoreCount) {
+      window.karaokeApi.system
+        .getCpuCoreCount()
+        .then((n) => {
+          const cores = Math.max(1, Math.floor(Number(n)) || detectUiCpuCoreCount());
+          setCpuCoreCount(cores);
+        })
+        .catch(() => setCpuCoreCount(detectUiCpuCoreCount()));
+    } else {
+      setCpuCoreCount(detectUiCpuCoreCount());
+    }
+
+    if (window.karaokeApi?.system?.getAppVersion) {
+      window.karaokeApi.system
+        .getAppVersion()
+        .then((v) => {
+          if (typeof v === 'string' && v.trim()) setAppVersion(v.trim());
+        })
+        .catch(() => setAppVersion('1.3.0'));
     }
   }, [isOpen]);
 
@@ -324,6 +353,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     'diagnostica',
     'debug'
   );
+  const matchMaximize = matchesSearch(
+    t('settings.autoMaximizeControl', 'Massimizza Regia all\'avvio'),
+    t('settings.autoMaximizeControlDesc', 'Apre la finestra di controllo massimizzata all\'avvio dell\'app'),
+    'maximize',
+    'massimizza',
+    'regia',
+    'avvio',
+    'launch'
+  );
 
   const matchLibraryPath = matchesSearch(
     t('settings.libraryPath'),
@@ -413,6 +451,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     'paralleli',
     'max'
   );
+  const matchAiThreads = matchesSearch(
+    t('settings.aiCpuThreads', 'Core CPU per AI strumentale'),
+    t('settings.aiCpuThreadsDesc', 'Numero di core CPU usati da MDX / Demucs durante il download strumentale'),
+    t('settings.aiCpuCoresAvailable', 'Core CPU disponibili: {{count}}', { count: cpuCoreCount }),
+    t('settings.aiCpuThreadsResetMax', 'Reimposta su Massimo ({{count}})', { count: cpuCoreCount }),
+    'cpu',
+    'core',
+    'threads',
+    'ort',
+    'wasm',
+    'ai'
+  );
   const matchNormalization = matchesSearch(
     t('settings.audioNormalization'),
     t('settings.audioNormalizationDesc'),
@@ -430,6 +480,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const matchBannerIntro = matchesSearch(t('settings.bannerIntro'), 'banner', 'intro');
   const matchBannerOutro = matchesSearch(t('settings.bannerOutro'), 'banner', 'outro', 'preparati');
   const matchTitleOverlay = matchesSearch(t('settings.titleOverlayDuration'), 'titolo', 'overlay', 'title');
+  const matchAutoStage = matchesSearch(
+    t('settings.autoOpenStage', 'Apri Stage all\'avvio'),
+    t('settings.autoOpenStageDesc', 'Apre automaticamente lo schermo Stage all\'avvio dell\'app'),
+    'stage',
+    'avvio',
+    'launch',
+    'apri'
+  );
   const matchNextSinger = matchesSearch(
     t('settings.showNextSingerAtIntro'),
     t('settings.showNextSingerAtIntroDesc'),
@@ -481,20 +539,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   };
 
   const generalHasMatches =
-    matchSupport || matchThemeLang || matchFairQueue || matchGuestPortal || matchSiae || matchLogs;
-  const libraryHasMatches = matchLibraryPath || matchAutoArchive || matchYtdlp || matchMaxDownloads;
+    matchSupport ||
+    matchThemeLang ||
+    matchMaximize ||
+    matchFairQueue ||
+    matchGuestPortal ||
+    matchSiae ||
+    matchLogs;
+  const libraryHasMatches =
+    matchLibraryPath ||
+    matchAutoArchive ||
+    matchYtdlp ||
+    matchMaxDownloads ||
+    matchInstrumentalVocal ||
+    matchAiThreads;
   const audioHasMatches =
     matchSoundfont ||
     matchDevices ||
     matchAvSync ||
     matchVocalRemoverAlgo ||
-    matchInstrumentalVocal ||
     matchNormalization ||
     matchAutoAdvance;
   const stageHasMatches =
     matchBannerIntro ||
     matchBannerOutro ||
     matchTitleOverlay ||
+    matchAutoStage ||
     matchNextSinger ||
     matchPitchStage ||
     matchSpeedStage ||
@@ -506,9 +576,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-5xl w-full p-6 shadow-2xl flex flex-col h-[88vh]">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-indigo-400" />
             <h2 className="text-base font-bold text-white">{t('settings.title')}</h2>
@@ -564,39 +634,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               value={settingsSearch}
               onChange={(e) => setSettingsSearch(e.target.value)}
               placeholder={t('settings.searchPlaceholder', 'Cerca impostazioni...')}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 transition-all"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 transition-all"
             />
           </div>
         </div>
 
-        {/* Tabs — hidden restriction when searching */}
-        {!isSearching && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-3 shrink-0 border-b border-slate-800/80 mb-1">
-            {tabs.map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-3 py-2 rounded-xl text-[11px] font-semibold whitespace-nowrap flex items-center gap-1.5 transition-all border shrink-0 ${
-                    isActive
-                      ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300'
-                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60'
-                  }`}
-                >
-                  {tab.icon}
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {/* Sidebar tabs + scrollable content */}
+        <div className="flex flex-1 min-h-0 border-t border-slate-800/80">
+          {!isSearching && (
+            <nav className="w-[220px] shrink-0 border-r border-slate-800/80 overflow-y-auto py-3 pr-3 space-y-1">
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full px-3 py-2.5 rounded-xl text-[11px] font-semibold flex items-center gap-2 transition-all border text-left ${
+                      isActive
+                        ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300'
+                        : 'bg-transparent border-transparent text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    {tab.icon}
+                    <span className="leading-snug">{tab.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          )}
 
-        {/* Form Body */}
-        <div className="flex-1 overflow-y-auto py-4 space-y-6 text-xs pr-4 md:pr-5">
+          {/* Form Body */}
+          <div className={`flex-1 min-h-0 overflow-y-auto py-4 space-y-6 text-xs ${isSearching ? '' : 'pl-4'} pr-2 md:pr-3`}>
           {isSearching && !anySearchResults && (
-            <div className="text-center py-10 text-slate-500 text-xs">
+            <div className="text-center py-10 text-slate-400 text-xs">
               {t('library.noResults', 'Nessun risultato')}
             </div>
           )}
@@ -618,7 +689,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                     <Globe className="w-4 h-4 text-indigo-400" /> {t('settings.theme')} & {t('settings.language')}
                   </h3>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-slate-400 mb-1">{t('settings.theme')}</label>
                       <select
@@ -669,6 +740,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </div>
                   </div>
                 </div>
+              )}
+
+              {(!isSearching || matchMaximize) && (
+                <label className="flex items-start gap-3 cursor-pointer bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoMaximizeControlOnLaunch ?? true}
+                    onChange={(e) => updateSettings({ autoMaximizeControlOnLaunch: e.target.checked })}
+                    className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
+                  />
+                  <div>
+                    <span className="font-semibold text-white text-xs block">
+                      {t('settings.autoMaximizeControl', 'Massimizza Regia all\'avvio')}
+                    </span>
+                    <span className="text-[11px] text-slate-400 leading-relaxed block mt-0.5">
+                      {t(
+                        'settings.autoMaximizeControlDesc',
+                        'Apre la finestra di controllo massimizzata all\'avvio dell\'app'
+                      )}
+                    </span>
+                  </div>
+                </label>
               )}
 
               {/* Fair Queue, Guest Portal, SIAE */}
@@ -786,7 +879,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         );
                       })}
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                    <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
                       {t('settings.logLevelHelp')}
                     </p>
                   </div>
@@ -918,6 +1011,267 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
               )}
 
+              {(!isSearching || matchInstrumentalVocal) && (
+                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2">
+                  <label className="block font-semibold text-white text-xs">
+                    {t('settings.instrumentalVocalRemover')}
+                  </label>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    {t('settings.instrumentalVocalRemoverDesc')}
+                  </p>
+                  <select
+                    value={coerceInstrumentalVocalRemoverMethod(
+                      settings.instrumentalVocalRemoverMethod
+                    )}
+                    onChange={(e) => {
+                      const next = coerceInstrumentalVocalRemoverMethod(e.target.value);
+                      const prev = coerceInstrumentalVocalRemoverMethod(
+                        settings.instrumentalVocalRemoverMethod
+                      );
+                      updateSettings({ instrumentalVocalRemoverMethod: next });
+                      if (prev !== next && window.karaokeApi?.logger?.log) {
+                        window.karaokeApi.logger.log(
+                          'info',
+                          'SettingsModal',
+                          `Instrumental vocal remover method → ${next}`
+                        );
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs"
+                  >
+                    <optgroup label={t('settings.vocalGroupAlgorithmic')}>
+                      <option value="centerCancelBassKeep">{t('settings.vocalAlgoCenterBass')}</option>
+                      <option value="centerCancel">{t('settings.vocalAlgoCenter')}</option>
+                      <option value="softMid">{t('settings.vocalAlgoSoftMid')}</option>
+                    </optgroup>
+                    <optgroup label={t('settings.vocalGroupAi')}>
+                      <option value="aiMdxKaraoke2">{t('settings.vocalAiMdxKaraoke2')}</option>
+                      <option value="aiHtDemucs">{t('settings.vocalAiHtDemucs')}</option>
+                      <option value="aiBsRoformer">{t('settings.vocalAiBsRoformer')}</option>
+                    </optgroup>
+                  </select>
+
+                  {/* MDX-only advanced ETA panel — hidden for Demucs / Roformer / DSP */}
+                  {isMdxInstrumentalMethod(
+                    coerceInstrumentalVocalRemoverMethod(settings.instrumentalVocalRemoverMethod)
+                  ) && (
+                    <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-3">
+                      <div>
+                        <p className="font-semibold text-white text-xs">
+                          {t('settings.mdxAdvancedTitle')}
+                        </p>
+                        <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
+                          {t('settings.mdxAdvancedDesc')}
+                        </p>
+                      </div>
+
+                      {/* A. Segment size (dim_t) */}
+                      <div className="space-y-1.5">
+                        <label
+                          className="block text-[11px] font-medium text-slate-200"
+                          title={t('settings.mdxSegmentSizeTooltip')}
+                        >
+                          {t('settings.mdxSegmentSize')}
+                          <span className="ml-2 font-mono text-indigo-300">
+                            {coerceMdxSegmentSize(settings.mdxSegmentSize)}
+                          </span>
+                        </label>
+                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                          {t('settings.mdxSegmentSizeTooltip')}
+                        </p>
+                        <input
+                          type="range"
+                          min={0}
+                          max={MDX_SEGMENT_SIZES.length - 1}
+                          step={1}
+                          value={Math.max(
+                            0,
+                            MDX_SEGMENT_SIZES.indexOf(
+                              coerceMdxSegmentSize(settings.mdxSegmentSize) as (typeof MDX_SEGMENT_SIZES)[number]
+                            )
+                          )}
+                          onChange={(e) => {
+                            const idx = parseInt(e.target.value, 10);
+                            const next = MDX_SEGMENT_SIZES[idx] ?? 256;
+                            updateSettings({ mdxSegmentSize: coerceMdxSegmentSize(next) });
+                          }}
+                          className="w-full accent-indigo-600"
+                        />
+                        <div className="flex flex-wrap gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => updateSettings({ mdxSegmentSize: 256 })}
+                            className={`px-2 py-0.5 rounded text-[10px] border ${
+                              coerceMdxSegmentSize(settings.mdxSegmentSize) === 256
+                                ? 'border-indigo-500 bg-indigo-950/60 text-indigo-200'
+                                : 'border-slate-700 text-slate-400 hover:border-slate-500'
+                            }`}
+                          >
+                            {t('settings.mdxSegmentChip256')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateSettings({ mdxSegmentSize: 512 })}
+                            className={`px-2 py-0.5 rounded text-[10px] border ${
+                              coerceMdxSegmentSize(settings.mdxSegmentSize) === 512
+                                ? 'border-indigo-500 bg-indigo-950/60 text-indigo-200'
+                                : 'border-slate-700 text-slate-400 hover:border-slate-500'
+                            }`}
+                          >
+                            {t('settings.mdxSegmentChip512')}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* B. Overlap fraction → mdxStepSamples */}
+                      <div className="space-y-1.5">
+                        <label
+                          className="block text-[11px] font-medium text-slate-200"
+                          title={t('settings.mdxOverlapTooltip')}
+                        >
+                          {t('settings.mdxOverlap')}
+                          <span className="ml-2 font-mono text-indigo-300">
+                            {coerceMdxOverlap(settings.mdxOverlap).toFixed(2)}
+                          </span>
+                        </label>
+                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                          {t('settings.mdxOverlapTooltip')}
+                        </p>
+                        <input
+                          type="range"
+                          min={MDX_OVERLAP_MIN}
+                          max={MDX_OVERLAP_MAX}
+                          step={MDX_OVERLAP_STEP}
+                          value={coerceMdxOverlap(settings.mdxOverlap)}
+                          onChange={(e) =>
+                            updateSettings({
+                              mdxOverlap: coerceMdxOverlap(parseFloat(e.target.value))
+                            })
+                          }
+                          className="w-full accent-indigo-600"
+                        />
+                        <div className="flex flex-wrap gap-1.5">
+                          {(
+                            [
+                              [0.25, 'settings.mdxOverlapChip025'],
+                              [0.5, 'settings.mdxOverlapChip050'],
+                              [0.75, 'settings.mdxOverlapChip075']
+                            ] as const
+                          ).map(([value, labelKey]) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() =>
+                                updateSettings({ mdxOverlap: coerceMdxOverlap(value) })
+                              }
+                              className={`px-2 py-0.5 rounded text-[10px] border ${
+                                Math.abs(coerceMdxOverlap(settings.mdxOverlap) - value) < 0.001
+                                  ? 'border-indigo-500 bg-indigo-950/60 text-indigo-200'
+                                  : 'border-slate-700 text-slate-400 hover:border-slate-500'
+                              }`}
+                            >
+                              {t(labelKey)}
+                            </button>
+                          ))}
+                        </div>
+                        {coerceMdxOverlap(settings.mdxOverlap) >= MDX_OVERLAP_WARN_THRESHOLD && (
+                          <div className="flex items-start gap-1.5 rounded-lg border border-amber-700/60 bg-amber-950/40 px-2 py-1.5 text-[10px] text-amber-200 leading-relaxed">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400" />
+                            <span>{t('settings.mdxOverlapHighWarning')}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* C. ORT WASM CPU acceleration */}
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={coerceMdxEnableOrt(settings.mdxEnableOrt)}
+                          onChange={(e) =>
+                            updateSettings({ mdxEnableOrt: coerceMdxEnableOrt(e.target.checked) })
+                          }
+                          className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
+                        />
+                        <div>
+                          <span className="block text-[11px] font-medium text-slate-200">
+                            {t('settings.mdxEnableOrt')}
+                          </span>
+                          <span className="block text-[10px] text-slate-400 leading-relaxed mt-0.5">
+                            {t('settings.mdxEnableOrtDesc')}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(!isSearching || matchAiThreads) && (() => {
+                const aiCpuThreadsUi =
+                  settings.aiCpuThreads == null
+                    ? cpuCoreCount
+                    : clampAiCpuThreadsForUi(settings.aiCpuThreads, cpuCoreCount);
+                return (
+                  <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2">
+                    <label className="block font-semibold text-white text-xs flex items-center gap-1.5">
+                      <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                      {t('settings.aiCpuThreads', 'Core CPU per AI strumentale')}
+                    </label>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      {t(
+                        'settings.aiCpuThreadsDesc',
+                        'Numero di core CPU usati da MDX / Demucs durante il download strumentale'
+                      )}
+                    </p>
+                    <p className="text-[11px] text-slate-300 font-medium">
+                      {t('settings.aiCpuCoresAvailable', 'Core CPU disponibili: {{count}}', {
+                        count: cpuCoreCount
+                      })}
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={1}
+                        max={cpuCoreCount}
+                        step={1}
+                        value={aiCpuThreadsUi}
+                        onChange={(e) => {
+                          const clamped = clampAiCpuThreadsForUi(
+                            parseInt(e.target.value, 10),
+                            cpuCoreCount
+                          );
+                          updateSettings({ aiCpuThreads: clamped });
+                        }}
+                        className="flex-1 accent-indigo-600"
+                      />
+                      <input
+                        type="number"
+                        min={1}
+                        max={cpuCoreCount}
+                        value={aiCpuThreadsUi}
+                        onChange={(e) => {
+                          const clamped = clampAiCpuThreadsForUi(
+                            parseInt(e.target.value, 10),
+                            cpuCoreCount
+                          );
+                          updateSettings({ aiCpuThreads: clamped });
+                        }}
+                        className="w-16 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-white text-center text-xs font-mono"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => updateSettings({ aiCpuThreads: coerceAiCpuThreads(null) })}
+                      className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-medium cursor-pointer"
+                    >
+                      {t('settings.aiCpuThreadsResetMax', 'Reimposta su Massimo ({{count}})', {
+                        count: cpuCoreCount
+                      })}
+                    </button>
+                  </div>
+                );
+              })()}
+
               {(!isSearching || matchYtdlp) && (
                 <div className="space-y-3 pt-1">
                   <div className="flex items-center justify-between flex-wrap gap-2">
@@ -953,7 +1307,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                     {ytdlpStatus?.path && (
                       <div className="space-y-1">
-                        <span className="text-slate-500 text-[11px] block">{t('settings.ytdlpPath')}:</span>
+                        <span className="text-slate-400 text-[11px] block">{t('settings.ytdlpPath')}:</span>
                         <div className="font-mono text-[11px] text-slate-400 bg-slate-900/90 rounded-lg p-2 overflow-x-auto select-all border border-slate-800 break-all">
                           {ytdlpStatus.path}
                         </div>
@@ -1053,7 +1407,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               )}
 
               {(!isSearching || matchDevices) && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-slate-400 mb-1 flex items-center gap-1">
                       <Headphones className="w-3.5 h-3.5 text-amber-400" />
@@ -1143,201 +1497,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
               )}
 
-              {(!isSearching || matchInstrumentalVocal) && (
-                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2">
-                  <label className="block font-semibold text-white text-xs">
-                    {t('settings.instrumentalVocalRemover')}
-                  </label>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    {t('settings.instrumentalVocalRemoverDesc')}
-                  </p>
-                  <select
-                    value={coerceInstrumentalVocalRemoverMethod(
-                      settings.instrumentalVocalRemoverMethod
-                    )}
-                    onChange={(e) => {
-                      const next = coerceInstrumentalVocalRemoverMethod(e.target.value);
-                      const prev = coerceInstrumentalVocalRemoverMethod(
-                        settings.instrumentalVocalRemoverMethod
-                      );
-                      updateSettings({ instrumentalVocalRemoverMethod: next });
-                      if (prev !== next && window.karaokeApi?.logger?.log) {
-                        window.karaokeApi.logger.log(
-                          'info',
-                          'SettingsModal',
-                          `Instrumental vocal remover method → ${next}`
-                        );
-                      }
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs"
-                  >
-                    <optgroup label={t('settings.vocalGroupAlgorithmic')}>
-                      <option value="centerCancelBassKeep">{t('settings.vocalAlgoCenterBass')}</option>
-                      <option value="centerCancel">{t('settings.vocalAlgoCenter')}</option>
-                      <option value="softMid">{t('settings.vocalAlgoSoftMid')}</option>
-                    </optgroup>
-                    <optgroup label={t('settings.vocalGroupAi')}>
-                      <option value="aiMdxKaraoke2">{t('settings.vocalAiMdxKaraoke2')}</option>
-                      <option value="aiHtDemucs">{t('settings.vocalAiHtDemucs')}</option>
-                      <option value="aiBsRoformer">{t('settings.vocalAiBsRoformer')}</option>
-                    </optgroup>
-                  </select>
-
-                  {/* MDX-only advanced ETA panel — hidden for Demucs / Roformer / DSP */}
-                  {isMdxInstrumentalMethod(
-                    coerceInstrumentalVocalRemoverMethod(settings.instrumentalVocalRemoverMethod)
-                  ) && (
-                    <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-3">
-                      <div>
-                        <p className="font-semibold text-white text-xs">
-                          {t('settings.mdxAdvancedTitle')}
-                        </p>
-                        <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
-                          {t('settings.mdxAdvancedDesc')}
-                        </p>
-                      </div>
-
-                      {/* A. Segment size (dim_t) */}
-                      <div className="space-y-1.5">
-                        <label
-                          className="block text-[11px] font-medium text-slate-200"
-                          title={t('settings.mdxSegmentSizeTooltip')}
-                        >
-                          {t('settings.mdxSegmentSize')}
-                          <span className="ml-2 font-mono text-indigo-300">
-                            {coerceMdxSegmentSize(settings.mdxSegmentSize)}
-                          </span>
-                        </label>
-                        <p className="text-[10px] text-slate-500 leading-relaxed">
-                          {t('settings.mdxSegmentSizeTooltip')}
-                        </p>
-                        <input
-                          type="range"
-                          min={0}
-                          max={MDX_SEGMENT_SIZES.length - 1}
-                          step={1}
-                          value={Math.max(
-                            0,
-                            MDX_SEGMENT_SIZES.indexOf(
-                              coerceMdxSegmentSize(settings.mdxSegmentSize) as (typeof MDX_SEGMENT_SIZES)[number]
-                            )
-                          )}
-                          onChange={(e) => {
-                            const idx = parseInt(e.target.value, 10);
-                            const next = MDX_SEGMENT_SIZES[idx] ?? 256;
-                            updateSettings({ mdxSegmentSize: coerceMdxSegmentSize(next) });
-                          }}
-                          className="w-full accent-indigo-600"
-                        />
-                        <div className="flex flex-wrap gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => updateSettings({ mdxSegmentSize: 256 })}
-                            className={`px-2 py-0.5 rounded text-[10px] border ${
-                              coerceMdxSegmentSize(settings.mdxSegmentSize) === 256
-                                ? 'border-indigo-500 bg-indigo-950/60 text-indigo-200'
-                                : 'border-slate-700 text-slate-400 hover:border-slate-500'
-                            }`}
-                          >
-                            {t('settings.mdxSegmentChip256')}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateSettings({ mdxSegmentSize: 512 })}
-                            className={`px-2 py-0.5 rounded text-[10px] border ${
-                              coerceMdxSegmentSize(settings.mdxSegmentSize) === 512
-                                ? 'border-indigo-500 bg-indigo-950/60 text-indigo-200'
-                                : 'border-slate-700 text-slate-400 hover:border-slate-500'
-                            }`}
-                          >
-                            {t('settings.mdxSegmentChip512')}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* B. Overlap fraction → mdxStepSamples */}
-                      <div className="space-y-1.5">
-                        <label
-                          className="block text-[11px] font-medium text-slate-200"
-                          title={t('settings.mdxOverlapTooltip')}
-                        >
-                          {t('settings.mdxOverlap')}
-                          <span className="ml-2 font-mono text-indigo-300">
-                            {coerceMdxOverlap(settings.mdxOverlap).toFixed(2)}
-                          </span>
-                        </label>
-                        <p className="text-[10px] text-slate-500 leading-relaxed">
-                          {t('settings.mdxOverlapTooltip')}
-                        </p>
-                        <input
-                          type="range"
-                          min={MDX_OVERLAP_MIN}
-                          max={MDX_OVERLAP_MAX}
-                          step={MDX_OVERLAP_STEP}
-                          value={coerceMdxOverlap(settings.mdxOverlap)}
-                          onChange={(e) =>
-                            updateSettings({
-                              mdxOverlap: coerceMdxOverlap(parseFloat(e.target.value))
-                            })
-                          }
-                          className="w-full accent-indigo-600"
-                        />
-                        <div className="flex flex-wrap gap-1.5">
-                          {(
-                            [
-                              [0.25, 'settings.mdxOverlapChip025'],
-                              [0.5, 'settings.mdxOverlapChip050'],
-                              [0.75, 'settings.mdxOverlapChip075']
-                            ] as const
-                          ).map(([value, labelKey]) => (
-                            <button
-                              key={value}
-                              type="button"
-                              onClick={() =>
-                                updateSettings({ mdxOverlap: coerceMdxOverlap(value) })
-                              }
-                              className={`px-2 py-0.5 rounded text-[10px] border ${
-                                Math.abs(coerceMdxOverlap(settings.mdxOverlap) - value) < 0.001
-                                  ? 'border-indigo-500 bg-indigo-950/60 text-indigo-200'
-                                  : 'border-slate-700 text-slate-400 hover:border-slate-500'
-                              }`}
-                            >
-                              {t(labelKey)}
-                            </button>
-                          ))}
-                        </div>
-                        {coerceMdxOverlap(settings.mdxOverlap) >= MDX_OVERLAP_WARN_THRESHOLD && (
-                          <div className="flex items-start gap-1.5 rounded-lg border border-amber-700/60 bg-amber-950/40 px-2 py-1.5 text-[10px] text-amber-200 leading-relaxed">
-                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400" />
-                            <span>{t('settings.mdxOverlapHighWarning')}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* C. ORT WASM CPU acceleration */}
-                      <label className="flex items-start gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={coerceMdxEnableOrt(settings.mdxEnableOrt)}
-                          onChange={(e) =>
-                            updateSettings({ mdxEnableOrt: coerceMdxEnableOrt(e.target.checked) })
-                          }
-                          className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
-                        />
-                        <div>
-                          <span className="block text-[11px] font-medium text-slate-200">
-                            {t('settings.mdxEnableOrt')}
-                          </span>
-                          <span className="block text-[10px] text-slate-500 leading-relaxed mt-0.5">
-                            {t('settings.mdxEnableOrtDesc')}
-                          </span>
-                        </div>
-                      </label>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {(!isSearching || matchNormalization) && (
                 <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80">
                   <label className="flex items-start gap-3 cursor-pointer">
@@ -1397,7 +1556,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         }
                         className="w-16 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-white text-center"
                       />
-                      <span className="text-xs text-slate-500">sec</span>
+                      <span className="text-xs text-slate-400">sec</span>
                     </div>
                   </div>
                 </div>
@@ -1413,13 +1572,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 {t('settings.tabStage', 'Schermo Stage')}
               </h3>
 
+              {(!isSearching || matchAutoStage) && (
+                <label className="flex items-start gap-3 cursor-pointer bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoOpenStageOnLaunch ?? true}
+                    onChange={(e) => updateSettings({ autoOpenStageOnLaunch: e.target.checked })}
+                    className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
+                  />
+                  <div>
+                    <span className="font-semibold text-white text-xs block">
+                      {t('settings.autoOpenStage', 'Apri Stage all\'avvio')}
+                    </span>
+                    <span className="text-[11px] text-slate-400 leading-relaxed block mt-0.5">
+                      {t(
+                        'settings.autoOpenStageDesc',
+                        'Apre automaticamente lo schermo Stage all\'avvio dell\'app'
+                      )}
+                    </span>
+                  </div>
+                </label>
+              )}
+
               {(
                 !isSearching ||
                 matchBannerIntro ||
                 matchBannerOutro ||
                 matchTitleOverlay
               ) && (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {(!isSearching || matchBannerIntro) && (
                     <div>
                       <label className="block text-slate-400 mb-1">{t('settings.bannerIntro')}</label>
@@ -1577,7 +1758,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                               <span className="text-sm font-medium text-slate-200 block">
                                 {t(labelKey[key])}
                               </span>
-                              <span className="text-[11px] text-slate-500 block mt-0.5 truncate">
+                              <span className="text-[11px] text-slate-400 block mt-0.5 truncate">
                                 {t('settings.stageMessageDefaultHint')}: {i18nDefault}
                               </span>
                             </div>
@@ -1656,7 +1837,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
                                 disabled={!style.enabled}
                               />
-                              <span className="text-slate-500">px</span>
+                              <span className="text-slate-400">px</span>
                             </label>
                             <button
                               type="button"
@@ -1675,7 +1856,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             <label className="block text-[11px] text-slate-400">
                               {t('settings.stageMessageBackground')}
                             </label>
-                            <p className="text-[10px] text-slate-500 leading-relaxed">
+                            <p className="text-[10px] text-slate-400 leading-relaxed">
                               {t('settings.stageMessageBackgroundHint')}
                             </p>
                             <select
@@ -1774,7 +1955,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 <Keyboard className="w-4 h-4 text-indigo-400" />
                 {t('settings.tabShortcuts', 'Scorciatoie')}
               </h3>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
+              <p className="text-[11px] text-slate-400 leading-relaxed">
                 {t('shortcuts.subtitle', 'Riferimento rapido alle scorciatoie live della Control Window')}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1799,15 +1980,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </div>
             </div>
           )}
+          </div>
         </div>
 
         {/* Footer & Branding */}
-        <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+        <div className="pt-4 border-t border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <img src={appLogo} alt="Logo" className="w-9 h-9 object-contain drop-shadow" />
             <div>
               <p className="text-xs font-bold text-white leading-tight">Karaoke Live Station</p>
-              <p className="text-[10px] text-slate-500">v1.0.0 • Professional Karaoke Suite</p>
+              <p className="text-[10px] text-slate-400">v{appVersion} • Professional Karaoke Suite</p>
             </div>
           </div>
           <button

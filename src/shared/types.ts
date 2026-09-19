@@ -140,6 +140,22 @@ export interface AppSettings {
    */
   mdxEnableOrt: boolean;
   /**
+   * ORT WASM thread count for Download Instrumental AI (MDX / HTDemucs).
+   * `null` / missing → use all detected logical cores (default max power).
+   * Finite values are clamped to [1, detectedCores] at resolve time.
+   */
+  aiCpuThreads: number | null;
+  /**
+   * When true (default), maximize the Control (Regia) window on app launch
+   * via BrowserWindow.maximize() — not exclusive fullscreen.
+   */
+  autoMaximizeControlOnLaunch: boolean;
+  /**
+   * When true (default), open the Stage (Palco) window during initWindows.
+   * When false, Stage stays closed until reopened via UI / F2 / stage:open.
+   */
+  autoOpenStageOnLaunch: boolean;
+  /**
    * Max concurrent yt-dlp jobs (shared pool for traditional Download and Download Instrumental).
    * Extra starts are queued until a slot frees.
    */
@@ -368,6 +384,11 @@ export interface StartDownloadOptions {
   mdxSegmentSize?: number;
   mdxOverlap?: number;
   mdxEnableOrt?: boolean;
+  /**
+   * ORT WASM thread preference for AI instrumental (null = all cores).
+   * Main resolves/clamps before the worker; renderer may pass the raw setting.
+   */
+  aiCpuThreads?: number | null;
 }
 
 /**

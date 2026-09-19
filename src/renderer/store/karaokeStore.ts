@@ -25,6 +25,7 @@ import {
   MDX_DEFAULT_OVERLAP,
   MDX_DEFAULT_SEGMENT_SIZE
 } from '../../shared/mdxAdvancedSettings';
+import { coerceAiCpuThreads } from '../../shared/aiCpuThreads';
 
 export type MissingFileContext = 'library' | 'queue';
 
@@ -128,6 +129,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   mdxSegmentSize: MDX_DEFAULT_SEGMENT_SIZE,
   mdxOverlap: MDX_DEFAULT_OVERLAP,
   mdxEnableOrt: MDX_DEFAULT_ENABLE_ORT,
+  /** null = all detected cores (max power default). */
+  aiCpuThreads: null,
+  autoMaximizeControlOnLaunch: true,
+  autoOpenStageOnLaunch: true,
   maxSimultaneousDownloads: 2,
   enableAutoDuckingBGM: false,
   enableAudioNormalization: true,
@@ -302,6 +307,19 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           }
           if (partial.mdxEnableOrt !== undefined || updated.mdxEnableOrt !== undefined) {
             updated.mdxEnableOrt = coerceMdxEnableOrt(updated.mdxEnableOrt);
+          }
+          if (partial.aiCpuThreads !== undefined || updated.aiCpuThreads !== undefined) {
+            updated.aiCpuThreads = coerceAiCpuThreads(updated.aiCpuThreads);
+          }
+          if (partial.autoMaximizeControlOnLaunch !== undefined) {
+            updated.autoMaximizeControlOnLaunch = Boolean(partial.autoMaximizeControlOnLaunch);
+          } else if (typeof updated.autoMaximizeControlOnLaunch !== 'boolean') {
+            updated.autoMaximizeControlOnLaunch = true;
+          }
+          if (partial.autoOpenStageOnLaunch !== undefined) {
+            updated.autoOpenStageOnLaunch = Boolean(partial.autoOpenStageOnLaunch);
+          } else if (typeof updated.autoOpenStageOnLaunch !== 'boolean') {
+            updated.autoOpenStageOnLaunch = true;
           }
           const maxDl = Number(updated.maxSimultaneousDownloads);
           updated.maxSimultaneousDownloads =
@@ -1010,6 +1028,15 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         mergedSettings.mdxSegmentSize = coerceMdxSegmentSize(mergedSettings.mdxSegmentSize);
         mergedSettings.mdxOverlap = coerceMdxOverlap(mergedSettings.mdxOverlap);
         mergedSettings.mdxEnableOrt = coerceMdxEnableOrt(mergedSettings.mdxEnableOrt);
+        mergedSettings.aiCpuThreads = coerceAiCpuThreads(mergedSettings.aiCpuThreads);
+        mergedSettings.autoMaximizeControlOnLaunch =
+          typeof mergedSettings.autoMaximizeControlOnLaunch === 'boolean'
+            ? mergedSettings.autoMaximizeControlOnLaunch
+            : true;
+        mergedSettings.autoOpenStageOnLaunch =
+          typeof mergedSettings.autoOpenStageOnLaunch === 'boolean'
+            ? mergedSettings.autoOpenStageOnLaunch
+            : true;
         const maxDl = Number(mergedSettings.maxSimultaneousDownloads);
         mergedSettings.maxSimultaneousDownloads =
           Number.isFinite(maxDl) && maxDl >= 1 ? Math.min(8, Math.floor(maxDl)) : 2;

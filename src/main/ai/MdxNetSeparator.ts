@@ -38,6 +38,8 @@ import {
   coerceMdxAdvancedSettings,
   type MdxAdvancedSettingsInput
 } from '../../shared/mdxAdvancedSettings';
+import { resolveAiCpuThreads } from '../../shared/aiCpuThreads';
+import os from 'os';
 
 export type MdxProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
@@ -55,7 +57,10 @@ export type OrtWasmPathConfig =
     };
 
 /** Runtime knobs from Settings → worker (MDX path only). */
-export type MdxRuntimeOptions = MdxAdvancedSettingsInput;
+export type MdxRuntimeOptions = MdxAdvancedSettingsInput & {
+  /** Resolved or raw thread preference; null/omit → all cores. */
+  aiCpuThreads?: number | null;
+};
 
 type ProgressListener = (info: MdxProgress) => void;
 
@@ -103,6 +108,8 @@ export class MdxNetSeparator {
    */
   private readonly enableOrtAcceleration: boolean;
   private readonly overlapLabel: string;
+  /** ORT WASM worker threads — clamped to [1, detectedCores]. */
+  private readonly numThreads: number;
 
   private olaWindow: Float32Array;
   private chunkL: Float32Array;
@@ -118,6 +125,8 @@ export class MdxNetSeparator {
     this.step = mdxStepSamples(cfg.mdxOverlap, this.chunkSize, N_FFT);
     this.enableOrtAcceleration = cfg.mdxEnableOrt;
     this.overlapLabel = cfg.mdxOverlap.toFixed(2);
+    const totalCpus = Math.max(1, os.cpus()?.length || 1);
+    this.numThreads = resolveAiCpuThreads(options?.aiCpuThreads, totalCpus);
     this.olaWindow = new Float32Array(this.chunkSize);
     this.chunkL = new Float32Array(this.chunkSize);
     this.chunkR = new Float32Array(this.chunkSize);
@@ -143,11 +152,10 @@ export class MdxNetSeparator {
     if (!wasmPaths) {
       throw new Error('ORT WASM paths required for instrumental AI separation');
     }
-    // Single-thread WASM is intentional in Electron utilityProcess (avoid nested workers).
-    ort.env.wasm.numThreads = 1;
-    // enableOrtAcceleration: honest toggle — SIMD + full graph opts vs disabled opts.
-    // Cannot skip ORT entirely; MDX has no non-ORT inference path.
-    ort.env.wasm.simd = this.enableOrtAcceleration;
+    // Manual/core-count threads — capped to avoid OOM; never ≤0 / NaN.
+    ort.env.wasm.numThreads = this.numThreads;
+    // Spec: SIMD on for multi-thread AI path. mdxEnableOrt still gates graph opts below.
+    ort.env.wasm.simd = true;
     ort.env.wasm.proxy = false;
     if (typeof wasmPaths === 'string') {
       ort.env.wasm.wasmPaths = wasmPaths.endsWith('/') ? wasmPaths : `${wasmPaths}/`;
@@ -184,16 +192,30 @@ export class MdxNetSeparator {
       warmAudioFftForMdx(N_FFT);
       // Yield so Control UI can paint before the heavy session create.
       await yieldToMainThread();
-      this.emit({ phase: 'model', progress: 0.15, message: 'Creating ORT WASM session…' });
-      // `all` matches typical ORT desktop defaults when acceleration is on;
-      // `disabled` when the user turns off ORT CPU acceleration in Settings.
-      this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
-        executionProviders: ['wasm'],
-        graphOptimizationLevel: this.enableOrtAcceleration ? 'all' : 'disabled'
-      });
+      this.emit({ phase: 'model', progress: 0.15, message: 'Creating ORT session…' });
+      const graphOptimizationLevel = this.enableOrtAcceleration ? 'all' : 'disabled';
+      const sessionOptionsBase = {
+        graphOptimizationLevel: graphOptimizationLevel as 'all' | 'disabled'
+      };
+      // Prefer WebGPU when available; fall back to WASM (utilityProcess often has no GPU EP).
+      try {
+        this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
+          ...sessionOptionsBase,
+          executionProviders: ['webgpu', 'wasm']
+        });
+      } catch {
+        this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
+          ...sessionOptionsBase,
+          executionProviders: ['wasm']
+        });
+      }
       this.inputName = this.session.inputNames[0] || 'input';
       this.modelReady = true;
-      this.emit({ phase: 'model', progress: 1, message: 'UVR-MDX-NET Karaoke 2 ready' });
+      this.emit({
+        phase: 'model',
+        progress: 1,
+        message: `UVR-MDX-NET Karaoke 2 ready (${this.numThreads} threads)`
+      });
     })();
 
     try {

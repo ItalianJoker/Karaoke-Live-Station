@@ -1,4 +1,4 @@
-# 🎤 Karaoke Live Station v1.2.0 — Release Notes
+# 🎤 Karaoke Live Station v1.3.0 — Release Notes
 
 <p align="center">
   <a href="#-italiano">🇮🇹 <strong>Italiano</strong></a> • <a href="#-english">🇬🇧 <strong>English</strong></a>
@@ -6,120 +6,74 @@
 
 ---
 
-<a name="v120-italiano"></a>
-# 🇮🇹 Note di Rilascio — Versione 1.2.0
+<a name="v130-italiano"></a>
+# 🇮🇹 Note di Rilascio — Versione 1.3.0
 
-Sovrascrittura della release GitHub **v1.2.0** (stesso tag; **non** tocca `v1.1.0`) dopo **#48** + **#49**, sopra il batch **#40–#44 + #46–#47** (#45 saltata): file locali mancanti (USB), yt-dlp `--sub-langs .*-orig` (anti-429), Drag & Drop filesystem, scan libreria ~16k, SoundFont AppImage + Altro, Safety-First slice 1, rimozione toast «Download completato» e preselect Cantante assegnato.
+Bump codice a **1.3.0** (bozza — **nessun tag GitHub release finché Luca non dice Si**). Parte dalla baseline **v1.2.0**.
 
 ## 📦 File di Installazione
 
 | Piattaforma | File | Descrizione |
 | :--- | :--- | :--- |
-| **Windows** | `Karaoke Live Station 1.2.0.exe` | Eseguibile portatile |
-| **Windows** | `Karaoke Live Station-1.2.0-win.zip` | Archivio completo Windows 64-bit |
-| **Linux** | `Karaoke Live Station-1.2.0.AppImage` | AppImage universale |
-| **Linux** | `karaoke-live-station_1.2.0_amd64.deb` | Pacchetto Debian/Ubuntu |
-| **macOS** | `Karaoke Live Station-1.2.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
+| **Windows** | `Karaoke Live Station 1.3.0.exe` | Eseguibile portatile |
+| **Windows** | `Karaoke Live Station-1.3.0-win.zip` | Archivio completo Windows 64-bit |
+| **Linux** | `Karaoke Live Station-1.3.0.AppImage` | AppImage universale |
+| **Linux** | `karaoke-live-station_1.3.0_amd64.deb` | Pacchetto Debian/Ubuntu |
+| **macOS** | `Karaoke Live Station-1.3.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa versione
 
-### 📂 Libreria — file locali mancanti (USB / spostati)
-- Prima di **mettere in coda** o **riprodurre**, verifica del path locale (`library:check-file-exists`).
-- Se il file non esiste: azione bloccata, riga in rosso, modale **Elimina** / **Lascia in elenco** — nessuna cancellazione automatica.
-- YouTube/remoto senza `localFilePath` salta il controllo. Stringhe IT/EN/ES/FR.
+### 🖥️ Avvio Regia / Palco
+- **Massimizza Regia all’avvio** (`autoMaximizeControlOnLaunch`, default on) — `maximize()`, non fullscreen esclusivo.
+- **Apri Schermo Palco all’avvio** (`autoOpenStageOnLaunch`, default on). Se off, il Palco resta chiuso fino a **P** / **F2** / pulsante Stage.
+- Preferenze di boot salvate anche in `userData/launch-prefs.json` (leggibili prima dell’hydrate Control).
 
-### 📂 Libreria — Drag & Drop da filesystem
-- Trascina file karaoke (`.mp4` / `.webm` / `.mkv` / `.avi`, `.mp3`+`.cdg`, `.mid` / `.kar`) sulla **Libreria Locale** per catalogarli, o sulla **coda Regia** per importarli e metterli in scaletta.
-- Pairing automatico `.mp3`↔`.cdg` (stesso basename); metadati `Artist - Title` con fallback Unknown Artist.
-- Overlay solo per drop OS (`Files`); il riordino drag della coda resta invariato.
-- Thumbnail video solo per i file video importati, con yield tra un file e l’altro sul multi-drop; upsert multipli in una transazione SQLite.
+### 🧠 AI strumentale — core CPU manuali
+- Impostazioni → **Libreria & Download**: mostra core disponibili, slider + numerico **1..N**, pulsante **Reimposta su Massimo (N)**.
+- Default `aiCpuThreads: null` = tutti i core. Clamp &lt;1→1, &gt;N→N; mai ≤0/NaN.
+- MDX / Demucs: `ort.env.wasm.numThreads`, SIMD on, provider `webgpu` con fallback WASM.
 
-### ⚡ Libreria — scan grandi cataloghi (~16k)
-- **Aggiorna Libreria** fa upsert batch in una sola transazione SQLite (prepared statements riusati).
-- Niente FFmpeg sync per video sul thread principale: riusa thumb DB/cache; i thumb mancanti si generano in async (`execFile`) e aggiornano Local via `library:reindexed`.
-- Il salvataggio singolo `download:save-to-library` genera ancora un thumb sync.
+### ⚙️ Impostazioni
+- Modal più ampia (`max-w-5xl`, `h-[88vh]`), sidebar ~220px, griglia a 2 colonne.
+- Metodo Download Strumentale + MDX avanzate + core AI spostati in **Libreria & Download**. Audio: SoundFont, CUE/Master, sync A/V, Rimozione Vocale live, normalizzazione.
+- Badge versione UI **v1.3.0**.
 
-### 🎹 SoundFont — packaging AppImage + dropdown Impostazioni
-- Seed di `GeneralUser-GS.sf2` in `<userData>/soundfonts/` (stabile tra remount AppImage); path `/tmp/.mount_*` trattati come effimeri.
-- `extraResources` top-level spedisce `soundfonts` + `ort` **una sola volta** (i blocchi linux/win/mac aggiungono solo `bin/` — evita EEXIST/EBUSY).
-- Impostazioni → Audio: elenco banche bundled/presenti; **Altro…** apre il file picker `.sf2` / `.sf3` (persiste `midiSoundFontPath`). Scheduler MIDI 5 ms / `latencyHint` invariati.
-
-### 🛡️ Safety-First / Zero Regression (slice 1)
-- Blocco **AI Context & Critical Invariants** in README (contratti IPC/Zustand/SQLite congelati + sei guardrail).
-- Nuovo `scripts/verify-critical-invariants.js` + `verify-ai-vocal-path.js` in `npm test`.
-- TSDoc / Why-comment sui path critici. **Nessun breaking change** di comportamento Control↔Stage.
-
-### 📥 Scarica strumentale — `--sub-langs` yt-dlp + logging
-- Prima fix della regex invalida `en.*,it.*,es.*,fr.*,*-orig` (`Wrong regex for subtitlelangs`); logging fallimenti yt-dlp / spawn anche su `karaoke-station.log`.
-- **#48:** `all,-live_chat` richiedeva ~130 lingue → HTTP 429 YouTube. Ora `--sub-langs .*-orig` (solo auto-sub lingua originale; non usare bare `*-orig`).
-
-### 🧹 UI Regia — toast e cantante
-- Rimosso il badge overlay verde **Download completato**; stato/errori restano nel menu **Downloads**.
-- Rimosso il campo preselect **Cantante assegnato…** da Libreria / Web: l’assegnazione avviene solo nel modal di enqueue (chrome Regia invariato).
-
-## ✅ Baseline 1.1.0
-
-Include tutto quanto già in **v1.1.0** (fix yt-dlp error -1, impostazioni UVR-MDX ETA, Interrompi ricerca, unwrap MessageEvent AI, scan ricorsivo, staging Instrumental, path `karaoke://local`, ecc.).
-
-### 📜 Licenza
-- Progetto sotto **GNU AGPLv3 or later** (`AGPL-3.0-or-later`).
+## ✅ Baseline 1.2.0
+Resta incluso: file locali mancanti, Drag & Drop, scan ~16k, SoundFont AppImage + Altro, yt-dlp `.*-orig`, Safety-First slice 1.
 
 ---
 
-<a name="v120-english"></a>
-# 🇬🇧 Release Notes — Version 1.2.0
+<a name="v130-english"></a>
+# 🇬🇧 Release Notes — Version 1.3.0
 
-Overwrite of GitHub release **v1.2.0** (same tag; does **not** touch `v1.1.0`) after **#48** + **#49**, on top of batch **#40–#44 + #46–#47** (#45 skipped): missing local files (USB), yt-dlp `--sub-langs .*-orig` (anti-429), filesystem Drag & Drop, faster ~16k library scan, AppImage SoundFont + Settings Altro, Safety-First slice 1, remove Download-completed overlay and assigned-singer preselect.
+Code bump to **1.3.0** (draft — **no GitHub release tag until Luca says Si**). Builds on **v1.2.0** baseline.
 
-## 📦 Installers
+## 📦 Installer Files
 
 | Platform | File | Description |
 | :--- | :--- | :--- |
-| **Windows** | `Karaoke Live Station 1.2.0.exe` | Portable executable |
-| **Windows** | `Karaoke Live Station-1.2.0-win.zip` | Full Windows 64-bit archive |
-| **Linux** | `Karaoke Live Station-1.2.0.AppImage` | Universal AppImage |
-| **Linux** | `karaoke-live-station_1.2.0_amd64.deb` | Debian/Ubuntu package |
-| **macOS** | `Karaoke Live Station-1.2.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
+| **Windows** | `Karaoke Live Station 1.3.0.exe` | Portable executable |
+| **Windows** | `Karaoke Live Station-1.3.0-win.zip` | Full Windows 64-bit archive |
+| **Linux** | `Karaoke Live Station-1.3.0.AppImage` | Universal AppImage |
+| **Linux** | `karaoke-live-station_1.3.0_amd64.deb` | Debian/Ubuntu package |
+| **macOS** | `Karaoke Live Station-1.3.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
-## 🌟 What’s new in this version
+## 🌟 What’s new
 
-### 📂 Library — missing local files (USB / moved)
-- Before **enqueue** or **play**, probes the local path (`library:check-file-exists`).
-- If missing: action blocked, row marked red, **Delete** / **Keep in list** modal — never auto-deletes.
-- Remote/YouTube without `localFilePath` skips the check. Strings IT/EN/ES/FR.
+### 🖥️ Launch — Control / Stage
+- **Maximize Regia on launch** (`autoMaximizeControlOnLaunch`, default on) — `maximize()`, not exclusive fullscreen.
+- **Open Stage on launch** (`autoOpenStageOnLaunch`, default on). When off, Stage stays closed until **P** / **F2** / Stage button.
+- Boot prefs also written to `userData/launch-prefs.json` (readable before Control hydrates).
 
-### 📂 Library — OS filesystem Drag & Drop
-- Drop karaoke files (`.mp4` / `.webm` / `.mkv` / `.avi`, `.mp3`+`.cdg`, `.mid` / `.kar`) onto **Local Library** to catalog them, or onto the **Control queue** to import and enqueue.
-- Automatic `.mp3`↔`.cdg` pairing (same basename); `Artist - Title` metadata with Unknown Artist fallback.
-- Overlay only for OS `Files` drops; in-app queue reorder is unchanged.
-- Video thumbnails only for imported video files, with yields between files on multi-drop; multi-row upsert in one SQLite transaction.
+### 🧠 Instrumental AI — manual CPU cores
+- Settings → **Library & Download**: available cores, slider + numeric **1..N**, **Reset to Maximum (N)**.
+- Default `aiCpuThreads: null` = all cores. Clamp &lt;1→1, &gt;N→N; never ≤0/NaN.
+- MDX / Demucs: `ort.env.wasm.numThreads`, SIMD on, `webgpu` with WASM fallback.
 
-### ⚡ Library — large catalog scan (~16k)
-- **Refresh Library** batch-upserts in a single SQLite transaction (reused prepared statements).
-- No sync FFmpeg per video on the main thread: reuse DB/cache thumbs; missing thumbs generate asynchronously (`execFile`) and refresh Local via `library:reindexed`.
-- Single-file `download:save-to-library` still generates a sync thumb.
+### ⚙️ Settings
+- Wider modal (`max-w-5xl`, `h-[88vh]`), ~220px sidebar, 2-column grids.
+- Download Instrumental method + MDX advanced + AI cores moved to **Library & Download**. Audio keeps SoundFont, CUE/Master, A/V sync, live vocal remover DSP, normalization.
+- UI version badge **v1.3.0**.
 
-### 🎹 SoundFont — AppImage packaging + Settings dropdown
-- Seed `GeneralUser-GS.sf2` into `<userData>/soundfonts/` (stable across AppImage remounts); treat `/tmp/.mount_*` paths as ephemeral.
-- Top-level `extraResources` ships `soundfonts` + `ort` **once** (platform blocks only add `bin/` — avoids EEXIST/EBUSY).
-- Settings → Audio: list bundled/present banks; **Other…** opens `.sf2` / `.sf3` file picker (persists `midiSoundFontPath`). MIDI 5 ms scheduler / `latencyHint` unchanged.
-
-### 🛡️ Safety-First / Zero Regression (slice 1)
-- README **AI Context & Critical Invariants** block (frozen IPC/Zustand/SQLite contracts + six guardrails).
-- New `scripts/verify-critical-invariants.js` and fold `verify-ai-vocal-path.js` into `npm test`.
-- TSDoc / Why-comments on critical paths. **No Control↔Stage behavior breaking changes.**
-
-### 📥 Download Instrumental — yt-dlp `--sub-langs` + logging
-- First fixed invalid `en.*,it.*,es.*,fr.*,*-orig` (`Wrong regex for subtitlelangs`); yt-dlp / spawn failures also write to `karaoke-station.log`.
-- **#48:** `all,-live_chat` requested ~130 languages → YouTube HTTP 429. Now `--sub-langs .*-orig` (original-language auto-subs only; do not use bare `*-orig`).
-
-### 🧹 Control UI — toast and singer
-- Removed the green **Download completed** overlay badge; status/errors remain in the **Downloads** menu.
-- Removed Library / Web **Assigned singer…** preselect; assignment happens only in the enqueue modal (Regia chrome unchanged).
-
-## ✅ 1.1.0 baseline
-
-Includes everything already in **v1.1.0** (yt-dlp error -1 fix, UVR-MDX ETA settings, Stop search, AI MessageEvent unwrap, recursive scan, Instrumental staging, `karaoke://local` path fix, etc.).
-
-### 📜 License
-- Project under **GNU AGPLv3 or later** (`AGPL-3.0-or-later`).
+## ✅ 1.2.0 baseline
+Still includes: missing local files, Drag & Drop, ~16k scan, AppImage SoundFont + Altro, yt-dlp `.*-orig`, Safety-First slice 1.
