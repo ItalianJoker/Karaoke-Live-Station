@@ -43,6 +43,9 @@ Bump codice a **1.3.0** (bozza — **nessun tag GitHub release finché Luca non 
 ## ✅ Baseline 1.2.0
 Resta incluso: file locali mancanti, Drag & Drop, scan ~16k, SoundFont AppImage + Altro, yt-dlp `.*-orig`, Safety-First slice 1.
 
+## 🧪 In bozza (PR separata — merge solo dopo Si)
+- **Modal sottotitoli Scarica strumentale** — conferma prima del download; policy `ask`/`always`/`never`; `--sub-langs .*-orig,default` (anti-429); sottotitoli solo se `includeSubtitles: true`.
+
 ---
 
 <a name="v130-english"></a>
@@ -81,3 +84,6 @@ Code bump to **1.3.0** (draft — **no GitHub release tag until Luca says Si**).
 
 ## ✅ 1.2.0 baseline
 Still includes: missing local files, Drag & Drop, ~16k scan, AppImage SoundFont + Altro, yt-dlp `.*-orig`, Safety-First slice 1.
+
+## 🧪 Draft (separate PR — merge only after Si)
+- **Download Instrumental subtitles modal** — confirm before download; policy `ask`/`always`/`never`; `--sub-langs .*-orig,default` (anti-429); subs only when `includeSubtitles: true`.

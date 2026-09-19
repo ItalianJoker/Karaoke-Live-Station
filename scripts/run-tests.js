@@ -2330,7 +2330,8 @@ assert(
     downloadStagingSource.includes('isYtDlpTransientMediaName') &&
     downloadStagingSource.includes('buildYtDlpOutputTemplate') &&
     downloadStagingSource.includes('YTDLP_INSTRUMENTAL_SUB_LANGS') &&
-    downloadStagingSource.includes("YTDLP_INSTRUMENTAL_SUB_LANGS = '.*-orig'"),
+    downloadStagingSource.includes("YTDLP_INSTRUMENTAL_SUB_LANGS = '.*-orig,default'") &&
+    downloadStagingSource.includes('shouldWriteInstrumentalAutoSubs'),
   'downloadStaging.ts exports yt-dlp path parse + media resolve helpers'
 );
 
@@ -2357,10 +2358,14 @@ assert(
     downloadManagerStagingSrc.includes('Instrumental staging:') &&
     downloadManagerStagingSrc.includes('YTDLP_INSTRUMENTAL_SUB_LANGS') &&
     downloadManagerStagingSrc.includes("'--sub-langs'") &&
+    downloadManagerStagingSrc.includes('shouldWriteInstrumentalAutoSubs') &&
+    downloadManagerStagingSrc.includes('includeSubtitles') &&
     !downloadManagerStagingSrc.includes("'en.*,it.*,es.*,fr.*,*-orig'") &&
     // No bare *-orig string literal in DownloadManager (constant lives in downloadStaging).
     !/['"]\*-orig['"]/.test(downloadManagerStagingSrc) &&
     !/['"][^'"]*,\*-orig/.test(downloadManagerStagingSrc) &&
+    // Must not request all languages (YouTube 429).
+    !downloadManagerStagingSrc.includes("'all,-live_chat'") &&
     downloadManagerStagingSrc.includes('logDownloadFailure') &&
     downloadManagerStagingSrc.includes("yt-dlp exited with error code") &&
     downloadManagerStagingSrc.includes('logger?.warn') &&
@@ -2389,7 +2394,8 @@ assert(
         resolveDownloadedMediaPath,
         resolvePathAgainstTempDir,
         buildYtDlpOutputTemplate,
-        YTDLP_INSTRUMENTAL_SUB_LANGS
+        YTDLP_INSTRUMENTAL_SUB_LANGS,
+        shouldWriteInstrumentalAutoSubs
       } from ${JSON.stringify(path.resolve(__dirname, '../src/main/services/downloadStaging.ts'))};
       import fs from 'fs';
       import pathMod from 'path';
@@ -2400,7 +2406,9 @@ assert(
       assert(!buildYtDlpOutputTemplate('dl_abc').includes(pathMod.sep), 'no-abs-sep');
       assert(!buildYtDlpOutputTemplate('dl_abc').includes(':'), 'no-type-colon');
       assert(buildYtDlpOutputTemplate('dl_abc').includes('%(ext)s'), 'keeps-ext-field');
-      assert(YTDLP_INSTRUMENTAL_SUB_LANGS === '.*-orig', 'sub-langs-orig-only');
+      assert(YTDLP_INSTRUMENTAL_SUB_LANGS === '.*-orig,default', 'sub-langs-orig-default');
+      assert(YTDLP_INSTRUMENTAL_SUB_LANGS.includes('.*-orig'), 'has-orig-token');
+      assert(!/(^|,)all(,|$)/.test(YTDLP_INSTRUMENTAL_SUB_LANGS), 'no-bare-all-token');
       // Forbid bare *-orig / tokens that start with * (no preceding .); allow .*-orig.
       assert(
         !YTDLP_INSTRUMENTAL_SUB_LANGS.split(',').some(
@@ -2411,12 +2419,37 @@ assert(
       // Each comma-separated token must compile as a JS RegExp (same constraint as yt-dlp/Python re).
       for (const token of YTDLP_INSTRUMENTAL_SUB_LANGS.split(',')) {
         const pat = token.startsWith('-') ? token.slice(1) : token;
-        if (pat === 'all') continue;
+        if (pat === 'all' || pat === 'default') continue;
         try { new RegExp(pat); } catch (e) {
           console.error('PROBE_FAIL', 'sub-langs-regex', pat, e && e.message);
           process.exit(2);
         }
       }
+      // includeSubtitles gating: false/undefined → no write-auto-sub path
+      assert(
+        shouldWriteInstrumentalAutoSubs({ instrumental: true }) === false,
+        'subs-omit-default-false'
+      );
+      assert(
+        shouldWriteInstrumentalAutoSubs({ instrumental: true, includeSubtitles: false }) === false,
+        'subs-explicit-false'
+      );
+      assert(
+        shouldWriteInstrumentalAutoSubs({
+          instrumental: true,
+          includeSubtitles: true,
+          isAudioOnly: true
+        }) === false,
+        'subs-audio-only-false'
+      );
+      assert(
+        shouldWriteInstrumentalAutoSubs({ instrumental: false, includeSubtitles: true }) === false,
+        'subs-non-instrumental-false'
+      );
+      assert(
+        shouldWriteInstrumentalAutoSubs({ instrumental: true, includeSubtitles: true }) === true,
+        'subs-instrumental-true'
+      );
       assert(parseYtDlpOutputPath('[download] Destination: /tmp/a.mp4') === '/tmp/a.mp4', 'dest');
       assert(
         parseYtDlpOutputPath('[Merger] Merging formats into "/tmp/b.mp4"') === '/tmp/b.mp4',
@@ -3168,6 +3201,103 @@ assert(
     frLocale.settings?.dspEngine,
   'i18n DSP engine keys present in en/it/es/fr'
 );
+
+// -------------------------------------------------------------
+// Suite: Instrumental subtitles confirmation modal + 429-safe sub-langs
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Instrumental subtitles modal + sub-langs gating\x1b[0m');
+
+{
+  const typesSubsSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/shared/types.ts'),
+    'utf8'
+  );
+  const storeSubsSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+    'utf8'
+  );
+  const librarySubsSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  const modalSubsPath = path.resolve(
+    __dirname,
+    '../src/renderer/components/InstrumentalSubtitlesModal.tsx'
+  );
+  const dmSubsSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+    'utf8'
+  );
+
+  assert(fs.existsSync(modalSubsPath), 'InstrumentalSubtitlesModal.tsx exists');
+  const modalSubsSrc = fs.readFileSync(modalSubsPath, 'utf8');
+
+  assert(
+    typesSubsSrc.includes("instrumentalSubtitlesPolicy: 'ask' | 'always' | 'never'") &&
+      typesSubsSrc.includes('includeSubtitles?: boolean'),
+    'types: instrumentalSubtitlesPolicy + StartDownloadOptions.includeSubtitles'
+  );
+
+  assert(
+    /instrumentalSubtitlesPolicy:\s*'ask'/.test(storeSubsSrc) &&
+      storeSubsSrc.includes("raw === 'always' || raw === 'never'"),
+    'karaokeStore defaults instrumentalSubtitlesPolicy to ask + coerces merge'
+  );
+
+  assert(
+    librarySubsSrc.includes('InstrumentalSubtitlesModal') &&
+      librarySubsSrc.includes('handleInstrumentalDownloadClick') &&
+      librarySubsSrc.includes('includeSubtitles') &&
+      librarySubsSrc.includes('instrumentalSubtitlesPolicy'),
+    'LibraryPanel opens modal / honors policy before instrumental download'
+  );
+
+  assert(
+    modalSubsSrc.includes('instrumental-subtitles-modal') &&
+      modalSubsSrc.includes("e.key === 'Escape'") &&
+      modalSubsSrc.includes('onClick={onClose}') &&
+      modalSubsSrc.includes('instrumentalSubtitlesWarning') &&
+      modalSubsSrc.includes('instrumentalSubtitlesWith') &&
+      modalSubsSrc.includes('instrumentalSubtitlesWithout'),
+    'InstrumentalSubtitlesModal: Esc/outside cancel + with/without actions + amber warning'
+  );
+
+  // Flags only when shouldWriteInstrumentalAutoSubs (instrumental + includeSubtitles)
+  assert(
+    dmSubsSrc.includes('shouldWriteInstrumentalAutoSubs') &&
+      dmSubsSrc.includes("'--write-auto-sub'") &&
+      dmSubsSrc.includes('includeSubtitles'),
+    'DownloadManager gates --write-auto-sub on shouldWriteInstrumentalAutoSubs'
+  );
+
+  // Normal download path must not force includeSubtitles / modal
+  assert(
+    !/handleStartDownload\(track\)[\s\S]{0,40}includeSubtitles:\s*true/.test(librarySubsSrc),
+    'Normal download click does not force includeSubtitles'
+  );
+
+  for (const lang of ['it', 'en', 'es', 'fr']) {
+    const loc = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+    );
+    assert(
+      loc.library?.instrumentalSubtitlesTitle &&
+        loc.library?.instrumentalSubtitlesAsk &&
+        loc.library?.instrumentalSubtitlesWarning &&
+        loc.library?.instrumentalSubtitlesWith &&
+        loc.library?.instrumentalSubtitlesWithout &&
+        loc.library?.instrumentalSubtitlesCancel &&
+        loc.library?.instrumentalSubtitlesRemember,
+      `${lang}.json has instrumental subtitle modal keys`
+    );
+  }
+
+  assert(
+    JSON.parse(fs.readFileSync(path.resolve(__dirname, '../locales/it.json'), 'utf8')).library
+      .instrumentalSubtitlesTitle === 'Download Base Strumentale',
+    'IT modal title matches UX copy'
+  );
+}
 
 // Summary
 // -------------------------------------------------------------
