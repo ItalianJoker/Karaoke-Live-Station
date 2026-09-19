@@ -66,14 +66,17 @@ assert(
   bungeeSrc.includes('isDspNeutralBypass') &&
     bungeeSrc.includes('applyBypassRouting') &&
     bungeeSrc.includes('bungee-audio-stretch/bungee') &&
-    bungeeSrc.includes('MPL-2.0'),
-  'BungeePitchShifterNode: neutral bypass + MPL-2.0 upstream attribution'
+    bungeeSrc.includes('MPL-2.0') &&
+    bungeeSrc.includes('waitForWasmReady'),
+  'BungeePitchShifterNode: neutral bypass + wait Wasm ready + MPL-2.0'
 );
 assert(
   audioSrc.includes('falling back to SoundTouch') &&
     audioSrc.includes('setDspEngine') &&
-    audioSrc.includes('PitchShifterNode'),
-  'AudioGraphManager keeps SoundTouch path + silent Bungee fallback'
+    audioSrc.includes('PitchShifterNode') &&
+    audioSrc.includes('applyMediaElementRateForActiveEngine') &&
+    audioSrc.includes('playbackRate = 1.0'),
+  'AudioGraphManager keeps SoundTouch path + Bungee element rate 1.0 + silent fallback'
 );
 
 // 2) volume gain = volume² clamped [0,1]

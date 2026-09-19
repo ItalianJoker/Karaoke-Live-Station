@@ -1,7 +1,7 @@
 import { MidiLyricEvent, MidiParsedSong } from '../../shared/types';
 import {
   clampPitchForEngine,
-  clampPlaybackSpeed,
+  clampSpeedForEngine,
   coerceDspPitchEngine,
   type DspPitchEngine
 } from '../../shared/dspPitch';
@@ -78,6 +78,8 @@ export class AudioGraphManager {
   /** Engine currently wired into the bridge (may be SoundTouch after silent fallback). */
   private activeDspEngine: DspPitchEngine | null = null;
   private dspInitGeneration = 0;
+  /** In-flight ensureDspEngine promise — dedupes concurrent bind/setDspEngine calls. */
+  private dspEnsurePromise: Promise<void> | null = null;
 
   // Vocal Remover — algorithmic mid/side DSP only (live); AI ids coerce to default algo
   private vocalRemoverNode: AlgorithmicVocalRemoverNode | null = null;
@@ -243,7 +245,9 @@ export class AudioGraphManager {
     (element as any).preservesPitch = true;
     (element as any).mozPreservesPitch = true;
     (element as any).webkitPreservesPitch = true;
-    element.playbackRate = this.currentPlaybackSpeed;
+    // Bungee owns tempo in Wasm — never set element rate to currentPlaybackSpeed here
+    // (would double-accelerate once the worklet also stretches). SoundTouch uses element rate.
+    this.applyMediaElementRateForActiveEngine();
 
     if (!this.audioCtx) {
       await this.initAudioContext();
@@ -258,6 +262,9 @@ export class AudioGraphManager {
         console.warn('MediaElementSource binding notice:', err);
       }
     }
+
+    // Re-apply after graph setup (active engine may still be null until ensureDspEngine resolves).
+    this.applyMediaElementRateForActiveEngine();
   }
 
   /**
@@ -298,8 +305,33 @@ export class AudioGraphManager {
   /**
    * Ensures the preferred DSP engine is loaded and wired.
    * Silent fallback to SoundTouch when Bungee Wasm/Worklet init fails.
+   * Concurrent callers share one in-flight promise (avoids double create + generation abort).
    */
   private async ensureDspEngine(): Promise<void> {
+    if (!this.audioCtx || !this.dspBridgeIn || !this.dspBridgeOut) return;
+
+    if (this.dspEnsurePromise) {
+      await this.dspEnsurePromise;
+    }
+
+    // Already on the preferred engine (or silent SoundTouch fallback after Bungee failure).
+    if (this.activeDspEngine === this.preferredDspEngine) return;
+    if (
+      this.preferredDspEngine === 'bungee' &&
+      this.activeDspEngine === 'soundtouch' &&
+      !this.bungeeNode
+    ) {
+      return;
+    }
+
+    const run = this.ensureDspEngineInternal();
+    this.dspEnsurePromise = run.finally(() => {
+      this.dspEnsurePromise = null;
+    });
+    await this.dspEnsurePromise;
+  }
+
+  private async ensureDspEngineInternal(): Promise<void> {
     if (!this.audioCtx || !this.dspBridgeIn || !this.dspBridgeOut) return;
     const generation = ++this.dspInitGeneration;
     const preferred = this.preferredDspEngine;
@@ -309,6 +341,7 @@ export class AudioGraphManager {
         try {
           // Upstream Wasm: https://github.com/bungee-audio-stretch/bungee (MPL-2.0).
           // Runtime assets only under public/workers/ — no C++ source in-tree.
+          // create() waits for Wasm `initialized` (throws on timeout/error → SoundTouch).
           this.bungeeNode = await BungeePitchShifterNode.create(this.audioCtx);
           this.log('info', 'Bungee pitch/speed DSP initialized (Wasm AudioWorklet)');
         } catch (err) {
@@ -359,9 +392,14 @@ export class AudioGraphManager {
     this.dspBridgeIn.connect(this.bungeeNode.input);
     this.bungeeNode.output.connect(this.dspBridgeOut);
     this.activeDspEngine = 'bungee';
+    // Re-apply live params after wire (covers pitch/speed set while ensureDspEngine was pending).
     this.bungeeNode.setPitchOffset(this.currentPitchOffset);
     this.bungeeNode.setPlaybackSpeed(this.currentPlaybackSpeed);
     this.applyMediaElementRateForActiveEngine();
+    this.log(
+      'info',
+      `Bungee DSP wired — pitch ${this.currentPitchOffset} ST, speed ${this.currentPlaybackSpeed.toFixed(2)}x`
+    );
   }
 
   private wireSoundTouchEngine(): void {
@@ -378,11 +416,14 @@ export class AudioGraphManager {
   }
 
   /**
-   * Bungee owns tempo via Wasm; SoundTouch keeps HTMLMediaElement.playbackRate.
+   * Bungee owns tempo via Wasm — element rate stays 1.0 (no double acceleration).
+   * SoundTouch (or engine not yet wired): HTMLMediaElement.playbackRate drives tempo;
+   * while Bungee is preferred but not yet active, keep rate at 1.0 to avoid a chipmunk
+   * flash before the worklet takes over.
    */
   private applyMediaElementRateForActiveEngine(): void {
     if (!this.mediaElement || this.isMidiMode) return;
-    if (this.activeDspEngine === 'bungee') {
+    if (this.activeDspEngine === 'bungee' || (this.activeDspEngine === null && this.preferredDspEngine === 'bungee')) {
       this.mediaElement.playbackRate = 1.0;
     } else {
       this.mediaElement.playbackRate = this.currentPlaybackSpeed;
@@ -470,6 +511,9 @@ export class AudioGraphManager {
     const next = coerceDspPitchEngine(engine);
     if (next === this.preferredDspEngine && this.activeDspEngine === next) return;
     this.preferredDspEngine = next;
+    // Re-clamp stored speed/pitch into the new engine UI windows before wiring.
+    this.currentPlaybackSpeed = clampSpeedForEngine(this.currentPlaybackSpeed, next);
+    this.currentPitchOffset = clampPitchForEngine(this.currentPitchOffset, next);
     if (this.audioCtx && this.dspBridgeIn) {
       void this.ensureDspEngine();
     }
@@ -489,17 +533,27 @@ export class AudioGraphManager {
    * Updates real-time pitch transposition in semitones without modifying speed.
    * Range depends on the preferred engine (Bungee UI ±8, SoundTouch ±4).
    *
+   * Always stores {@link currentPitchOffset} so {@link wireBungeeEngine} /
+   * {@link wireSoundTouchEngine} can re-apply after async DSP init.
+   * When `activeDspEngine` is still null, prefers the matching node if already created.
+   *
    * @param semitones - Transposition offset
    */
   public setPitchOffset(semitones: number): void {
     const clamped = clampPitchForEngine(semitones, this.preferredDspEngine);
     if (clamped === this.currentPitchOffset) return;
     this.currentPitchOffset = clamped;
-    if (this.activeDspEngine === 'bungee') {
+
+    if (this.activeDspEngine === 'bungee' || (this.activeDspEngine === null && this.bungeeNode)) {
       this.bungeeNode?.setPitchOffset(clamped);
-    } else {
+      this.log('info', `Pitch offset applied (Bungee): ${clamped} ST`);
+    } else if (this.activeDspEngine === 'soundtouch' || this.pitchShifterNode) {
       this.pitchShifterNode?.setPitchOffset(clamped);
+      this.log('info', `Pitch offset applied (SoundTouch): ${clamped} ST`);
+    } else {
+      this.log('debug', `Pitch offset queued (${clamped} ST) — DSP engine not wired yet`);
     }
+
     if (this.isMidiMode) {
       this.silenceAllVoices();
     }
@@ -507,12 +561,14 @@ export class AudioGraphManager {
 
   /**
    * Adjusts playback rate / speed (0.50x to 1.50x) without modifying pitch.
-   * Bungee applies speed in Wasm; SoundTouch uses HTMLMediaElement.playbackRate.
+   * Bungee applies speed in Wasm (element rate forced to 1.0).
+   * SoundTouch uses HTMLMediaElement.playbackRate (pitch compensate via WSOLA).
+   * Stores {@link currentPlaybackSpeed} for re-apply on engine wire.
    *
    * @param speed - Playback speed multiplier
    */
   public setPlaybackSpeed(speed: number): void {
-    const clamped = clampPlaybackSpeed(speed);
+    const clamped = clampSpeedForEngine(speed, this.preferredDspEngine);
     if (clamped === this.currentPlaybackSpeed) return;
     this.currentPlaybackSpeed = clamped;
 
@@ -522,11 +578,17 @@ export class AudioGraphManager {
       this.midiPlaybackStartTimeMs = performance.now() - (currentMs / this.currentPlaybackSpeed);
     }
 
-    if (this.activeDspEngine === 'bungee') {
+    if (this.activeDspEngine === 'bungee' || (this.activeDspEngine === null && this.bungeeNode)) {
       this.bungeeNode?.setPlaybackSpeed(clamped);
       this.applyMediaElementRateForActiveEngine();
+      this.log('info', `Playback speed applied (Bungee Wasm): ${clamped.toFixed(2)}x (element rate 1.0)`);
+    } else if (this.activeDspEngine === null && this.preferredDspEngine === 'bungee') {
+      // Pending Bungee init — keep element at 1.0; wireBungeeEngine will send setSpeed.
+      this.applyMediaElementRateForActiveEngine();
+      this.log('debug', `Playback speed queued (Bungee pending): ${clamped.toFixed(2)}x`);
     } else if (this.mediaElement && !this.isMidiMode) {
       this.mediaElement.playbackRate = this.currentPlaybackSpeed;
+      this.log('info', `Playback speed applied (SoundTouch / media element): ${clamped.toFixed(2)}x`);
     }
   }
 

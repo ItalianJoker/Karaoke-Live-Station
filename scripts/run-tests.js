@@ -3158,8 +3158,14 @@ function clampPitchForEngineTest(semitones, engine) {
   const n = Number.isFinite(semitones) ? Math.round(semitones) : 0;
   return Math.max(min, Math.min(max, n));
 }
+function clampSpeedForEngineTest(speed, engine) {
+  const min = engine === 'soundtouch' ? 0.75 : 0.5;
+  const max = engine === 'soundtouch' ? 1.25 : 1.5;
+  const n = Number.isFinite(speed) ? speed : 1;
+  return Math.max(min, Math.min(max, Math.round(n * 100) / 100));
+}
 function isDspNeutralBypassTest(pitch, speed) {
-  return pitch === 0 && Math.abs(speed - 1) < 1e-6;
+  return pitch === 0 && Math.abs(speed - 1) < 0.001;
 }
 
 assert(
@@ -3169,8 +3175,15 @@ assert(
 assert(
   dspPitchShared.includes("export type DspPitchEngine = 'bungee' | 'soundtouch'") &&
     dspPitchShared.includes('BUNGEE_PITCH_UI_MIN = -8') &&
-    dspPitchShared.includes('SOUNDTOUCH_PITCH_MIN = -4'),
-  'Shared semitone ranges: Bungee UI ±8, SoundTouch ±4'
+    dspPitchShared.includes('SOUNDTOUCH_PITCH_MIN = -4') &&
+    dspPitchShared.includes('BUNGEE_SPEED_UI_MIN = 0.5') &&
+    dspPitchShared.includes('BUNGEE_SPEED_UI_MAX = 1.5') &&
+    dspPitchShared.includes('SOUNDTOUCH_SPEED_UI_MIN = 0.75') &&
+    dspPitchShared.includes('SOUNDTOUCH_SPEED_UI_MAX = 1.25') &&
+    dspPitchShared.includes('BUNGEE_SPEED_ABSOLUTE_MAX = 2.0') &&
+    dspPitchShared.includes('getSpeedRangeForEngine') &&
+    dspPitchShared.includes('clampSpeedForEngine'),
+  'Shared pitch + speed ranges: Bungee UI ±8 / 0.50–1.50, SoundTouch ±4 / 0.75–1.25'
 );
 assert(
   clampPitchForEngineTest(9, 'bungee') === 8 &&
@@ -3180,17 +3193,33 @@ assert(
   'Semitone clamp per engine (Bungee ±8, SoundTouch ±4)'
 );
 assert(
+  clampSpeedForEngineTest(0.4, 'bungee') === 0.5 &&
+    clampSpeedForEngineTest(1.8, 'bungee') === 1.5 &&
+    clampSpeedForEngineTest(0.6, 'soundtouch') === 0.75 &&
+    clampSpeedForEngineTest(1.4, 'soundtouch') === 1.25 &&
+    clampSpeedForEngineTest(1.111, 'bungee') === 1.11,
+  'Speed clamp per engine (Bungee 0.50–1.50, SoundTouch 0.75–1.25, round 0.01)'
+);
+assert(
+  clampSpeedForEngineTest(0.6, 'soundtouch') === 0.75,
+  'Engine switch Bungee→SoundTouch re-clips 0.60 → 0.75'
+);
+assert(
   isDspNeutralBypassTest(0, 1.0) === true &&
     isDspNeutralBypassTest(1, 1.0) === false &&
-    isDspNeutralBypassTest(0, 1.05) === false,
-  'Bypass when pitch 0 & speed 1.0 only'
+    isDspNeutralBypassTest(0, 1.05) === false &&
+    isDspNeutralBypassTest(0, 0.75) === false,
+  'Bypass when pitch 0 & speed 1.0 only (speed≠1 also exits bypass)'
 );
 assert(
   bungeeNodeSrc.includes('isDspNeutralBypass') &&
     bungeeNodeSrc.includes('applyBypassRouting') &&
     bungeeNodeSrc.includes('bungee-audio-stretch/bungee') &&
-    bungeeNodeSrc.includes('MPL-2.0'),
-  'BungeePitchShifterNode: true bypass + upstream MPL attribution at load site'
+    bungeeNodeSrc.includes('MPL-2.0') &&
+    bungeeNodeSrc.includes('waitForWasmReady') &&
+    bungeeNodeSrc.includes('initialized') &&
+    bungeeNodeSrc.includes('BUNGEE_INIT_TIMEOUT_MS'),
+  'BungeePitchShifterNode: true bypass + wait for Wasm initialized + MPL attribution'
 );
 assert(
   pitchShifterSrc.includes('SOUNDTOUCH_PITCH_MIN') &&
@@ -3202,8 +3231,35 @@ assert(
   audioGraphDspSrc.includes('setDspEngine') &&
     audioGraphDspSrc.includes('BungeePitchShifterNode') &&
     audioGraphDspSrc.includes('falling back to SoundTouch') &&
-    audioGraphDspSrc.includes('PitchShifterNode'),
-  'AudioGraphManager: Bungee default + silent SoundTouch fallback; SoundTouch path kept'
+    audioGraphDspSrc.includes('PitchShifterNode') &&
+    audioGraphDspSrc.includes('Bungee DSP wired') &&
+    audioGraphDspSrc.includes('Pitch offset applied') &&
+    audioGraphDspSrc.includes('dspEnsurePromise') &&
+    audioGraphDspSrc.includes('applyMediaElementRateForActiveEngine') &&
+    /activeDspEngine === 'bungee'[\s\S]*?playbackRate = 1\.0/.test(audioGraphDspSrc) &&
+    audioGraphDspSrc.includes('Bungee owns tempo'),
+  'AudioGraphManager: Bungee wire re-applies pitch/speed + element rate 1.0 + SoundTouch fallback'
+);
+{
+  const controlDspSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+    'utf8'
+  );
+  assert(
+    controlDspSrc.includes("engine === 'soundtouch' ? playback.playbackSpeed : 1.0") &&
+      controlDspSrc.includes('Bungee owns tempo') &&
+      controlDspSrc.includes('getSpeedRangeForEngine') &&
+      controlDspSrc.includes('speedRange.min') &&
+      controlDspSrc.includes('speedRange.max') &&
+      controlDspSrc.includes('setPlaybackSpeed(1.0)'),
+    'ControlWindow: Bungee element rate 1.0 + dynamic speed range + reset 1.00x'
+  );
+}
+assert(
+  storeDspSrc.includes('clampSpeedForEngine') &&
+    storeDspSrc.includes('partial.dspEngine') &&
+    storeDspSrc.includes('playbackSpeed: nextSpeed'),
+  'karaokeStore: setPlaybackSpeed clamps by engine; engine switch re-clamps speed'
 );
 assert(
   settingsDspSrc.includes("value=\"bungee\"") &&
@@ -3217,6 +3273,17 @@ assert(
     fs.existsSync(path.resolve(__dirname, '../public/workers/BUNGEE_NOTICE.md')),
   'Prebuilt Bungee Wasm assets + NOTICE present (no C++ tree)'
 );
+{
+  const bungeeProc = fs.readFileSync(
+    path.resolve(__dirname, '../public/workers/bungee_processor.js')
+  );
+  assert(
+    !bungeeProc.includes('export default createBungeeModule') &&
+      bungeeProc.includes('AudioWorkletGlobalScope') &&
+      bungeeProc.includes("registerProcessor('bungee-processor'"),
+    'bungee_processor.js: no ESM export default; AudioWorkletGlobalScope worker detect; registerProcessor present'
+  );
+}
 assert(
   !fs.existsSync(path.resolve(__dirname, '../vendor/bungee')) &&
     !fs.existsSync(path.resolve(__dirname, '../third_party/bungee')),
