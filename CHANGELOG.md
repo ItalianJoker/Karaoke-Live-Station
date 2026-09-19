@@ -9,22 +9,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- **AI worker WebGPU telemetry + honest WASM UI** — Instrumental AI reports actual `ortBackend` (`webgpu`|`wasm`) + `ortFallbackReason` to logs/progress (no silent WASM fallback). Stderr parse for ORT `webgpu` / `backend not found`. Diagnostic `scripts/probe-worker-webgpu.js`. Shared `aiWorkerWebGpu` probe skips WebGPU when `navigator.gpu` is missing in `utilityProcess`. Settings GPU badge stays amber WASM when the AI worker cannot host WebGPU (hardware GPU name shown as note only — never false “GPU active”).
-- **Settings: Download Instrumental subtitles policy** — Library & Download exposes `instrumentalSubtitlesPolicy` (`ask` / `always` / `never`), same meaning as the modal “Remember my choice”; operators can change or clear the remembered preference later without redesign.
+- None yet.
 
 ### Changed
-- **Settings AI layout** — Library & Download: GPU card is toggle + badge only; AI instrumental CPU cores live in a sibling CPU card; MDX `mdxEnableOrt` (ONNX Runtime CPU acceleration) grouped into that CPU card (MDX-only visibility unchanged). No settings key / IPC / default changes.
-- MDX/HTDemucs try WebGPU-only then WASM (avoids ORT silently stripping webgpu from a combined EP list). InstrumentalProcessor/AiSeparator no longer log `ortNumThreads: 1` when threads are unresolved/null. `probeGpuStatus.isSupported` means worker ORT WebGPU capability (currently false), not Chromium hardware presence.
+- None yet.
 
 ### Fixed
-- **Bungee `BungeeModule._malloc is not a function`** — Emscripten MODULARIZE locals (`_malloc` / `HEAPF32`) are now mirrored onto the Module object in `public/workers/bungee_processor.js` so AudioWorklet init succeeds (no forced SoundTouch fallback from missing alloc).
+- None yet.
 
 ### Breaking Changes
 - None yet.
 
 ## [1.4.0] — Bungee DSP + ZIP CD+G + AI GPU-First + Safety-First — 2026-09-19
 
-Overwrite of GitHub Release **v1.4.0** after PRs **#52**–**#57** (same version; does **not** touch `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on `v1.3.0` baseline. Package stays **1.4.0** (no 1.5.0).
+Overwrite of GitHub Release **v1.4.0** after PRs **#52**–**#61** (same version; does **not** touch `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on `v1.3.0` baseline. Package stays **1.4.0** (no 1.5.0).
 
 ### Added
 - **Bungee default pitch/speed DSP** — Wasm AudioWorklet phase vocoder (`public/workers/bungee_processor.js` + `bungee.wasm`, MPL-2.0 upstream https://github.com/bungee-audio-stretch/bungee; runtime prebuilts only, no C++ source vendored). Settings `dspEngine: 'bungee' | 'soundtouch'` (default `bungee`). Control pitch UI ±8 for Bungee / ±4 for SoundTouch. True bypass when pitch 0 && speed 1.00x. Silent fallback to SoundTouch if Bungee init fails. MIDI/KAR unchanged (SpessaSynth). (PR #52)
@@ -35,6 +33,8 @@ Overwrite of GitHub Release **v1.4.0** after PRs **#52**–**#57** (same version
 - **HTDemucs advanced settings** — When Download Instrumental method is HTDemucs: `demucsShifts` (0|1|2), `demucsSegmentSize` (5–20 s), `demucsOverlap` (0.10–0.50). Payload omitted for MDX (and vice versa). (PR #55)
 - **`scripts/verify-ai-options-pipeline.js`** — GPU providers, threads, MDX/Demucs payload separation, coerce Roformer/DSP → Karaoke 2, locale Basic Algorithm strings; wired into `npm test`. (PR #55)
 - **Safety-First modularization** — ControlWindow hooks (`useControlPlayback`, `useKeyboardShortcuts`) + `PlayerDeckControls` + `QueueList`; SettingsModal per-tab components; library list windowed virtualization for 16k+ catalogs; dual-audience TSDoc on new exports. (PR #57)
+- **AI worker WebGPU telemetry + honest WASM UI** — Instrumental AI reports actual `ortBackend` (`webgpu`|`wasm`) + `ortFallbackReason` to logs/progress (no silent WASM fallback). Stderr parse for ORT `webgpu` / `backend not found`. Diagnostic `scripts/probe-worker-webgpu.js`. Shared `aiWorkerWebGpu` probe skips WebGPU when `navigator.gpu` is missing in `utilityProcess`. Settings GPU badge stays amber WASM when the AI worker cannot host WebGPU (hardware GPU name shown as note only — never false “GPU active”). (PR #60)
+- **Settings: Download Instrumental subtitles policy** — Library & Download exposes `instrumentalSubtitlesPolicy` (`ask` / `always` / `never`), same meaning as the modal “Remember my choice”; operators can change or clear the remembered preference later without redesign. (PR #61)
 
 ### Changed
 - SoundTouch WSOLA remains selectable as legacy/light engine (hard ±4 ST); no longer the sole media pitch path. (PR #52)
@@ -43,11 +43,14 @@ Overwrite of GitHub Release **v1.4.0** after PRs **#52**–**#57** (same version
 - **Download Instrumental method selector** — AI only: `aiMdxKaraoke2` | `aiHtDemucs` (default Karaoke 2). Removed DSP and BS-Roformer from the download Settings UI. Live Regia vocal remover DSP modes unchanged. (PR #55)
 - **Experimental → Basic Algorithm** — Live vocal remover labels in it/en/es/fr (`Algoritmo Base` / `Basic Algorithm` / `Algoritmo Básico` / `Algorithme de Base`); removed Experimental tags from stable HTDemucs blurbs. (PR #55)
 - Granular Zustand selectors in extracted Control hooks/components; AudioGraphManager.dispose disconnects Web Audio nodes before `AudioContext.close`; user manuals (it/en/es/fr) chapter parity for OS DnD import, recursive library scan, Bungee/SoundTouch DSP, AppImage SoundFont seeding. (PR #57)
+- **Settings AI layout** — Library & Download: GPU card is toggle + badge only; AI instrumental CPU cores live in a sibling CPU card; MDX `mdxEnableOrt` (ONNX Runtime CPU acceleration) grouped into that CPU card (MDX-only visibility unchanged). No settings key / IPC / default changes. (PR #59)
+- MDX/HTDemucs try WebGPU-only then WASM (avoids ORT silently stripping webgpu from a combined EP list). InstrumentalProcessor/AiSeparator no longer log `ortNumThreads: 1` when threads are unresolved/null. `probeGpuStatus.isSupported` means worker ORT WebGPU capability (currently false), not Chromium hardware presence. (PR #60)
 - App version **1.4.0** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer. (this release)
 
 ### Fixed
 - **Bungee pitch + time-stretch no-op** — AudioWorklet processor: drop `export default`, Emscripten `ENVIRONMENT_IS_WORKER` detects `AudioWorkletGlobalScope`. `BungeePitchShifterNode.create` waits for Wasm `initialized` (timeout → SoundTouch). Graph re-applies pitch **and** speed on wire; Bungee keeps `HTMLMediaElement.playbackRate = 1.0` (WASM owns tempo, no double rate / chipmunk); SoundTouch still uses element rate. Bypass exits for pitch≠0 **or** speed≠1.0. (PR #56)
 - **Per-engine speed UI matrix** — Bungee Control 0.50–1.50 (absolute 0.50–2.00); SoundTouch Control 0.75–1.25 (absolute 0.50–1.50). `getSpeedRangeForEngine` / `clampSpeedForEngine`; engine switch re-clamps (e.g. 0.60→0.75). (PR #56)
+- **Bungee `BungeeModule._malloc is not a function`** — Emscripten MODULARIZE locals (`_malloc` / `HEAPF32`) are now mirrored onto the Module object in `public/workers/bungee_processor.js` so AudioWorklet init succeeds (no forced SoundTouch fallback from missing alloc). (PR #60)
 
 ### Breaking Changes
 - Persisted Download Instrumental methods that were DSP or `aiBsRoformer` coerce to `aiMdxKaraoke2`. (PR #55)
