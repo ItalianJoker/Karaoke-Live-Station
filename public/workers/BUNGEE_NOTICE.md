@@ -23,3 +23,11 @@ To refresh assets after upgrading the npm package:
 cp node_modules/bungee-pitch-shift/dist/bungee-processor-bundled.js public/workers/bungee_processor.js
 cp node_modules/bungee-pitch-shift/dist/bungee-wasm.wasm public/workers/bungee.wasm
 ```
+
+After copying, **re-apply the Karaoke Live Station AudioWorklet patches** (required for Electron / Chromium AudioWorkletGlobalScope):
+
+1. Remove the Emscripten glue trailing `export default createBungeeModule;` (keep `createBungeeModule` as a free function for `registerProcessor`).
+2. Widen worker detection so Wasm init runs inside AudioWorklet:
+   `ENVIRONMENT_IS_WORKER=!!(globalThis.WorkerGlobalScope||globalThis.AudioWorkletGlobalScope)||typeof registerProcessor=="function"`
+
+`BungeePitchShifterNode.create` waits for the worklet `initialized` message (timeout → SoundTouch fallback).

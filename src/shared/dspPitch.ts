@@ -1,9 +1,11 @@
 /**
- * Pitch / speed DSP engine selection and semitone range constants.
+ * Pitch / speed DSP engine selection and semitone / tempo range constants.
  *
  * Bungee (default): phase-vocoder Wasm AudioWorklet — recommended UI ±8,
- * internal hard cap ±12 without destructive artifacts.
- * SoundTouch (legacy/light): WSOLA ScriptProcessor — hard UI ±4.
+ * internal hard cap ±12 without destructive artifacts; speed UI 0.50–1.50,
+ * absolute hard 0.50–2.00.
+ * SoundTouch (legacy/light): WSOLA ScriptProcessor — hard UI ±4; speed UI 0.75–1.25,
+ * absolute media+WSOLA 0.50–1.50.
  *
  * MIDI/KAR transposition is independent (SpessaSynth note shift) and does not
  * use these DSP engines.
@@ -24,13 +26,48 @@ export const BUNGEE_PITCH_ABSOLUTE_MAX = 12;
 export const SOUNDTOUCH_PITCH_MIN = -4;
 export const SOUNDTOUCH_PITCH_MAX = 4;
 
-/** Independent tempo scaling shared by both engines (media playback). */
-export const DSP_SPEED_MIN = 0.5;
-export const DSP_SPEED_MAX = 1.5;
+/** Control UI tempo range for Bungee (step 0.05 in UI). */
+export const BUNGEE_SPEED_UI_MIN = 0.5;
+export const BUNGEE_SPEED_UI_MAX = 1.5;
+
+/** Absolute Bungee Wasm hard clamp (beyond UI). */
+export const BUNGEE_SPEED_ABSOLUTE_MIN = 0.5;
+export const BUNGEE_SPEED_ABSOLUTE_MAX = 2.0;
+
+/** Control UI tempo range for SoundTouch (tighter — media rate + WSOLA). */
+export const SOUNDTOUCH_SPEED_UI_MIN = 0.75;
+export const SOUNDTOUCH_SPEED_UI_MAX = 1.25;
+
+/** Absolute SoundTouch / media-element hard clamp. */
+export const SOUNDTOUCH_SPEED_ABSOLUTE_MIN = 0.5;
+export const SOUNDTOUCH_SPEED_ABSOLUTE_MAX = 1.5;
+
+/**
+ * @deprecated Prefer {@link BUNGEE_SPEED_UI_MIN} / {@link getSpeedRangeForEngine}.
+ * Kept as alias of the Bungee UI floor for older call sites.
+ */
+export const DSP_SPEED_MIN = BUNGEE_SPEED_UI_MIN;
+/**
+ * @deprecated Prefer {@link BUNGEE_SPEED_UI_MAX} / {@link getSpeedRangeForEngine}.
+ */
+export const DSP_SPEED_MAX = BUNGEE_SPEED_UI_MAX;
+
+/** Default Control UI step for speed buttons / shortcuts. */
+export const DSP_SPEED_UI_STEP = 0.05;
+
+/** Neutral bypass epsilon for speed (|speed − 1.0|). */
+export const DSP_SPEED_NEUTRAL_EPSILON = 0.001;
 
 export interface DspPitchRange {
   min: number;
   max: number;
+}
+
+export interface DspSpeedRange {
+  min: number;
+  max: number;
+  /** Suggested UI step (Control buttons). */
+  step: number;
 }
 
 /**
@@ -41,6 +78,24 @@ export function getPitchRangeForEngine(engine: DspPitchEngine): DspPitchRange {
     return { min: SOUNDTOUCH_PITCH_MIN, max: SOUNDTOUCH_PITCH_MAX };
   }
   return { min: BUNGEE_PITCH_UI_MIN, max: BUNGEE_PITCH_UI_MAX };
+}
+
+/**
+ * Returns the Control UI tempo range for the active DSP engine.
+ */
+export function getSpeedRangeForEngine(engine: DspPitchEngine): DspSpeedRange {
+  if (engine === 'soundtouch') {
+    return {
+      min: SOUNDTOUCH_SPEED_UI_MIN,
+      max: SOUNDTOUCH_SPEED_UI_MAX,
+      step: DSP_SPEED_UI_STEP
+    };
+  }
+  return {
+    min: BUNGEE_SPEED_UI_MIN,
+    max: BUNGEE_SPEED_UI_MAX,
+    step: DSP_SPEED_UI_STEP
+  };
 }
 
 /**
@@ -62,17 +117,37 @@ export function clampPitchForEngine(semitones: number, engine: DspPitchEngine): 
 }
 
 /**
- * Clamps playback speed to the shared 0.50x–1.50x window.
+ * Rounds to 0.01 and clamps playback speed to the UI range of the given engine.
+ */
+export function clampSpeedForEngine(speed: number, engine: DspPitchEngine): number {
+  const { min, max } = getSpeedRangeForEngine(engine);
+  const n = Number.isFinite(speed) ? speed : 1;
+  return Math.max(min, Math.min(max, Math.round(n * 100) / 100));
+}
+
+/**
+ * Absolute Bungee Wasm clamp (0.50–2.00), round 0.01.
+ */
+export function clampBungeeAbsoluteSpeed(speed: number): number {
+  const n = Number.isFinite(speed) ? speed : 1;
+  return Math.max(
+    BUNGEE_SPEED_ABSOLUTE_MIN,
+    Math.min(BUNGEE_SPEED_ABSOLUTE_MAX, Math.round(n * 100) / 100)
+  );
+}
+
+/**
+ * @deprecated Prefer {@link clampSpeedForEngine} with the active engine.
+ * Clamps to the Bungee UI window (0.50–1.50).
  */
 export function clampPlaybackSpeed(speed: number): number {
-  const n = Number.isFinite(speed) ? speed : 1;
-  return Math.max(DSP_SPEED_MIN, Math.min(DSP_SPEED_MAX, Math.round(n * 100) / 100));
+  return clampSpeedForEngine(speed, 'bungee');
 }
 
 /**
  * True when DSP can disconnect for bit-perfect pass-through
- * (pitch 0 and speed 1.0).
+ * (pitch 0 and speed ≈ 1.0 within {@link DSP_SPEED_NEUTRAL_EPSILON}).
  */
 export function isDspNeutralBypass(pitchSemitones: number, speed: number): boolean {
-  return pitchSemitones === 0 && Math.abs(speed - 1) < 1e-6;
+  return pitchSemitones === 0 && Math.abs(speed - 1) < DSP_SPEED_NEUTRAL_EPSILON;
 }

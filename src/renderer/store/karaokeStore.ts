@@ -35,7 +35,8 @@ import {
 } from '../../shared/demucsAdvancedSettings';
 import { coerceAiCpuThreads } from '../../shared/aiCpuThreads';
 import { coerceAiEnableGpu } from '../../shared/aiOrtProviders';
-import { clampPitchForEngine, coerceDspPitchEngine } from '../../shared/dspPitch';
+import { clampPitchForEngine, clampSpeedForEngine, coerceDspPitchEngine } from '../../shared/dspPitch';
+
 
 export type MissingFileContext = 'library' | 'queue';
 
@@ -361,10 +362,35 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           } else {
             updated.instrumentalSubtitlesPolicy = 'ask';
           }
+          if (partial.dspEngine !== undefined) {
+            updated.dspEngine = coerceDspPitchEngine(partial.dspEngine);
+          }
           const maxDl = Number(updated.maxSimultaneousDownloads);
           updated.maxSimultaneousDownloads =
             Number.isFinite(maxDl) && maxDl >= 1 ? Math.min(8, Math.floor(maxDl)) : 2;
           updatedSettings = updated;
+
+          // Engine switch: re-clamp live pitch + speed into the new UI ranges
+          // (e.g. Bungee 0.60x → SoundTouch 0.75x).
+          if (partial.dspEngine !== undefined) {
+            const engine = coerceDspPitchEngine(updated.dspEngine);
+            const nextSpeed = clampSpeedForEngine(state.playback.playbackSpeed, engine);
+            const nextPitch = clampPitchForEngine(state.playback.livePitchOffset, engine);
+            const playbackChanged =
+              nextSpeed !== state.playback.playbackSpeed ||
+              nextPitch !== state.playback.livePitchOffset;
+            if (playbackChanged) {
+              const updatedPlayback = {
+                ...state.playback,
+                playbackSpeed: nextSpeed,
+                livePitchOffset: nextPitch
+              };
+              if (typeof window !== 'undefined' && window.karaokeApi) {
+                window.karaokeApi.sendStateSync(updatedPlayback);
+              }
+              return { settings: updated, playback: updatedPlayback };
+            }
+          }
           return { settings: updated };
         });
         get().applyAppTheme();
@@ -441,7 +467,8 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
       },
 
       setPlaybackSpeed: (speed) => {
-        const clamped = Math.max(0.50, Math.min(1.50, speed));
+        const engine = coerceDspPitchEngine(get().settings.dspEngine);
+        const clamped = clampSpeedForEngine(speed, engine);
         get().setPlaybackState({ playbackSpeed: clamped });
       },
 

@@ -37,8 +37,14 @@ import {
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AudioGraphManager } from '../core/AudioGraphManager';
-import { getPitchRangeForEngine, coerceDspPitchEngine } from '../../shared/dspPitch';
+import {
+  getPitchRangeForEngine,
+  getSpeedRangeForEngine,
+  coerceDspPitchEngine,
+  clampSpeedForEngine
+} from '../../shared/dspPitch';
 import { formatBpmTransition, formatKeyTransition } from '../../shared/musicalKeys';
+
 import { MidiChannelMixer } from './MidiChannelMixer';
 import { LibraryPanel } from './LibraryPanel';
 import { HistoryPanel } from './HistoryPanel';
@@ -186,6 +192,7 @@ export const ControlWindow: React.FC = () => {
   const currentQueueItem = queue[0];
   const currentTrack = currentQueueItem?.track;
   const pitchRange = getPitchRangeForEngine(coerceDspPitchEngine(settings.dspEngine));
+  const speedRange = getSpeedRangeForEngine(coerceDspPitchEngine(settings.dspEngine));
   const isMidiTrack = Boolean(
     currentTrack &&
       (currentTrack.uri.endsWith('.mid') ||
@@ -901,7 +908,10 @@ export const ControlWindow: React.FC = () => {
             videoRef.current.preservesPitch = true;
             (videoRef.current as any).mozPreservesPitch = true;
             (videoRef.current as any).webkitPreservesPitch = true;
-            videoRef.current.playbackRate = playback.playbackSpeed;
+            // Bungee owns tempo in Wasm — keep element at 1.0 (avoids double rate / chipmunk).
+            const engine = settings.dspEngine || 'bungee';
+            videoRef.current.playbackRate =
+              engine === 'soundtouch' ? playback.playbackSpeed : 1.0;
           }
 
           if (playback.isPlaying) {
@@ -1015,10 +1025,14 @@ export const ControlWindow: React.FC = () => {
         setLivePitch(Math.max(-8, playback.livePitchOffset - 1));
       } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowLeft') {
         e.preventDefault();
-        setPlaybackSpeed(Math.max(0.50, Math.round((playback.playbackSpeed - 0.05) * 100) / 100));
+        setPlaybackSpeed(
+          clampSpeedForEngine(playback.playbackSpeed - speedRange.step, coerceDspPitchEngine(settings.dspEngine))
+        );
       } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowRight') {
         e.preventDefault();
-        setPlaybackSpeed(Math.min(1.50, Math.round((playback.playbackSpeed + 0.05) * 100) / 100));
+        setPlaybackSpeed(
+          clampSpeedForEngine(playback.playbackSpeed + speedRange.step, coerceDspPitchEngine(settings.dspEngine))
+        );
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
         const newTime = Math.max(0, playback.currentTime - 5);
@@ -1057,7 +1071,9 @@ export const ControlWindow: React.FC = () => {
       setVocalRemover,
       setDucking,
       closeMissingFileModal,
-      handleSeek
+      handleSeek,
+      speedRange.step,
+      settings.dspEngine
     ]
   );
 
@@ -1443,7 +1459,10 @@ export const ControlWindow: React.FC = () => {
                   video.preservesPitch = true;
                   (video as any).mozPreservesPitch = true;
                   (video as any).webkitPreservesPitch = true;
-                  video.playbackRate = playback.playbackSpeed;
+                  // Bungee owns tempo in Wasm — keep element at 1.0. SoundTouch uses element rate.
+                  const engine = settings.dspEngine || 'bungee';
+                  video.playbackRate =
+                    engine === 'soundtouch' ? playback.playbackSpeed : 1.0;
                   audioGraphRef.current?.bindMediaElement(video);
                   audioGraphRef.current?.setPitchOffset(playback.livePitchOffset);
                   audioGraphRef.current?.setPlaybackSpeed(playback.playbackSpeed);
@@ -1453,7 +1472,9 @@ export const ControlWindow: React.FC = () => {
                   video.preservesPitch = true;
                   (video as any).mozPreservesPitch = true;
                   (video as any).webkitPreservesPitch = true;
-                  video.playbackRate = playback.playbackSpeed;
+                  const engine = settings.dspEngine || 'bungee';
+                  video.playbackRate =
+                    engine === 'soundtouch' ? playback.playbackSpeed : 1.0;
                   audioGraphRef.current?.initContext();
                 }}
                 onTimeUpdate={() => {
@@ -1632,7 +1653,7 @@ export const ControlWindow: React.FC = () => {
                 </button>
               </div>
 
-              {/* Speed Controls (0.50x to 1.50x) — BPM label affixed side-by-side */}
+              {/* Speed Controls — per-engine range + BPM label affixed side-by-side */}
               <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm shrink-0">
                 <span className="text-[11px] font-semibold text-slate-300 shrink-0">
                   {t('player.speed')}:
@@ -1648,10 +1669,18 @@ export const ControlWindow: React.FC = () => {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setPlaybackSpeed(playback.playbackSpeed - 0.05)}
-                  disabled={playback.playbackSpeed <= 0.501}
+                  onClick={() =>
+                    setPlaybackSpeed(
+                      clampSpeedForEngine(
+                        playback.playbackSpeed - speedRange.step,
+                        coerceDspPitchEngine(settings.dspEngine)
+                      )
+                    )
+                  }
+                  disabled={playback.playbackSpeed <= speedRange.min + 1e-6}
                   className="w-5 h-5 rounded-full bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-slate-700 text-xs font-bold flex items-center justify-center text-slate-200 transition-all shrink-0"
-                  title="Rallenta tempo (-0.05x, CTRL + Freccia Sinistra)"
+                  title={`Rallenta tempo (−${speedRange.step.toFixed(2)}x, CTRL + Freccia Sinistra)`}
+
                 >
                   -
                 </button>
@@ -1664,10 +1693,17 @@ export const ControlWindow: React.FC = () => {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setPlaybackSpeed(playback.playbackSpeed + 0.05)}
-                  disabled={playback.playbackSpeed >= 1.499}
+                  onClick={() =>
+                    setPlaybackSpeed(
+                      clampSpeedForEngine(
+                        playback.playbackSpeed + speedRange.step,
+                        coerceDspPitchEngine(settings.dspEngine)
+                      )
+                    )
+                  }
+                  disabled={playback.playbackSpeed >= speedRange.max - 1e-6}
                   className="w-5 h-5 rounded-full bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-slate-700 text-xs font-bold flex items-center justify-center text-slate-200 transition-all shrink-0"
-                  title="Aumenta tempo (+0.05x, CTRL + Freccia Destra)"
+                  title={`Aumenta tempo (+${speedRange.step.toFixed(2)}x, CTRL + Freccia Destra)`}
                 >
                   +
                 </button>

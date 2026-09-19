@@ -20,7 +20,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - **Experimental → Basic Algorithm** — Live vocal remover labels in it/en/es/fr (`Algoritmo Base` / `Basic Algorithm` / `Algoritmo Básico` / `Algorithme de Base`); removed Experimental tags from stable HTDemucs blurbs.
 
 ### Fixed
-- None yet.
+- **Bungee pitch + time-stretch no-op** — AudioWorklet processor: drop `export default`, Emscripten `ENVIRONMENT_IS_WORKER` detects `AudioWorkletGlobalScope`. `BungeePitchShifterNode.create` waits for Wasm `initialized` (timeout → SoundTouch). Graph re-applies pitch **and** speed on wire; Bungee keeps `HTMLMediaElement.playbackRate = 1.0` (WASM owns tempo, no double rate / chipmunk); SoundTouch still uses element rate. Bypass exits for pitch≠0 **or** speed≠1.0.
+- **Per-engine speed UI matrix** — Bungee Control 0.50–1.50 (absolute 0.50–2.00); SoundTouch Control 0.75–1.25 (absolute 0.50–1.50). `getSpeedRangeForEngine` / `clampSpeedForEngine`; engine switch re-clamps (e.g. 0.60→0.75).
 
 ### Breaking Changes
 - Persisted Download Instrumental methods that were DSP or `aiBsRoformer` coerce to `aiMdxKaraoke2`.
