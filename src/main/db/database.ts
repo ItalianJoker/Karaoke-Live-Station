@@ -41,8 +41,8 @@ export class DatabaseManager {
    */
   private prepareTrackStatements(): void {
     this.upsertTrackStmt = this.db.prepare(`
-      INSERT INTO tracks (id, source, title, artist, durationSec, uri, localFilePath, thumbnailUrl, hasEmbeddedLyrics, isMultiplex, isEmbeddable, initialKey, initialBpm, addedAt)
-      VALUES (@id, @source, @title, @artist, @durationSec, @uri, @localFilePath, @thumbnailUrl, @hasEmbeddedLyrics, @isMultiplex, @isEmbeddable, @initialKey, @initialBpm, @addedAt)
+      INSERT INTO tracks (id, source, title, artist, durationSec, uri, localFilePath, thumbnailUrl, hasEmbeddedLyrics, isMultiplex, isEmbeddable, initialKey, initialBpm, addedAt, titleNorm, artistNorm)
+      VALUES (@id, @source, @title, @artist, @durationSec, @uri, @localFilePath, @thumbnailUrl, @hasEmbeddedLyrics, @isMultiplex, @isEmbeddable, @initialKey, @initialBpm, @addedAt, @titleNorm, @artistNorm)
       ON CONFLICT(id) DO UPDATE SET
         source = excluded.source,
         title = excluded.title,
@@ -55,7 +55,9 @@ export class DatabaseManager {
         isMultiplex = excluded.isMultiplex,
         isEmbeddable = excluded.isEmbeddable,
         initialKey = COALESCE(excluded.initialKey, tracks.initialKey),
-        initialBpm = COALESCE(excluded.initialBpm, tracks.initialBpm)
+        initialBpm = COALESCE(excluded.initialBpm, tracks.initialBpm),
+        titleNorm = excluded.titleNorm,
+        artistNorm = excluded.artistNorm
     `);
     this.deleteByPathExceptStmt = this.db.prepare(
       `DELETE FROM tracks WHERE localFilePath = ? AND id != ?`
@@ -78,7 +80,10 @@ export class DatabaseManager {
       isEmbeddable: track.isEmbeddable ? 1 : 0,
       initialKey: track.initialKey ?? null,
       initialBpm: track.initialBpm ?? null,
-      addedAt: Date.now()
+      addedAt: Date.now(),
+      // Precomputed accent-folded fields — search uses these instead of per-row JS UDF.
+      titleNorm: normalizeForSearch(track.title),
+      artistNorm: normalizeForSearch(track.artist)
     };
   }
 
@@ -114,7 +119,9 @@ export class DatabaseManager {
         isEmbeddable INTEGER DEFAULT 1,
         initialKey TEXT,
         initialBpm REAL,
-        addedAt INTEGER NOT NULL
+        addedAt INTEGER NOT NULL,
+        titleNorm TEXT,
+        artistNorm TEXT
       );
 
       CREATE TABLE IF NOT EXISTS singers (
@@ -170,6 +177,49 @@ export class DatabaseManager {
       this.db.exec('ALTER TABLE tracks ADD COLUMN initialBpm REAL;');
     } catch {
       // Column already exists
+    }
+    // Accent-folded search columns (avoids fold_diacritics UDF full-table scan)
+    try {
+      this.db.exec('ALTER TABLE tracks ADD COLUMN titleNorm TEXT;');
+    } catch {
+      // Column already exists
+    }
+    try {
+      this.db.exec('ALTER TABLE tracks ADD COLUMN artistNorm TEXT;');
+    } catch {
+      // Column already exists
+    }
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_tracks_title_norm ON tracks(titleNorm);
+      CREATE INDEX IF NOT EXISTS idx_tracks_artist_norm ON tracks(artistNorm);
+    `);
+    this.backfillNormalizedSearchColumns();
+  }
+
+  /**
+   * One-shot backfill for titleNorm/artistNorm on upgraded DBs.
+   * Idempotent: only rows where either norm is NULL/empty are rewritten.
+   */
+  private backfillNormalizedSearchColumns(): void {
+    try {
+      const missing = this.db
+        .prepare(
+          `SELECT id, title, artist FROM tracks
+           WHERE titleNorm IS NULL OR titleNorm = '' OR artistNorm IS NULL OR artistNorm = ''`
+        )
+        .all() as Array<{ id: string; title: string; artist: string }>;
+      if (!missing.length) return;
+      const upd = this.db.prepare(
+        `UPDATE tracks SET titleNorm = ?, artistNorm = ? WHERE id = ?`
+      );
+      const run = this.db.transaction((rows: Array<{ id: string; title: string; artist: string }>) => {
+        for (const r of rows) {
+          upd.run(normalizeForSearch(r.title), normalizeForSearch(r.artist), r.id);
+        }
+      });
+      run(missing);
+    } catch (err) {
+      console.warn('Normalized search column backfill notice:', err);
     }
   }
 
@@ -266,21 +316,115 @@ export class DatabaseManager {
   /**
    * Parameterized title/artist search with LIMIT — avoids shipping the full catalog
    * across IPC when the operator types into the library filter on large libraries.
-   * Uses bound LIKE params (no string concat) and the composite title/artist index.
+   * Uses precomputed titleNorm/artistNorm (same folding as normalizeForSearch) so
+   * SQLite does not invoke the JS fold_diacritics UDF on every row.
    */
   public searchTracks(query: string, limit = 200): KaraokeMediaTrack[] {
+    const capped = Math.max(1, Math.min(2000, limit));
     const q = normalizeForSearch(query || '').trim();
     if (!q) {
-      return this.getAllTracks().slice(0, Math.max(1, limit));
+      // Empty query: LIMIT in SQL — never materialize the full 10k–50k catalog.
+      const rows = this.db
+        .prepare('SELECT * FROM tracks ORDER BY artist ASC, title ASC LIMIT ?')
+        .all(capped) as Array<{
+        id: string;
+        source: string;
+        title: string;
+        artist: string;
+        durationSec: number;
+        uri: string;
+        localFilePath: string | null;
+        thumbnailUrl: string | null;
+        hasEmbeddedLyrics: number;
+        isMultiplex: number;
+        isEmbeddable: number;
+        initialKey: string | null;
+        initialBpm: number | null;
+      }>;
+      return rows.map((r) => this.mapTrackRow(r));
     }
     const like = `%${q.replace(/[%_]/g, '')}%`;
     const stmt = this.db.prepare(
       `SELECT * FROM tracks
-       WHERE fold_diacritics(title) LIKE ? OR fold_diacritics(artist) LIKE ?
+       WHERE titleNorm LIKE ? OR artistNorm LIKE ?
        ORDER BY artist ASC, title ASC
        LIMIT ?`
     );
-    const rows = stmt.all(like, like, Math.max(1, Math.min(2000, limit))) as Array<{
+    const rows = stmt.all(like, like, capped) as Array<{
+      id: string;
+      source: string;
+      title: string;
+      artist: string;
+      durationSec: number;
+      uri: string;
+      localFilePath: string | null;
+      thumbnailUrl: string | null;
+      hasEmbeddedLyrics: number;
+      isMultiplex: number;
+      isEmbeddable: number;
+      initialKey: string | null;
+      initialBpm: number | null;
+    }>;
+    return rows.map((r) => this.mapTrackRow(r));
+  }
+
+  /**
+   * Fetch catalog rows for a small set of absolute local paths (case-insensitive).
+   * Why: import/drop must reuse thumbs/key/BPM without dumping getAllTracks() for 50k rows.
+   * Chunks IN-lists to stay under SQLite variable limits.
+   */
+  public getTracksByLocalPaths(localPaths: string[]): KaraokeMediaTrack[] {
+    const unique = new Map<string, string>();
+    for (const raw of localPaths || []) {
+      const trimmed = (raw || '').trim();
+      if (!trimmed) continue;
+      unique.set(trimmed.toLowerCase(), trimmed);
+    }
+    if (!unique.size) return [];
+
+    const keys = Array.from(unique.keys());
+    const out: KaraokeMediaTrack[] = [];
+    const chunkSize = 400;
+    for (let i = 0; i < keys.length; i += chunkSize) {
+      const chunk = keys.slice(i, i + chunkSize);
+      const placeholders = chunk.map(() => '?').join(',');
+      const rows = this.db
+        .prepare(
+          `SELECT * FROM tracks WHERE lower(localFilePath) IN (${placeholders})`
+        )
+        .all(...chunk) as Array<{
+        id: string;
+        source: string;
+        title: string;
+        artist: string;
+        durationSec: number;
+        uri: string;
+        localFilePath: string | null;
+        thumbnailUrl: string | null;
+        hasEmbeddedLyrics: number;
+        isMultiplex: number;
+        isEmbeddable: number;
+        initialKey: string | null;
+        initialBpm: number | null;
+      }>;
+      for (const r of rows) out.push(this.mapTrackRow(r));
+    }
+    return out;
+  }
+
+  /**
+   * Tracks that still need a video thumbnail (targeted — no full-catalog dump).
+   */
+  public getTracksMissingThumbnails(): KaraokeMediaTrack[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM tracks
+         WHERE (thumbnailUrl IS NULL OR thumbnailUrl = '')
+           AND localFilePath IS NOT NULL
+           AND localFilePath != ''
+           AND (source = 'local_library' OR source = 'youtube')`
+      )
+      .all() as Array<{
       id: string;
       source: string;
       title: string;

@@ -392,6 +392,8 @@ export function discoverLibraryFilesFromPaths(
   const pathImpl = options.pathImpl || path;
   const discovered: DiscoveredLibraryTrack[] = [];
   const seenPrimary = new Set<string>();
+  // Memoize per-directory basename maps — many drops share one folder (O(F×D) → O(D)).
+  const dirCache = new Map<string, Map<string, string[]>>();
 
   const uniqueInputs = new Set<string>();
   for (const raw of absolutePaths || []) {
@@ -428,7 +430,11 @@ export function discoverLibraryFilesFromPaths(
       continue;
     }
 
-    const filesMap = mapBasenamesInDirectory(dir, fsImpl, pathImpl);
+    let filesMap = dirCache.get(dir);
+    if (!filesMap) {
+      filesMap = mapBasenamesInDirectory(dir, fsImpl, pathImpl);
+      dirCache.set(dir, filesMap);
+    }
     const siblingExts = filesMap.get(baseName) || [];
     // Ensure the dropped extension is visible even if readdir failed partially
     const merged = Array.from(new Set([...siblingExts, ...interestedExts]));

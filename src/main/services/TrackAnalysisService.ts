@@ -39,6 +39,8 @@ export class TrackAnalysisService {
   private readonly db: DatabaseManager;
   private readonly ffmpegPath: string | null;
   private readonly queue: AnalyzeJob[] = [];
+  /** O(1) membership for pending jobs — avoids queue.some O(Q) on large enqueueMany. */
+  private readonly queuedTrackIds = new Set<string>();
   private running = false;
   private readonly attempted = new Set<string>();
   private readonly tempDir: string;
@@ -56,7 +58,8 @@ export class TrackAnalysisService {
     if (!track?.id || !track.localFilePath) return;
     if (track.initialKey && track.initialBpm) return;
     if (this.attempted.has(track.id)) return;
-    if (this.queue.some((j) => j.trackId === track.id)) return;
+    if (this.queuedTrackIds.has(track.id)) return;
+    this.queuedTrackIds.add(track.id);
     this.queue.push({
       trackId: track.id,
       localFilePath: track.localFilePath,
@@ -78,6 +81,7 @@ export class TrackAnalysisService {
   private async drain(): Promise<void> {
     while (this.queue.length) {
       const job = this.queue.shift()!;
+      this.queuedTrackIds.delete(job.trackId);
       this.attempted.add(job.trackId);
       try {
         const result = await this.analyzePath(job);

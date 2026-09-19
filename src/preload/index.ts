@@ -180,6 +180,8 @@ export interface KaraokeAPI {
     onProgress: (callback: (payload: DownloadProgressPayload) => void) => () => void;
     /** Subscribes to library reindex notifications after saves */
     onLibraryReindexed: (callback: () => void) => () => void;
+    /** Patch Local list when async thumbs (etc.) update without a full catalog dump */
+    onLibraryTrackUpdated: (callback: (tracks: KaraokeMediaTrack[]) => void) => () => void;
   };
 
   // 6b. Offline AI models for Download Instrumental (userData/models) — not live dual-stem
@@ -445,6 +447,14 @@ const karaokeApi: KaraokeAPI = {
       ipcRenderer.on('library:reindexed', handler);
       return () => {
         ipcRenderer.removeListener('library:reindexed', handler);
+      };
+    },
+    onLibraryTrackUpdated: (callback: (tracks: KaraokeMediaTrack[]) => void) => {
+      const handler = (_event: IpcRendererEvent, tracks: KaraokeMediaTrack[]) =>
+        callback(Array.isArray(tracks) ? tracks : []);
+      ipcRenderer.on('library:track-updated', handler);
+      return () => {
+        ipcRenderer.removeListener('library:track-updated', handler);
       };
     }
   },
