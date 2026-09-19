@@ -243,7 +243,7 @@ The **`V`** key / **Vocal Remover (Basic Algorithm)** control enables the method
 | --- | --- |
 | `centerCancelBassKeep` / `centerCancel` / `softMid` | Classical **realtime** mid/side DSP — light, no download |
 
-On YouTube search results, **Download Instrumental** (when the title does not already contain “Karaoke” or “instrumental”) downloads the video, then applies the **Download Instrumental Method** from **Settings → Audio** (offline AI such as UVR-MDX-NET Karaoke 2, or classical DSP) and saves an instrumental MP4 (burns subtitles when available). When UVR-MDX-NET is selected, **Advanced UVR-MDX-NET Settings (ETA Optimization)** appears under that dropdown: segment size, overlap, and ONNX Runtime CPU acceleration — used only for that MDX path.
+On YouTube search results, **Download Instrumental** (when the title does not already contain “Karaoke” or “instrumental”) downloads the video, then applies the **Download Instrumental Method** from **Settings → Library & Download** (offline AI such as UVR-MDX-NET Karaoke 2) and saves an instrumental MP4 (burns subtitles when available). Before each download the app can ask whether to fetch YouTube auto-subs; check **Remember my choice** to skip the prompt next time. Change or clear that preference anytime under **Settings → Library & Download → Download Instrumental subtitles** (`Ask every time` / `Always` / `Never`). When UVR-MDX-NET is selected, **Advanced UVR-MDX-NET Settings (ETA Optimization)** appears under that dropdown: segment size, overlap, and ONNX Runtime CPU acceleration — used only for that MDX path.
 
 ### 4.5 Auto-ducking BGM
 

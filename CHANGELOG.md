@@ -10,6 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ### Added
 - **AI worker WebGPU telemetry + honest WASM UI** — Instrumental AI reports actual `ortBackend` (`webgpu`|`wasm`) + `ortFallbackReason` to logs/progress (no silent WASM fallback). Stderr parse for ORT `webgpu` / `backend not found`. Diagnostic `scripts/probe-worker-webgpu.js`. Shared `aiWorkerWebGpu` probe skips WebGPU when `navigator.gpu` is missing in `utilityProcess`. Settings GPU badge stays amber WASM when the AI worker cannot host WebGPU (hardware GPU name shown as note only — never false “GPU active”).
+- **Settings: Download Instrumental subtitles policy** — Library & Download exposes `instrumentalSubtitlesPolicy` (`ask` / `always` / `never`), same meaning as the modal “Remember my choice”; operators can change or clear the remembered preference later without redesign.
 
 ### Changed
 - **Settings AI layout** — Library & Download: GPU card is toggle + badge only; AI instrumental CPU cores live in a sibling CPU card; MDX `mdxEnableOrt` (ONNX Runtime CPU acceleration) grouped into that CPU card (MDX-only visibility unchanged). No settings key / IPC / default changes.

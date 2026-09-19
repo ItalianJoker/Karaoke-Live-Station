@@ -421,6 +421,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     'onnx',
     'shifts'
   );
+  // Same policy as modal “Remember my choice” (ask / always / never)
+  const matchInstrumentalSubtitles = matchesSearch(
+    t('settings.instrumentalSubtitlesPolicy'),
+    t('settings.instrumentalSubtitlesPolicyDesc'),
+    t('settings.instrumentalSubtitlesPolicyAsk'),
+    t('settings.instrumentalSubtitlesPolicyAlways'),
+    t('settings.instrumentalSubtitlesPolicyNever'),
+    t('library.instrumentalSubtitlesRemember'),
+    'subtitle',
+    'subtitles',
+    'sottotitoli',
+    'sous-titres',
+    'subtítulos',
+    'instrumental',
+    'strumentale',
+    'remember',
+    'ricorda',
+    'ask',
+    'always',
+    'never'
+  );
   const matchMaxDownloads = matchesSearch(
     t('settings.maxSimultaneousDownloads'),
     t('settings.maxSimultaneousDownloadsDesc'),
@@ -549,6 +570,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     matchYtdlp ||
     matchMaxDownloads ||
     matchInstrumentalVocal ||
+    matchInstrumentalSubtitles ||
     matchAiThreads;
   const audioHasMatches =
     matchSoundfont ||
@@ -701,6 +723,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               matchAutoArchive={matchAutoArchive}
               matchMaxDownloads={matchMaxDownloads}
               matchInstrumentalVocal={matchInstrumentalVocal}
+              matchInstrumentalSubtitles={matchInstrumentalSubtitles}
               matchAiThreads={matchAiThreads}
               matchYtdlp={matchYtdlp}
               cpuCoreCount={cpuCoreCount}

@@ -52,6 +52,7 @@ import type { SettingsLibraryTabProps } from './settingsTypes';
  * select is AI-only (`aiMdxKaraoke2` | `aiHtDemucs`); live Regia DSP modes stay on Audio.
  * AI acceleration UI: GPU toggle+badge and CPU cores are sibling bordered cards; MDX
  * `mdxEnableOrt` lives in the CPU card (still MDX-method-only).
+ * `instrumentalSubtitlesPolicy` select mirrors the modal “remember my choice” (ask/always/never).
  */
 export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
   t,
@@ -62,6 +63,7 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
   matchAutoArchive,
   matchMaxDownloads,
   matchInstrumentalVocal,
+  matchInstrumentalSubtitles,
   matchAiThreads,
   matchYtdlp,
   cpuCoreCount,
@@ -414,6 +416,51 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Same meaning as InstrumentalSubtitlesModal “Remember my choice” */}
+                {(!isSearching || matchInstrumentalSubtitles) && (
+                  <div
+                    className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2"
+                    data-testid="settings-instrumental-subtitles-policy"
+                  >
+                    <label
+                      className="block font-semibold text-white text-xs"
+                      htmlFor="settings-instrumental-subtitles-policy"
+                    >
+                      {t('settings.instrumentalSubtitlesPolicy')}
+                    </label>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      {t('settings.instrumentalSubtitlesPolicyDesc')}
+                    </p>
+                    <select
+                      id="settings-instrumental-subtitles-policy"
+                      value={
+                        settings.instrumentalSubtitlesPolicy === 'always' ||
+                        settings.instrumentalSubtitlesPolicy === 'never'
+                          ? settings.instrumentalSubtitlesPolicy
+                          : 'ask'
+                      }
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const next =
+                          raw === 'always' || raw === 'never' ? raw : 'ask';
+                        updateSettings({ instrumentalSubtitlesPolicy: next });
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs"
+                      data-testid="settings-instrumental-subtitles-policy-select"
+                    >
+                      <option value="ask">
+                        {t('settings.instrumentalSubtitlesPolicyAsk')}
+                      </option>
+                      <option value="always">
+                        {t('settings.instrumentalSubtitlesPolicyAlways')}
+                      </option>
+                      <option value="never">
+                        {t('settings.instrumentalSubtitlesPolicyNever')}
+                      </option>
+                    </select>
                   </div>
                 )}
 
