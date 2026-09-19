@@ -151,23 +151,19 @@ assert(
 // --- Runtime: compile TS helpers via requiring built paths is hard; use dynamic import of shared via ts-node-less approach ---
 // Inline minimal mirrors of shared helpers for routing proof:
 function isAi(method) {
-  return ['aiMdxKaraoke2', 'aiHtDemucs', 'aiBsRoformer'].includes(method);
+  return ['aiMdxKaraoke2', 'aiHtDemucs'].includes(method);
 }
 function coerceInstrumental(method) {
-  const all = [
-    'centerCancelBassKeep',
-    'centerCancel',
-    'softMid',
-    'aiMdxKaraoke2',
-    'aiHtDemucs',
-    'aiBsRoformer'
-  ];
-  return all.includes(method) ? method : 'aiMdxKaraoke2';
+  const allowed = ['aiMdxKaraoke2', 'aiHtDemucs'];
+  return allowed.includes(method) ? method : 'aiMdxKaraoke2';
 }
 
 assert(isAi(coerceInstrumental(undefined)), 'Undefined instrumental method → AI');
 assert(isAi(coerceInstrumental('aiMdxKaraoke2')), 'aiMdxKaraoke2 is AI');
-assert(!isAi(coerceInstrumental('centerCancelBassKeep')), 'DSP method is not AI');
+assert(coerceInstrumental('centerCancelBassKeep') === 'aiMdxKaraoke2', 'DSP coerces to Karaoke2');
+assert(coerceInstrumental('aiBsRoformer') === 'aiMdxKaraoke2', 'Roformer coerces to Karaoke2');
+assert(isAi(coerceInstrumental('aiHtDemucs')), 'aiHtDemucs is AI');
+assert(isAi(coerceInstrumental('centerCancelBassKeep')), 'DSP input coerces to AI Karaoke2');
 
 // --- Integration: processInstrumentalVideo with mocked AI ---
 async function runIntegration() {

@@ -27,6 +27,7 @@ import {
   type AiVocalRemoverMethod
 } from '../../shared/vocalRemover';
 import { mdxPayloadForMethod } from '../../shared/mdxAdvancedSettings';
+import { demucsPayloadForMethod } from '../../shared/demucsAdvancedSettings';
 import { resolveFfmpegPath } from './BinaryResolver';
 import { separateInstrumentalWithAi } from './InstrumentalAiSeparator';
 import { isAbortError, killProcessTree, throwIfAborted } from './processKill';
@@ -131,8 +132,15 @@ export type InstrumentalProcessOptions = {
   mdxSegmentSize?: number;
   mdxOverlap?: number;
   mdxEnableOrt?: boolean;
+  /** Demucs-only advanced knobs (aiHtDemucs). */
+  demucsShifts?: number;
+  demucsSegmentSize?: number;
+  demucsOverlap?: number;
   /** Resolved ORT WASM thread count (AI methods). */
   aiCpuThreads?: number;
+  /** GPU-First toggle + probe snapshot. */
+  aiEnableGpu?: boolean;
+  aiGpuSupported?: boolean;
 };
 
 export type InstrumentalProcessResult = {
@@ -436,11 +444,19 @@ async function removeVocalsAi(
       signal: options.signal,
       durationSec: durationSec > 0 ? durationSec : undefined,
       aiCpuThreads: options.aiCpuThreads,
-      // MDX knobs only when method is aiMdxKaraoke2; undefined for Demucs/Roformer.
+      aiEnableGpu: options.aiEnableGpu,
+      aiGpuSupported: options.aiGpuSupported,
+      // MDX knobs only when method is aiMdxKaraoke2; undefined for Demucs.
       ...mdxPayloadForMethod(method, {
         mdxSegmentSize: options.mdxSegmentSize,
         mdxOverlap: options.mdxOverlap,
         mdxEnableOrt: options.mdxEnableOrt
+      }),
+      // Demucs knobs only when method is aiHtDemucs; undefined for MDX.
+      ...demucsPayloadForMethod(method, {
+        demucsShifts: options.demucsShifts,
+        demucsSegmentSize: options.demucsSegmentSize,
+        demucsOverlap: options.demucsOverlap
       }),
       onProgress: (info) => {
         const ratio = Math.max(0, Math.min(1, info.progress));

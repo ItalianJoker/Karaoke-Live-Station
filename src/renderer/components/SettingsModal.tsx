@@ -67,6 +67,20 @@ import {
   MDX_SEGMENT_SIZES,
   isMdxInstrumentalMethod
 } from '../../shared/mdxAdvancedSettings';
+import {
+  coerceDemucsOverlap,
+  coerceDemucsSegmentSize,
+  coerceDemucsShifts,
+  DEMUCS_OVERLAP_MAX,
+  DEMUCS_OVERLAP_MIN,
+  DEMUCS_OVERLAP_STEP,
+  DEMUCS_SEGMENT_MAX,
+  DEMUCS_SEGMENT_MIN,
+  DEMUCS_SHIFTS_OPTIONS,
+  isDemucsInstrumentalMethod
+} from '../../shared/demucsAdvancedSettings';
+import { coerceAiEnableGpu } from '../../shared/aiOrtProviders';
+import type { GpuStatus } from '../../shared/gpuStatus';
 import { coerceDspPitchEngine, type DspPitchEngine } from '../../shared/dspPitch';
 import appLogo from '../assets/logo.png';
 
@@ -111,6 +125,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settingsSearch, setSettingsSearch] = useState('');
   const [cpuCoreCount, setCpuCoreCount] = useState(detectUiCpuCoreCount());
+  const [gpuStatus, setGpuStatus] = useState<GpuStatus | null>(null);
   const [appVersion, setAppVersion] = useState('1.4.0');
 
   const isSearching = settingsSearch.trim().length > 0;
@@ -166,6 +181,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         .catch(() => setCpuCoreCount(detectUiCpuCoreCount()));
     } else {
       setCpuCoreCount(detectUiCpuCoreCount());
+    }
+
+    if (window.karaokeApi?.system?.getGpuStatus) {
+      window.karaokeApi.system
+        .getGpuStatus()
+        .then((status) => {
+          if (status && typeof status.isSupported === 'boolean') {
+            setGpuStatus(status);
+          } else {
+            setGpuStatus({ isSupported: false });
+          }
+        })
+        .catch(() => setGpuStatus({ isSupported: false }));
+    } else {
+      setGpuStatus({ isSupported: false });
     }
 
     if (window.karaokeApi?.system?.getAppVersion) {
@@ -434,16 +464,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     t('settings.mdxSegmentSize'),
     t('settings.mdxOverlap'),
     t('settings.mdxEnableOrt'),
+    t('settings.demucsAdvancedTitle'),
+    t('settings.demucsShifts'),
+    t('settings.demucsSegmentSize'),
+    t('settings.demucsOverlap'),
     'instrumental',
     'strumentale',
     'ai',
     'mdx',
     'demucs',
-    'roformer',
     'download',
     'segment',
     'overlap',
-    'onnx'
+    'onnx',
+    'shifts'
   );
   const matchMaxDownloads = matchesSearch(
     t('settings.maxSimultaneousDownloads'),
@@ -459,11 +493,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     t('settings.aiCpuThreadsDesc', 'Numero di core CPU usati da MDX / Demucs durante il download strumentale'),
     t('settings.aiCpuCoresAvailable', 'Core CPU disponibili: {{count}}', { count: cpuCoreCount }),
     t('settings.aiCpuThreadsResetMax', 'Reimposta su Massimo ({{count}})', { count: cpuCoreCount }),
+    t('settings.aiEnableGpu'),
+    t('settings.aiEnableGpuDesc'),
     'cpu',
     'core',
     'threads',
     'ort',
     'wasm',
+    'gpu',
+    'webgpu',
     'ai'
   );
   const matchNormalization = matchesSearch(
@@ -1052,19 +1090,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs"
                   >
-                    <optgroup label={t('settings.vocalGroupAlgorithmic')}>
-                      <option value="centerCancelBassKeep">{t('settings.vocalAlgoCenterBass')}</option>
-                      <option value="centerCancel">{t('settings.vocalAlgoCenter')}</option>
-                      <option value="softMid">{t('settings.vocalAlgoSoftMid')}</option>
-                    </optgroup>
-                    <optgroup label={t('settings.vocalGroupAi')}>
-                      <option value="aiMdxKaraoke2">{t('settings.vocalAiMdxKaraoke2')}</option>
-                      <option value="aiHtDemucs">{t('settings.vocalAiHtDemucs')}</option>
-                      <option value="aiBsRoformer">{t('settings.vocalAiBsRoformer')}</option>
-                    </optgroup>
+                    <option value="aiMdxKaraoke2">{t('settings.vocalAiMdxKaraoke2')}</option>
+                    <option value="aiHtDemucs">{t('settings.vocalAiHtDemucs')}</option>
                   </select>
 
-                  {/* MDX-only advanced ETA panel — hidden for Demucs / Roformer / DSP */}
+                  {/* MDX-only advanced ETA panel — hidden for Demucs */}
                   {isMdxInstrumentalMethod(
                     coerceInstrumentalVocalRemoverMethod(settings.instrumentalVocalRemoverMethod)
                   ) && (
@@ -1216,6 +1246,102 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       </label>
                     </div>
                   )}
+
+                  {/* Demucs-only advanced panel — hidden for MDX */}
+                  {isDemucsInstrumentalMethod(
+                    coerceInstrumentalVocalRemoverMethod(settings.instrumentalVocalRemoverMethod)
+                  ) && (
+                    <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-3">
+                      <div>
+                        <p className="font-semibold text-white text-xs">
+                          {t('settings.demucsAdvancedTitle')}
+                        </p>
+                        <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
+                          {t('settings.demucsAdvancedDesc')}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-medium text-slate-200">
+                          {t('settings.demucsShifts')}
+                          <span className="ml-2 font-mono text-indigo-300">
+                            {coerceDemucsShifts(settings.demucsShifts)}
+                          </span>
+                        </label>
+                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                          {t('settings.demucsShiftsDesc')}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {DEMUCS_SHIFTS_OPTIONS.map((value) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() =>
+                                updateSettings({ demucsShifts: coerceDemucsShifts(value) })
+                              }
+                              className={`px-2 py-0.5 rounded text-[10px] border ${
+                                coerceDemucsShifts(settings.demucsShifts) === value
+                                  ? 'border-indigo-500 bg-indigo-950/60 text-indigo-200'
+                                  : 'border-slate-700 text-slate-400 hover:border-slate-500'
+                              }`}
+                            >
+                              {value}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-medium text-slate-200">
+                          {t('settings.demucsSegmentSize')}
+                          <span className="ml-2 font-mono text-indigo-300">
+                            {coerceDemucsSegmentSize(settings.demucsSegmentSize).toFixed(1)}s
+                          </span>
+                        </label>
+                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                          {t('settings.demucsSegmentSizeDesc')}
+                        </p>
+                        <input
+                          type="range"
+                          min={DEMUCS_SEGMENT_MIN}
+                          max={DEMUCS_SEGMENT_MAX}
+                          step={0.5}
+                          value={coerceDemucsSegmentSize(settings.demucsSegmentSize)}
+                          onChange={(e) =>
+                            updateSettings({
+                              demucsSegmentSize: coerceDemucsSegmentSize(parseFloat(e.target.value))
+                            })
+                          }
+                          className="w-full accent-indigo-600"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-medium text-slate-200">
+                          {t('settings.demucsOverlap')}
+                          <span className="ml-2 font-mono text-indigo-300">
+                            {coerceDemucsOverlap(settings.demucsOverlap).toFixed(2)}
+                          </span>
+                        </label>
+                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                          {t('settings.demucsOverlapDesc')}
+                        </p>
+                        <input
+                          type="range"
+                          min={DEMUCS_OVERLAP_MIN}
+                          max={DEMUCS_OVERLAP_MAX}
+                          step={DEMUCS_OVERLAP_STEP}
+                          value={coerceDemucsOverlap(settings.demucsOverlap)}
+                          onChange={(e) =>
+                            updateSettings({
+                              demucsOverlap: coerceDemucsOverlap(parseFloat(e.target.value))
+                            })
+                          }
+                          className="w-full accent-indigo-600"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1224,8 +1350,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   settings.aiCpuThreads == null
                     ? cpuCoreCount
                     : clampAiCpuThreadsForUi(settings.aiCpuThreads, cpuCoreCount);
+                const gpuOn = coerceAiEnableGpu(settings.aiEnableGpu);
+                const gpuSupported = gpuStatus?.isSupported === true;
+                const gpuLabel =
+                  gpuSupported && gpuStatus?.gpuName
+                    ? gpuStatus.gpuName
+                    : gpuSupported
+                      ? t('settings.aiGpuBadgeSupported')
+                      : t('settings.aiGpuBadgeCpuFallback');
                 return (
-                  <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2">
+                  <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-3">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={gpuOn}
+                        onChange={(e) =>
+                          updateSettings({ aiEnableGpu: coerceAiEnableGpu(e.target.checked) })
+                        }
+                        className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <span className="block text-xs font-semibold text-white">
+                          {t('settings.aiEnableGpu')}
+                        </span>
+                        <span className="block text-[11px] text-slate-400 leading-relaxed mt-0.5">
+                          {t('settings.aiEnableGpuDesc')}
+                        </span>
+                        <div
+                          className={`mt-2 inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-medium ${
+                            gpuOn && gpuSupported
+                              ? 'border-emerald-700/60 bg-emerald-950/40 text-emerald-200'
+                              : 'border-amber-700/60 bg-amber-950/40 text-amber-200'
+                          }`}
+                          title={gpuStatus?.vendor || undefined}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              gpuOn && gpuSupported ? 'bg-emerald-400' : 'bg-amber-400'
+                            }`}
+                          />
+                          {gpuOn && gpuSupported
+                            ? t('settings.aiGpuBadgeGpu', { name: gpuLabel })
+                            : t('settings.aiGpuBadgeCpu', { detail: gpuLabel })}
+                        </div>
+                      </div>
+                    </label>
+
                     <label className="block font-semibold text-white text-xs flex items-center gap-1.5">
                       <Cpu className="w-3.5 h-3.5 text-cyan-400" />
                       {t('settings.aiCpuThreads', 'Core CPU per AI strumentale')}

@@ -4,7 +4,9 @@
  *
  * Protocol (parent ↔ child via Electron utilityProcess parentPort, or process IPC):
  *   in:  { type:'separate', requestId, method, modelPath, ortDir, inputWav, outputWav,
- *          aiCpuThreads?, mdxSegmentSize?, mdxOverlap?, mdxEnableOrt? }
+ *          aiCpuThreads?, aiEnableGpu?, aiGpuSupported?,
+ *          mdxSegmentSize?, mdxOverlap?, mdxEnableOrt?,
+ *          demucsShifts?, demucsSegmentSize?, demucsOverlap? }
  *   out: { type:'progress', requestId, phase, progress, message, ortNumThreads? }
  *        { type:'done', requestId, outputWav }
  *        { type:'error', requestId, message }
@@ -25,8 +27,13 @@ import {
 import {
   coerceMdxAdvancedSettings
 } from '../../shared/mdxAdvancedSettings';
+import {
+  coerceDemucsAdvancedSettings
+} from '../../shared/demucsAdvancedSettings';
 import { resolveAiCpuThreads } from '../../shared/aiCpuThreads';
+import { resolveAiOrtExecutionProviders } from '../../shared/aiOrtProviders';
 import { MdxNetSeparator, MDX_SAMPLE_RATE } from '../ai/MdxNetSeparator';
+import { separateDemucsWithAdvancedOptions } from '../ai/demucsSeparateWithOptions';
 import { readPcmWavFile, writePcmWavFile } from '../ai/wavPcm';
 import { unwrapAiWorkerInboundMessage } from './aiWorkerMessage';
 
@@ -40,10 +47,17 @@ type SeparateRequest = {
   outputWav: string;
   /** Resolved or raw thread preference; null/omit → all cores. */
   aiCpuThreads?: number | null;
+  /** GPU-First toggle + probe snapshot from main. */
+  aiEnableGpu?: boolean;
+  aiGpuSupported?: boolean;
   /** MDX-only — ignored for Demucs / Roformer. */
   mdxSegmentSize?: number;
   mdxOverlap?: number;
   mdxEnableOrt?: boolean;
+  /** Demucs-only — ignored for MDX / Roformer. */
+  demucsShifts?: number;
+  demucsSegmentSize?: number;
+  demucsOverlap?: number;
 };
 
 type OutMessage =
@@ -108,6 +122,8 @@ async function separateMdx(
     mdxOverlap?: number;
     mdxEnableOrt?: boolean;
     aiCpuThreads?: number | null;
+    aiEnableGpu?: boolean;
+    aiGpuSupported?: boolean;
   }
 ): Promise<void> {
   const wav = readPcmWavFile(inputWav);
@@ -132,7 +148,9 @@ async function separateMdx(
   const modelBuffer = toArrayBuffer(new Uint8Array(fs.readFileSync(modelPath)));
   const separator = new MdxNetSeparator({
     ...advanced,
-    aiCpuThreads: mdxOpts?.aiCpuThreads
+    aiCpuThreads: mdxOpts?.aiCpuThreads,
+    aiEnableGpu: mdxOpts?.aiEnableGpu,
+    aiGpuSupported: mdxOpts?.aiGpuSupported
   });
   separator.onProgress((info) => {
     post({
@@ -162,13 +180,28 @@ async function separateDemucs(
   inputWav: string,
   outputWav: string,
   requestId: number,
-  aiCpuThreads?: number | null
+  demucsOpts?: {
+    aiCpuThreads?: number | null;
+    aiEnableGpu?: boolean;
+    aiGpuSupported?: boolean;
+    demucsShifts?: number;
+    demucsSegmentSize?: number;
+    demucsOverlap?: number;
+  }
 ): Promise<void> {
   // Lazy-load demucs-web only on HTDemucs path so MDX boot does not require() ESM.
-  const { DemucsProcessor, CONSTANTS } = await import('demucs-web');
+  const demucsMod = await import('demucs-web');
+  const { DemucsProcessor, CONSTANTS, prepareModelInput, standaloneMask, standaloneIspec } =
+    demucsMod;
+  const demucsWeb: {
+    CONSTANTS: typeof CONSTANTS;
+    prepareModelInput: typeof prepareModelInput;
+    standaloneMask: typeof standaloneMask;
+    standaloneIspec: typeof standaloneIspec;
+  } = { CONSTANTS, prepareModelInput, standaloneMask, standaloneIspec };
   const wasmPaths = ortWasmConfigFromDir(ortDir);
   const totalCpus = Math.max(1, os.cpus()?.length || 1);
-  const threads = resolveAiCpuThreads(aiCpuThreads, totalCpus);
+  const threads = resolveAiCpuThreads(demucsOpts?.aiCpuThreads, totalCpus);
   ort.env.wasm.numThreads = threads;
   ort.env.wasm.simd = true;
   ort.env.wasm.proxy = false;
@@ -194,39 +227,27 @@ async function separateDemucs(
     ortNumThreads: threads
   });
 
+  const advanced = coerceDemucsAdvancedSettings(demucsOpts);
+  const providers = resolveAiOrtExecutionProviders(
+    demucsOpts?.aiEnableGpu,
+    demucsOpts?.aiGpuSupported
+  );
   const modelBuffer = toArrayBuffer(new Uint8Array(fs.readFileSync(modelPath)));
   const sessionOptionsBase = {
     graphOptimizationLevel: 'all' as const
   };
-  let sessionOptions: {
-    executionProviders: string[];
-    graphOptimizationLevel: 'all';
-  } = {
-    ...sessionOptionsBase,
-    executionProviders: ['webgpu', 'wasm']
-  };
-  const demucs = new DemucsProcessor({
-    ort,
-    sessionOptions,
-    onProgress: (info: { progress: number }) => {
-      const progress = Math.max(0, Math.min(1, info.progress));
-      post({
-        type: 'progress',
-        requestId,
-        phase: 'separate',
-        progress,
-        message: `HTDemucs separating… ${Math.round(progress * 100)}%`
-      });
-    }
-  });
-  try {
-    await demucs.loadModel(modelBuffer);
-  } catch {
-    // WebGPU EP may be unavailable in utilityProcess — retry WASM-only.
-    sessionOptions = { ...sessionOptionsBase, executionProviders: ['wasm'] };
-    const demucsWasm = new DemucsProcessor({
+
+  const createAndRun = async (executionProviders: string[]) => {
+    const sessionOptions = {
+      ...sessionOptionsBase,
+      executionProviders
+    };
+    const demucs = new DemucsProcessor({
       ort,
       sessionOptions,
+      demucsShifts: advanced.demucsShifts,
+      demucsSegmentSize: advanced.demucsSegmentSize,
+      demucsOverlap: advanced.demucsOverlap,
       onProgress: (info: { progress: number }) => {
         const progress = Math.max(0, Math.min(1, info.progress));
         post({
@@ -238,7 +259,7 @@ async function separateDemucs(
         });
       }
     });
-    await demucsWasm.loadModel(modelBuffer);
+    await demucs.loadModel(modelBuffer);
     post({
       type: 'progress',
       requestId,
@@ -247,7 +268,13 @@ async function separateDemucs(
       message: 'Running HTDemucs inference…',
       ortNumThreads: threads
     });
-    const stems = await demucsWasm.separate(wav.left, wav.right);
+    const stems = await separateDemucsWithAdvancedOptions(
+      demucsWeb,
+      demucs,
+      wav.left,
+      wav.right,
+      advanced
+    );
     const length = wav.left.length;
     const outL = new Float32Array(length);
     const outR = new Float32Array(length);
@@ -256,25 +283,18 @@ async function separateDemucs(
       outR[i] = stems.drums.right[i] + stems.bass.right[i] + stems.other.right[i];
     }
     writePcmWavFile(outputWav, outL, outR, CONSTANTS.SAMPLE_RATE);
-    return;
+  };
+
+  try {
+    await createAndRun(providers);
+  } catch {
+    // WebGPU EP may be unavailable in utilityProcess — retry WASM-only.
+    if (providers[0] === 'webgpu') {
+      await createAndRun(['wasm']);
+    } else {
+      throw new Error('HTDemucs ORT session create failed (WASM)');
+    }
   }
-  post({
-    type: 'progress',
-    requestId,
-    phase: 'separate',
-    progress: 0.1,
-    message: 'Running HTDemucs inference…',
-    ortNumThreads: threads
-  });
-  const stems = await demucs.separate(wav.left, wav.right);
-  const length = wav.left.length;
-  const outL = new Float32Array(length);
-  const outR = new Float32Array(length);
-  for (let i = 0; i < length; i++) {
-    outL[i] = stems.drums.left[i] + stems.bass.left[i] + stems.other.left[i];
-    outR[i] = stems.drums.right[i] + stems.bass.right[i] + stems.other.right[i];
-  }
-  writePcmWavFile(outputWav, outL, outR, CONSTANTS.SAMPLE_RATE);
 }
 
 async function handleSeparate(req: SeparateRequest): Promise<void> {
@@ -318,12 +338,21 @@ async function handleSeparate(req: SeparateRequest): Promise<void> {
         mdxSegmentSize: req.mdxSegmentSize,
         mdxOverlap: req.mdxOverlap,
         mdxEnableOrt: req.mdxEnableOrt,
-        aiCpuThreads: req.aiCpuThreads
+        aiCpuThreads: req.aiCpuThreads,
+        aiEnableGpu: req.aiEnableGpu,
+        aiGpuSupported: req.aiGpuSupported
       });
       break;
     case 'aiHtDemucs':
       // Demucs path ignores MDX segment/overlap/ORT knobs even if present on the wire.
-      await separateDemucs(modelPath, ortDir, inputWav, outputWav, requestId, req.aiCpuThreads);
+      await separateDemucs(modelPath, ortDir, inputWav, outputWav, requestId, {
+        aiCpuThreads: req.aiCpuThreads,
+        aiEnableGpu: req.aiEnableGpu,
+        aiGpuSupported: req.aiGpuSupported,
+        demucsShifts: req.demucsShifts,
+        demucsSegmentSize: req.demucsSegmentSize,
+        demucsOverlap: req.demucsOverlap
+      });
       break;
     case 'aiBsRoformer':
       throw new Error(

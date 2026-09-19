@@ -25,7 +25,16 @@ import {
   MDX_DEFAULT_OVERLAP,
   MDX_DEFAULT_SEGMENT_SIZE
 } from '../../shared/mdxAdvancedSettings';
+import {
+  coerceDemucsOverlap,
+  coerceDemucsSegmentSize,
+  coerceDemucsShifts,
+  DEMUCS_DEFAULT_OVERLAP,
+  DEMUCS_DEFAULT_SEGMENT_SIZE,
+  DEMUCS_DEFAULT_SHIFTS
+} from '../../shared/demucsAdvancedSettings';
 import { coerceAiCpuThreads } from '../../shared/aiCpuThreads';
+import { coerceAiEnableGpu } from '../../shared/aiOrtProviders';
 import { clampPitchForEngine, coerceDspPitchEngine } from '../../shared/dspPitch';
 
 export type MissingFileContext = 'library' | 'queue';
@@ -130,8 +139,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   mdxSegmentSize: MDX_DEFAULT_SEGMENT_SIZE,
   mdxOverlap: MDX_DEFAULT_OVERLAP,
   mdxEnableOrt: MDX_DEFAULT_ENABLE_ORT,
+  demucsShifts: DEMUCS_DEFAULT_SHIFTS,
+  demucsSegmentSize: DEMUCS_DEFAULT_SEGMENT_SIZE,
+  demucsOverlap: DEMUCS_DEFAULT_OVERLAP,
   /** null = all detected cores (max power default). */
   aiCpuThreads: null,
+  /** GPU-First default — prefer WebGPU when probe supports it. */
+  aiEnableGpu: true,
   autoMaximizeControlOnLaunch: true,
   autoOpenStageOnLaunch: true,
   maxSimultaneousDownloads: 2,
@@ -312,8 +326,23 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           if (partial.mdxEnableOrt !== undefined || updated.mdxEnableOrt !== undefined) {
             updated.mdxEnableOrt = coerceMdxEnableOrt(updated.mdxEnableOrt);
           }
+          if (partial.demucsShifts !== undefined || updated.demucsShifts !== undefined) {
+            updated.demucsShifts = coerceDemucsShifts(updated.demucsShifts);
+          }
+          if (
+            partial.demucsSegmentSize !== undefined ||
+            updated.demucsSegmentSize !== undefined
+          ) {
+            updated.demucsSegmentSize = coerceDemucsSegmentSize(updated.demucsSegmentSize);
+          }
+          if (partial.demucsOverlap !== undefined || updated.demucsOverlap !== undefined) {
+            updated.demucsOverlap = coerceDemucsOverlap(updated.demucsOverlap);
+          }
           if (partial.aiCpuThreads !== undefined || updated.aiCpuThreads !== undefined) {
             updated.aiCpuThreads = coerceAiCpuThreads(updated.aiCpuThreads);
+          }
+          if (partial.aiEnableGpu !== undefined || updated.aiEnableGpu !== undefined) {
+            updated.aiEnableGpu = coerceAiEnableGpu(updated.aiEnableGpu);
           }
           if (partial.autoMaximizeControlOnLaunch !== undefined) {
             updated.autoMaximizeControlOnLaunch = Boolean(partial.autoMaximizeControlOnLaunch);
@@ -1044,7 +1073,13 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         mergedSettings.mdxSegmentSize = coerceMdxSegmentSize(mergedSettings.mdxSegmentSize);
         mergedSettings.mdxOverlap = coerceMdxOverlap(mergedSettings.mdxOverlap);
         mergedSettings.mdxEnableOrt = coerceMdxEnableOrt(mergedSettings.mdxEnableOrt);
+        mergedSettings.demucsShifts = coerceDemucsShifts(mergedSettings.demucsShifts);
+        mergedSettings.demucsSegmentSize = coerceDemucsSegmentSize(
+          mergedSettings.demucsSegmentSize
+        );
+        mergedSettings.demucsOverlap = coerceDemucsOverlap(mergedSettings.demucsOverlap);
         mergedSettings.aiCpuThreads = coerceAiCpuThreads(mergedSettings.aiCpuThreads);
+        mergedSettings.aiEnableGpu = coerceAiEnableGpu(mergedSettings.aiEnableGpu);
         mergedSettings.dspEngine = coerceDspPitchEngine(mergedSettings.dspEngine);
         mergedSettings.autoMaximizeControlOnLaunch =
           typeof mergedSettings.autoMaximizeControlOnLaunch === 'boolean'

@@ -84,8 +84,15 @@ export interface DownloadOptions {
   mdxSegmentSize?: number;
   mdxOverlap?: number;
   mdxEnableOrt?: boolean;
+  /** Demucs-only advanced knobs — omit for non-Demucs methods */
+  demucsShifts?: number;
+  demucsSegmentSize?: number;
+  demucsOverlap?: number;
   /** Resolved ORT WASM thread count for AI instrumental (omit for DSP). */
   aiCpuThreads?: number;
+  /** GPU-First toggle + probe snapshot for AI instrumental. */
+  aiEnableGpu?: boolean;
+  aiGpuSupported?: boolean;
   /**
    * When true (and instrumental + video): request yt-dlp auto-subs for lyric burn-in.
    * Default / omitted = false (no `--write-auto-sub`). Missing subs never fail the job.
@@ -917,7 +924,12 @@ export class DownloadManager {
               mdxSegmentSize: options.mdxSegmentSize,
               mdxOverlap: options.mdxOverlap,
               mdxEnableOrt: options.mdxEnableOrt,
+              demucsShifts: options.demucsShifts,
+              demucsSegmentSize: options.demucsSegmentSize,
+              demucsOverlap: options.demucsOverlap,
               aiCpuThreads: options.aiCpuThreads,
+              aiEnableGpu: options.aiEnableGpu,
+              aiGpuSupported: options.aiGpuSupported,
               onProgress: (phase, percent) => {
                 if (payload.status === 'cancelled') return;
                 if (phase === 'ensuring_model') {

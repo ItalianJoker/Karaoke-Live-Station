@@ -11,15 +11,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ### Added
 - **Native `.zip` CD+G karaoke packs** — Library scan/import discovers ZIP archives that contain an MP3/WAV + `.cdg` pair (Central Directory inspect). Playback extracts on demand to `userData/temp/zip_cache/<trackId>/`, serves via `karaoke://local/`, and cleans up on dequeue / app quit. Title/artist from the ZIP filename. No version bump (ships after v1.4.0).
 - **Key + BPM detection** — Catalog columns `initialKey` / `initialBpm`; async chromagram/onset analysis (MIDI tempo + key-signature meta; audio via FFmpeg PCM). Regia pitch/speed pills show live `base→result` / `bpm→eff` beside existing ±/reset controls (label-only fallback when unknown). Shared helpers in `musicalKeys.ts` (`transposeKey`, `effectiveBpm`).
+- **AI GPU-First** — Settings → Library & Download: `aiEnableGpu` (default on) + live GPU badge (green name / amber CPU multithread). IPC `system:get-gpu-status`. ORT providers `webgpu`→`wasm` when enabled+supported; else WASM + `aiCpuThreads`.
+- **HTDemucs advanced settings** — When Download Instrumental method is HTDemucs: `demucsShifts` (0|1|2), `demucsSegmentSize` (5–20 s), `demucsOverlap` (0.10–0.50). Payload omitted for MDX (and vice versa).
+- **`scripts/verify-ai-options-pipeline.js`** — GPU providers, threads, MDX/Demucs payload separation, coerce Roformer/DSP → Karaoke 2, locale Basic Algorithm strings; wired into `npm test`.
 
 ### Changed
-- None yet.
+- **Download Instrumental method selector** — AI only: `aiMdxKaraoke2` | `aiHtDemucs` (default Karaoke 2). Removed DSP and BS-Roformer from the download Settings UI. Live Regia vocal remover DSP modes unchanged.
+- **Experimental → Basic Algorithm** — Live vocal remover labels in it/en/es/fr (`Algoritmo Base` / `Basic Algorithm` / `Algoritmo Básico` / `Algorithme de Base`); removed Experimental tags from stable HTDemucs blurbs.
 
 ### Fixed
 - None yet.
 
 ### Breaking Changes
-- None yet.
+- Persisted Download Instrumental methods that were DSP or `aiBsRoformer` coerce to `aiMdxKaraoke2`.
 
 ## [1.4.0] — Bungee DSP default + instrumental subtitles modal — 2026-09-19
 

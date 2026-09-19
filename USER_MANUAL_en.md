@@ -37,7 +37,7 @@ Full operator console:
 - Transport (Play / Pause / Stop / Restart / Next)
 - Master volume with a perceptual curve
 - Pitch in semitones and speed (time-stretch)
-- Guide-vocal removal **(Experimental)** via classical mid/side DSP (algorithmic, realtime)
+- Guide-vocal removal **(Basic Algorithm)** via classical mid/side DSP (algorithmic, realtime)
 - Auto-ducking BGM at the microphone
 - 16-channel MIDI/KAR mixer
 - CUE pre-listen on a secondary device
@@ -230,9 +230,9 @@ Examples: 100% → full gain; 50% → gain 0.25 (about −12 dB, perceived half 
 - **Speed:** from **0.50× to 1.50×** without changing pitch (WSOLA / SoundTouch). `Ctrl+←` / `Ctrl+→` adjust by ±5%. Clicking the numeric indicator often resets to 1.00×.
 - MIDI: transposition acts on note numbers in real time.
 
-### 4.4 Guide-vocal removal (Experimental)
+### 4.4 Guide-vocal removal (Basic Algorithm)
 
-The **`V`** key / **Vocal Remover (Experimental)** control enables the method chosen in **Settings → Audio**:
+The **`V`** key / **Vocal Remover (Basic Algorithm)** control enables the method chosen in **Settings → Audio**:
 
 | Method | Notes |
 | --- | --- |
