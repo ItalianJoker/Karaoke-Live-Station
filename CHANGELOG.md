@@ -12,7 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - None yet.
 
 ### Changed
-- None yet.
+- **Settings AI layout** — Library & Download: GPU card is toggle + badge only; AI instrumental CPU cores live in a sibling CPU card; MDX `mdxEnableOrt` (ONNX Runtime CPU acceleration) grouped into that CPU card (MDX-only visibility unchanged). No settings key / IPC / default changes.
 
 ### Fixed
 - None yet.
