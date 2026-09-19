@@ -50,6 +50,8 @@ import type { SettingsLibraryTabProps } from './settingsTypes';
  * logger source `SettingsModal`. Auto-archive off opens the parent confirm modal via
  * `setShowAutoArchiveConfirm` — do not inline that dialog here. Download Instrumental
  * select is AI-only (`aiMdxKaraoke2` | `aiHtDemucs`); live Regia DSP modes stay on Audio.
+ * AI acceleration UI: GPU toggle+badge and CPU cores are sibling bordered cards; MDX
+ * `mdxEnableOrt` lives in the CPU card (still MDX-method-only).
  */
 export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
   t,
@@ -314,25 +316,6 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                             </div>
                           )}
                         </div>
-
-                        <label className="flex items-start gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={coerceMdxEnableOrt(settings.mdxEnableOrt)}
-                            onChange={(e) =>
-                              updateSettings({ mdxEnableOrt: coerceMdxEnableOrt(e.target.checked) })
-                            }
-                            className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
-                          />
-                          <div>
-                            <span className="block text-[11px] font-medium text-slate-200">
-                              {t('settings.mdxEnableOrt')}
-                            </span>
-                            <span className="block text-[10px] text-slate-400 leading-relaxed mt-0.5">
-                              {t('settings.mdxEnableOrtDesc')}
-                            </span>
-                          </div>
-                        </label>
                       </div>
                     )}
 
@@ -435,10 +418,6 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                 )}
 
                 {(!isSearching || matchAiThreads) && (() => {
-                  const aiCpuThreadsUi =
-                    settings.aiCpuThreads == null
-                      ? cpuCoreCount
-                      : clampAiCpuThreadsForUi(settings.aiCpuThreads, cpuCoreCount);
                   const gpuOn = coerceAiEnableGpu(settings.aiEnableGpu);
                   const gpuSupported = gpuStatus?.isSupported === true;
                   const gpuLabel =
@@ -484,62 +463,115 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                           </div>
                         </div>
                       </label>
+                    </div>
+                  );
+                })()}
 
-                      <label className="block font-semibold text-white text-xs flex items-center gap-1.5">
-                        <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-                        {t('settings.aiCpuThreads', 'Core CPU per AI strumentale')}
-                      </label>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
-                        {t(
-                          'settings.aiCpuThreadsDesc',
-                          'Numero di core CPU usati da MDX / Demucs durante il download strumentale'
-                        )}
-                      </p>
-                      <p className="text-[11px] text-slate-300 font-medium">
-                        {t('settings.aiCpuCoresAvailable', 'Core CPU disponibili: {{count}}', {
-                          count: cpuCoreCount
-                        })}
-                      </p>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="range"
-                          min={1}
-                          max={cpuCoreCount}
-                          step={1}
-                          value={aiCpuThreadsUi}
-                          onChange={(e) => {
-                            const clamped = clampAiCpuThreadsForUi(
-                              parseInt(e.target.value, 10),
-                              cpuCoreCount
-                            );
-                            updateSettings({ aiCpuThreads: clamped });
-                          }}
-                          className="flex-1 accent-indigo-600"
-                        />
-                        <input
-                          type="number"
-                          min={1}
-                          max={cpuCoreCount}
-                          value={aiCpuThreadsUi}
-                          onChange={(e) => {
-                            const clamped = clampAiCpuThreadsForUi(
-                              parseInt(e.target.value, 10),
-                              cpuCoreCount
-                            );
-                            updateSettings({ aiCpuThreads: clamped });
-                          }}
-                          className="w-16 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-white text-center text-xs font-mono"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => updateSettings({ aiCpuThreads: coerceAiCpuThreads(null) })}
-                        className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-medium cursor-pointer"
-                      >
-                        {t('settings.aiCpuThreadsResetMax', 'Reimposta su Massimo ({{count}})', {
-                          count: cpuCoreCount
-                        })}
-                      </button>
+                {(() => {
+                  const isMdxMethod = isMdxInstrumentalMethod(
+                    coerceInstrumentalVocalRemoverMethod(settings.instrumentalVocalRemoverMethod)
+                  );
+                  const showOrt =
+                    isMdxMethod && (!isSearching || matchAiThreads || matchInstrumentalVocal);
+                  const showCores = !isSearching || matchAiThreads;
+                  if (!showOrt && !showCores) return null;
+
+                  const aiCpuThreadsUi =
+                    settings.aiCpuThreads == null
+                      ? cpuCoreCount
+                      : clampAiCpuThreadsForUi(settings.aiCpuThreads, cpuCoreCount);
+
+                  return (
+                    <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-3">
+                      {showOrt && (
+                        <>
+                          <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={coerceMdxEnableOrt(settings.mdxEnableOrt)}
+                              onChange={(e) =>
+                                updateSettings({
+                                  mdxEnableOrt: coerceMdxEnableOrt(e.target.checked)
+                                })
+                              }
+                              className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
+                            />
+                            <div>
+                              <span className="block text-[11px] font-medium text-slate-200">
+                                {t('settings.mdxEnableOrt')}
+                              </span>
+                              <span className="block text-[10px] text-slate-400 leading-relaxed mt-0.5">
+                                {t('settings.mdxEnableOrtDesc')}
+                              </span>
+                            </div>
+                          </label>
+                          {showCores && <div className="border-t border-slate-800/80" />}
+                        </>
+                      )}
+
+                      {showCores && (
+                        <>
+                          <label className="block font-semibold text-white text-xs flex items-center gap-1.5">
+                            <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                            {t('settings.aiCpuThreads', 'Core CPU per AI strumentale')}
+                          </label>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            {t(
+                              'settings.aiCpuThreadsDesc',
+                              'Numero di core CPU usati da MDX / Demucs durante il download strumentale'
+                            )}
+                          </p>
+                          <p className="text-[11px] text-slate-300 font-medium">
+                            {t('settings.aiCpuCoresAvailable', 'Core CPU disponibili: {{count}}', {
+                              count: cpuCoreCount
+                            })}
+                          </p>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="range"
+                              min={1}
+                              max={cpuCoreCount}
+                              step={1}
+                              value={aiCpuThreadsUi}
+                              onChange={(e) => {
+                                const clamped = clampAiCpuThreadsForUi(
+                                  parseInt(e.target.value, 10),
+                                  cpuCoreCount
+                                );
+                                updateSettings({ aiCpuThreads: clamped });
+                              }}
+                              className="flex-1 accent-indigo-600"
+                            />
+                            <input
+                              type="number"
+                              min={1}
+                              max={cpuCoreCount}
+                              value={aiCpuThreadsUi}
+                              onChange={(e) => {
+                                const clamped = clampAiCpuThreadsForUi(
+                                  parseInt(e.target.value, 10),
+                                  cpuCoreCount
+                                );
+                                updateSettings({ aiCpuThreads: clamped });
+                              }}
+                              className="w-16 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-white text-center text-xs font-mono"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateSettings({ aiCpuThreads: coerceAiCpuThreads(null) })
+                            }
+                            className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-medium cursor-pointer"
+                          >
+                            {t(
+                              'settings.aiCpuThreadsResetMax',
+                              'Reimposta su Massimo ({{count}})',
+                              { count: cpuCoreCount }
+                            )}
+                          </button>
+                        </>
+                      )}
                     </div>
                   );
                 })()}
