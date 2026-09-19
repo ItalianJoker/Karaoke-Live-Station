@@ -115,16 +115,11 @@ export interface AppSettings {
    */
   vocalRemoverAlgorithm: 'centerCancelBassKeep' | 'centerCancel' | 'softMid';
   /**
-   * Method used by YouTube Download Instrumental (algorithmic DSP and/or offline AI).
+   * Method used by YouTube Download Instrumental — offline AI only
+   * (`aiMdxKaraoke2` | `aiHtDemucs`). DSP / Roformer persist values coerce to Karaoke 2.
    * Independent from live Rimozione Vocale — AI here never drives the live graph.
    */
-  instrumentalVocalRemoverMethod:
-    | 'centerCancelBassKeep'
-    | 'centerCancel'
-    | 'softMid'
-    | 'aiMdxKaraoke2'
-    | 'aiHtDemucs'
-    | 'aiBsRoformer';
+  instrumentalVocalRemoverMethod: 'aiMdxKaraoke2' | 'aiHtDemucs';
   /**
    * UVR-MDX-NET segment size (`dim_t`). Used only when instrumental method is aiMdxKaraoke2.
    * Powers of 2 in [64, 1024]; Karaoke 2 catalog default is 256.
@@ -144,11 +139,28 @@ export interface AppSettings {
    */
   mdxEnableOrt: boolean;
   /**
+   * HTDemucs shift averaging (0 | 1 | 2). Used only when method is aiHtDemucs.
+   */
+  demucsShifts: number;
+  /**
+   * HTDemucs preferred segment length in seconds (5–20). Used only for aiHtDemucs.
+   */
+  demucsSegmentSize: number;
+  /**
+   * HTDemucs fractional window overlap (0.10–0.50). Used only for aiHtDemucs.
+   */
+  demucsOverlap: number;
+  /**
    * ORT WASM thread count for Download Instrumental AI (MDX / HTDemucs).
    * `null` / missing → use all detected logical cores (default max power).
    * Finite values are clamped to [1, detectedCores] at resolve time.
    */
   aiCpuThreads: number | null;
+  /**
+   * When true (default), prefer WebGPU EP for Instrumental AI when the GPU probe
+   * reports support; otherwise WASM + `aiCpuThreads`.
+   */
+  aiEnableGpu: boolean;
   /**
    * When true (default), maximize the Control (Regia) window on app launch
    * via BrowserWindow.maximize() — not exclusive fullscreen.
@@ -410,17 +422,31 @@ export interface StartDownloadOptions {
   /** Method for instrumental post-process — from `instrumentalVocalRemoverMethod` (may be AI) */
   vocalRemoverAlgorithm?: string;
   /**
-   * MDX-only advanced knobs (omit for Demucs / Roformer / algorithmic).
+   * MDX-only advanced knobs (omit for Demucs / algorithmic).
    * Client should only set when method is aiMdxKaraoke2.
    */
   mdxSegmentSize?: number;
   mdxOverlap?: number;
   mdxEnableOrt?: boolean;
   /**
+   * Demucs-only advanced knobs (omit for MDX / algorithmic).
+   * Client should only set when method is aiHtDemucs.
+   */
+  demucsShifts?: number;
+  demucsSegmentSize?: number;
+  demucsOverlap?: number;
+  /**
    * ORT WASM thread preference for AI instrumental (null = all cores).
    * Main resolves/clamps before the worker; renderer may pass the raw setting.
    */
   aiCpuThreads?: number | null;
+  /**
+   * When true (and GPU probe supported), worker prefers WebGPU then WASM.
+   * When false, WASM-only. Main may also pass resolved `aiGpuSupported`.
+   */
+  aiEnableGpu?: boolean;
+  /** Snapshot of main GPU probe at download start (optional). */
+  aiGpuSupported?: boolean;
   /**
    * When true (instrumental video only): yt-dlp fetches auto-subs for lyric burn-in.
    * Omitted / false → no `--write-auto-sub`. Missing subs never fail the download.

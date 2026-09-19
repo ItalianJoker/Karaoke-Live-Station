@@ -39,6 +39,7 @@ import {
   type MdxAdvancedSettingsInput
 } from '../../shared/mdxAdvancedSettings';
 import { resolveAiCpuThreads } from '../../shared/aiCpuThreads';
+import { resolveAiOrtExecutionProviders } from '../../shared/aiOrtProviders';
 import os from 'os';
 
 export type MdxProgress = {
@@ -60,6 +61,10 @@ export type OrtWasmPathConfig =
 export type MdxRuntimeOptions = MdxAdvancedSettingsInput & {
   /** Resolved or raw thread preference; null/omit → all cores. */
   aiCpuThreads?: number | null;
+  /** User GPU toggle (default true). */
+  aiEnableGpu?: boolean;
+  /** Main-process GPU probe snapshot. */
+  aiGpuSupported?: boolean;
 };
 
 type ProgressListener = (info: MdxProgress) => void;
@@ -110,6 +115,8 @@ export class MdxNetSeparator {
   private readonly overlapLabel: string;
   /** ORT WASM worker threads — clamped to [1, detectedCores]. */
   private readonly numThreads: number;
+  /** Prefer WebGPU when Settings GPU toggle + probe allow it. */
+  private readonly preferWebGpu: boolean;
 
   private olaWindow: Float32Array;
   private chunkL: Float32Array;
@@ -127,6 +134,11 @@ export class MdxNetSeparator {
     this.overlapLabel = cfg.mdxOverlap.toFixed(2);
     const totalCpus = Math.max(1, os.cpus()?.length || 1);
     this.numThreads = resolveAiCpuThreads(options?.aiCpuThreads, totalCpus);
+    const providers = resolveAiOrtExecutionProviders(
+      options?.aiEnableGpu,
+      options?.aiGpuSupported
+    );
+    this.preferWebGpu = providers[0] === 'webgpu';
     this.olaWindow = new Float32Array(this.chunkSize);
     this.chunkL = new Float32Array(this.chunkSize);
     this.chunkR = new Float32Array(this.chunkSize);
@@ -197,11 +209,12 @@ export class MdxNetSeparator {
       const sessionOptionsBase = {
         graphOptimizationLevel: graphOptimizationLevel as 'all' | 'disabled'
       };
-      // Prefer WebGPU when available; fall back to WASM (utilityProcess often has no GPU EP).
+      // GPU-First when enabled+supported; else WASM-only. Catch still falls back if EP missing.
+      const preferGpu = this.preferWebGpu;
       try {
         this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
           ...sessionOptionsBase,
-          executionProviders: ['webgpu', 'wasm']
+          executionProviders: preferGpu ? ['webgpu', 'wasm'] : ['wasm']
         });
       } catch {
         this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {

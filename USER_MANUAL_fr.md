@@ -37,7 +37,7 @@ Console opérateur complète :
 - Transport (Play / Pause / Stop / Recommencer / Suivant)
 - Volume master avec courbe perceptive
 - Pitch en demi-tons et vitesse (time-stretch)
-- Suppression de la voix guide **(Expérimental)** via DSP classique mid/side (algorithmique, temps réel)
+- Suppression de la voix guide **(Algorithme de Base)** via DSP classique mid/side (algorithmique, temps réel)
 - Auto-ducking BGM au micro
 - Mixeur MIDI/KAR à 16 canaux
 - Préécoute CUE sur un périphérique secondaire
@@ -230,9 +230,9 @@ Exemples : 100 % → gain plein ; 50 % → gain 0,25 (−12 dB environ, moitié 
 - **Vitesse :** de **0,50× à 1,50×** sans altérer le pitch (WSOLA / SoundTouch). `Ctrl+←` / `Ctrl+→` règlent de ±5 %. Un clic sur l’indicateur numérique restaure souvent 1,00×.
 - MIDI : la transposition agit sur les numéros de note en temps réel.
 
-### 4.4 Suppression de la voix guide (Expérimental)
+### 4.4 Suppression de la voix guide (Algorithme de Base)
 
-La touche **`V`** / la commande **Suppression Voix Guide (Expérimental)** active la méthode choisie dans **Réglages → Audio** :
+La touche **`V`** / la commande **Suppression Voix Guide (Algorithme de Base)** active la méthode choisie dans **Réglages → Audio** :
 
 | Méthode | Notes |
 | --- | --- |

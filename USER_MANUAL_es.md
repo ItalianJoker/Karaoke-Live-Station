@@ -37,7 +37,7 @@ Consola completa del operador:
 - Transport (Play / Pausa / Stop / Reiniciar / Siguiente)
 - Volumen master con curva perceptiva
 - Pitch en semitonos y velocidad (time-stretch)
-- Eliminación de voz guía **(Experimental)** mediante DSP clásico mid/side (algorítmico, tiempo real)
+- Eliminación de voz guía **(Algoritmo Básico)** mediante DSP clásico mid/side (algorítmico, tiempo real)
 - Auto-ducking BGM al micrófono
 - Mezclador MIDI/KAR de 16 canales
 - Preescucha CUE en dispositivo secundario
@@ -230,9 +230,9 @@ Ejemplos: 100% → ganancia plena; 50% → ganancia 0,25 (−12 dB aprox., mitad
 - **Velocidad:** de **0,50× a 1,50×** sin alterar el pitch (WSOLA / SoundTouch). `Ctrl+←` / `Ctrl+→` ajustan ±5%. Un clic en el indicador numérico suele restaurar 1,00×.
 - MIDI: la transposición actúa sobre los números de nota en tiempo real.
 
-### 4.4 Eliminación de voz guía (Experimental)
+### 4.4 Eliminación de voz guía (Algoritmo Básico)
 
-La tecla **`V`** / el control **Eliminar Voz Guía (Experimental)** activa el método elegido en **Ajustes → Audio**:
+La tecla **`V`** / el control **Eliminar Voz Guía (Algoritmo Básico)** activa el método elegido en **Ajustes → Audio**:
 
 | Método | Notas |
 | --- | --- |

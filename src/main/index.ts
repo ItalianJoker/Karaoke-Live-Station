@@ -37,6 +37,11 @@ import { discoverLibraryMedia, discoverLibraryFilesFromPaths } from '../shared/l
 import { coerceAiCpuThreads, resolveAiCpuThreads } from '../shared/aiCpuThreads';
 import { ZipCdgCache } from './services/ZipCdgCache';
 import { TrackAnalysisService } from './services/TrackAnalysisService';
+import { coerceAiEnableGpu } from '../shared/aiOrtProviders';
+import { probeGpuStatus } from './ai/probeGpuStatus';
+import { coerceDemucsOverlap, coerceDemucsSegmentSize, coerceDemucsShifts } from '../shared/demucsAdvancedSettings';
+import { coerceMdxEnableOrt, coerceMdxOverlap, coerceMdxSegmentSize } from '../shared/mdxAdvancedSettings';
+import { coerceInstrumentalVocalRemoverMethod } from '../shared/vocalRemover';
 
 /** Launch prefs persisted for main-process boot (before Control sync:settings). */
 type LaunchPrefs = {
@@ -828,6 +833,10 @@ class KaraokeMainProcess {
       return Math.max(1, os.cpus()?.length || 1);
     });
 
+    ipcMain.handle('system:get-gpu-status', async () => {
+      return await probeGpuStatus();
+    });
+
     ipcMain.handle('system:get-app-version', () => {
       return app.getVersion() || '1.4.0';
     });
@@ -1243,7 +1252,11 @@ class KaraokeMainProcess {
           mdxSegmentSize?: number;
           mdxOverlap?: number;
           mdxEnableOrt?: boolean;
+          demucsShifts?: number;
+          demucsSegmentSize?: number;
+          demucsOverlap?: number;
           aiCpuThreads?: number | null;
+          aiEnableGpu?: boolean;
           /** Opt-in yt-dlp auto-subs for instrumental lyric burn-in */
           includeSubtitles?: boolean;
         }
@@ -1262,35 +1275,65 @@ class KaraokeMainProcess {
             ? options.titleHint
             : `${(options.titleHint || 'Unknown').trim()} (Instrumental)`
           : options.titleHint;
-        const method =
+        const method = coerceInstrumentalVocalRemoverMethod(
           options.vocalRemoverAlgorithm ||
-          this.currentSettings?.instrumentalVocalRemoverMethod ||
-          this.currentSettings?.vocalRemoverAlgorithm;
-        // Prefer IPC-provided MDX knobs; fall back to synced AppSettings for MDX only.
+            this.currentSettings?.instrumentalVocalRemoverMethod ||
+            undefined
+        );
+        // Prefer IPC-provided knobs; fall back to synced AppSettings by method.
         const isMdx = method === 'aiMdxKaraoke2';
-        const isAi =
-          method === 'aiMdxKaraoke2' || method === 'aiHtDemucs' || method === 'aiBsRoformer';
+        const isDemucs = method === 'aiHtDemucs';
+        const isAi = isMdx || isDemucs;
         const totalCpus = Math.max(1, os.cpus()?.length || 1);
         const configuredThreads =
           options.aiCpuThreads !== undefined
             ? coerceAiCpuThreads(options.aiCpuThreads)
             : coerceAiCpuThreads(this.currentSettings?.aiCpuThreads);
+        const aiEnableGpu = coerceAiEnableGpu(
+          options.aiEnableGpu !== undefined
+            ? options.aiEnableGpu
+            : this.currentSettings?.aiEnableGpu
+        );
+        let aiGpuSupported = false;
+        if (isAi && aiEnableGpu) {
+          try {
+            const gpu = await probeGpuStatus();
+            aiGpuSupported = gpu.isSupported === true;
+          } catch {
+            aiGpuSupported = false;
+          }
+        }
         return await this.downloadManager.startDownload({
           ...options,
           titleHint,
           instrumental,
           vocalRemoverAlgorithm: method,
           mdxSegmentSize: isMdx
-            ? (options.mdxSegmentSize ?? this.currentSettings?.mdxSegmentSize)
+            ? coerceMdxSegmentSize(
+                options.mdxSegmentSize ?? this.currentSettings?.mdxSegmentSize
+              )
             : undefined,
           mdxOverlap: isMdx
-            ? (options.mdxOverlap ?? this.currentSettings?.mdxOverlap)
+            ? coerceMdxOverlap(options.mdxOverlap ?? this.currentSettings?.mdxOverlap)
             : undefined,
           mdxEnableOrt: isMdx
-            ? (options.mdxEnableOrt ?? this.currentSettings?.mdxEnableOrt)
+            ? coerceMdxEnableOrt(options.mdxEnableOrt ?? this.currentSettings?.mdxEnableOrt)
+            : undefined,
+          demucsShifts: isDemucs
+            ? coerceDemucsShifts(options.demucsShifts ?? this.currentSettings?.demucsShifts)
+            : undefined,
+          demucsSegmentSize: isDemucs
+            ? coerceDemucsSegmentSize(
+                options.demucsSegmentSize ?? this.currentSettings?.demucsSegmentSize
+              )
+            : undefined,
+          demucsOverlap: isDemucs
+            ? coerceDemucsOverlap(options.demucsOverlap ?? this.currentSettings?.demucsOverlap)
             : undefined,
           // AI paths (MDX + Demucs) get resolved thread count; DSP ignores it.
           aiCpuThreads: isAi ? resolveAiCpuThreads(configuredThreads, totalCpus) : undefined,
+          aiEnableGpu: isAi ? aiEnableGpu : undefined,
+          aiGpuSupported: isAi ? aiGpuSupported : undefined,
           libraryPath,
           catalogTracks
         });

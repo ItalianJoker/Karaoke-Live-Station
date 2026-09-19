@@ -2551,6 +2551,28 @@ console.log('\n\x1b[36m▶ Suite: MDX advanced ETA settings\x1b[0m');
 }
 
 // -------------------------------------------------------------
+// Suite: AI GPU-First + prune methods + Demucs advanced + locale rename
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: AI options pipeline (GPU / Demucs / prune)\x1b[0m');
+
+{
+  const { spawnSync } = require('child_process');
+  const optsVerify = path.resolve(__dirname, 'verify-ai-options-pipeline.js');
+  assert(fs.existsSync(optsVerify), 'verify-ai-options-pipeline.js exists');
+  const optsRun = spawnSync(process.execPath, [optsVerify], {
+    cwd: path.resolve(__dirname, '..'),
+    encoding: 'utf8',
+    timeout: 120000
+  });
+  assert(
+    optsRun.status === 0 &&
+      (optsRun.stdout || '').includes('verify-ai-options-pipeline: all checks passed'),
+    'verify-ai-options-pipeline: GPU providers + Demucs knobs + coerce + locales',
+    (optsRun.stderr || optsRun.stdout || `exit ${optsRun.status}`).slice(0, 800)
+  );
+}
+
+// -------------------------------------------------------------
 // Suite: AI worker parentPort MessageEvent unwrap
 // -------------------------------------------------------------
 console.log('\n\x1b[36m▶ Suite: AI worker IPC MessageEvent unwrap\x1b[0m');
@@ -3022,9 +3044,11 @@ const aiWorkerSrc = fs.readFileSync(
 assert(
   mdxSepSrc.includes('resolveAiCpuThreads') &&
     mdxSepSrc.includes('ort.env.wasm.numThreads') &&
-    mdxSepSrc.includes("executionProviders: ['webgpu', 'wasm']") &&
+    mdxSepSrc.includes('resolveAiOrtExecutionProviders') &&
+    (mdxSepSrc.includes("preferGpu ? ['webgpu', 'wasm'] : ['wasm']") ||
+      mdxSepSrc.includes("executionProviders: ['webgpu', 'wasm']")) &&
     !/ort\.env\.wasm\.numThreads\s*=\s*1/.test(mdxSepSrc),
-  'MdxNetSeparator uses dynamic threads + webgpu/wasm (no forced numThreads=1)'
+  'MdxNetSeparator uses dynamic threads + GPU-gated webgpu/wasm (no forced numThreads=1)'
 );
 assert(
   aiWorkerSrc.includes('resolveAiCpuThreads') &&

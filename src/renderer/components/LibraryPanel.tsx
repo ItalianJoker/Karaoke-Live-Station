@@ -708,8 +708,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     try {
       const method = settings.instrumentalVocalRemoverMethod;
       const isMdx = method === 'aiMdxKaraoke2';
-      const isAi =
-        method === 'aiMdxKaraoke2' || method === 'aiHtDemucs' || method === 'aiBsRoformer';
+      const isDemucs = method === 'aiHtDemucs';
+      const isAi = isMdx || isDemucs;
       const includeSubtitles =
         instrumental && opts?.includeSubtitles === true ? true : undefined;
       const result = await window.karaokeApi.downloads.start({
@@ -728,7 +728,20 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
               mdxEnableOrt: settings.mdxEnableOrt
             }
           : {}),
-        ...(isAi ? { aiCpuThreads: settings.aiCpuThreads } : {}),
+        // Demucs advanced knobs only when HTDemucs is selected.
+        ...(isDemucs
+          ? {
+              demucsShifts: settings.demucsShifts,
+              demucsSegmentSize: settings.demucsSegmentSize,
+              demucsOverlap: settings.demucsOverlap
+            }
+          : {}),
+        ...(isAi
+          ? {
+              aiCpuThreads: settings.aiCpuThreads,
+              aiEnableGpu: settings.aiEnableGpu
+            }
+          : {}),
         ...(includeSubtitles ? { includeSubtitles: true } : {})
       });
 

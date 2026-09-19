@@ -37,6 +37,12 @@ Release GitHub **v1.4.0** (nuovo tag; **non** tocca `v1.3.0` / `v1.2.0` / `v1.1.
 - Auto-subs yt-dlp solo se `includeSubtitles: true`; `--sub-langs .*-orig,default` (anti-429, niente bare `all`).
 - Download normale (non strumentale) invariato, senza modal.
 
+### 🎛️ AI strumentale — GPU-First + opzioni (draft)
+- Toggle **AI GPU** (default on) + badge live; probe `system:get-gpu-status`.
+- Metodo Download Strumentale solo **UVR-MDX Karaoke 2** / **HTDemucs** (DSP e Roformer rimossi dalla tendina download; live `V` resta DSP).
+- Pannello avanzato HTDemucs (shifts / segmento / overlap); MDX avanzato invariato.
+- Etichette live: **Algoritmo Base** (ex Sperimentale).
+
 ### 🏷️ Versione
 - Badge UI / pacchetto **v1.4.0**.
 
@@ -77,6 +83,12 @@ GitHub release **v1.4.0** (new tag; does **not** touch `v1.3.0` / `v1.2.0` / `v1
 - Persisted policy `ask` / `always` / `never` (`instrumentalSubtitlesPolicy`).
 - yt-dlp auto-subs only when `includeSubtitles: true`; `--sub-langs .*-orig,default` (anti-429, no bare `all`).
 - Normal (non-instrumental) download unchanged — no modal.
+
+### 🎛️ Instrumental AI — GPU-First + options (draft)
+- **AI GPU** toggle (default on) + live badge; `system:get-gpu-status` probe.
+- Download Instrumental methods: **UVR-MDX Karaoke 2** / **HTDemucs** only (DSP and Roformer removed from download Settings; live `V` stays DSP).
+- HTDemucs advanced panel (shifts / segment / overlap); MDX advanced unchanged.
+- Live labels: **Basic Algorithm** (was Experimental).
 
 ### 🏷️ Version
 - UI badge / package **v1.4.0**.

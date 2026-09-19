@@ -14,6 +14,10 @@ import { Logger } from './Logger';
 import type { AiVocalRemoverMethod } from '../../shared/vocalRemover';
 import { methodToModelId, OFFLINE_VOCAL_MODELS } from '../../shared/vocalRemover';
 import { isMdxInstrumentalMethod, mdxPayloadForMethod } from '../../shared/mdxAdvancedSettings';
+import {
+  isDemucsInstrumentalMethod,
+  demucsPayloadForMethod
+} from '../../shared/demucsAdvancedSettings';
 
 export type InstrumentalAiProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
@@ -43,8 +47,16 @@ export type InstrumentalAiSeparateOptions = {
   mdxSegmentSize?: number;
   mdxOverlap?: number;
   mdxEnableOrt?: boolean;
+  /** Demucs-only advanced knobs. Omit for MDX. */
+  demucsShifts?: number;
+  demucsSegmentSize?: number;
+  demucsOverlap?: number;
   /** Resolved ORT WASM thread count (already clamped by main). */
   aiCpuThreads?: number;
+  /** GPU-First toggle (default true). */
+  aiEnableGpu?: boolean;
+  /** Main GPU probe snapshot. */
+  aiGpuSupported?: boolean;
 };
 
 /** Minimum hard ceiling so short tracks still get a full CPU WASM run. */
@@ -387,6 +399,11 @@ export async function separateInstrumentalWithAi(
         mdxOverlap: options.mdxOverlap,
         mdxEnableOrt: options.mdxEnableOrt
       });
+      const demucsPayload = demucsPayloadForMethod(method, {
+        demucsShifts: options.demucsShifts,
+        demucsSegmentSize: options.demucsSegmentSize,
+        demucsOverlap: options.demucsOverlap
+      });
       const payload = {
         type: 'separate' as const,
         requestId,
@@ -396,8 +413,12 @@ export async function separateInstrumentalWithAi(
         inputWav,
         outputWav,
         aiCpuThreads: options.aiCpuThreads,
-        // Only attach MDX knobs for aiMdxKaraoke2 — Demucs/Roformer must not receive them.
-        ...(mdxPayload || {})
+        aiEnableGpu: options.aiEnableGpu,
+        aiGpuSupported: options.aiGpuSupported,
+        // Only attach MDX knobs for aiMdxKaraoke2 — Demucs must not receive them.
+        ...(mdxPayload || {}),
+        // Only attach Demucs knobs for aiHtDemucs — MDX must not receive them.
+        ...(demucsPayload || {})
       };
       logger?.debug('InstrumentalAiSeparator', 'Sending separate to AI worker', {
         workerKind: worker.kind,
@@ -405,7 +426,8 @@ export async function separateInstrumentalWithAi(
         inputWav,
         outputWav,
         waitMs: Date.now() - startedAt,
-        mdxAdvanced: isMdxInstrumentalMethod(method) ? mdxPayload : null
+        mdxAdvanced: isMdxInstrumentalMethod(method) ? mdxPayload : null,
+        demucsAdvanced: isDemucsInstrumentalMethod(method) ? demucsPayload : null
       });
       if (worker.kind === 'utility') {
         worker.proc.postMessage(payload);

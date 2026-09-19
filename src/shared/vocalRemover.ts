@@ -11,8 +11,15 @@ export type AlgorithmicVocalRemoverMethod =
   | 'centerCancel'
   | 'softMid';
 
-/** Offline on-device AI models (download once into userData/models, then fully offline). */
+/**
+ * Offline on-device AI models (download once into userData/models, then fully offline).
+ * Download Instrumental Settings only offers Karaoke 2 / HTDemucs; `aiBsRoformer`
+ * remains in the type/catalog for orphaned cache + legacy coerce → Karaoke 2.
+ */
 export type AiVocalRemoverMethod = 'aiMdxKaraoke2' | 'aiHtDemucs' | 'aiBsRoformer';
+
+/** AI methods selectable for Download Instrumental (Settings). */
+export type InstrumentalAiMethod = 'aiMdxKaraoke2' | 'aiHtDemucs';
 
 export type VocalRemoverMethod = AlgorithmicVocalRemoverMethod | AiVocalRemoverMethod;
 
@@ -26,6 +33,12 @@ export const AI_VOCAL_REMOVER_METHODS: AiVocalRemoverMethod[] = [
   'aiMdxKaraoke2',
   'aiHtDemucs',
   'aiBsRoformer'
+];
+
+/** Download Instrumental dropdown — AI only (no DSP / no Roformer). */
+export const INSTRUMENTAL_AI_METHODS: InstrumentalAiMethod[] = [
+  'aiMdxKaraoke2',
+  'aiHtDemucs'
 ];
 
 export const ALL_VOCAL_REMOVER_METHODS: VocalRemoverMethod[] = [
@@ -64,14 +77,18 @@ export function coerceAlgorithmicVocalRemoverMethod(
   return 'centerCancelBassKeep';
 }
 
+export function isInstrumentalAiMethod(method: string): method is InstrumentalAiMethod {
+  return (INSTRUMENTAL_AI_METHODS as string[]).includes(method);
+}
+
 /**
  * Download Instrumental method. Defaults to recommended AI (UVR-MDX Karaoke 2).
- * Accepts algorithmic + AI catalog ids.
+ * Unknown, DSP, and Roformer ids coerce to `aiMdxKaraoke2` (Settings is AI-only).
  */
 export function coerceInstrumentalVocalRemoverMethod(
   method: string | undefined | null
-): VocalRemoverMethod {
-  if (method && isVocalRemoverMethod(method)) return method;
+): InstrumentalAiMethod {
+  if (method && isInstrumentalAiMethod(method)) return method;
   return 'aiMdxKaraoke2';
 }
 

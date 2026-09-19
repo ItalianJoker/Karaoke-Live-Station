@@ -274,6 +274,12 @@ export interface KaraokeAPI {
     checkFirewall: () => Promise<FirewallCheckResult>;
     /** Logical CPU core count from main (os.cpus) for AI thread UI */
     getCpuCoreCount: () => Promise<number>;
+    /** GPU probe for Instrumental AI badge + WebGPU EP preference */
+    getGpuStatus: () => Promise<{
+      isSupported: boolean;
+      gpuName?: string;
+      vendor?: string;
+    }>;
     /** App semver from Electron package.json (e.g. 1.4.0) */
     getAppVersion: () => Promise<string>;
   };
@@ -507,6 +513,7 @@ const karaokeApi: KaraokeAPI = {
     openExternal: (url: string) => ipcRenderer.invoke('system:open-external', url),
     checkFirewall: () => ipcRenderer.invoke('system:check-firewall'),
     getCpuCoreCount: () => ipcRenderer.invoke('system:get-cpu-core-count'),
+    getGpuStatus: () => ipcRenderer.invoke('system:get-gpu-status'),
     getAppVersion: () => ipcRenderer.invoke('system:get-app-version')
   },
 

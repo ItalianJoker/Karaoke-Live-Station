@@ -39,9 +39,34 @@ declare module 'demucs-web' {
     }) => void;
     onLog?: (phase: string, message: string) => void;
     onDownloadProgress?: (loaded: number, total: number) => void;
+    /** KLS advanced knobs — injected for Settings pipeline (optional). */
+    demucsShifts?: number;
+    demucsSegmentSize?: number;
+    demucsOverlap?: number;
   }
 
+  export function prepareModelInput(
+    leftChannel: Float32Array,
+    rightChannel: Float32Array
+  ): { waveform: Float32Array; magSpec: Float32Array; numBins: number; numFrames: number; originalLength: number };
+
+  export function standaloneMask(freqOutput: Float32Array): unknown[];
+  export function standaloneIspec(
+    trackSpec: unknown,
+    targetLength: number
+  ): StemChannels;
+
   export class DemucsProcessor {
+    session: OrtNamespace.InferenceSession | null;
+    ort: typeof OrtNamespace;
+    onProgress: (info: {
+      progress: number;
+      currentSegment: number;
+      totalSegments: number;
+    }) => void;
+    demucsShifts?: number;
+    demucsSegmentSize?: number;
+    demucsOverlap?: number;
     constructor(options: DemucsProcessorOptions);
     loadModel(modelPathOrBuffer?: string | ArrayBuffer): Promise<unknown>;
     separate(left: Float32Array, right: Float32Array): Promise<SeparationResult>;
