@@ -69,6 +69,8 @@ export interface SettingsTabSharedProps {
   matchAutoArchive: boolean;
   matchMaxDownloads: boolean;
   matchInstrumentalVocal: boolean;
+  /** Settings search: Download Instrumental subtitle policy (ask/always/never). */
+  matchInstrumentalSubtitles: boolean;
   matchAiThreads: boolean;
   matchYtdlp: boolean;
 
@@ -157,6 +159,7 @@ export type SettingsLibraryTabProps = Pick<
   | 'matchAutoArchive'
   | 'matchMaxDownloads'
   | 'matchInstrumentalVocal'
+  | 'matchInstrumentalSubtitles'
   | 'matchAiThreads'
   | 'matchYtdlp'
   | 'cpuCoreCount'

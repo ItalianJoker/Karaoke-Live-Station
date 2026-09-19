@@ -197,6 +197,7 @@ export interface AppSettings {
    * Download Instrumental subtitle policy.
    * - `ask` (default): show InstrumentalSubtitlesModal before starting
    * - `always` / `never`: skip modal and apply `includeSubtitles` accordingly
+   * Same meaning as the modal “Remember my choice”; editable later in Settings → Library.
    */
   instrumentalSubtitlesPolicy: 'ask' | 'always' | 'never';
 

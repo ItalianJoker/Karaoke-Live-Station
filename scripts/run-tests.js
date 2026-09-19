@@ -3392,6 +3392,25 @@ console.log('\n\x1b[36m▶ Suite: Instrumental subtitles modal + sub-langs gatin
     'InstrumentalSubtitlesModal: Esc/outside cancel + with/without actions + amber warning'
   );
 
+  // Settings → Library: same policy editable later (ask clears remembered always/never)
+  const settingsLibrarySubsSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/settings/SettingsLibraryTab.tsx'),
+    'utf8'
+  );
+  const settingsModalSubsSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+    'utf8'
+  );
+  assert(
+    settingsLibrarySubsSrc.includes('instrumentalSubtitlesPolicy') &&
+      settingsLibrarySubsSrc.includes('settings-instrumental-subtitles-policy') &&
+      settingsLibrarySubsSrc.includes("value=\"ask\"") &&
+      settingsLibrarySubsSrc.includes("value=\"always\"") &&
+      settingsLibrarySubsSrc.includes("value=\"never\"") &&
+      settingsModalSubsSrc.includes('matchInstrumentalSubtitles'),
+    'Settings Library exposes instrumentalSubtitlesPolicy ask/always/never + search match'
+  );
+
   // Flags only when shouldWriteInstrumentalAutoSubs (instrumental + includeSubtitles)
   assert(
     dmSubsSrc.includes('shouldWriteInstrumentalAutoSubs') &&
@@ -3417,8 +3436,13 @@ console.log('\n\x1b[36m▶ Suite: Instrumental subtitles modal + sub-langs gatin
         loc.library?.instrumentalSubtitlesWith &&
         loc.library?.instrumentalSubtitlesWithout &&
         loc.library?.instrumentalSubtitlesCancel &&
-        loc.library?.instrumentalSubtitlesRemember,
-      `${lang}.json has instrumental subtitle modal keys`
+        loc.library?.instrumentalSubtitlesRemember &&
+        loc.settings?.instrumentalSubtitlesPolicy &&
+        loc.settings?.instrumentalSubtitlesPolicyDesc &&
+        loc.settings?.instrumentalSubtitlesPolicyAsk &&
+        loc.settings?.instrumentalSubtitlesPolicyAlways &&
+        loc.settings?.instrumentalSubtitlesPolicyNever,
+      `${lang}.json has instrumental subtitle modal + Settings policy keys`
     );
   }
 

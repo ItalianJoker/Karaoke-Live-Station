@@ -243,7 +243,7 @@ La tecla **`V`** / el control **Eliminar Voz Guía (Algoritmo Básico)** activa 
 | --- | --- |
 | `centerCancelBassKeep` / `centerCancel` / `softMid` | DSP mid/side **en tiempo real** — ligero, sin descarga |
 
-En resultados de búsqueda YouTube, **Descargar Instrumental** (si el título no contiene ya “Karaoke” o “instrumental”) descarga el vídeo, aplica el **Método Descargar Instrumental** de **Ajustes → Audio** (IA offline como UVR-MDX-NET Karaoke 2, o DSP clásico) y guarda un MP4 instrumental (incrusta subtítulos si hay). Con UVR-MDX-NET seleccionado aparece **Ajustes avanzados UVR-MDX-NET (optimización ETA)** bajo ese menú: tamaño de segmento, solapamiento y aceleración CPU ONNX Runtime — solo para esa ruta MDX.
+En resultados de búsqueda YouTube, **Descargar Instrumental** (si el título no contiene ya “Karaoke” o “instrumental”) descarga el vídeo, aplica el **Método Descargar Instrumental** de **Ajustes → Librería y descarga** (IA offline como UVR-MDX-NET Karaoke 2) y guarda un MP4 instrumental (incrusta subtítulos si hay). Antes de cada descarga la app puede preguntar si descargar subtítulos automáticos de YouTube; marca **Recordar mi elección** para omitir el aviso la próxima vez. Puedes cambiar o borrar esa preferencia en cualquier momento en **Ajustes → Librería y descarga → Subtítulos Descargar Instrumental** (`Preguntar cada vez` / `Siempre` / `Nunca`). Con UVR-MDX-NET seleccionado aparece **Ajustes avanzados UVR-MDX-NET (optimización ETA)** bajo ese menú: tamaño de segmento, solapamiento y aceleración CPU ONNX Runtime — solo para esa ruta MDX.
 
 ### 4.5 Auto-ducking BGM
 
