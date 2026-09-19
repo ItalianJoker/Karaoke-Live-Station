@@ -110,7 +110,7 @@
     "importSuccess": "Imported {{count}} track(s) into the library",
     "importNoFiles": "No supported karaoke files in this drop (mp4/webm/mkv/avi, mp3+cdg, mid/kar)",
     "importFailed": "Could not import dropped files",
-    "downloading": "Downloading...",
+    "downloading": "Downloading…",
     "downloadsActive": "Active Downloads",
     "saveToLibrary": "Save to Library",
     "savedSuccess": "Song saved to local library: {{title}}",
@@ -148,7 +148,6 @@
     "downloadsEmpty": "No active downloads",
     "downloadingModel": "Downloading model…",
     "queued": "Queued",
-    "downloading": "Downloading…",
     "converting": "Converting…",
     "convertingInstrumental": "Converting instrumental…",
     "downloadCompleted": "Completed",
@@ -278,7 +277,15 @@
     "mdxOverlapChip075": "0.75 (studio — slow)",
     "mdxOverlapHighWarning": "High overlap (≥ 0.75): separation will be much slower (many more ORT windows). Prefer 0.25–0.50 unless you need studio-grade continuity.",
     "mdxEnableOrt": "ONNX Runtime CPU acceleration",
-    "mdxEnableOrtDesc": "When on: ORT WASM graph optimizations + SIMD. When off: graph opts disabled and SIMD off. ORT is still required for MDX — this does not skip the engine."
+    "mdxEnableOrtDesc": "When on: ORT WASM graph optimizations + SIMD. When off: graph opts disabled and SIMD off. ORT is still required for MDX — this does not skip the engine.",
+    "autoMaximizeControl": "Maximize Control window on launch",
+    "autoMaximizeControlDesc": "Opens the Regia (Control) window maximized at startup. Uses maximize(), not exclusive fullscreen.",
+    "autoOpenStage": "Open Stage window on launch",
+    "autoOpenStageDesc": "When off, Stage stays closed until you reopen it with P / F2 or the Stage button.",
+    "aiCpuThreads": "CPU cores for Instrumental AI",
+    "aiCpuThreadsDesc": "Thread count for MDX / Demucs during Download Instrumental. Default uses all detected cores.",
+    "aiCpuCoresAvailable": "Available CPU cores: {{count}}",
+    "aiCpuThreadsResetMax": "Reset to Maximum ({{count}})"
   },
   "history": {
     "title": "Playback History",

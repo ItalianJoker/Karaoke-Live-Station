@@ -701,6 +701,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     try {
       const method = settings.instrumentalVocalRemoverMethod;
       const isMdx = method === 'aiMdxKaraoke2';
+      const isAi =
+        method === 'aiMdxKaraoke2' || method === 'aiHtDemucs' || method === 'aiBsRoformer';
       const result = await window.karaokeApi.downloads.start({
         url: track.uri,
         titleHint,
@@ -716,7 +718,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
               mdxOverlap: settings.mdxOverlap,
               mdxEnableOrt: settings.mdxEnableOrt
             }
-          : {})
+          : {}),
+        ...(isAi ? { aiCpuThreads: settings.aiCpuThreads } : {})
       });
 
       const mappedTrack: KaraokeMediaTrack = instrumental

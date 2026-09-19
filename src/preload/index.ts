@@ -44,6 +44,8 @@ export interface KaraokeAPI {
   getStageInitialState: () => Promise<{ playback: ActivePlaybackState | null; queue: QueueItem[]; settings: AppSettings | null }>;
   /** Reopens or focuses the Stage window if closed */
   reopenStageWindow: () => Promise<{ success: boolean }>;
+  /** Alias IPC `stage:open` — same as reopenStageWindow (Watchlist-safe). */
+  openStageWindow: () => Promise<{ success: boolean }>;
   /** Toggles Stage window full-screen mode on secondary monitor */
   toggleStageFullscreen: () => Promise<{ isFullScreen: boolean }>;
   /** Listens for Stage window open/close status changes */
@@ -252,6 +254,10 @@ export interface KaraokeAPI {
     openExternal: (url: string) => Promise<{ success: boolean }>;
     /** Inspects and diagnoses firewall rules across Windows, macOS, and Linux */
     checkFirewall: () => Promise<FirewallCheckResult>;
+    /** Logical CPU core count from main (os.cpus) for AI thread UI */
+    getCpuCoreCount: () => Promise<number>;
+    /** App semver from Electron package.json (e.g. 1.3.0) */
+    getAppVersion: () => Promise<string>;
   };
 
   // 10. Diagnostic Logger
@@ -310,6 +316,7 @@ const karaokeApi: KaraokeAPI = {
   // Window Management & Auto-Recovery
   getStageInitialState: () => ipcRenderer.invoke('stage:get-initial-state'),
   reopenStageWindow: () => ipcRenderer.invoke('window:reopen-stage'),
+  openStageWindow: () => ipcRenderer.invoke('stage:open'),
   toggleStageFullscreen: () => ipcRenderer.invoke('window:toggle-stage-fullscreen'),
   onStageStatusChange: (callback: (status: { isOpen: boolean }) => void) => {
     const handler = (_event: IpcRendererEvent, status: { isOpen: boolean }) => callback(status);
@@ -477,7 +484,9 @@ const karaokeApi: KaraokeAPI = {
     initPaths: (clientSettings: { libraryPath?: string; midiSoundFontPath?: string }) =>
       ipcRenderer.invoke('system:init-paths', clientSettings),
     openExternal: (url: string) => ipcRenderer.invoke('system:open-external', url),
-    checkFirewall: () => ipcRenderer.invoke('system:check-firewall')
+    checkFirewall: () => ipcRenderer.invoke('system:check-firewall'),
+    getCpuCoreCount: () => ipcRenderer.invoke('system:get-cpu-core-count'),
+    getAppVersion: () => ipcRenderer.invoke('system:get-app-version')
   },
 
   // Diagnostic Logger

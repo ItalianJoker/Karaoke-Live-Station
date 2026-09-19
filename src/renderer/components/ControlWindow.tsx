@@ -926,7 +926,7 @@ export const ControlWindow: React.FC = () => {
       } else if (e.code === 'KeyD') {
         e.preventDefault();
         setDucking(!playback.isDuckingActive);
-      } else if (e.code === 'KeyP') {
+      } else if (e.code === 'KeyP' || e.code === 'F2') {
         e.preventDefault();
         window.karaokeApi?.reopenStageWindow();
       } else if (e.code === 'Digit1' || e.key === '1') {

@@ -55,7 +55,7 @@ export const APP_SHORTCUTS: AppShortcutDef[] = [
   { keys: ['2'], descriptionKey: 'shortcuts.tabLibrary', category: 'navigation', context: 'control' },
   { keys: ['3'], descriptionKey: 'shortcuts.tabHistory', category: 'navigation', context: 'control' },
   { keys: ['Ctrl', 'F'], descriptionKey: 'shortcuts.searchFocus', category: 'navigation', context: 'control' },
-  { keys: ['P'], descriptionKey: 'shortcuts.stageWindow', category: 'navigation', context: 'control' },
+  { keys: ['P', 'F2'], descriptionKey: 'shortcuts.stageWindow', category: 'navigation', context: 'control' },
   { keys: ['F11', 'Esc'], descriptionKey: 'shortcuts.fullscreen', category: 'navigation', context: 'stage' },
   { keys: ['F1', '?'], descriptionKey: 'shortcuts.help', category: 'navigation', context: 'control' },
   { keys: ['Esc'], descriptionKey: 'shortcuts.closeModal', category: 'navigation', context: 'control' }

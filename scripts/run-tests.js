@@ -2926,6 +2926,140 @@ console.log('\n\x1b[36m▶ Suite 13: Missing local media file handling\x1b[0m');
   assert(fs.existsSync(tmpMissing) === false, 'missing absolute path → exists false');
 }
 
+// -------------------------------------------------------------
+// Suite: Startup launch prefs + AI CPU threads + Settings layout + v1.3.0
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Startup / AI cores / Settings layout / v1.3.0\x1b[0m');
+
+// Clamp logic mirrors src/shared/aiCpuThreads.ts (Node test runner has no TS import).
+function resolveAiCpuThreadsTest(configured, totalCpus) {
+  const n = Math.max(1, Math.floor(Number(totalCpus)) || 1);
+  if (configured == null || configured === undefined) return n;
+  const raw = typeof configured === 'number' ? configured : Number(configured);
+  if (!Number.isFinite(raw)) return n;
+  const t = Math.floor(raw);
+  if (t < 1) return 1;
+  return Math.min(t, n);
+}
+
+assert(resolveAiCpuThreadsTest(null, 8) === 8, 'null aiCpuThreads → all cores (N=8)');
+assert(resolveAiCpuThreadsTest(undefined, 4) === 4, 'undefined aiCpuThreads → all cores (N=4)');
+assert(resolveAiCpuThreadsTest(-3, 8) === 1, 'negative threads clamp to 1');
+assert(resolveAiCpuThreadsTest(0, 8) === 1, 'zero threads clamp to 1');
+assert(resolveAiCpuThreadsTest(99, 8) === 8, 'threads > N clamp to N');
+assert(resolveAiCpuThreadsTest(3, 8) === 3, 'valid threads pass through');
+assert(resolveAiCpuThreadsTest(NaN, 6) === 6, 'NaN configured → all cores');
+
+const storeSrcLaunch = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+  'utf8'
+);
+assert(
+  /autoMaximizeControlOnLaunch:\s*true/.test(storeSrcLaunch),
+  'autoMaximizeControlOnLaunch defaults to true'
+);
+assert(
+  /autoOpenStageOnLaunch:\s*true/.test(storeSrcLaunch),
+  'autoOpenStageOnLaunch defaults to true'
+);
+assert(
+  /aiCpuThreads:\s*null/.test(storeSrcLaunch),
+  'aiCpuThreads defaults to null (all cores)'
+);
+
+const mainSrcLaunch = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+assert(
+  mainSrcLaunch.includes('controlWindow.maximize()') &&
+    mainSrcLaunch.includes('autoMaximizeControlOnLaunch') &&
+    mainSrcLaunch.includes('autoOpenStageOnLaunch') &&
+    mainSrcLaunch.includes('createStageWindow') &&
+    mainSrcLaunch.includes("ipcMain.handle('window:reopen-stage'") &&
+    mainSrcLaunch.includes("ipcMain.handle('stage:open'"),
+  'Main maximizes Regia on launch prefs; Stage skip + reopen/stage:open watchlist intact'
+);
+
+const mdxSepSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/ai/MdxNetSeparator.ts'),
+  'utf8'
+);
+const aiWorkerSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/main/workers/instrumentalAiWorker.ts'),
+  'utf8'
+);
+assert(
+  mdxSepSrc.includes('resolveAiCpuThreads') &&
+    mdxSepSrc.includes('ort.env.wasm.numThreads') &&
+    mdxSepSrc.includes("executionProviders: ['webgpu', 'wasm']") &&
+    !/ort\.env\.wasm\.numThreads\s*=\s*1/.test(mdxSepSrc),
+  'MdxNetSeparator uses dynamic threads + webgpu/wasm (no forced numThreads=1)'
+);
+assert(
+  aiWorkerSrc.includes('resolveAiCpuThreads') &&
+    !/ort\.env\.wasm\.numThreads\s*=\s*1/.test(aiWorkerSrc),
+  'instrumentalAiWorker uses resolveAiCpuThreads (no forced numThreads=1)'
+);
+
+const settingsModalSrcV13 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/SettingsModal.tsx'),
+  'utf8'
+);
+assert(
+  settingsModalSrcV13.includes('max-w-5xl') &&
+    settingsModalSrcV13.includes('h-[88vh]') &&
+    settingsModalSrcV13.includes('w-[220px]') &&
+    settingsModalSrcV13.includes('aiCpuThreads') &&
+    settingsModalSrcV13.includes('autoMaximizeControlOnLaunch') &&
+    settingsModalSrcV13.includes('autoOpenStageOnLaunch') &&
+    settingsModalSrcV13.includes("useState('1.3.0')"),
+  'SettingsModal wider sidebar layout + launch/AI cores + v1.3.0 footer state'
+);
+
+// Instrumental block lives under Library section (before Audio heading in source order after move)
+const libIdx = settingsModalSrcV13.indexOf("showCategory('library'");
+const audioIdx = settingsModalSrcV13.indexOf("showCategory('audio'");
+const instrIdx = settingsModalSrcV13.indexOf('instrumentalVocalRemoverMethod');
+assert(
+  libIdx >= 0 && audioIdx > libIdx && instrIdx > libIdx && instrIdx < audioIdx,
+  'Instrumental method UI is under Library & Download (before Audio section)'
+);
+
+const pkgV13 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
+const changelogV13 = fs.readFileSync(path.resolve(__dirname, '../CHANGELOG.md'), 'utf8');
+const releaseNotesV13 = fs.readFileSync(path.resolve(__dirname, '../RELEASE_NOTES.md'), 'utf8');
+assert(pkgV13.version === '1.3.0', 'package.json version is 1.3.0');
+assert(
+  changelogV13.includes('## [1.3.0]') || changelogV13.includes('## [1.3.0] '),
+  'CHANGELOG has ## [1.3.0] section'
+);
+assert(
+  /v1\.3\.0|Version 1\.3\.0|Versione 1\.3\.0/.test(releaseNotesV13),
+  'RELEASE_NOTES mentions 1.3.0'
+);
+
+for (const lang of ['it', 'en', 'es', 'fr']) {
+  const loc = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+  );
+  assert(
+    loc.settings?.autoMaximizeControl &&
+      loc.settings?.autoOpenStage &&
+      loc.settings?.aiCpuThreads &&
+      loc.settings?.aiCpuCoresAvailable &&
+      loc.settings?.aiCpuThreadsResetMax,
+    `${lang}.json has launch + AI CPU settings keys`
+  );
+}
+
+const controlSrcF2 = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+  'utf8'
+);
+assert(
+  controlSrcF2.includes("e.code === 'F2'") &&
+    controlSrcF2.includes('reopenStageWindow'),
+  'ControlWindow F2 reopens Stage (alongside P)'
+);
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');

@@ -131,6 +131,8 @@ export type InstrumentalProcessOptions = {
   mdxSegmentSize?: number;
   mdxOverlap?: number;
   mdxEnableOrt?: boolean;
+  /** Resolved ORT WASM thread count (AI methods). */
+  aiCpuThreads?: number;
 };
 
 export type InstrumentalProcessResult = {
@@ -375,7 +377,7 @@ async function removeVocalsAi(
     ortDir,
     ortWasmBytes: safeFileSizeBytes(path.join(ortDir, 'ort-wasm-simd-threaded.wasm')),
     ortBackend: 'wasm',
-    ortNumThreads: 1
+    ortNumThreads: options.aiCpuThreads ?? 1
   });
 
   throwIfAborted(options.signal);
@@ -433,6 +435,7 @@ async function removeVocalsAi(
       outputWav: instrumentalWav,
       signal: options.signal,
       durationSec: durationSec > 0 ? durationSec : undefined,
+      aiCpuThreads: options.aiCpuThreads,
       // MDX knobs only when method is aiMdxKaraoke2; undefined for Demucs/Roformer.
       ...mdxPayloadForMethod(method, {
         mdxSegmentSize: options.mdxSegmentSize,

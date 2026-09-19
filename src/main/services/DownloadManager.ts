@@ -82,6 +82,8 @@ export interface DownloadOptions {
   mdxSegmentSize?: number;
   mdxOverlap?: number;
   mdxEnableOrt?: boolean;
+  /** Resolved ORT WASM thread count for AI instrumental (omit for DSP). */
+  aiCpuThreads?: number;
 }
 
 /**
@@ -908,6 +910,7 @@ export class DownloadManager {
               mdxSegmentSize: options.mdxSegmentSize,
               mdxOverlap: options.mdxOverlap,
               mdxEnableOrt: options.mdxEnableOrt,
+              aiCpuThreads: options.aiCpuThreads,
               onProgress: (phase, percent) => {
                 if (payload.status === 'cancelled') return;
                 if (phase === 'ensuring_model') {

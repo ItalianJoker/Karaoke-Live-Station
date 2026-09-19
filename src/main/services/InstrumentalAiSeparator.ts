@@ -43,6 +43,8 @@ export type InstrumentalAiSeparateOptions = {
   mdxSegmentSize?: number;
   mdxOverlap?: number;
   mdxEnableOrt?: boolean;
+  /** Resolved ORT WASM thread count (already clamped by main). */
+  aiCpuThreads?: number;
 };
 
 /** Minimum hard ceiling so short tracks still get a full CPU WASM run. */
@@ -393,6 +395,7 @@ export async function separateInstrumentalWithAi(
         ortDir,
         inputWav,
         outputWav,
+        aiCpuThreads: options.aiCpuThreads,
         // Only attach MDX knobs for aiMdxKaraoke2 — Demucs/Roformer must not receive them.
         ...(mdxPayload || {})
       };

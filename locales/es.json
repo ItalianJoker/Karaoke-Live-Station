@@ -110,7 +110,7 @@
     "importSuccess": "Se importaron {{count}} pista(s) a la biblioteca",
     "importNoFiles": "Ningún archivo karaoke compatible en este drop (mp4/webm/mkv/avi, mp3+cdg, mid/kar)",
     "importFailed": "No se pudieron importar los archivos soltados",
-    "downloading": "Descargando...",
+    "downloading": "Descargando…",
     "downloadsActive": "Descargas Activas",
     "saveToLibrary": "Guardar en Biblioteca",
     "savedSuccess": "Canción guardada en la biblioteca local: {{title}}",
@@ -148,7 +148,6 @@
     "downloadsEmpty": "No hay descargas activas",
     "downloadingModel": "Descargando modelo…",
     "queued": "En cola",
-    "downloading": "Descargando…",
     "converting": "Convirtiendo…",
     "convertingInstrumental": "Convirtiendo instrumental…",
     "downloadCompleted": "Completado",
@@ -278,7 +277,15 @@
     "mdxOverlapChip075": "0.75 (estudio — lento)",
     "mdxOverlapHighWarning": "Solapamiento alto (≥ 0.75): la separación será mucho más lenta (muchas más ventanas ORT). Prefiere 0.25–0.50 salvo necesidad de continuidad de estudio.",
     "mdxEnableOrt": "Aceleración CPU de ONNX Runtime",
-    "mdxEnableOrtDesc": "Activado: optimizaciones de grafo ORT WASM + SIMD. Desactivado: opts de grafo deshabilitadas y SIMD off. ORT sigue siendo obligatorio para MDX — no omite el motor."
+    "mdxEnableOrtDesc": "Activado: optimizaciones de grafo ORT WASM + SIMD. Desactivado: opts de grafo deshabilitadas y SIMD off. ORT sigue siendo obligatorio para MDX — no omite el motor.",
+    "autoMaximizeControl": "Maximizar Regia al inicio",
+    "autoMaximizeControlDesc": "Abre la ventana de control maximizada al arrancar. Usa maximize(), no pantalla completa exclusiva.",
+    "autoOpenStage": "Abrir pantalla de escenario al inicio",
+    "autoOpenStageDesc": "Si está desactivado, el escenario permanece cerrado hasta reabrirlo con P / F2 o el botón Stage.",
+    "aiCpuThreads": "Núcleos CPU para IA instrumental",
+    "aiCpuThreadsDesc": "Hilos para MDX / Demucs en Descarga Instrumental. Por defecto usa todos los núcleos detectados.",
+    "aiCpuCoresAvailable": "Núcleos CPU disponibles: {{count}}",
+    "aiCpuThreadsResetMax": "Restablecer al máximo ({{count}})"
   },
   "history": {
     "title": "Historial de Reproducción",

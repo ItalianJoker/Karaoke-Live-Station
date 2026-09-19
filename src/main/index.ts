@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, protocol, dialog, Menu, shell, session } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { Readable } from 'stream';
 import { execFile, execFileSync, type ChildProcess } from 'child_process';
 import crypto from 'crypto';
@@ -33,7 +34,18 @@ import {
 import { ORT_WASM_ASSET_FILES } from '../shared/ortWasm';
 import { resolveKaraokeLocalFilePath, buildKaraokeLocalUri } from '../shared/karaokeLocalPath';
 import { discoverLibraryMedia, discoverLibraryFilesFromPaths } from '../shared/libraryScanner';
+import { coerceAiCpuThreads, resolveAiCpuThreads } from '../shared/aiCpuThreads';
 
+/** Launch prefs persisted for main-process boot (before Control sync:settings). */
+type LaunchPrefs = {
+  autoMaximizeControlOnLaunch: boolean;
+  autoOpenStageOnLaunch: boolean;
+};
+
+const DEFAULT_LAUNCH_PREFS: LaunchPrefs = {
+  autoMaximizeControlOnLaunch: true,
+  autoOpenStageOnLaunch: true
+};
 /**
  * Returns the corresponding MIME content-type for audio/video media files.
  *
@@ -160,6 +172,49 @@ class KaraokeMainProcess {
   /** Paths already attempted this session — avoid infinite retry on decode failures. */
   private thumbnailBackfillAttempted = new Set<string>();
   private libraryReindexNotifyTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** userData/launch-prefs.json — readable at boot before Control hydrates localStorage. */
+  private getLaunchPrefsPath(): string {
+    return path.join(app.getPath('userData'), 'launch-prefs.json');
+  }
+
+  private readLaunchPrefs(): LaunchPrefs {
+    try {
+      const raw = fs.readFileSync(this.getLaunchPrefsPath(), 'utf8');
+      const parsed = JSON.parse(raw) as Partial<LaunchPrefs>;
+      return {
+        autoMaximizeControlOnLaunch:
+          typeof parsed.autoMaximizeControlOnLaunch === 'boolean'
+            ? parsed.autoMaximizeControlOnLaunch
+            : DEFAULT_LAUNCH_PREFS.autoMaximizeControlOnLaunch,
+        autoOpenStageOnLaunch:
+          typeof parsed.autoOpenStageOnLaunch === 'boolean'
+            ? parsed.autoOpenStageOnLaunch
+            : DEFAULT_LAUNCH_PREFS.autoOpenStageOnLaunch
+      };
+    } catch {
+      return { ...DEFAULT_LAUNCH_PREFS };
+    }
+  }
+
+  private writeLaunchPrefs(settings: AppSettings | null | undefined): void {
+    if (!settings) return;
+    const prefs: LaunchPrefs = {
+      autoMaximizeControlOnLaunch:
+        typeof settings.autoMaximizeControlOnLaunch === 'boolean'
+          ? settings.autoMaximizeControlOnLaunch
+          : true,
+      autoOpenStageOnLaunch:
+        typeof settings.autoOpenStageOnLaunch === 'boolean'
+          ? settings.autoOpenStageOnLaunch
+          : true
+    };
+    try {
+      fs.writeFileSync(this.getLaunchPrefsPath(), JSON.stringify(prefs, null, 2), 'utf8');
+    } catch (err) {
+      this.logger.warn('MainProcess', 'Failed to persist launch prefs', err);
+    }
+  }
 
   constructor() {
     const userDataPath = app.getPath('userData');
@@ -412,10 +467,13 @@ class KaraokeMainProcess {
   }
 
   /**
-   * Initializes the primary Control Window (Regia) and Stage Window (Palco).
+   * Initializes the primary Control Window (Regia) and optionally Stage Window (Palco).
+   * Launch prefs (maximize Regia / open Stage) come from userData/launch-prefs.json
+   * so boot works before Control sync:settings hydrates currentSettings.
    */
   private async initWindows(): Promise<void> {
     const preloadPath = path.join(__dirname, '../preload/index.js');
+    const launchPrefs = this.readLaunchPrefs();
 
     // 1. Create Control Window (Master / Regia)
     const windowIcon = this.getWindowIcon();
@@ -441,8 +499,20 @@ class KaraokeMainProcess {
     this.controlWindow.setMenu(null);
     this.controlWindow.setMenuBarVisibility(false);
 
-    // 2. Create Stage Window (Slave / View)
-    this.createStageWindow(preloadPath);
+    // Maximize Regia only — never exclusive fullscreen; does not touch Stage placement.
+    if (launchPrefs.autoMaximizeControlOnLaunch) {
+      this.controlWindow.maximize();
+    }
+
+    // 2. Create Stage Window (Slave / View) unless operator disabled auto-open
+    if (launchPrefs.autoOpenStageOnLaunch) {
+      this.createStageWindow(preloadPath);
+    } else {
+      this.logger.info(
+        'StageWindow',
+        'Skipping Stage on launch (autoOpenStageOnLaunch=false); reopen via UI / F2 / stage:open'
+      );
+    }
 
     // Load URL from Vite dev server if running, or bundled index.html
     const devServerUrl = process.env.VITE_DEV_SERVER_URL;
@@ -685,6 +755,7 @@ class KaraokeMainProcess {
     ipcMain.on('playback:command', (_event, command: { action: string; payload?: unknown }) => {
       if (command.action === 'sync:settings' && command.payload) {
         this.currentSettings = command.payload as AppSettings;
+        this.writeLaunchPrefs(this.currentSettings);
         if (this.currentSettings.logLevel) {
           this.logger.setLogLevel(this.currentSettings.logLevel);
         }
@@ -728,6 +799,21 @@ class KaraokeMainProcess {
       const preloadPath = path.join(__dirname, '../preload/index.js');
       this.createStageWindow(preloadPath);
       return { success: true };
+    });
+
+    // Alias for reopen Stage (spec / product wording). Same as window:reopen-stage.
+    ipcMain.handle('stage:open', () => {
+      const preloadPath = path.join(__dirname, '../preload/index.js');
+      this.createStageWindow(preloadPath);
+      return { success: true };
+    });
+
+    ipcMain.handle('system:get-cpu-core-count', () => {
+      return Math.max(1, os.cpus()?.length || 1);
+    });
+
+    ipcMain.handle('system:get-app-version', () => {
+      return app.getVersion() || '1.3.0';
     });
 
     ipcMain.handle('window:toggle-stage-fullscreen', () => {
@@ -1101,6 +1187,7 @@ class KaraokeMainProcess {
           mdxSegmentSize?: number;
           mdxOverlap?: number;
           mdxEnableOrt?: boolean;
+          aiCpuThreads?: number | null;
         }
       ) => {
         const libraryPath =
@@ -1123,6 +1210,13 @@ class KaraokeMainProcess {
           this.currentSettings?.vocalRemoverAlgorithm;
         // Prefer IPC-provided MDX knobs; fall back to synced AppSettings for MDX only.
         const isMdx = method === 'aiMdxKaraoke2';
+        const isAi =
+          method === 'aiMdxKaraoke2' || method === 'aiHtDemucs' || method === 'aiBsRoformer';
+        const totalCpus = Math.max(1, os.cpus()?.length || 1);
+        const configuredThreads =
+          options.aiCpuThreads !== undefined
+            ? coerceAiCpuThreads(options.aiCpuThreads)
+            : coerceAiCpuThreads(this.currentSettings?.aiCpuThreads);
         return await this.downloadManager.startDownload({
           ...options,
           titleHint,
@@ -1137,6 +1231,8 @@ class KaraokeMainProcess {
           mdxEnableOrt: isMdx
             ? (options.mdxEnableOrt ?? this.currentSettings?.mdxEnableOrt)
             : undefined,
+          // AI paths (MDX + Demucs) get resolved thread count; DSP ignores it.
+          aiCpuThreads: isAi ? resolveAiCpuThreads(configuredThreads, totalCpus) : undefined,
           libraryPath,
           catalogTracks
         });
