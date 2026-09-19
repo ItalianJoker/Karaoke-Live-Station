@@ -1,3 +1,7 @@
+import type { DspPitchEngine } from './dspPitch';
+
+export type { DspPitchEngine } from './dspPitch';
+
 /**
  * Media source types supported by the Karaoke Live Station.
  */
@@ -164,6 +168,13 @@ export interface AppSettings {
   enableAutoDuckingBGM: boolean;
   /** Enable automatic dynamic audio volume normalization (leveling) */
   enableAudioNormalization?: boolean;
+  /**
+   * Media pitch/speed DSP engine.
+   * `bungee` (default) = Wasm phase-vocoder AudioWorklet;
+   * `soundtouch` = legacy/light WSOLA ScriptProcessor.
+   * MIDI/KAR never uses this — SpessaSynth note transpose only.
+   */
+  dspEngine: DspPitchEngine;
   /** Enable embedded LAN guest request web server */
   enableGuestPortal: boolean;
   /** Enable logging of executed songs for SIAE / copyright borderò */

@@ -50,12 +50,30 @@ const packageJson = JSON.parse(
   fs.readFileSync(path.join(root, 'package.json'), 'utf8')
 );
 
-// 1) pitch 0 = SoundTouch WSOLA bypass (zero CPU / zero latency)
+// 1) pitch 0 = DSP bypass (SoundTouch ScriptProcessor; Bungee when pitch 0 & speed 1)
 assert(
   pitchSrc.includes('bypassActive = true') &&
     pitchSrc.includes('const needsProcessor = clamped !== 0') &&
     pitchSrc.includes('this.applyBypassRouting(!needsProcessor)'),
   'PitchShifterNode: pitch 0 bypasses SoundTouch ScriptProcessor'
+);
+
+const bungeeSrc = fs.readFileSync(
+  path.join(root, 'src/renderer/core/BungeePitchShifterNode.ts'),
+  'utf8'
+);
+assert(
+  bungeeSrc.includes('isDspNeutralBypass') &&
+    bungeeSrc.includes('applyBypassRouting') &&
+    bungeeSrc.includes('bungee-audio-stretch/bungee') &&
+    bungeeSrc.includes('MPL-2.0'),
+  'BungeePitchShifterNode: neutral bypass + MPL-2.0 upstream attribution'
+);
+assert(
+  audioSrc.includes('falling back to SoundTouch') &&
+    audioSrc.includes('setDspEngine') &&
+    audioSrc.includes('PitchShifterNode'),
+  'AudioGraphManager keeps SoundTouch path + silent Bungee fallback'
 );
 
 // 2) volume gain = volume² clamped [0,1]

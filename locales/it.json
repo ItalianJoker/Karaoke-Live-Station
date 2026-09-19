@@ -285,7 +285,16 @@
     "aiCpuThreads": "Core CPU per AI strumentale",
     "aiCpuThreadsDesc": "Numero di thread per MDX / Demucs durante Download Strumentale. Di default usa tutti i core rilevati.",
     "aiCpuCoresAvailable": "Core CPU disponibili: {{count}}",
-    "aiCpuThreadsResetMax": "Reimposta su Massimo ({{count}})"
+    "aiCpuThreadsResetMax": "Reimposta su Massimo ({{count}})",
+    "dspEngine": "Motore DSP tonalità / velocità",
+    "dspEngineDesc": "Predefinito: Bungee (AudioWorklet Wasm). SoundTouch resta selezionabile come opzione legacy più leggera. MIDI/KAR usa sempre la trasposizione note SpessaSynth — non questo DSP.",
+    "dspEngineBungee": "Bungee (predefinito) — alta qualità, ±8 ST, pitch+speed",
+    "dspEngineSoundTouch": "SoundTouch (legacy/leggero) — WSOLA, ±4 ST",
+    "dspEngineCompareTitle": "Bungee vs SoundTouch",
+    "dspEngineCompareBody": "Confronta architettura, range qualità, latenza e CPU. Bypass bit-perfect con pitch 0 e velocità 1.00x.",
+    "dspEngineBungeeBlurb": "Phase vocoder Wasm AudioWorklet. Consigliato ±8 ST (fino a ±12). Pitch e velocità indipendenti (0.50x–1.50x). ~40 ms di latenza algoritmica da attivo; CPU superiore a SoundTouch.",
+    "dspEngineSoundTouchBlurb": "WSOLA ScriptProcessor. Limite duro ±4 ST. Velocità via elemento media. CPU quasi zero a pitch 0 (processor scollegato). Più leggero su macchine datate.",
+    "dspEngineMidiNote": "Pitch e tempo MIDI/KAR non passano mai da Bungee o SoundTouch."
   },
   "history": {
     "title": "Storico Esecuzioni",

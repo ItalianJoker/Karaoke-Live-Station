@@ -91,8 +91,8 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 - **Transposizione Live**: Variazione della tonalità da -8 a +8 semitoni applicata direttamente ai numeri di nota MIDI in tempo reale.
 
 ### 🎵 Motore DSP Audio & Pre-Ascolto Cuffie (CUE)
-- **Pitch-Shifting Professionale SoundTouch WSOLA**: Variazione tonalità da -8 a +8 semitoni ad altissima fedeltà su tracce audio e video tramite correlazione di forma d'onda WSOLA (Waveform Similarity Overlap-Add), eliminando qualsiasi distorsione armonica, flanging metallico o caduta di volume. Bypass diretto a 0 semitoni con latenza zero e 0% CPU.
-- **Time-Stretching e Variazione Velocità Estesa (0.50x–1.50x)**: Regolazione fine del tempo di riproduzione senza alcuna alterazione del pitch. Cliccando sull'indicatore numerico si ripristina istantaneamente la velocità standard 1.00x.
+- **Pitch-Shifting Professionale (Bungee predefinito + SoundTouch opzionale)**: Motore DSP predefinito **Bungee** (phase vocoder Wasm AudioWorklet, MPL-2.0 — solo prebuilt in `public/workers/`, nessun sorgente C++ in-repo; upstream [bungee-audio-stretch/bungee](https://github.com/bungee-audio-stretch/bungee)). Range UI consigliato ±8 ST (fino a ±12). **SoundTouch WSOLA** resta selezionabile in Impostazioni come motore legacy/leggero (±4 ST). Bypass bit-perfect a pitch 0 e velocità 1.00x. MIDI/KAR invariato (SpessaSynth).
+- **Time-Stretching e Variazione Velocità Estesa (0.50x–1.50x)**: Regolazione fine del tempo di riproduzione senza alcuna alterazione del pitch. Con Bungee la velocità passa dal Wasm; con SoundTouch dall’elemento media. Cliccando sull'indicatore numerico si ripristina istantaneamente la velocità standard 1.00x.
 - **Rimuovi Voce Guida (Sperimentale) — Tasto `V`**: In Regia il toggle usa **solo DSP mid/side** (`centerCancelBassKeep`, `centerCancel`, `softMid`) da una tendina dedicata. Una seconda impostazione **Metodo Download Strumentale** sceglie AI offline (UVR-MDX Karaoke 2 / HTDemucs / BS-Roformer) o DSP per Scarica strumentale YouTube — modelli in `userData/models/` (aggiornamento solo se mancanti/corrotti/più nuovi). Nessuna Separazione dual-stem live. Progresso nel menu **Download** in header (pulisci coda / annulla); «Rimozione voce» AI avanza a chunk su CPU. **Download simultanei massimi** limita il pool condiviso. Ricerca Web: **Carica altri video**.
 - **Normalizzazione Dinamica del Volume Audio (Auto-Leveling)**: Stadio DSP basato su processore `DynamicsCompressorNode` (soglia a -22 dB, ratio 6:1, knee 24 dB, attacco ultra-rapido a 3 ms e rilascio a 250 ms) combinato con trucco di makeup gain a 1.35x. Livella in tempo reale la dinamica del volume tra brani diversi, attenuando le tracce con picchi eccessivi e amplificando quelle a basso volume, garantendo un'emissione acustica omogenea e professionale nella sala senza continui interventi manuali sul fader del volume.
 - **Pre-ascolto CUE**: Routing audio su scheda secondaria (`setSinkId`); dalla Libreria apre il modale anteprima tematico sul dispositivo CUE (mute via player; avviso stesso-dispositivo all’unmute).
@@ -107,7 +107,7 @@ Premi **`F1`** o **`?`** in qualsiasi momento per aprire la guida interattiva co
 - **`M`**: Muto Master On/Off immediato.
 - **`V`**: Attiva / Disattiva la Rimozione Voce Guida DSP (**Sperimentale**).
 - **`D`**: Attiva / Disattiva il Microfono Auto-Ducking.
-- **`+` / `-`** oppure **`CTRL + Freccia Su / Giù`**: Regolazione tonalità (±1 semitono, da -8 a +8 ST).
+- **`+` / `-`** oppure **`CTRL + Freccia Su / Giù`**: Regolazione tonalità (±1 semitono; range UI dinamico: Bungee ±8, SoundTouch ±4).
 - **`CTRL + Freccia Sinistra / Destra`**: Regolazione tempo (±5%, da 0.50x a 1.50x).
 - **`Freccia Sinistra / Destra`**: Salto temporale indietro / avanti di 5 secondi.
 - **`Freccia Su / Giù`**: Regolazione del volume master (±5%) con curva quadratica psicoacustica ($Gain = volume^2$) e anti-click ramping a 50ms.
@@ -325,7 +325,8 @@ Karaoke Live Station è realizzato grazie a eccezionali librerie open source, st
 | **yt-dlp** | yt-dlp team | The Unlicense | [github.com/yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp) | Ricerca metadati YouTube, download flussi audio/video e aggiornamento automatico |
 | **FFmpeg** | FFmpeg Developers & Eugene Ware (`ffmpeg-static`) | LGPL 2.1+ / GPL 3.0 | [ffmpeg.org](https://ffmpeg.org/) • [github.com/eugeneware/ffmpeg-static](https://github.com/eugeneware/ffmpeg-static) | Decodifica multimediale ed estrazione automatica miniature video a 16:9 |
 | **SpessaSynth** | Spessa (`spessasus`) | MIT | [github.com/spessasus/SpessaSynth](https://github.com/spessasus/SpessaSynth) | Sintetizzatore SoundFont 2 (SF2) per riproduzione MIDI e KAR a bassissima latenza |
-| **SoundTouch / SoundTouchJS** | Olli Parviainen & Jakub Fiala | LGPL 2.1 / MIT | [gitlab.com/soundtouch/soundtouch](https://gitlab.com/soundtouch/soundtouch) • [github.com/jakubfiala/soundtouchjs](https://github.com/jakubfiala/soundtouchjs) | Algoritmo WSOLA professionale per variazione tonalità (pitch-shifting) e tempo-stretching |
+| **Bungee** | Parabola Research / bungee-audio-stretch | MPL-2.0 | [github.com/bungee-audio-stretch/bungee](https://github.com/bungee-audio-stretch/bungee) | Phase vocoder Wasm (pitch + speed); solo prebuilt in `public/workers/` — vedi `BUNGEE_NOTICE.md` |
+| **SoundTouch / SoundTouchJS** | Olli Parviainen & Jakub Fiala | LGPL 2.1 / MIT | [gitlab.com/soundtouch/soundtouch](https://gitlab.com/soundtouch/soundtouch) • [github.com/jakubfiala/soundtouchjs](https://github.com/jakubfiala/soundtouchjs) | Algoritmo WSOLA professionale per variazione tonalità (pitch-shifting) e tempo-stretching (motore legacy selezionabile) |
 | **GeneralUser GS SoundFont** | S. Christian Collins | Permissive GeneralUser License | [schristiancollins.com](http://www.schristiancollins.com/generaluser.php) | Banco sonoro General MIDI da 31 MB integrato per resa acustica realistica |
 | **better-sqlite3** | Joshua Wise | MIT | [github.com/WiseLibs/better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | Database locale sincrono ad altissime prestazioni in modalità WAL (catalogo e SIAE) |
 | **Electron** | OpenJS Foundation & Electron Contributors | MIT | [electronjs.org](https://www.electronjs.org/) | Framework desktop nativo multi-finestra (Regia e Schermo Palco) |
@@ -404,8 +405,8 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 - **Live Pitch Shifting**: Transpose songs from -8 to +8 semitones by shifting MIDI note numbers in real time without audio distortion.
 
 ### 🎵 Audio DSP Engine & Headphone Monitoring (CUE)
-- **SoundTouch WSOLA Studio Pitch Shifting**: High-fidelity pitch transposition (-8 to +8 semitones) on audio and video tracks using Waveform Similarity Overlap-Add (WSOLA), completely eliminating harmonic distortion, metallic comb-filtering, and volume wobbles. Direct bit-perfect bypass at 0 semitones with zero latency and 0% CPU overhead.
-- **Extended Independent Tempo Scaling (0.50x–1.50x)**: Continuous playback speed adjustment without modifying audio pitch. Clicking the speed indicator immediately resets playback rate to 1.00x.
+- **Bungee (default) + SoundTouch (selectable) Studio Pitch/Speed**: Default media DSP is **Bungee** (phase-vocoder Wasm AudioWorklet, MPL-2.0 — runtime prebuilts only under `public/workers/`, no C++ source tree; upstream [bungee-audio-stretch/bungee](https://github.com/bungee-audio-stretch/bungee)). Recommended UI ±8 ST. **SoundTouch WSOLA** remains a Settings option (legacy/light, hard ±4 ST). Bit-perfect bypass when pitch is 0 and speed is 1.00x. MIDI/KAR unchanged (SpessaSynth).
+- **Extended Independent Tempo Scaling (0.50x–1.50x)**: Continuous playback speed adjustment without modifying audio pitch. With Bungee, tempo runs in Wasm; with SoundTouch, via the media element. Clicking the speed indicator immediately resets playback rate to 1.00x.
 - **Vocal Remover (Experimental) — `V` key**: Live Control toggle uses **realtime mid/side DSP** only (`centerCancelBassKeep`, `centerCancel`, `softMid`) via a dedicated Settings dropdown. A separate **Download Instrumental Method** setting chooses offline AI (UVR-MDX Karaoke 2 / HTDemucs / BS-Roformer) or DSP for YouTube instrumental downloads — models land in `userData/models/` (update only if missing/corrupt/newer). Live dual-stem Separazione is not used. Progress lives in the header **Download** menu (clear-all / cancel supported); AI “Rimozione voce” reports monotonic chunk progress on CPU. Settings → **Max simultaneous downloads** caps the shared pool. Web search supports **Load more videos** / **Carica altri video**.
 - **CUE Pre-listening**: Route preview audio to a secondary output (`setSinkId`); from the Library, Pre-Listen opens the themed preview modal on the CUE device (mute via player; same-device unmute warning).
 - **Dynamic Audio Volume Normalization (Auto-Leveling)**: DSP dynamics processor powered by `DynamicsCompressorNode` (-22 dB threshold, 6:1 ratio, 24 dB knee, 3 ms attack, 250 ms release) combined with 1.35x makeup leveling gain. Equalizes acoustic dynamics across diverse songs in real time, taming aggressive volume spikes and lifting quiet backing tracks for a seamless, professional listening experience without riding the master fader. Configurable and toggleable in Audio Settings.
@@ -420,7 +421,7 @@ Press **`F1`** or **`?`** at any time to open the searchable interactive guide (
 - **`M`**: Toggle Master Mute On/Off.
 - **`V`**: Toggle DSP Lead Vocal Remover (**Experimental**).
 - **`D`**: Toggle Microphone Auto-Ducking.
-- **`+` / `-`** or **`CTRL + Arrow Up / Down`**: Pitch shift / key adjustment (±1 semitone, from -8 to +8 ST).
+- **`+` / `-`** or **`CTRL + Arrow Up / Down`**: Pitch shift / key adjustment (±1 semitone; dynamic UI range: Bungee ±8, SoundTouch ±4).
 - **`CTRL + Arrow Left / Right`**: Playback tempo adjustment (±5%, from 0.50x to 1.50x).
 - **`Arrow Left / Right`**: Jump playback 5 seconds backward / forward.
 - **`Arrow Up / Down`**: Master volume fine adjustment (±5%) with perceptual quadratic power curve ($Gain = volume^2$) and 50ms anti-click ramping.
@@ -667,7 +668,8 @@ If you find **Karaoke Live Station** valuable for your shows, venues, or private
 | **better-sqlite3** | Catalog + SIAE history (WAL; ASAR-unpacked) |
 | **electron** | Main + utilityProcess AI worker (ORT off the UI thread) |
 | **zustand** | Persisted settings (`useKaraokeStore` in `src/renderer/store/karaokeStore.ts`) |
-| **soundtouchjs** | Live pitch WSOLA (bypassed at pitch 0) |
+| **soundtouchjs** | Legacy/light live pitch WSOLA (bypassed at pitch 0); selectable via `dspEngine` |
+| **Bungee** (prebuilt Wasm) | Default pitch+speed Wasm AudioWorklet (`dspEngine: 'bungee'`); MPL-2.0 upstream |
 | **spessasynth_lib** | MIDI/KAR SoundFont synth (5 ms scheduler, `latencyHint: 'playback'`) |
 | **qrcode** | Guest Portal LAN QR generation |
 | **clsx** / **tailwind-merge** | Declared class-name helpers (Watchlist: unused in current `src/`; do not remove without audit) |
@@ -686,7 +688,7 @@ If you find **Karaoke Live Station** valuable for your shows, venues, or private
 **Critical invariants (must not regress)**
 | Invariant | Location | Rule |
 | :--- | :--- | :--- |
-| Pitch 0 = SoundTouch bypass | `PitchShifterNode` | `semitones === 0` → ScriptProcessor off path (zero CPU) |
+| Pitch/speed DSP bypass | `BungeePitchShifterNode` / `PitchShifterNode` | Bungee: pitch 0 && speed 1.0 → worklet off path; SoundTouch: pitch 0 → ScriptProcessor off path |
 | Volume gain = volume² | `AudioGraphManager.computePerceptualGain` | Clamp volume to [0,1]; mute → 0 |
 | AI worker MessageEvent unwrap | `aiWorkerMessage.unwrapAiWorkerInboundMessage` | Prefer bare `type`; else `raw.data` |
 | SIAE ≥ 120s | `karaokeStore.logCurrentTrackExecution` | Natural end **or** elapsed ≥ 120s |
@@ -706,7 +708,8 @@ Karaoke Live Station is powered by open-source libraries, open standards, and co
 | **yt-dlp** | yt-dlp team | The Unlicense | [github.com/yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp) | YouTube metadata querying, stream downloading, and background auto-updating |
 | **FFmpeg** | FFmpeg Developers & Eugene Ware (`ffmpeg-static`) | LGPL 2.1+ / GPL 3.0 | [ffmpeg.org](https://ffmpeg.org/) • [github.com/eugeneware/ffmpeg-static](https://github.com/eugeneware/ffmpeg-static) | Media stream demuxing and automated 16:9 video thumbnail generation |
 | **SpessaSynth** | Spessa (`spessasus`) | MIT | [github.com/spessasus/SpessaSynth](https://github.com/spessasus/SpessaSynth) | SoundFont 2 (SF2) software synthesizer for ultra-low latency MIDI and KAR playback |
-| **SoundTouch / SoundTouchJS** | Olli Parviainen & Jakub Fiala | LGPL 2.1 / MIT | [gitlab.com/soundtouch/soundtouch](https://gitlab.com/soundtouch/soundtouch) • [github.com/jakubfiala/soundtouchjs](https://github.com/jakubfiala/soundtouchjs) | Studio-grade WSOLA algorithm for pitch shifting and tempo stretching |
+| **Bungee** | Parabola Research / bungee-audio-stretch | MPL-2.0 | [github.com/bungee-audio-stretch/bungee](https://github.com/bungee-audio-stretch/bungee) | Phase-vocoder Wasm (pitch + speed); runtime prebuilts only — see `public/workers/BUNGEE_NOTICE.md` |
+| **SoundTouch / SoundTouchJS** | Olli Parviainen & Jakub Fiala | LGPL 2.1 / MIT | [gitlab.com/soundtouch/soundtouch](https://gitlab.com/soundtouch/soundtouch) • [github.com/jakubfiala/soundtouchjs](https://github.com/jakubfiala/soundtouchjs) | Studio-grade WSOLA algorithm for pitch shifting and tempo stretching (selectable legacy engine) |
 | **GeneralUser GS SoundFont** | S. Christian Collins | Permissive GeneralUser License | [schristiancollins.com](http://www.schristiancollins.com/generaluser.php) | High-definition 31 MB General MIDI SoundFont bank bundled for realistic instruments |
 | **better-sqlite3** | Joshua Wise | MIT | [github.com/WiseLibs/better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | High-performance synchronous SQLite driver in WAL mode (media library & SIAE history) |
 | **ONNX Runtime Web** | Microsoft | MIT | [github.com/microsoft/onnxruntime](https://github.com/microsoft/onnxruntime) | WASM inference for Download Instrumental AI (UVR-MDX-NET / Demucs) |
