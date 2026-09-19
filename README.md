@@ -318,6 +318,7 @@ Se trovi utile **Karaoke Live Station** per le tue serate, feste o eventi e desi
 - Thread ORT WASM (`aiCpuThreads`): `null` = tutti i core; clamp a `[1, os.cpus().length]` — mai ≤0/NaN.
 - GPU-First (`aiEnableGpu`, default on) + probe `system:get-gpu-status` → ORT `executionProviders` `webgpu`→`wasm` oppure solo `wasm`.
 - HTDemucs avanzato: `demucsShifts` (0|1|2), `demucsSegmentSize` (5–20 s), `demucsOverlap` (0.10–0.50); MDX knobs invariati.
+- **Modularizzazione (Safety-First):** transport/scorciatoie Regia in `useControlPlayback` / `useKeyboardShortcuts` + `PlayerDeckControls` / `QueueList`; tab Impostazioni in `src/renderer/components/settings/`. Lista libreria con virtualizzazione a finestra (`listVirtualization.ts`) per cataloghi 16k+. Preferire selettori Zustand granulari; GC solo `queue_cache` / temp — mai `libraryPath`.
 
 ---
 
@@ -694,6 +695,7 @@ If you find **Karaoke Live Station** valuable for your shows, venues, or private
 - GPU-First (`aiEnableGpu`, default on) + `system:get-gpu-status` probe → ORT `executionProviders` `webgpu`→`wasm` or WASM-only.
 - HTDemucs advanced: `demucsShifts` (0|1|2), `demucsSegmentSize` (5–20 s), `demucsOverlap` (0.10–0.50); MDX knobs unchanged.
 - Frozen contracts: IPC / `electronAPI` (`src/preload/index.ts`), `src/shared/types.ts`, Zustand `useKaraokeStore` shape, SQLite WAL schema. Dynamic/preload/Socket.IO/global-shortcut handlers → **Watchlist** (never delete as “dead”).
+- **Modularization (Safety-First):** Control transport/shortcuts live in `useControlPlayback` / `useKeyboardShortcuts` + `PlayerDeckControls` / `QueueList`; Settings tabs under `src/renderer/components/settings/`. Library results use windowed virtualization (`listVirtualization.ts`) for 16k+ catalogs. Prefer granular Zustand selectors; GC still only `queue_cache` / temp — never `libraryPath`.
 
 **Critical invariants (must not regress)**
 | Invariant | Location | Rule |

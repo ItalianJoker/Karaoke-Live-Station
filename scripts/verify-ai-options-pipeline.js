@@ -25,10 +25,13 @@ const demucsAdv = fs.readFileSync(path.join(root, 'src/shared/demucsAdvancedSett
 const vocalSrc = fs.readFileSync(path.join(root, 'src/shared/vocalRemover.ts'), 'utf8');
 const typesSrc = fs.readFileSync(path.join(root, 'src/shared/types.ts'), 'utf8');
 const storeSrc = fs.readFileSync(path.join(root, 'src/renderer/store/karaokeStore.ts'), 'utf8');
-const settingsSrc = fs.readFileSync(
-  path.join(root, 'src/renderer/components/SettingsModal.tsx'),
-  'utf8'
-);
+const settingsSrc = [
+  fs.readFileSync(path.join(root, 'src/renderer/components/SettingsModal.tsx'), 'utf8'),
+  fs.readFileSync(
+    path.join(root, 'src/renderer/components/settings/SettingsLibraryTab.tsx'),
+    'utf8'
+  )
+].join('\n');
 const librarySrc = fs.readFileSync(
   path.join(root, 'src/renderer/components/LibraryPanel.tsx'),
   'utf8'

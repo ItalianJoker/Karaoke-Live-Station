@@ -1,13 +1,6 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Play,
-  Pause,
-  Square,
-  SkipForward,
-  RotateCcw,
-  Volume2,
-  VolumeX,
   Mic,
   Music,
   Sliders,
@@ -18,7 +11,6 @@ import {
   Users,
   Smartphone,
   Layers,
-  Edit2,
   Check,
   X,
   Search,
@@ -26,12 +18,9 @@ import {
   User,
   Star,
   History,
-  GripVertical,
   Download,
   XCircle,
   HelpCircle,
-  AlertCircle,
-  FileX,
   Info,
   AudioLines
 } from 'lucide-react';
@@ -40,17 +29,19 @@ import { AudioGraphManager } from '../core/AudioGraphManager';
 import {
   getPitchRangeForEngine,
   getSpeedRangeForEngine,
-  coerceDspPitchEngine,
-  clampSpeedForEngine
+  coerceDspPitchEngine
 } from '../../shared/dspPitch';
-import { formatBpmTransition, formatKeyTransition } from '../../shared/musicalKeys';
 
 import { MidiChannelMixer } from './MidiChannelMixer';
 import { LibraryPanel } from './LibraryPanel';
 import { HistoryPanel } from './HistoryPanel';
 import { SettingsModal } from './SettingsModal';
 import { MissingFileModal } from './MissingFileModal';
-import { dataTransferHasFiles, resolveDroppedAbsolutePaths } from '../utils/fsDragDrop';
+import { PlayerDeckControls } from './PlayerDeckControls';
+import { QueueList } from './QueueList';
+import { useControlPlayback } from '../hooks/useControlPlayback';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { resolveDroppedAbsolutePaths } from '../utils/fsDragDrop';
 import {
   checkTrackLocalFileExists,
   trackNeedsLocalFileCheck
@@ -150,8 +141,6 @@ export const ControlWindow: React.FC = () => {
   const [stageOpen, setStageOpen] = useState(true);
   const [activeCueUri, setActiveCueUri] = useState<string | undefined>(undefined);
   const [downloadProgress, setDownloadProgress] = useState<{ percent: number; speed: string } | null>(null);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   /** OS file drop onto the queue panel (distinct from in-app reorder). */
   const [queueFileDropActive, setQueueFileDropActive] = useState(false);
   const [isImportingQueueDrop, setIsImportingQueueDrop] = useState(false);
@@ -163,29 +152,14 @@ export const ControlWindow: React.FC = () => {
   const settings = useKaraokeStore((state) => state.settings);
   const playback = useKaraokeStore((state) => state.playback);
   const setPlaybackState = useKaraokeStore((state) => state.setPlaybackState);
-  const togglePlayPause = useKaraokeStore((state) => state.togglePlayPause);
-  const setLivePitch = useKaraokeStore((state) => state.setLivePitch);
-  const setPlaybackSpeed = useKaraokeStore((state) => state.setPlaybackSpeed);
   const toggleMidiChannelMute = useKaraokeStore((state) => state.toggleMidiChannelMute);
-  const setVocalRemover = useKaraokeStore((state) => state.setVocalRemover);
-  const setDucking = useKaraokeStore((state) => state.setDucking);
 
   const queue = useKaraokeStore((state) => state.queue);
-  const reorderQueue = useKaraokeStore((state) => state.reorderQueue);
   const addToQueue = useKaraokeStore((state) => state.addToQueue);
-  const restoreFairQueueOrder = useKaraokeStore((state) => state.restoreFairQueueOrder);
-  const setQueueItemPitch = useKaraokeStore((state) => state.setQueueItemPitch);
   const updateTrackInQueue = useKaraokeStore((state) => state.updateTrackInQueue);
   const updateQueueItemSinger = useKaraokeStore((state) => state.updateQueueItemSinger);
-  const jumpToQueueItem = useKaraokeStore((state) => state.jumpToQueueItem);
-  const removeFromQueue = useKaraokeStore((state) => state.removeFromQueue);
   const advanceToNextTrack = useKaraokeStore((state) => state.advanceToNextTrack);
-  const clearQueue = useKaraokeStore((state) => state.clearQueue);
-  const closeMissingFileModal = useKaraokeStore((state) => state.closeMissingFileModal);
-  const showMissingFileModal = useKaraokeStore((state) => state.showMissingFileModal);
-  const markTrackMissing = useKaraokeStore((state) => state.markTrackMissing);
   const clearTrackMissing = useKaraokeStore((state) => state.clearTrackMissing);
-  const missingTrackIds = useKaraokeStore((state) => state.missingTrackIds);
   const pendingRequests = useKaraokeStore((state) => state.pendingGuestRequests);
   const storeSingers = useKaraokeStore((state) => state.singers);
 
@@ -254,133 +228,30 @@ export const ControlWindow: React.FC = () => {
     }
   }, [currentTrack?.id, playback.currentTrackId, setPlaybackState]);
 
-  /**
-   * Safely pause / reset media graph when a local file is missing.
-   * Why: never leave AudioGraph or `<video>` in a rejecting play() state.
-   */
-  const pauseResetForMissingFile = () => {
-    try {
-      audioGraphRef.current?.stopMidiPlayback();
-    } catch {
-      // ignore
-    }
-    if (videoRef.current) {
-      try {
-        videoRef.current.pause();
-        videoRef.current.removeAttribute('src');
-        videoRef.current.load();
-      } catch {
-        // ignore
-      }
-    }
-    setPlaybackState({ isPlaying: false, currentTime: 0, activeLyricsText: undefined });
-  };
-
-  const openMissingForQueueItem = (
-    track: { id: string; title: string; artist: string; localFilePath?: string },
-    filePath: string,
-    queueItemId?: string
-  ) => {
-    markTrackMissing(track.id);
-    showMissingFileModal({
-      filePath,
-      trackTitle: track.title,
-      trackArtist: track.artist,
-      trackId: track.id,
-      queueItemId,
-      context: 'queue'
-    });
-  };
-
-  const handleJumpToTrack = async (index: number) => {
-    const item = queue[index];
-    if (!item) return;
-
-    if (trackNeedsLocalFileCheck(item.track)) {
-      const check = await checkTrackLocalFileExists(item.track);
-      if (!check.exists) {
-        pauseResetForMissingFile();
-        openMissingForQueueItem(item.track, check.path, item.queueId);
-        return;
-      }
-      clearTrackMissing(item.track.id);
-    }
-
-    audioGraphRef.current?.stopMidiPlayback();
-    await audioGraphRef.current?.initContext();
-    if (index === 0) {
-      handleRestart();
-      if (!playback.isPlaying) {
-        handlePlayPause();
-      }
-    } else {
-      jumpToQueueItem(index);
-    }
-  };
-
-  const handlePlayCue = (uri: string) => {
-    setActiveCueUri(uri);
-    audioGraphRef.current?.playCuePreview(uri, settings.cueAudioDeviceId);
-  };
-
-  const handleStopCue = () => {
-    setActiveCueUri(undefined);
-    audioGraphRef.current?.stopCuePreview();
-  };
-
-  const handlePlayPause = async () => {
-    if (!currentTrack || !currentQueueItem) return;
-
-    // Starting playback — verify local path before AudioGraph / video feed
-    if (!playback.isPlaying && trackNeedsLocalFileCheck(currentTrack)) {
-      const check = await checkTrackLocalFileExists(currentTrack);
-      if (!check.exists) {
-        pauseResetForMissingFile();
-        openMissingForQueueItem(currentTrack, check.path, currentQueueItem.queueId);
-        return;
-      }
-      clearTrackMissing(currentTrack.id);
-    }
-
-    await audioGraphRef.current?.initContext();
-    togglePlayPause();
-  };
-
-  const handleStop = () => {
-    // Record into SIAE history if the song was played for at least 120s (2 minutes) before stopping
-    useKaraokeStore.getState().logCurrentTrackExecution({ naturalEnd: false });
-
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
-    }
-    audioGraphRef.current?.stopMidiPlayback();
-    setPlaybackState({ isPlaying: false, currentTime: 0, activeLyricsText: undefined });
-  };
-
-  const handleSeek = (timeSec: number) => {
-    const maxDur = playback.duration > 0 ? playback.duration : 3600;
-    const safeTime = Math.max(0, Math.min(maxDur, timeSec));
-    setPlaybackState({ currentTime: safeTime });
-    if (isMidiTrack) {
-      audioGraphRef.current?.seekMidi(safeTime * 1000);
-    } else if (videoRef.current) {
-      videoRef.current.currentTime = safeTime;
-    }
-    if (typeof window !== 'undefined' && window.karaokeApi) {
-      const curPlayback = {
-        ...useKaraokeStore.getState().playback,
-        currentTime: safeTime
-      };
-      window.karaokeApi.sendStateSync(curPlayback);
-    }
-  };
-
-  const handleRestart = () => {
-    handleSeek(0);
-  };
+  const {
+    pauseResetForMissingFile,
+    openMissingForQueueItem,
+    handleJumpToTrack,
+    handlePlayCue,
+    handleStopCue,
+    handlePlayPause,
+    handleStop,
+    handleSeek,
+    handleRestart
+  } = useControlPlayback({
+    audioGraphRef,
+    videoRef,
+    currentTrack,
+    currentQueueItem,
+    isMidiTrack,
+    isPlaying: playback.isPlaying,
+    duration: playback.duration,
+    cueAudioDeviceId: settings.cueAudioDeviceId,
+    setActiveCueUri
+  });
 
   const [savingTrackIds, setSavingTrackIds] = useState<Set<string>>(new Set());
+
 
   /**
    * Import OS-dropped files into the catalog, then enqueue each track.
@@ -955,129 +826,6 @@ export const ControlWindow: React.FC = () => {
     downloadProgress
   ]);
 
-  // Global Keyboard Shortcuts
-  // Inventory: see `src/renderer/data/appShortcuts.ts` (shared with "?" help + Settings).
-  // Ignored while focus is in INPUT/TEXTAREA/SELECT except Escape (blur + close modals).
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)) {
-        if (e.key === 'Escape') {
-          (e.target as HTMLElement).blur();
-          closeMissingFileModal();
-          setShowSettingsModal(false);
-          setShowSingersModal(false);
-          setShowGuestModal(false);
-          setShowPortalQrModal(false);
-          setShowShortcutsModal(false);
-        }
-        return;
-      }
-
-      if (e.key === 'Escape') {
-        closeMissingFileModal();
-        setShowSettingsModal(false);
-        setShowSingersModal(false);
-        setShowGuestModal(false);
-        setShowPortalQrModal(false);
-        setShowShortcutsModal(false);
-      } else if (e.code === 'Space') {
-        e.preventDefault();
-        handlePlayPause();
-      } else if (e.code === 'KeyN') {
-        e.preventDefault();
-        audioGraphRef.current?.stopMidiPlayback();
-        advanceToNextTrack();
-      } else if (e.code === 'KeyS') {
-        e.preventDefault();
-        handleStop();
-      } else if (e.code === 'KeyR') {
-        e.preventDefault();
-        handleRestart();
-      } else if (e.code === 'KeyM') {
-        e.preventDefault();
-        setPlaybackState({ isMuted: !playback.isMuted });
-      } else if (e.code === 'KeyV') {
-        e.preventDefault();
-        setVocalRemover(!playback.isVocalRemoverActive);
-      } else if (e.code === 'KeyD') {
-        e.preventDefault();
-        setDucking(!playback.isDuckingActive);
-      } else if (e.code === 'KeyP' || e.code === 'F2') {
-        e.preventDefault();
-        window.karaokeApi?.reopenStageWindow();
-      } else if (e.code === 'Digit1' || e.key === '1') {
-        e.preventDefault();
-        setActiveRightTab('queue');
-      } else if (e.code === 'Digit2' || e.key === '2') {
-        e.preventDefault();
-        setActiveRightTab('library');
-      } else if (e.code === 'Digit3' || e.key === '3') {
-        e.preventDefault();
-        setActiveRightTab('history');
-      } else if (e.code === 'F1' || (e.key === '?' && !e.ctrlKey && !e.metaKey)) {
-        e.preventDefault();
-        setShowShortcutsModal((prev) => !prev);
-      } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowUp') {
-        e.preventDefault();
-        setLivePitch(Math.min(8, playback.livePitchOffset + 1));
-      } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowDown') {
-        e.preventDefault();
-        setLivePitch(Math.max(-8, playback.livePitchOffset - 1));
-      } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowLeft') {
-        e.preventDefault();
-        setPlaybackSpeed(
-          clampSpeedForEngine(playback.playbackSpeed - speedRange.step, coerceDspPitchEngine(settings.dspEngine))
-        );
-      } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowRight') {
-        e.preventDefault();
-        setPlaybackSpeed(
-          clampSpeedForEngine(playback.playbackSpeed + speedRange.step, coerceDspPitchEngine(settings.dspEngine))
-        );
-      } else if (e.code === 'ArrowLeft') {
-        e.preventDefault();
-        const newTime = Math.max(0, playback.currentTime - 5);
-        handleSeek(newTime);
-      } else if (e.code === 'ArrowRight') {
-        e.preventDefault();
-        const newTime = Math.min(playback.duration, playback.currentTime + 5);
-        handleSeek(newTime);
-      } else if (e.code === 'ArrowUp') {
-        e.preventDefault();
-        setPlaybackState({ masterVolume: Math.min(1, playback.masterVolume + 0.05) });
-      } else if (e.code === 'ArrowDown') {
-        e.preventDefault();
-        setPlaybackState({ masterVolume: Math.max(0, playback.masterVolume - 0.05) });
-      } else if (e.key === '+' || e.code === 'NumpadAdd' || e.key === '=') {
-        e.preventDefault();
-        setLivePitch(Math.min(8, playback.livePitchOffset + 1));
-      } else if (e.key === '-' || e.code === 'NumpadSubtract') {
-        e.preventDefault();
-        setLivePitch(Math.max(-8, playback.livePitchOffset - 1));
-      } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyF') {
-        e.preventDefault();
-        setActiveRightTab('library');
-        searchInputRef.current?.focus();
-      }
-    },
-    [
-      playback,
-      handlePlayPause,
-      handleStop,
-      handleRestart,
-      advanceToNextTrack,
-      setLivePitch,
-      setPlaybackSpeed,
-      setPlaybackState,
-      setVocalRemover,
-      setDucking,
-      closeMissingFileModal,
-      handleSeek,
-      speedRange.step,
-      settings.dspEngine
-    ]
-  );
-
-
   useEffect(() => {
     try {
       sessionStorage.setItem('kls.control.activeRightTab', activeRightTab);
@@ -1086,10 +834,20 @@ export const ControlWindow: React.FC = () => {
     }
   }, [activeRightTab]);
 
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+  useKeyboardShortcuts({
+    audioGraphRef,
+    searchInputRef,
+    handlePlayPause,
+    handleStop,
+    handleRestart,
+    handleSeek,
+    setActiveRightTab,
+    setShowSettingsModal,
+    setShowSingersModal,
+    setShowGuestModal,
+    setShowPortalQrModal,
+    setShowShortcutsModal
+  });
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -1574,188 +1332,15 @@ export const ControlWindow: React.FC = () => {
               </div>
             </div>
 
-            {/* Transport & DSP Controls Bar - Material Design 3 Floating Dock */}
-            <div className="mt-4 p-3.5 bg-slate-950/60 border border-slate-800/80 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-inner">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handlePlayPause}
-                  className="w-11 h-11 bg-gradient-to-tr from-indigo-600 to-violet-500 hover:from-indigo-500 hover:to-violet-400 rounded-full text-white shadow-lg shadow-indigo-600/30 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center shrink-0"
-                  title={(playback.isPlaying ? t('player.pause') : t('player.play')) + ' (Spazio)'}
-                >
-                  {playback.isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleStop}
-                  className="w-9 h-9 bg-slate-800/90 hover:bg-slate-700/90 rounded-full text-slate-300 border border-slate-700/60 shadow-sm flex items-center justify-center transition-all active:scale-95 shrink-0"
-                  title={t('player.stop') + ' (S)'}
-                >
-                  <Square className="w-4 h-4 fill-current" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRestart}
-                  className="w-9 h-9 bg-slate-800/90 hover:bg-slate-700/90 rounded-full text-slate-300 border border-slate-700/60 shadow-sm flex items-center justify-center transition-all active:scale-95 shrink-0"
-                  title={t('player.restart') + ' (R)'}
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => advanceToNextTrack()}
-                  className="w-9 h-9 bg-slate-800/90 hover:bg-slate-700/90 rounded-full text-slate-300 border border-slate-700/60 shadow-sm flex items-center justify-center transition-all active:scale-95 shrink-0"
-                  title={t('player.next') + ' (N)'}
-                >
-                  <SkipForward className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Pitch Controls (range depends on DSP engine) — key label affixed side-by-side */}
-              <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm shrink-0">
-                <span className="text-[11px] font-semibold text-slate-300 shrink-0" title="Tonalità in semitoni">
-                  {t('player.pitch')}:
-                  {(() => {
-                    const keyLabel = formatKeyTransition(
-                      currentTrack?.initialKey,
-                      playback.livePitchOffset
-                    );
-                    return keyLabel ? (
-                      <span className="ml-1 font-mono text-indigo-300/90 font-bold">{keyLabel}</span>
-                    ) : null;
-                  })()}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setLivePitch(playback.livePitchOffset - 1)}
-                  disabled={playback.livePitchOffset <= pitchRange.min}
-                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-slate-700 hover:text-white text-xs font-bold flex items-center justify-center transition-colors text-slate-200 shrink-0"
-                  title="Abbassa tonalità (-1 semitono, CTRL + Freccia Giù)"
-                >
-                  -
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLivePitch(0)}
-                  className="font-mono font-bold text-xs min-w-[42px] px-1.5 py-0.5 rounded-full text-center text-indigo-400 hover:bg-indigo-950/70 hover:text-indigo-200 transition-colors cursor-pointer shrink-0"
-                  title="Clicca per azzerare la tonalità (0 ST)"
-                >
-                  {playback.livePitchOffset > 0 ? `+${playback.livePitchOffset}` : playback.livePitchOffset} ST
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLivePitch(playback.livePitchOffset + 1)}
-                  disabled={playback.livePitchOffset >= pitchRange.max}
-                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-slate-700 hover:text-white text-xs font-bold flex items-center justify-center transition-colors text-slate-200 shrink-0"
-                  title="Alza tonalità (+1 semitono, CTRL + Freccia Su)"
-                >
-                  +
-                </button>
-              </div>
-
-              {/* Speed Controls — per-engine range + BPM label affixed side-by-side */}
-              <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm shrink-0">
-                <span className="text-[11px] font-semibold text-slate-300 shrink-0">
-                  {t('player.speed')}:
-                  {(() => {
-                    const bpmLabel = formatBpmTransition(
-                      currentTrack?.initialBpm,
-                      playback.playbackSpeed
-                    );
-                    return bpmLabel ? (
-                      <span className="ml-1 font-mono text-emerald-300/90 font-bold">{bpmLabel}</span>
-                    ) : null;
-                  })()}
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPlaybackSpeed(
-                      clampSpeedForEngine(
-                        playback.playbackSpeed - speedRange.step,
-                        coerceDspPitchEngine(settings.dspEngine)
-                      )
-                    )
-                  }
-                  disabled={playback.playbackSpeed <= speedRange.min + 1e-6}
-                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-slate-700 text-xs font-bold flex items-center justify-center text-slate-200 transition-all shrink-0"
-                  title={`Rallenta tempo (−${speedRange.step.toFixed(2)}x, CTRL + Freccia Sinistra)`}
-
-                >
-                  -
-                </button>
-                <span
-                  onClick={() => setPlaybackSpeed(1.0)}
-                  className="font-mono font-bold text-xs w-9 text-center text-emerald-400 hover:underline cursor-pointer shrink-0"
-                  title="Clicca per ripristinare tempo 1.00x"
-                >
-                  {playback.playbackSpeed.toFixed(2)}x
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPlaybackSpeed(
-                      clampSpeedForEngine(
-                        playback.playbackSpeed + speedRange.step,
-                        coerceDspPitchEngine(settings.dspEngine)
-                      )
-                    )
-                  }
-                  disabled={playback.playbackSpeed >= speedRange.max - 1e-6}
-                  className="w-5 h-5 rounded-full bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-slate-700 text-xs font-bold flex items-center justify-center text-slate-200 transition-all shrink-0"
-                  title={`Aumenta tempo (+${speedRange.step.toFixed(2)}x, CTRL + Freccia Destra)`}
-                >
-                  +
-                </button>
-              </div>
-
-              {/* Volume & Mute */}
-              <div className="flex items-center gap-2 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setPlaybackState({ isMuted: !playback.isMuted })}
-                  className="text-slate-300 hover:text-white transition-colors"
-                >
-                  {playback.isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
-                </button>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={playback.isMuted ? 0 : playback.masterVolume}
-                  onChange={(e) => setPlaybackState({ masterVolume: parseFloat(e.target.value), isMuted: false })}
-                  className="w-16 h-1 accent-indigo-500 cursor-pointer"
-                />
-              </div>
-
-              {/* DSP Toggles: Vocal Remover & Ducking */}
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setVocalRemover(!playback.isVocalRemoverActive)}
-                  title={t('player.vocalRemover')}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border shadow-sm transition-all duration-150 active:scale-95 ${
-                    playback.isVocalRemoverActive
-                      ? 'bg-rose-950/60 border-rose-700/80 text-rose-300 shadow-rose-950/30'
-                      : 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {t('player.vocalRemover')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDucking(!playback.isDuckingActive)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border shadow-sm transition-all duration-150 active:scale-95 ${
-                    playback.isDuckingActive
-                      ? 'bg-amber-950/60 border-amber-700/80 text-amber-300 shadow-amber-950/30'
-                      : 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {t('player.bgmDucking')}
-                </button>
-              </div>
-            </div>
+            <PlayerDeckControls
+              pitchRange={pitchRange}
+              speedRange={speedRange}
+              dspEngine={coerceDspPitchEngine(settings.dspEngine)}
+              onPlayPause={() => { void handlePlayPause(); }}
+              onStop={handleStop}
+              onRestart={handleRestart}
+              onNext={() => advanceToNextTrack()}
+            />
           </div>
 
           {/* MIDI 16-Channel Mixer - Rendered ONLY if file is MIDI/KAR compatible */}
@@ -1809,303 +1394,22 @@ export const ControlWindow: React.FC = () => {
           {/* Tab 1: Queue (Fair Queue) */}
           {/* Tabs stay mounted so search/scroll/downloads persist across navigation */}
           <div className={activeRightTab === 'queue' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
-            <div
-              className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 shadow-xl backdrop-blur-sm flex-1 min-h-0 flex flex-col overflow-hidden relative"
-              data-testid="queue-panel-drop-zone"
-              onDragEnter={(e) => {
-                if (!dataTransferHasFiles(e.dataTransfer)) return;
-                e.preventDefault();
-                e.stopPropagation();
-                setQueueFileDropActive(true);
+            <QueueList
+              isPlaying={playback.isPlaying}
+              enableFairQueue={Boolean(settings.enableFairQueue)}
+              queueFileDropActive={queueFileDropActive}
+              setQueueFileDropActive={setQueueFileDropActive}
+              onOsFileDrop={(files) => { void handleOsQueueFileDrop(files); }}
+              onPlayPause={() => { void handlePlayPause(); }}
+              onStop={handleStop}
+              onJumpToTrack={(index) => { void handleJumpToTrack(index); }}
+              onSaveToPermanentLibrary={handleSaveToPermanentLibrary}
+              savingTrackIds={savingTrackIds}
+              onEditSinger={(item) => {
+                setEditingSingerItem(item);
+                setEditingSingerText(item.assignedSingerName || '');
               }}
-              onDragOver={(e) => {
-                if (!dataTransferHasFiles(e.dataTransfer)) return;
-                e.preventDefault();
-                e.stopPropagation();
-                e.dataTransfer.dropEffect = 'copy';
-                if (!queueFileDropActive) setQueueFileDropActive(true);
-              }}
-              onDragLeave={(e) => {
-                if (!dataTransferHasFiles(e.dataTransfer)) return;
-                if (e.currentTarget === e.target) {
-                  setQueueFileDropActive(false);
-                }
-              }}
-              onDrop={(e) => {
-                if (!dataTransferHasFiles(e.dataTransfer)) return;
-                e.preventDefault();
-                e.stopPropagation();
-                setQueueFileDropActive(false);
-                void handleOsQueueFileDrop(e.dataTransfer.files);
-              }}
-            >
-              {queueFileDropActive && (
-                <div
-                  className="absolute inset-0 z-30 flex items-center justify-center rounded-3xl border-2 border-dashed border-indigo-400/70 bg-slate-950/80 pointer-events-none"
-                  data-testid="queue-file-drop-overlay"
-                  aria-hidden
-                >
-                  <span className="text-sm font-semibold text-indigo-200 px-4 text-center">
-                    {t('queue.dropToImport')}
-                  </span>
-                </div>
-              )}
-              {/* Queue Header info */}
-              <div className="mb-3 shrink-0 flex items-center justify-between px-3.5 py-2 bg-slate-950/70 rounded-full border border-slate-800/80">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
-                  <Sliders className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Scaletta Coda ({queue.length})</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {settings.enableFairQueue && queue.length > 2 && (
-                    <button
-                      type="button"
-                      onClick={() => restoreFairQueueOrder()}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 hover:text-white text-[10px] font-semibold transition-all shadow-sm"
-                      title={t('queue.restoreFairQueueDesc')}
-                    >
-                      <Sparkles className="w-3 h-3 text-indigo-400" />
-                      <span>{t('queue.restoreFairQueue')}</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (await confirmAsync(t('queue.confirmClear', "Sei sicuro di voler svuotare l'intera coda dei brani?"))) {
-                        handleStop();
-                        clearQueue();
-                      }
-                    }}
-                    disabled={queue.length === 0}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-800/90 hover:bg-rose-600/30 text-slate-300 hover:text-rose-300 border border-slate-700/60 hover:border-rose-500/50 text-[10px] font-semibold transition-all disabled:opacity-40 active:scale-95 shadow-sm"
-                    title={t('queue.clear', 'Svuota coda')}
-                  >
-                    <Trash2 className="w-3 h-3 text-rose-400" />
-                    <span>{t('queue.clear', 'Svuota coda')}</span>
-                  </button>
-                  <div className="text-[10px] text-slate-400 font-medium hidden sm:block">
-                    💡 {t('queue.hintPlayOrDoubleClick', 'Doppio click o Play per avviare')}
-                  </div>
-                </div>
-              </div>
-
-              {/* Fair Queue Sorted List */}
-              <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1 flex flex-col">
-                {queue.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-500 text-xs italic leading-relaxed">
-                    <Music className="w-8 h-8 opacity-20 mb-2" />
-                    <span className="max-w-xs">{t('queue.empty')}</span>
-                  </div>
-                ) : (
-                  queue.map((item, index) => {
-                    const isDragging = draggedIndex === index;
-                    const isDragOver = dragOverIndex === index;
-                    const isMissing = missingTrackIds.includes(item.track.id);
-
-                    return (
-                      <div
-                        key={item.queueId}
-                        draggable={index > 0}
-                        onDragStart={(e) => {
-                          if (index === 0) return;
-                          setDraggedIndex(index);
-                          e.dataTransfer.effectAllowed = 'move';
-                          e.dataTransfer.setData('text/plain', String(index));
-                        }}
-                        onDragOver={(e) => {
-                          // OS file drops are handled by the queue panel; do not steal them for reorder.
-                          if (dataTransferHasFiles(e.dataTransfer)) return;
-                          if (draggedIndex === null || draggedIndex === 0 || index === 0) return;
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = 'move';
-                          if (dragOverIndex !== index) {
-                            setDragOverIndex(index);
-                          }
-                        }}
-                        onDragLeave={() => {
-                          if (dragOverIndex === index) {
-                            setDragOverIndex(null);
-                          }
-                        }}
-                        onDrop={(e) => {
-                          if (dataTransferHasFiles(e.dataTransfer)) return;
-                          e.preventDefault();
-                          if (draggedIndex !== null && draggedIndex > 0 && index > 0 && draggedIndex !== index) {
-                            reorderQueue(draggedIndex, index);
-                          }
-                          setDraggedIndex(null);
-                          setDragOverIndex(null);
-                        }}
-                        onDragEnd={() => {
-                          setDraggedIndex(null);
-                          setDragOverIndex(null);
-                        }}
-                        onDoubleClick={() => handleJumpToTrack(index)}
-                        className={`p-3 rounded-2xl border flex items-center justify-between transition-all duration-150 cursor-pointer select-none group/item ${
-                          isMissing
-                            ? 'bg-rose-950/40 border-rose-500/70 text-rose-100 shadow-md shadow-rose-950/30'
-                            : index === 0
-                              ? 'bg-gradient-to-r from-indigo-950/40 via-slate-900/90 to-slate-900/90 border-indigo-500/50 text-indigo-200 shadow-md'
-                              : 'bg-slate-950/60 border-slate-800/80 text-slate-300 hover:border-slate-700/80 hover:bg-slate-950/90'
-                        } ${isDragging ? 'opacity-40 scale-[0.99]' : ''} ${
-                          isDragOver ? 'border-indigo-400 ring-2 ring-indigo-500/50 bg-indigo-950/40' : ''
-                        }`}
-                        data-missing-file={isMissing ? 'true' : undefined}
-                      >
-                        <div className="flex items-center gap-2 overflow-hidden pr-2 flex-1">
-                          {/* Drag handle for waiting songs (index > 0) */}
-                          {index > 0 ? (
-                            <div
-                              className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-300 p-1 -ml-1 transition-colors shrink-0"
-                              title="Trascina per riordinare la coda"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <GripVertical className="w-3.5 h-3.5" />
-                            </div>
-                          ) : (
-                            <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse shrink-0 -ml-0.5 mr-0.5" title="In esecuzione" />
-                          )}
-                        {/* Play/Pause toggle for currently active song (index 0) or jump-to-play for upcoming songs */}
-                        {index === 0 ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handlePlayPause();
-                            }}
-                            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm transition-all border ${
-                              playback.isPlaying
-                                ? 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-400/50 shadow-indigo-600/30'
-                                : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400/50 shadow-emerald-600/30'
-                            }`}
-                            title={playback.isPlaying ? t('player.pause') : t('player.play')}
-                          >
-                            {playback.isPlaying ? (
-                              <Pause className="w-3.5 h-3.5 fill-current" />
-                            ) : (
-                              <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-                            )}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleJumpToTrack(index);
-                            }}
-                            className="w-8 h-8 rounded-full bg-slate-800/90 hover:bg-indigo-600 text-slate-400 hover:text-white flex items-center justify-center shrink-0 transition-colors border border-slate-700/50"
-                            title="Avvia ora questo brano (o fai doppio click)"
-                          >
-                            <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-                          </button>
-                        )}
-
-                        <div className="overflow-hidden flex-1">
-                          <div className="font-semibold text-xs flex items-center gap-2 truncate">
-                            <span className="truncate">{item.track.title}</span>
-                            {isMissing && (
-                              <span
-                                className="inline-flex items-center gap-0.5 text-rose-400 shrink-0"
-                                title={t('errors.missingFileTooltip')}
-                              >
-                                <FileX className="w-3.5 h-3.5" />
-                                <AlertCircle className="w-3 h-3 opacity-80" />
-                              </span>
-                            )}
-                            {item.isVIPOverride && (
-                              <span className="bg-amber-500/20 text-amber-300 text-[9px] px-2 py-0.5 rounded-full font-bold shrink-0 border border-amber-500/30">
-                                VIP
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[11px] text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
-                            <span className="truncate">{item.track.artist}</span>
-                            <span>•</span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                useKaraokeStore.getState().loadSingersFromDb();
-                                setEditingSingerItem(item);
-                                setEditingSingerText(item.assignedSingerName || '');
-                              }}
-                              onDoubleClick={(e) => e.stopPropagation()}
-                              className="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800/90 hover:bg-indigo-900/60 border border-slate-700/60 hover:border-indigo-500/60 text-indigo-300 hover:text-indigo-100 font-medium transition-colors text-[11px] group/singer max-w-[170px]"
-                              title="Clicca per assegnare o modificare il cantante"
-                            >
-                              <Mic className="w-3 h-3 text-indigo-400 group-hover/singer:text-indigo-200 shrink-0" />
-                              <span className="truncate">
-                                {item.assignedSingerName || (
-                                  <span className="text-amber-400/90 italic font-normal">+ Assegna cantante</span>
-                                )}
-                              </span>
-                              <Edit2 className="w-2.5 h-2.5 opacity-60 group-hover/singer:opacity-100 text-slate-400 group-hover/singer:text-white shrink-0 ml-0.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newPitch = item.pitchOffset - 1;
-                            if (index === 0) setLivePitch(newPitch);
-                            else setQueueItemPitch(item.queueId, newPitch);
-                          }}
-                          className="w-6 h-6 rounded-full bg-slate-800/90 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center border border-slate-700/60 transition-colors"
-                          title="Abbassa tonalità (-1 semitono)"
-                        >
-                          -
-                        </button>
-                        <span className="text-[10px] font-mono bg-slate-800/90 px-2 py-0.5 rounded-full text-indigo-300 font-bold min-w-[40px] text-center border border-slate-700/60">
-                          {item.pitchOffset > 0 ? `+${item.pitchOffset}` : item.pitchOffset} ST
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newPitch = item.pitchOffset + 1;
-                            if (index === 0) setLivePitch(newPitch);
-                            else setQueueItemPitch(item.queueId, newPitch);
-                          }}
-                          className="w-6 h-6 rounded-full bg-slate-800/90 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center border border-slate-700/60 transition-colors"
-                          title="Alza tonalità (+1 semitono)"
-                        >
-                          +
-                        </button>
-                        {(item.track.source !== 'local_library' || item.track.localFilePath?.includes('queue_cache')) && item.track.localFilePath && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSaveToPermanentLibrary(item.track);
-                            }}
-                            disabled={savingTrackIds.has(item.track.id)}
-                            className="p-1 hover:bg-emerald-950/60 rounded text-emerald-400 hover:text-emerald-300 transition-colors ml-0.5"
-                            title={t('library.saveToLibrary', 'Salva in Libreria')}
-                          >
-                            <Download className={`w-3.5 h-3.5 ${savingTrackIds.has(item.track.id) ? 'animate-spin' : ''}`} />
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (await confirmAsync(t('queue.confirmRemove', 'Rimuovere questo brano dalla coda?'))) {
-                              removeFromQueue(item.queueId);
-                            }
-                          }}
-                          className="p-1.5 hover:bg-slate-800 rounded-full text-slate-500 hover:text-red-400 transition-colors ml-1.5"
-                          title={t('queue.remove', 'Rimuovi dalla coda')}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-              </div>
-            </div>
+            />
           </div>
 
           {/* Tab 2: Library Panel — kept mounted so downloads/search persist */}

@@ -151,13 +151,17 @@ Sans dossier configuré :
 
 Après le choix, l’app peut scanner et indexer les fichiers dans la base. Utilisez **Mettre à jour la bibliothèque** (`Aggiorna Libreria`) pour un nouveau scan manuel.
 
+**Scan récursif :** **Mettre à jour la bibliothèque** parcourt **tous les sous-dossiers** sous `libraryPath` (ignore les dossiers inutiles comme `.git` / `node_modules`). Les arbres Artiste/Album imbriqués sont indexés ; la déduplication des téléchargements cherche aussi dans tout l’arbre pour ne pas re-télécharger des fichiers déjà présents.
+
 ### 3.2 Banque SoundFont (.sf2)
 
 Pour MIDI/KAR :
 
 1. Onglet **Audio & Lecture** (`Audio & Riproduzione`) (ou Général, selon la recherche des réglages).
 2. **Chemin de la banque SoundFont (.sf2)** (`Percorso Banco SoundFont (.sf2)`).
-3. Par défaut un SoundFont GeneralUser GS est inclus ; vous pouvez en sélectionner un personnalisé.
+3. Par défaut un SoundFont GeneralUser GS est inclus ; choisissez-le dans la liste ou **Autre** (`Altro`) pour un `.sf2` externe.
+
+**Note AppImage / portable :** la banque est semée sous `userData/soundfonts/` (pas le chemin éphémère `/tmp/.mount_*` de l’AppImage). Après une mise à jour AppImage, si le MIDI est muet rouvrez une fois les Réglages pour recalculer le chemin.
 
 Si non configuré, l’interface peut afficher **«Nessun SoundFont (.sf2) configurato»** (texte d’UI en italien).
 
@@ -227,7 +231,8 @@ Exemples : 100 % → gain plein ; 50 % → gain 0,25 (−12 dB environ, moitié 
 - **Tonalité :** de **−8 à +8** demi-tons (`+` / `-` ou `Ctrl+↑` / `Ctrl+↓`).
 - Le pitch est lié à l’**instance en file** (et à la mémoire de tonalité du chanteur) : il reste mémorisé pour cette prestation.
 - À 0 demi-ton le moteur peut contourner le shifter (latence/CPU minimales).
-- **Vitesse :** de **0,50× à 1,50×** sans altérer le pitch (WSOLA / SoundTouch). `Ctrl+←` / `Ctrl+→` règlent de ±5 %. Un clic sur l’indicateur numérique restaure souvent 1,00×.
+- **Vitesse :** selon le moteur (défaut **Bungee** ~0,50×–1,50× ; **SoundTouch** ~0,75×–1,25× en UI). `Ctrl+←` / `Ctrl+→` règlent de ±5 %. Un clic sur l’indicateur numérique restaure souvent 1,00×.
+- **Moteur DSP (Réglages → Audio) :** **Bungee** (défaut) — pitch + time-stretch de qualité via Wasm AudioWorklet ; le `playbackRate` média reste à 1,0 pendant l’étirement Bungee. **SoundTouch** — WSOLA classique ; le `playbackRate` de l’élément pilote le tempo. À **0 ST et 1,00×** le graphe contourne le shifter (latence minimale). MIDI/KAR utilise toujours la transposition de notes SpessaSynth (pas Bungee/SoundTouch).
 - MIDI : la transposition agit sur les numéros de note en temps réel.
 
 ### 4.4 Suppression de la voix guide (Algorithme de Base)
@@ -287,7 +292,8 @@ Avec Fair Queue actif, à l’insertion vous pouvez choisir :
 ### 5.2 VIP et gestion manuelle
 
 - **Priorité VIP :** force la priorité pour invités spéciaux / célébrations.
-- **Drag & Drop :** réordonne les entrées en attente ; le morceau en lecture reste verrouillé en tête.
+- **Drag & Drop (réordonner) :** réordonne les entrées en attente ; le morceau en lecture reste verrouillé en tête.
+- **Drop fichiers OS (import) :** déposez des fichiers média sur le panneau **File** ou **Bibliothèque** pour les cataloguer (mp4/webm/mkv/avi, mp3+cdg, mid/kar) via `library.importFiles`. Le drop sur la File les enfile aussi. Le DnD de réordonnancement utilise des indices texte et **n’intercepte pas** les drops de fichiers OS.
 - **Assigner un chanteur** (`Assegna Cantante`) / gestion des chanteurs : noms uniques (contrôle insensible à la casse) pour que Fair Queue fonctionne correctement.
 - **Mémoire de tonalité du chanteur :** repropose la tonalité préférée lorsque le morceau démarre.
 - **Vider la file :** demande confirmation (**«Sei sicuro di voler svuotare l'intera scaletta della coda?»** — texte d’UI en italien) ; arrête la lecture.

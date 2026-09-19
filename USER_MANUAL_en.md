@@ -151,13 +151,17 @@ Without a folder set:
 
 After choosing, the app can scan and index files in the database. Use **Update Library** (`Aggiorna Libreria`) for a manual rescan.
 
+**Recursive scan:** **Update Library** walks **all subfolders** under `libraryPath` (skips junk dirs like `.git` / `node_modules`). Nested Artist/Album trees are indexed; download dedup also searches the full tree so existing nested files are not re-downloaded.
+
 ### 3.2 SoundFont bank (.sf2)
 
 For MIDI/KAR:
 
 1. Tab **Audio & Playback** (`Audio & Riproduzione`) (or General, depending on settings search).
 2. **SoundFont Bank Path (.sf2)** (`Percorso Banco SoundFont (.sf2)`).
-3. By default a GeneralUser GS SoundFont is included; you can select a custom one.
+3. By default a GeneralUser GS SoundFont is included; pick it from the dropdown or choose **Other** (`Altro`) to browse an external `.sf2`.
+
+**AppImage / portable note:** the bank is seeded under durable `userData/soundfonts/` (not the ephemeral `/tmp/.mount_*` AppImage path). After an AppImage update, reopen Settings once if MIDI was silent so the path re-resolves.
 
 If not configured, the UI may show **«Nessun SoundFont (.sf2) configurato»** (Italian UI).
 
@@ -227,7 +231,8 @@ Examples: 100% → full gain; 50% → gain 0.25 (about −12 dB, perceived half 
 - **Key:** from **−8 to +8** semitones (`+` / `-` or `Ctrl+↑` / `Ctrl+↓`).
 - Pitch is tied to the **queue instance** (and the singer’s pitch memory): it stays stored for that performance.
 - At 0 semitones the engine can bypass the shifter (minimal latency/CPU).
-- **Speed:** from **0.50× to 1.50×** without changing pitch (WSOLA / SoundTouch). `Ctrl+←` / `Ctrl+→` adjust by ±5%. Clicking the numeric indicator often resets to 1.00×.
+- **Speed:** engine-dependent (default **Bungee** ~0.50×–1.50×; **SoundTouch** ~0.75×–1.25× UI). `Ctrl+←` / `Ctrl+→` adjust by ±5%. Clicking the numeric indicator often resets to 1.00×.
+- **DSP engine (Settings → Audio):** **Bungee** (default) — high-quality pitch + time-stretch via Wasm AudioWorklet; media `playbackRate` stays 1.0 while Bungee stretches. **SoundTouch** — classic WSOLA; element `playbackRate` drives tempo. At **0 ST and 1.00×** the graph bypasses the shifter (minimal latency). MIDI/KAR always uses SpessaSynth note transpose (not Bungee/SoundTouch).
 - MIDI: transposition acts on note numbers in real time.
 
 ### 4.4 Guide-vocal removal (Basic Algorithm)
@@ -287,7 +292,8 @@ With Fair Queue on, on insert you can choose:
 ### 5.2 VIP and manual management
 
 - **VIP Priority:** force priority for special guests / celebrations.
-- **Drag & Drop:** reorder waiting items; the playing track stays locked at the head.
+- **Drag & Drop (reorder):** reorder waiting items; the playing track stays locked at the head.
+- **OS file Drop (import):** drop media files onto the **Queue** or **Library** panel to catalog them (mp4/webm/mkv/avi, mp3+cdg, mid/kar) via `library.importFiles`. Queue drop also enqueues imported tracks. Reorder DnD uses text indices and does **not** steal OS file drops.
 - **Assign Singer** (`Assegna Cantante`) / singer management: unique names (case-insensitive check) so Fair Queue works correctly.
 - **Singer key memory:** re-applies the preferred key when the track starts playing.
 - **Clear queue:** requires confirmation (**«Sei sicuro di voler svuotare l'intera scaletta della coda?»** — Italian UI); stops playback.

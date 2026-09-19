@@ -14,10 +14,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - **AI GPU-First** — Settings → Library & Download: `aiEnableGpu` (default on) + live GPU badge (green name / amber CPU multithread). IPC `system:get-gpu-status`. ORT providers `webgpu`→`wasm` when enabled+supported; else WASM + `aiCpuThreads`.
 - **HTDemucs advanced settings** — When Download Instrumental method is HTDemucs: `demucsShifts` (0|1|2), `demucsSegmentSize` (5–20 s), `demucsOverlap` (0.10–0.50). Payload omitted for MDX (and vice versa).
 - **`scripts/verify-ai-options-pipeline.js`** — GPU providers, threads, MDX/Demucs payload separation, coerce Roformer/DSP → Karaoke 2, locale Basic Algorithm strings; wired into `npm test`.
+- Safety-First modularization: ControlWindow hooks (`useControlPlayback`, `useKeyboardShortcuts`) + `PlayerDeckControls` + `QueueList`; SettingsModal per-tab components; library list windowed virtualization for 16k+ catalogs; dual-audience TSDoc on new exports.
 
 ### Changed
 - **Download Instrumental method selector** — AI only: `aiMdxKaraoke2` | `aiHtDemucs` (default Karaoke 2). Removed DSP and BS-Roformer from the download Settings UI. Live Regia vocal remover DSP modes unchanged.
 - **Experimental → Basic Algorithm** — Live vocal remover labels in it/en/es/fr (`Algoritmo Base` / `Basic Algorithm` / `Algoritmo Básico` / `Algorithme de Base`); removed Experimental tags from stable HTDemucs blurbs.
+- Granular Zustand selectors in extracted Control hooks/components; AudioGraphManager.dispose disconnects Web Audio nodes before `AudioContext.close`; user manuals (it/en/es/fr) chapter parity for OS DnD import, recursive library scan, Bungee/SoundTouch DSP, AppImage SoundFont seeding.
+- Stay at package version **1.4.0** for upcoming overwrite (no 1.5.0 bump).
 
 ### Fixed
 - **Bungee pitch + time-stretch no-op** — AudioWorklet processor: drop `export default`, Emscripten `ENVIRONMENT_IS_WORKER` detects `AudioWorkletGlobalScope`. `BungeePitchShifterNode.create` waits for Wasm `initialized` (timeout → SoundTouch). Graph re-applies pitch **and** speed on wire; Bungee keeps `HTMLMediaElement.playbackRate = 1.0` (WASM owns tempo, no double rate / chipmunk); SoundTouch still uses element rate. Bypass exits for pitch≠0 **or** speed≠1.0.

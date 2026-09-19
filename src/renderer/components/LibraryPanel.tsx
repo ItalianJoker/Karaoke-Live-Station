@@ -35,6 +35,10 @@ import {
   checkTrackLocalFileExists,
   trackNeedsLocalFileCheck
 } from '../utils/localFileCheck';
+import { computeVirtualWindow } from '../utils/listVirtualization';
+
+/** Approx row height incl. vertical gap — keep in sync with list row padding. */
+const LIBRARY_ROW_HEIGHT = 96;
 
 /** Intent to enqueue only after YouTube download + auto-archive succeed. */
 type PendingArchiveEnqueue = {
@@ -686,6 +690,33 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         : localTracks
       : searchResults;
 
+  // Windowed rendering for 16k+ local catalogs — only mount visible rows
+  const [listScrollTop, setListScrollTop] = useState(0);
+  const [listViewportH, setListViewportH] = useState(480);
+  React.useEffect(() => {
+    const el = resultsListRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => setListViewportH(el.clientHeight || 480);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [resultsListRef, displayedTracks.length, searchMode]);
+
+  const virtWindow = computeVirtualWindow(
+    listScrollTop,
+    listViewportH,
+    displayedTracks.length,
+    LIBRARY_ROW_HEIGHT,
+    8
+  );
+  const virtualizedTracks = displayedTracks.slice(virtWindow.startIndex, virtWindow.endIndex);
+
+  const handleListScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
+    onListScroll();
+    setListScrollTop(e.currentTarget.scrollTop);
+  };
+
   const handleStartDownload = async (
     track: KaraokeMediaTrack,
     opts?: { instrumental?: boolean; includeSubtitles?: boolean }
@@ -1052,8 +1083,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       {/* Results List */}
       <div
         ref={resultsListRef}
-        onScroll={onListScroll}
-        className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1"
+        onScroll={handleListScroll}
+        className="flex-1 min-h-0 overflow-y-auto pr-1"
         data-testid="library-results-list"
       >
         {displayedTracks.length === 0 ? (
@@ -1070,14 +1101,22 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
             </p>
           </div>
         ) : (
-          displayedTracks.map((track) => {
+          <div
+            style={{
+              paddingTop: virtWindow.paddingTop,
+              paddingBottom: virtWindow.paddingBottom
+            }}
+            data-testid="library-virtual-window"
+          >
+          {virtualizedTracks.map((track) => {
             const versionTags = extractVersionTags(track);
             const isMissing = missingTrackIds.includes(track.id);
 
             return (
               <div
                 key={track.id}
-                className={`p-2.5 sm:p-3 border rounded-2xl flex items-center justify-between gap-3 transition-all group/item ${
+                style={{ height: LIBRARY_ROW_HEIGHT - 8, marginBottom: 8 }}
+                className={`p-2.5 sm:p-3 border rounded-2xl flex items-center justify-between gap-3 transition-all group/item box-border overflow-hidden ${
                   isMissing
                     ? 'bg-rose-950/40 border-rose-500/70 hover:bg-rose-950/55'
                     : 'bg-slate-950/40 hover:bg-slate-950/80 border-slate-800/60 hover:border-slate-700/80'
@@ -1251,7 +1290,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                 </div>
               </div>
             );
-          })
+          })}
+          </div>
         )}
         {searchMode === 'web' && displayedTracks.length > 0 && webHasMore && (
           <div className="pt-2 pb-1 flex justify-center">

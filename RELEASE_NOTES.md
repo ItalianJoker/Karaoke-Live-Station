@@ -46,6 +46,10 @@ Release GitHub **v1.4.0** (nuovo tag; **non** tocca `v1.3.0` / `v1.2.0` / `v1.1.
 ### 🏷️ Versione
 - Badge UI / pacchetto **v1.4.0**.
 
+### 🧹 Safety-First cleanup (prossimo overwrite v1.4.0)
+- Modularizzazione Regia/Impostazioni (hook + tab), virtualizzazione libreria 16k+, disconnect Web Audio su dispose, parity manuali it/en/es/fr (DnD OS, scan ricorsivo, Bungee/SoundTouch, SoundFont AppImage).
+- **Nessun bump a 1.5.0** — resta **1.4.0** per overwrite batch con #54+#55+#56.
+
 ## ✅ Baseline 1.3.0
 Resta incluso: massimizza Regia all’avvio, Schermo Palco on/off, core CPU AI strumentale, Settings più ampia, baseline 1.2.0.
 
@@ -92,6 +96,10 @@ GitHub release **v1.4.0** (new tag; does **not** touch `v1.3.0` / `v1.2.0` / `v1
 
 ### 🏷️ Version
 - UI badge / package **v1.4.0**.
+
+### 🧹 Safety-First cleanup (upcoming v1.4.0 overwrite)
+- Control/Settings modularization (hooks + tabs), 16k+ library list virtualization, Web Audio disconnect on dispose, it/en/es/fr manual parity (OS DnD, recursive scan, Bungee/SoundTouch, AppImage SoundFont).
+- **No bump to 1.5.0** — stays **1.4.0** for batch overwrite with #54+#55+#56.
 
 ## ✅ 1.3.0 baseline
 Still includes: maximize Control on launch, Stage on/off at boot, instrumental AI CPU cores, wider Settings, plus the 1.2.0 baseline.
