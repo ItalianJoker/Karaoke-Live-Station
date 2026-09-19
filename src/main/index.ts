@@ -35,16 +35,13 @@ import { ORT_WASM_ASSET_FILES } from '../shared/ortWasm';
 import { resolveKaraokeLocalFilePath, buildKaraokeLocalUri } from '../shared/karaokeLocalPath';
 import { discoverLibraryMedia, discoverLibraryFilesFromPaths } from '../shared/libraryScanner';
 import { coerceAiCpuThreads, resolveAiCpuThreads } from '../shared/aiCpuThreads';
-<<<<<<< HEAD
 import { ZipCdgCache } from './services/ZipCdgCache';
 import { TrackAnalysisService } from './services/TrackAnalysisService';
-=======
 import { coerceAiEnableGpu } from '../shared/aiOrtProviders';
 import { probeGpuStatus } from './ai/probeGpuStatus';
 import { coerceDemucsOverlap, coerceDemucsSegmentSize, coerceDemucsShifts } from '../shared/demucsAdvancedSettings';
 import { coerceMdxEnableOrt, coerceMdxOverlap, coerceMdxSegmentSize } from '../shared/mdxAdvancedSettings';
 import { coerceInstrumentalVocalRemoverMethod } from '../shared/vocalRemover';
->>>>>>> a924914 (feat: AI GPU-First, prune instrumental methods, Demucs advanced settings)
 
 /** Launch prefs persisted for main-process boot (before Control sync:settings). */
 type LaunchPrefs = {
