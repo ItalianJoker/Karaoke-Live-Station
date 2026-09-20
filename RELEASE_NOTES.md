@@ -1,4 +1,4 @@
-# 🎤 Karaoke Live Station v1.4.0 — Release Notes
+# 🎤 Karaoke Live Station v1.5.0 — Release Notes
 
 <p align="center">
   <a href="#-italiano">🇮🇹 <strong>Italiano</strong></a> • <a href="#-english">🇬🇧 <strong>English</strong></a>
@@ -6,136 +6,88 @@
 
 ---
 
-<a name="v140-italiano"></a>
-# 🇮🇹 Note di Rilascio — Versione 1.4.0
+<a name="v150-italiano"></a>
+# 🇮🇹 Note di Rilascio — Versione 1.5.0
 
-Sovrascrittura GitHub **v1.4.0** (stesso tag; **non** tocca `v1.3.0` / `v1.2.0` / `v1.1.0`). Parte dalla baseline **v1.3.0**. PRs **#52**–**#70**. Pacchetto resta **1.4.0** (nessuna v1.5.0).
+Nuova release GitHub **v1.5.0** (tag nuovo; **non** tocca `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Parte dalla baseline **v1.4.0**. PR **#72**. Pacchetto **1.4.0 → 1.5.0**.
 
 ## 📦 File di Installazione
 
 | Piattaforma | File | Descrizione |
 | :--- | :--- | :--- |
-| **Windows** | `Karaoke Live Station 1.4.0.exe` | Eseguibile portatile |
-| **Windows** | `Karaoke Live Station-1.4.0-win.zip` | Archivio completo Windows 64-bit |
-| **Linux** | `Karaoke Live Station-1.4.0.AppImage` | AppImage universale |
-| **Linux** | `karaoke-live-station_1.4.0_amd64.deb` | Pacchetto Debian/Ubuntu |
-| **macOS** | `Karaoke Live Station-1.4.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
+| **Windows** | `Karaoke Live Station 1.5.0.exe` | Eseguibile portatile |
+| **Windows** | `Karaoke Live Station-1.5.0-win.zip` | Archivio completo Windows 64-bit |
+| **Linux** | `Karaoke Live Station-1.5.0.AppImage` | AppImage universale |
+| **Linux** | `karaoke-live-station_1.5.0_amd64.deb` | Pacchetto Debian/Ubuntu |
+| **macOS** | `Karaoke Live Station-1.5.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa versione
 
-### 🎵 DSP pitch/speed — Signalsmith Hi-Fi (#66/#70) [ex Bungee #52–#63]
-- Motore media predefinito **Signalsmith Stretch** (MIT AudioWorklet via npm; id settings `signalsmith`, legacy `bungee` migra senza wipe). Notice: `public/workers/SIGNALSMITH_NOTICE.md`.
-- **SoundTouch WSOLA** resta in Impostazioni come fallback emergenza/leggero (±4 ST).
-- **#70:** fallback Signalsmith→SoundTouch / motore manuale clamano pitch/speed ai bound SoundTouch (±4 / 0.75–1.25×); shortcut e Settings sync via `setDspEngineFallbackHandler`.
-- Range UI: ±8 ST (Hi-Fi) / ±4 ST (SoundTouch). Bypass bit-perfect a pitch 0 e velocità 1.00x.
-- Tempo via `HTMLMediaElement.playbackRate` + `preservesPitch`; pitch via Signalsmith `schedule({ semitones })`.
-- Mute watchdog → dry pass-through + SoundTouch automatico (niente stop playback).
-- Rimossi `bungee_processor.js` / `bungee.wasm` (path Wasm mute a pitch negativo). Storico #52/#56/#60/#63 (FIFO, `_malloc`) sostituito da #66.
-- MIDI/KAR invariato (SpessaSynth).
+### ⚡ Hot path libreria / download / Guest (#72)
+- Dedup download via SQL mirato (`findLocalMediaDedupCandidates`) al posto di dump `getAllTracks()`.
+- Guest Portal: ricerca FTS/`searchTracks` + lookup per id (niente catalogo completo in memoria).
+- Inflate ZIP CD+G asincrono (`inflateRaw`); yield FFT ogni 64 frame in analisi Key/BPM.
+- Indici O(1): `pendingById` Map; UI `missingTrackIds` Set.
 
-### 📥 Scarica strumentale — modal sottotitoli (#53) + policy in Impostazioni (#61)
-- Conferma prima del download: con sottotitoli / solo strumentale / annulla (Esc / click fuori).
-- Policy persistente `ask` / `always` / `never` (`instrumentalSubtitlesPolicy`).
-- **#61:** stessa policy esposta in Impostazioni → Libreria & Download (cambia o azzera la scelta “Ricorda”).
-- Auto-subs yt-dlp solo se `includeSubtitles: true`; `--sub-langs .*-orig,default` (anti-429, niente bare `all`).
-- Download normale (non strumentale) invariato, senza modal.
+### 📦 Dipendenze (#72)
+- Rimossi orphan inutilizzati: `clsx`, `tailwind-merge`, `autoprefixer`, `postcss` (Tailwind v4 via `@tailwindcss/vite`).
+- Lockfile rigenerato; runtime/build critici invariati (ffmpeg, better-sqlite3, ORT, demucs, Signalsmith, SpessaSynth, Socket.IO).
 
-### 📦 ZIP CD+G nativo + tonalità/BPM (#54)
-- Scan/import `.zip` con MP3/WAV+`.cdg`; estrazione on-demand in `temp/zip_cache`; cleanup a dequeue/uscita.
-- Analisi async `initialKey` / `initialBpm`; pillole Pitch/Speed in Regia con etichetta `base→risultato` / BPM accanto a ± (handler invariati).
+### 🪵 Logging strutturato (#72)
+- Migrazione `console.*` → `Logger` (DownloadManager, ZipCdgCache, TrackAnalysis, AudioGraph, Library/Control/store, Signalsmith).
+- DEBUG su `before-quit` e extract ZIP; maschera campi secret (`[REDACTED]`).
+- Livello da Impostazioni → `logLevel`.
 
-### 🎛️ AI strumentale — GPU-First (#55) + telemetria (#59/#60) + Hidden Renderer (#63) + `/all` (#66) + quit/watchdog (#68) + fallback CPU (#70)
-- Toggle **AI GPU** (default on) + badge live; probe `system:get-gpu-status`.
-- **#59:** card GPU (toggle + badge) e card CPU sorella (core + `mdxEnableOrt` MDX-only).
-- **#60:** badge verde solo se il worker AI può davvero ospitare WebGPU; altrimenti ambra WASM (GPU hardware solo come nota). Telemetria `ortBackend` / `ortFallbackReason`; WebGPU-only poi WASM.
-- **#63:** ORT WebGPU in **Hidden BrowserWindow** quando GPU on + `requestAdapter()` OK (`workerKind=hidden-renderer`); altrimenti `utilityProcess` WASM + core CPU.
-- **#66:** import `onnxruntime-web/all` (registra EP WebGPU in Electron); Hidden Renderer **non** fa WASM multithread in-process dopo fallimento WebGPU — posta `gpu-fallback-requested` e main re-instrada a **utilityProcess** (niente deadlock SAB).
-- **#68:** chiusura Regia → dispose Hidden Renderer + `app.quit()` (niente orfani GPU/guestServer); probe `requestDevice` (5s); watchdog 15s su `InferenceSession.create` WebGPU → WASM; WebGPU solo JSEP `wasmPaths` (mai `wasmBinary` CPU).
-- **#70:** re-route WebGPU→WASM riapplica `aiCpuThreads` (`resolveAiCpuThreads`); log/badge mostrano i thread WASM effettivi.
-- **`ae0135d`:** pre-import `ort.all.bundle.min.mjs` in Hidden Renderer; JSEP wasm-only + `high-performance`; flag Chromium WebGPU; `signalsmith_processor.js` statico; banner `location.origin` utilityProcess.
-- Metodo Download Strumentale solo **UVR-MDX Karaoke 2** / **HTDemucs** (DSP e Roformer rimossi dalla tendina download; live `V` resta DSP).
-- Pannello avanzato HTDemucs (shifts / segmento / overlap); MDX avanzato invariato.
-- Etichette live: **Algoritmo Base** (ex Sperimentale).
-
-### 📚 Libreria grande — Phase 2 14k (#70) + DnD/ricerca (#64)
-- **#70:** delta rescan (`fileMtimeMs`/`fileSizeBytes`), scan async `opendir` + `library:scan-progress`, FTS5 Local, `getTracksPage` keyset (niente dump IPC ~14k a Local vuoto); ZIP CD inspect solo su nuovi/modificati.
-- Hot path 10k–50k (#64): dedup drop a Set, `addToQueueBatch`, `dirCache` scanner, indici `titleNorm`/`artistNorm`, lookup path `WHERE IN`, thumb backfill senza storm full-catalog.
-- Benchmark in `scripts/benchmark-large-library.js` (25k-safe).
-
-### 🧹 Safety-First cleanup (#57)
-- Modularizzazione Regia/Impostazioni (hook + tab), virtualizzazione libreria 16k+, disconnect Web Audio su dispose, parity manuali it/en/es/fr (DnD OS, scan ricorsivo, DSP pitch, SoundFont AppImage).
-- **Nessun bump a 1.5.0** — resta **1.4.0**.
+### 🧪 Test & docs (#72)
+- Source-lock suite (orphan deps, SQL dedup, guest FTS, async ZIP, FFT yield, logger masking) — **414** test green.
+- README + CHANGELOG Keep a Changelog IT/EN.
 
 ### 🏷️ Versione
-- Badge UI / pacchetto **v1.4.0**.
+- Badge UI / pacchetto **v1.5.0**.
 
-## ✅ Baseline 1.3.0
-Resta incluso: massimizza Regia all’avvio, Schermo Palco on/off, core CPU AI strumentale, Settings più ampia, baseline 1.2.0.
+## ✅ Baseline 1.4.0
+Resta incluso: Signalsmith Hi-Fi DSP, ZIP CD+G + Key/BPM, AI WebGPU Hidden Renderer / quit watchdog, Library Phase 2 14k (FTS5 / `getTracksPage` / delta rescan), modal sottotitoli strumentale, Safety-First modularizzazione, baseline 1.3.0.
 
 ---
 
-<a name="v140-english"></a>
-# 🇬🇧 Release Notes — Version 1.4.0
+<a name="v150-english"></a>
+# 🇬🇧 Release Notes — Version 1.5.0
 
-Overwrite of GitHub release **v1.4.0** (same tag; does **not** touch `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on **v1.3.0** baseline. PRs **#52**–**#70**. Package stays **1.4.0** (no v1.5.0).
+New GitHub release **v1.5.0** (new tag; does **not** touch `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on **v1.4.0** baseline. PR **#72**. Package **1.4.0 → 1.5.0**.
 
 ## 📦 Installer Files
 
 | Platform | File | Description |
 | :--- | :--- | :--- |
-| **Windows** | `Karaoke Live Station 1.4.0.exe` | Portable executable |
-| **Windows** | `Karaoke Live Station-1.4.0-win.zip` | Full Windows 64-bit archive |
-| **Linux** | `Karaoke Live Station-1.4.0.AppImage` | Universal AppImage |
-| **Linux** | `karaoke-live-station_1.4.0_amd64.deb` | Debian/Ubuntu package |
-| **macOS** | `Karaoke Live Station-1.4.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
+| **Windows** | `Karaoke Live Station 1.5.0.exe` | Portable executable |
+| **Windows** | `Karaoke Live Station-1.5.0-win.zip` | Full Windows 64-bit archive |
+| **Linux** | `Karaoke Live Station-1.5.0.AppImage` | Universal AppImage |
+| **Linux** | `karaoke-live-station_1.5.0_amd64.deb` | Debian/Ubuntu package |
+| **macOS** | `Karaoke Live Station-1.5.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new
 
-### 🎵 Pitch/speed DSP — Signalsmith Hi-Fi (#66/#70) [ex Bungee #52–#63]
-- Default media engine is **Signalsmith Stretch** (MIT AudioWorklet via npm; settings id `signalsmith`, legacy `bungee` migrates without wipe). Notice: `public/workers/SIGNALSMITH_NOTICE.md`.
-- **SoundTouch WSOLA** remains in Settings as emergency/light fallback (±4 ST).
-- **#70:** Signalsmith→SoundTouch fallback / manual engine clamps pitch/speed to SoundTouch bounds (±4 / 0.75–1.25×); shortcuts + Settings sync via `setDspEngineFallbackHandler`.
-- UI ranges: ±8 ST (Hi-Fi) / ±4 ST (SoundTouch). Bit-perfect bypass at pitch 0 and speed 1.00x.
-- Tempo via `HTMLMediaElement.playbackRate` + `preservesPitch`; pitch via Signalsmith `schedule({ semitones })`.
-- Mute watchdog → dry pass-through + automatic SoundTouch (playback keeps going).
-- Removed `bungee_processor.js` / `bungee.wasm` (Wasm path muted on negative pitch). Historical #52/#56/#60/#63 (FIFO, `_malloc`) superseded by #66.
-- MIDI/KAR unchanged (SpessaSynth).
+### ⚡ Library / download / Guest hot paths (#72)
+- Download dedup via targeted SQL (`findLocalMediaDedupCandidates`) instead of `getAllTracks()` dumps.
+- Guest Portal: FTS/`searchTracks` + id lookup (no full-catalog materialize).
+- Async ZIP CD+G inflate (`inflateRaw`); FFT yield every 64 frames in Key/BPM analysis.
+- O(1) indexes: `pendingById` Map; UI `missingTrackIds` Set.
 
-### 📥 Download Instrumental — subtitles modal (#53) + Settings policy (#61)
-- Confirm before download: with subtitles / instrumental only / cancel (Esc / outside click).
-- Persisted policy `ask` / `always` / `never` (`instrumentalSubtitlesPolicy`).
-- **#61:** same policy exposed in Settings → Library & Download (change or clear the “Remember” choice).
-- yt-dlp auto-subs only when `includeSubtitles: true`; `--sub-langs .*-orig,default` (anti-429, no bare `all`).
-- Normal (non-instrumental) download unchanged — no modal.
+### 📦 Dependencies (#72)
+- Removed unused orphans: `clsx`, `tailwind-merge`, `autoprefixer`, `postcss` (Tailwind v4 via `@tailwindcss/vite`).
+- Lockfile regenerated; critical runtime/build deps unchanged (ffmpeg, better-sqlite3, ORT, demucs, Signalsmith, SpessaSynth, Socket.IO).
 
-### 📦 Native ZIP CD+G + Key/BPM (#54)
-- Scan/import `.zip` with MP3/WAV+`.cdg`; on-demand extract under `temp/zip_cache`; cleanup on dequeue/quit.
-- Async `initialKey` / `initialBpm`; Control Pitch/Speed pills show `base→result` / BPM beside ± (handlers unchanged).
+### 🪵 Structured logging (#72)
+- Migrated `console.*` → `Logger` (DownloadManager, ZipCdgCache, TrackAnalysis, AudioGraph, Library/Control/store, Signalsmith).
+- DEBUG on `before-quit` and ZIP extract; sensitive-key masking (`[REDACTED]`).
+- Level from Settings → `logLevel`.
 
-### 🎛️ Instrumental AI — GPU-First (#55) + telemetry (#59/#60) + Hidden Renderer (#63) + `/all` (#66) + quit/watchdog (#68) + CPU fallback (#70)
-- **AI GPU** toggle (default on) + live badge; `system:get-gpu-status` probe.
-- **#59:** GPU card (toggle + badge) and sibling CPU card (cores + MDX-only `mdxEnableOrt`).
-- **#60:** green badge only when the AI worker can actually host WebGPU; otherwise amber WASM (hardware GPU as note only). `ortBackend` / `ortFallbackReason` telemetry; WebGPU-only then WASM.
-- **#63:** ORT WebGPU in a **Hidden BrowserWindow** when GPU on + `requestAdapter()` OK (`workerKind=hidden-renderer`); else `utilityProcess` WASM + CPU cores.
-- **#66:** import `onnxruntime-web/all` (registers WebGPU EP in Electron); Hidden Renderer **never** runs in-process multithreaded WASM after WebGPU failure — posts `gpu-fallback-requested` and main re-routes to **utilityProcess** (no SAB deadlock).
-- **#68:** closing Control → dispose Hidden Renderer + `app.quit()` (no orphan GPU/guestServer); `requestDevice` probe (5s); 15s WebGPU `InferenceSession.create` watchdog → WASM; WebGPU JSEP `wasmPaths` only (never CPU `wasmBinary`).
-- **#70:** WebGPU→WASM re-route reasserts `aiCpuThreads` (`resolveAiCpuThreads`); logs/badge show effective WASM thread count.
-- **`ae0135d`:** pre-import `ort.all.bundle.min.mjs` in Hidden Renderer; JSEP wasm-only + `high-performance`; Chromium WebGPU flags; static `signalsmith_processor.js`; utilityProcess `location.origin` banner.
-- Download Instrumental methods: **UVR-MDX Karaoke 2** / **HTDemucs** only (DSP and Roformer removed from download Settings; live `V` stays DSP).
-- HTDemucs advanced panel (shifts / segment / overlap); MDX advanced unchanged.
-- Live labels: **Basic Algorithm** (was Experimental).
-
-### 📚 Large library — Phase 2 14k (#70) + DnD/search (#64)
-- **#70:** delta rescan (`fileMtimeMs`/`fileSizeBytes`), async `opendir` scan + `library:scan-progress`, FTS5 Local, keyset `getTracksPage` (no ~14k IPC dump on empty Local); ZIP CD inspect deferred to new/changed only.
-- 10k–50k hot paths (#64): Set-based drop dedup, `addToQueueBatch`, scanner `dirCache`, `titleNorm`/`artistNorm` indexes, path `WHERE IN` lookup, thumb backfill without full-catalog storm.
-- Benchmarks in `scripts/benchmark-large-library.js` (25k-safe).
-
-### 🧹 Safety-First cleanup (#57)
-- Control/Settings modularization (hooks + tabs), 16k+ library list virtualization, Web Audio disconnect on dispose, it/en/es/fr manual parity (OS DnD, recursive scan, pitch DSP, AppImage SoundFont).
-- **No bump to 1.5.0** — stays **1.4.0**.
+### 🧪 Tests & docs (#72)
+- Source-lock suite (orphan deps, SQL dedup, guest FTS, async ZIP, FFT yield, logger masking) — **414** tests green.
+- README + Keep a Changelog IT/EN.
 
 ### 🏷️ Version
-- UI badge / package **v1.4.0**.
+- UI badge / package **v1.5.0**.
 
-## ✅ 1.3.0 baseline
-Still includes: maximize Control on launch, Stage on/off at boot, instrumental AI CPU cores, wider Settings, plus the 1.2.0 baseline.
+## ✅ 1.4.0 baseline
+Still includes: Signalsmith Hi-Fi DSP, ZIP CD+G + Key/BPM, AI WebGPU Hidden Renderer / quit watchdog, Library Phase 2 14k (FTS5 / `getTracksPage` / delta rescan), instrumental subtitles modal, Safety-First modularization, plus the 1.3.0 baseline.

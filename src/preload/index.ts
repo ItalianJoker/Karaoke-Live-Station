@@ -294,7 +294,7 @@ export interface KaraokeAPI {
       gpuName?: string;
       vendor?: string;
     }>;
-    /** App semver from Electron package.json (e.g. 1.4.0) */
+    /** App semver from Electron package.json (e.g. 1.5.0) */
     getAppVersion: () => Promise<string>;
   };
 
