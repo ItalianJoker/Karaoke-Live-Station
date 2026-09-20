@@ -30,7 +30,7 @@ import { useKaraokeStore } from '../store/karaokeStore';
 import { useScopedLibrarySearch } from '../hooks/useScopedLibrarySearch';
 import { VideoPreviewModal, extractVersionTags } from './VideoPreviewModal';
 import { InstrumentalSubtitlesModal } from './InstrumentalSubtitlesModal';
-import { dataTransferHasFiles, resolveDroppedAbsolutePaths } from '../utils/fsDragDrop';
+import { dataTransferHasFiles, resolveDroppedAbsolutePaths, dispatchOsFileDragEnd, OS_FILE_DRAG_END_EVENT } from '../utils/fsDragDrop';
 import {
   checkTrackLocalFileExists,
   trackNeedsLocalFileCheck
@@ -40,6 +40,10 @@ import {
   findTrackRevealIndex,
   type LibraryRevealRequest
 } from '../utils/libraryReveal';
+import {
+  createMissingTrackResolver,
+  reconcileMissingTrackFlags
+} from '../utils/reconcileMissingTracks';
 import { computeVirtualWindow, computeVirtualWindowVariable } from '../utils/listVirtualization';
 import { TrackKeyBpmBadges } from './TrackKeyBpmBadges';
 
@@ -167,6 +171,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
   const [isScanning, setIsScanning] = useState(false);
   /** OS file drag overlay — only when dataTransfer.types includes Files. */
   const [fileDropActive, setFileDropActive] = useState(false);
+  /** Enter/leave depth so child bubbles do not clear the overlay early. */
+  const fileDropDepthRef = useRef(0);
   const [isImportingDrop, setIsImportingDrop] = useState(false);
   const [webHasMore, setWebHasMore] = useState(false);
   const [webLoadingMore, setWebLoadingMore] = useState(false);
@@ -320,7 +326,12 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
     const handleLibraryRefreshed = () => {
       loadLocalCatalog({ reset: true });
     };
+    const clearFileDropOverlay = () => {
+      fileDropDepthRef.current = 0;
+      setFileDropActive(false);
+    };
     window.addEventListener('karaoke:library-refreshed', handleLibraryRefreshed);
+    window.addEventListener(OS_FILE_DRAG_END_EVENT, clearFileDropOverlay);
     const unSubReindex = window.karaokeApi?.downloads?.onLibraryReindexed?.(() => {
       loadLocalCatalog({ reset: true });
     });
@@ -362,6 +373,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
 
     return () => {
       window.removeEventListener('karaoke:library-refreshed', handleLibraryRefreshed);
+      window.removeEventListener(OS_FILE_DRAG_END_EVENT, clearFileDropOverlay);
       unSubReindex?.();
       unSubTrackUpdated?.();
       unSubScanProgress?.();
@@ -690,6 +702,28 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
   }, [localQuery, localTracks, searchMode, setLocalResults]);
 
 
+  const reconcileMissingAfterRefresh = async (seedTracks: KaraokeMediaTrack[]) => {
+    const ids = useKaraokeStore.getState().missingTrackIds;
+    if (!ids.length) return;
+    const resolveTrack = createMissingTrackResolver({
+      localTracks: seedTracks,
+      queueTracks: useKaraokeStore.getState().queue.map((item) => item.track),
+      getTrackById: window.karaokeApi?.db
+        ? (trackId) => window.karaokeApi!.db.getTrackById(trackId)
+        : undefined
+    });
+    try {
+      await reconcileMissingTrackFlags({
+        missingTrackIds: ids,
+        resolveTrack,
+        clearMissingTrackIds: (trackIds) =>
+          useKaraokeStore.getState().clearMissingTrackIds(trackIds)
+      });
+    } catch (err) {
+      logLibrary('error', 'Missing-flag reconcile after refresh failed:', err);
+    }
+  };
+
   const handleScanOrRefresh = async () => {
     if (!window.karaokeApi) return;
     let folder: string | null = settings.libraryPath || null;
@@ -704,6 +738,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
     try {
       const discovered = await window.karaokeApi.library.scanFolder(folder);
       await loadLocalCatalog({ reset: true });
+      // Prefer full scan seed (all on-disk paths) so paged Local load cannot miss flags.
+      await reconcileMissingAfterRefresh(discovered || []);
       const count =
         (await window.karaokeApi.db.getTracksCount?.()) ??
         discovered.length ??
@@ -1284,6 +1320,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
         if (!dataTransferHasFiles(e.dataTransfer)) return;
         e.preventDefault();
         e.stopPropagation();
+        fileDropDepthRef.current += 1;
         setFileDropActive(true);
       }}
       onDragOver={(e) => {
@@ -1293,10 +1330,10 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
         e.dataTransfer.dropEffect = 'copy';
         if (!fileDropActive) setFileDropActive(true);
       }}
-      onDragLeave={(e) => {
-        if (!dataTransferHasFiles(e.dataTransfer)) return;
-        // Only clear when leaving the panel root (not child bubbles)
-        if (e.currentTarget === e.target) {
+      onDragLeave={() => {
+        // Depth counter (no Files gate): Chromium often clears types on leave.
+        fileDropDepthRef.current = Math.max(0, fileDropDepthRef.current - 1);
+        if (fileDropDepthRef.current === 0) {
           setFileDropActive(false);
         }
       }}
@@ -1304,7 +1341,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
         if (!dataTransferHasFiles(e.dataTransfer)) return;
         e.preventDefault();
         e.stopPropagation();
+        fileDropDepthRef.current = 0;
         setFileDropActive(false);
+        dispatchOsFileDragEnd();
         void handleOsFileDrop(e.dataTransfer.files);
       }}
     >
