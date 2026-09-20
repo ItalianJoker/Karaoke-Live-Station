@@ -1361,34 +1361,40 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
       )}
       {/* Search Header & Mode Toggle */}
       <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-full border border-slate-800/80 text-xs font-semibold shadow-inner">
+        <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-full border border-slate-800/80 text-xs font-semibold shadow-inner shrink-0">
           <button
             type="button"
             onClick={() => {
               setSearchMode('local');
             }}
-            className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
+            className={`w-[6.5rem] py-1 px-2 rounded-full flex items-center justify-center gap-1.5 transition-all ${
               searchMode === 'local'
                 ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-600/30'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <HardDrive className="w-3.5 h-3.5" />
-            {t('library.modeLocal')} ({localCatalogTotal || localTracks.length})
+            <HardDrive className="w-3.5 h-3.5 shrink-0" />
+            <span className="flex flex-col items-center justify-center text-center leading-tight">
+              <span>{t('library.modeLocal')}</span>
+              <span className="text-[10px] opacity-80 font-mono">({localCatalogTotal || localTracks.length})</span>
+            </span>
           </button>
           <button
             type="button"
             onClick={() => {
               setSearchMode('web');
             }}
-            className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
+            className={`w-[6.5rem] py-1 px-2 rounded-full flex items-center justify-center gap-1 transition-all ${
               searchMode === 'web'
                 ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-600/30'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Globe className="w-3.5 h-3.5" />
-            {t('library.modeWeb')}
+            <Globe className="w-3.5 h-3.5 shrink-0" />
+            <span className="flex flex-col items-center justify-center text-center leading-tight">
+              <span>Web /</span>
+              <span>YouTube</span>
+            </span>
           </button>
         </div>
 
@@ -1404,13 +1410,20 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
             }
             className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isScanning ? 'animate-spin' : ''}`} />
-            {isScanning && scanProgress
-              ? t('library.scanProgress', {
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 shrink-0 ${isScanning ? 'animate-spin' : ''}`} />
+            {isScanning && scanProgress ? (
+              <span>
+                {t('library.scanProgress', {
                   scanned: scanProgress.scanned,
                   found: scanProgress.found
-                })
-              : t('library.scanFolder')}
+                })}
+              </span>
+            ) : (
+              <span className="flex flex-col text-center leading-tight">
+                <span>{t('library.scanFolder').split(' ')[0] || t('library.scanFolder')}</span>
+                <span>{t('library.scanFolder').split(' ').slice(1).join(' ')}</span>
+              </span>
+            )}
           </button>
         )}
       </div>

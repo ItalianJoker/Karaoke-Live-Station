@@ -258,8 +258,8 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
       data-testid="studio-desk-shell"
       style={{
         gridTemplateColumns: showMidiColumn
-          ? 'minmax(10rem, 12rem) minmax(22rem, 28rem) minmax(0, 1fr) minmax(14rem, 18rem)'
-          : 'minmax(10rem, 12rem) minmax(22rem, 28rem) minmax(0, 1fr)'
+          ? 'minmax(calc(10rem - 5px), calc(12rem - 5px)) minmax(calc(22rem - 5px), calc(28rem - 5px)) minmax(0, 1fr) minmax(14rem, 18rem)'
+          : 'minmax(calc(10rem - 5px), calc(12rem - 5px)) minmax(calc(22rem - 5px), calc(28rem - 5px)) minmax(0, 1fr)'
       }}
     >
       {/* Col 1: logo + menu */}

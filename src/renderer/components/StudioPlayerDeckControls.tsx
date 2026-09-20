@@ -99,7 +99,7 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
 
   return (
     <div
-      className="mt-2 flex flex-nowrap items-center gap-x-3 min-w-0"
+      className="mt-2 flex flex-nowrap items-stretch gap-x-3 min-w-0"
       data-testid="studio-player-deck"
     >
       <div className="flex flex-nowrap items-center content-center gap-1 shrink-0">
@@ -192,24 +192,26 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
 
       {/*
         Single compact row via CSS grid: Velo | Ton | Volume (1fr fills remainder).
-        Panel height ≈ adjacent transport buttons. `px-2.5` = equal end padding.
+        Panel height matches adjacent transport buttons via self-stretch.
         Parent `gap-x-3` separates last transport (MIDI) from this panel.
       */}
       <div
-        className="grid grid-cols-[auto_auto_minmax(7rem,1fr)] items-center gap-x-3 px-2.5 py-1.5 rounded-xl border border-[color:var(--border-color)] bg-[color:var(--bg-subtle)] flex-1 min-w-0"
+        className="grid grid-cols-[auto_auto_minmax(7rem,1fr)] items-center self-stretch gap-x-3 px-2.5 py-1.5 rounded-xl border border-[color:var(--border-color)] bg-[color:var(--bg-subtle)] flex-1 min-w-0"
         data-testid="studio-dsp-panel"
       >
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] shrink-0">
-            {t('player.speed')}
+          <div className="flex flex-col items-center justify-center min-w-[3.6rem] shrink-0">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] text-center leading-tight">
+              {t('player.speed')}
+            </span>
             <span
-              className={`ml-1 font-mono normal-case ${bpmLabel ? 'text-[color:var(--accent)]' : 'text-[color:var(--text-muted)]'}`}
+              className={`font-mono text-[11px] font-medium leading-tight text-center normal-case ${bpmLabel ? 'text-[color:var(--accent)] font-semibold' : 'text-[color:var(--text-muted)]'}`}
               data-testid="regia-bpm-label"
               data-has-bpm={bpmLabel ? 'true' : 'false'}
             >
               {bpmDisplay}
             </span>
-          </span>
+          </div>
           <div className="flex items-center gap-1 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1 py-0.5">
             <button
               type="button"
@@ -245,16 +247,18 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] shrink-0">
-            {t('player.pitch')}
+          <div className="flex flex-col items-center justify-center min-w-[3.6rem] shrink-0">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] text-center leading-tight">
+              {t('player.pitch')}
+            </span>
             <span
-              className={`ml-1 font-mono normal-case ${keyLabel ? 'text-[color:var(--accent)]' : 'text-[color:var(--text-muted)]'}`}
+              className={`font-mono text-[11px] font-medium leading-tight text-center normal-case ${keyLabel ? 'text-[color:var(--accent)] font-semibold' : 'text-[color:var(--text-muted)]'}`}
               data-testid="regia-key-label"
               data-has-key={keyLabel ? 'true' : 'false'}
             >
               {keyDisplay}
             </span>
-          </span>
+          </div>
           <div className="flex items-center gap-1 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1 py-0.5">
             <button
               type="button"
@@ -288,12 +292,9 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
         </div>
 
         <div
-          className="flex flex-nowrap items-center gap-1.5 min-w-0"
+          className="flex flex-nowrap items-center min-w-0"
           data-testid="studio-volume-row"
         >
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] shrink-0">
-            {t('player.volume')}
-          </span>
           <div className="flex flex-nowrap items-center gap-1.5 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1.5 py-0.5 flex-1 min-w-0">
             <button
               type="button"
