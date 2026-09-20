@@ -74,7 +74,7 @@ export class AudioGraphManager {
   /** Bungee Wasm path (default). */
   private bungeeNode: BungeePitchShifterNode | null = null;
   /** Operator preference from Settings (`dspEngine`). */
-  private preferredDspEngine: DspPitchEngine = 'bungee';
+  private preferredDspEngine: DspPitchEngine = 'soundtouch';
   /** Engine currently wired into the bridge (may be SoundTouch after silent fallback). */
   private activeDspEngine: DspPitchEngine | null = null;
   private dspInitGeneration = 0;
@@ -343,6 +343,15 @@ export class AudioGraphManager {
           // Runtime assets only under public/workers/ — no C++ source in-tree.
           // create() waits for Wasm `initialized` (throws on timeout/error → SoundTouch).
           this.bungeeNode = await BungeePitchShifterNode.create(this.audioCtx);
+          this.bungeeNode.setUnderrunFallbackHandler(() => {
+            this.log(
+              'warn',
+              'Bungee underrun/mute detected — falling back to SoundTouch WSOLA'
+            );
+            // Prefer SoundTouch going forward for this session (avoid mute loops).
+            this.preferredDspEngine = 'soundtouch';
+            this.wireSoundTouchEngine();
+          });
           this.log('info', 'Bungee pitch/speed DSP initialized (Wasm AudioWorklet)');
         } catch (err) {
           this.log(
@@ -503,9 +512,9 @@ export class AudioGraphManager {
   // ==========================================
 
   /**
-   * Selects the media pitch/speed DSP engine (`bungee` default, `soundtouch` legacy).
+   * Selects the media pitch/speed DSP engine (`soundtouch` default, `bungee` optional).
    * Public API for pitch/speed ({@link setPitchOffset}, {@link setPlaybackSpeed}) is unchanged.
-   * On Bungee init failure the graph silently falls back to SoundTouch.
+   * On Bungee init failure or runtime mute underrun the graph falls back to SoundTouch.
    */
   public setDspEngine(engine: DspPitchEngine | string): void {
     const next = coerceDspPitchEngine(engine);

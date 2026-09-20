@@ -36,6 +36,8 @@ export class BungeePitchShifterNode {
   private disposed = false;
   /** True after worklet posts `{ type: 'initialized' }`. */
   private wasmReady = false;
+  /** Host callback when worklet reports phase-collapse mute → SoundTouch. */
+  private underrunFallbackHandler: (() => void) | null = null;
 
   private constructor(audioCtx: AudioContext) {
     this.audioCtx = audioCtx;
@@ -65,6 +67,14 @@ export class BungeePitchShifterNode {
 
   public get isWasmReady(): boolean {
     return this.wasmReady;
+  }
+
+  /**
+   * Called when the AudioWorklet detects sustained silence with non-silent input
+   * (phase-vocoder collapse). Host should switch to SoundTouch without stopping playback.
+   */
+  public setUnderrunFallbackHandler(handler: (() => void) | null): void {
+    this.underrunFallbackHandler = handler;
   }
 
   /**
@@ -138,11 +148,22 @@ export class BungeePitchShifterNode {
           settled = true;
           window.clearTimeout(timer);
           this.wasmReady = true;
-          // Keep listening for late errors (do not clear onmessage).
+          // Keep listening for late errors + underrun fallback (do not clear onmessage).
           worklet.port.onmessage = (later: MessageEvent) => {
             const d = later.data as { type?: string; message?: string };
             if (d?.type === 'error') {
               console.warn('[BungeePitchShifterNode]', d.message ?? 'worklet error');
+              return;
+            }
+            if (d?.type === 'bungee-underrun-fallback') {
+              console.warn(
+                '[BungeePitchShifterNode] underrun/mute fallback — switching host to SoundTouch'
+              );
+              try {
+                this.underrunFallbackHandler?.();
+              } catch {
+                /* ignore host errors */
+              }
             }
           };
           resolve();
@@ -157,6 +178,16 @@ export class BungeePitchShifterNode {
           window.clearTimeout(timer);
           worklet.port.onmessage = null;
           reject(new Error(data.message ?? 'Bungee worklet Wasm init failed'));
+        }
+        if (data?.type === 'bungee-underrun-fallback') {
+          console.warn(
+            '[BungeePitchShifterNode] underrun/mute fallback — switching host to SoundTouch'
+          );
+          try {
+            this.underrunFallbackHandler?.();
+          } catch {
+            /* ignore */
+          }
         }
       };
 
@@ -267,5 +298,6 @@ export class BungeePitchShifterNode {
     }
     this.worklet = null;
     this.wasmReady = false;
+    this.underrunFallbackHandler = null;
   }
 }

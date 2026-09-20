@@ -1,11 +1,10 @@
 /**
  * Pitch / speed DSP engine selection and semitone / tempo range constants.
  *
- * Bungee (default): phase-vocoder Wasm AudioWorklet — recommended UI ±8,
- * internal hard cap ±12 without destructive artifacts; speed UI 0.50–1.50,
- * absolute hard 0.50–2.00.
- * SoundTouch (legacy/light): WSOLA ScriptProcessor — hard UI ±4; speed UI 0.75–1.25,
- * absolute media+WSOLA 0.50–1.50.
+ * SoundTouch (default): WSOLA ScriptProcessor — reliable pitch without mute risk;
+ * hard UI ±4; speed UI 0.75–1.25, absolute media+WSOLA 0.50–1.50.
+ * Bungee (optional): phase-vocoder Wasm AudioWorklet — UI ±8, internal hard cap ±12;
+ * speed UI 0.50–1.50, absolute hard 0.50–2.00. Auto-falls back to SoundTouch on mute.
  *
  * MIDI/KAR transposition is independent (SpessaSynth note shift) and does not
  * use these DSP engines.
@@ -100,11 +99,11 @@ export function getSpeedRangeForEngine(engine: DspPitchEngine): DspSpeedRange {
 
 /**
  * Coerces persisted / IPC values to a valid {@link DspPitchEngine}.
- * Unknown / missing → `'bungee'` (product default).
+ * Unknown / missing → `'soundtouch'` (product default — reliable WSOLA).
  */
 export function coerceDspPitchEngine(value: unknown): DspPitchEngine {
   if (value === 'soundtouch' || value === 'bungee') return value;
-  return 'bungee';
+  return 'soundtouch';
 }
 
 /**

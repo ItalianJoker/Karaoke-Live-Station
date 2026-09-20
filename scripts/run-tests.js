@@ -3263,8 +3263,14 @@ function isDspNeutralBypassTest(pitch, speed) {
 }
 
 assert(
-  /dspEngine:\s*'bungee'/.test(storeDspSrc),
-  'Default settings.dspEngine === bungee'
+  dspPitchShared.includes("return 'soundtouch'") &&
+    dspPitchShared.includes("Unknown / missing → `'soundtouch'`"),
+  'coerceDspPitchEngine defaults to soundtouch'
+);
+
+assert(
+  /dspEngine:\s*'soundtouch'/.test(storeDspSrc),
+  'Default settings.dspEngine === soundtouch'
 );
 assert(
   dspPitchShared.includes("export type DspPitchEngine = 'bungee' | 'soundtouch'") &&
@@ -3390,13 +3396,24 @@ assert(
       bungeeProc.includes('fifoPushInterleaved') &&
       bungeeProc.includes('fifoClear') &&
       bungeeProc.includes('fifoPop') &&
-      !bungeeProc.includes('Math.min(outputFrames, frameCount)'),
-    'bungee_processor.js: 8192-frame Wasm buffers + output FIFO (no excess-frame discard)'
+      bungeeProc.includes('Math.min(outputFrames, frameCount)') &&
+      bungeeProc.includes('writtenFrames') &&
+      bungeeProc.includes('bungee-underrun-fallback') &&
+      bungeeProc.includes('silentQuanta') &&
+      !bungeeProc.includes('safeFrames = Math.min(outputFrames, 8192)'),
+    'bungee_processor.js: 8192 Wasm buffers + FIFO clamp to written frames + anti-mute watchdog'
   );
   assert(
     bungeeNodeSrc.includes("this.send('reset')") &&
-      bungeeNodeSrc.includes('Flush worklet FIFO'),
-    'BungeePitchShifterNode: reset/FIFO flush on bypass routing'
+      bungeeNodeSrc.includes('Flush worklet FIFO') &&
+      bungeeNodeSrc.includes('bungee-underrun-fallback') &&
+      bungeeNodeSrc.includes('setUnderrunFallbackHandler'),
+    'BungeePitchShifterNode: reset/FIFO flush + underrun fallback handler'
+  );
+  assert(
+    audioGraphDspSrc.includes('Bungee underrun/mute detected') &&
+      audioGraphDspSrc.includes("preferredDspEngine = 'soundtouch'"),
+    'AudioGraphManager: Bungee underrun switches to SoundTouch'
   );
 }
 assert(
@@ -3408,9 +3425,110 @@ assert(
   enLocale.settings?.dspEngine &&
     itLocale.settings?.dspEngine &&
     esLocale.settings?.dspEngine &&
-    frLocale.settings?.dspEngine,
-  'i18n DSP engine keys present in en/it/es/fr'
+    frLocale.settings?.dspEngine &&
+    String(enLocale.settings.dspEngineSoundTouch || '').toLowerCase().includes('default') &&
+    String(itLocale.settings.dspEngineSoundTouch || '').toLowerCase().includes('predefinito') &&
+    String(esLocale.settings.dspEngineSoundTouch || '').toLowerCase().includes('predeterminado') &&
+    String(frLocale.settings.dspEngineSoundTouch || '').toLowerCase().includes('défaut'),
+  'i18n DSP engine keys present; SoundTouch labeled as default in en/it/es/fr'
 );
+
+// -------------------------------------------------------------
+// Suite: Bungee FIFO written-frame clamp (no silence injection) + silence watchdog
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Bungee pitch silence clamp (-1/-2 ST)\x1b[0m');
+
+{
+  /**
+   * Simulates the worklet FIFO push rule: inflated outputFrames must not push
+   * unread heap zeros. Also checks pure-silence detection for -1/-2 ST collapse.
+   */
+  function clampWrittenFrames(outputFrames, frameCount) {
+    return Math.min(outputFrames, frameCount);
+  }
+
+  function fifoPushFromHeap(heapInterleaved, frames) {
+    const out = [];
+    for (let i = 0; i < frames; i++) {
+      out.push(heapInterleaved[i * 2], heapInterleaved[i * 2 + 1]);
+    }
+    return out;
+  }
+
+  function maxAbs(samples) {
+    let m = 0;
+    for (const s of samples) {
+      const a = Math.abs(s);
+      if (a > m) m = a;
+    }
+    return m;
+  }
+
+  function simulateNegativePitchPush(semitones) {
+    const frameCount = 128;
+    // Inflated return (as observed for -1/-2 ST) while only frameCount samples written.
+    const claimedFrames = semitones === -1 ? 542 : 575;
+    const heap = new Float32Array(claimedFrames * 2);
+    // Only the first frameCount stereo frames contain signal; rest stay 0.
+    for (let i = 0; i < frameCount; i++) {
+      heap[i * 2] = 0.25;
+      heap[i * 2 + 1] = -0.2;
+    }
+    const written = clampWrittenFrames(claimedFrames, frameCount);
+    const pushed = fifoPushFromHeap(heap, written);
+    const badPushed = fifoPushFromHeap(heap, Math.min(claimedFrames, 8192));
+    return { written, pushed, badPushed, claimedFrames, frameCount };
+  }
+
+  for (const st of [-1, -2]) {
+    const sim = simulateNegativePitchPush(st);
+    assert(
+      sim.written === sim.frameCount,
+      `pitch ${st} ST: writtenFrames clamped to frameCount (${sim.frameCount})`
+    );
+    assert(
+      maxAbs(sim.pushed) > 0.1,
+      `pitch ${st} ST: clamped FIFO push retains audible samples`
+    );
+    // Unclamped (pre-fix) would be ~76% zeros → near-mute energy dilution.
+    const zeroRatio =
+      sim.badPushed.filter((s) => s === 0).length / Math.max(1, sim.badPushed.length);
+    assert(
+      zeroRatio > 0.7,
+      `pitch ${st} ST: unclamped push would inject mostly silence (got ${(zeroRatio * 100).toFixed(1)}%)`
+    );
+    const goodZeroRatio =
+      sim.pushed.filter((s) => s === 0).length / Math.max(1, sim.pushed.length);
+    assert(
+      goodZeroRatio < 0.01,
+      `pitch ${st} ST: clamped push has negligible pure zeros`
+    );
+  }
+
+  // Watchdog: >4 silent quanta with live input triggers fallback message type.
+  assert(
+    fs
+      .readFileSync(path.resolve(__dirname, '../public/workers/bungee_processor.js'))
+      .includes('silentQuanta > 4') &&
+      fs
+        .readFileSync(path.resolve(__dirname, '../public/workers/bungee_processor.js'))
+        .includes('bungee-underrun-fallback'),
+    'Bungee anti-mute: silentQuanta > 4 posts bungee-underrun-fallback'
+  );
+
+  // AI conversion must not hang forever: hard timeout still bounded.
+  const sepTimeoutSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/InstrumentalAiSeparator.ts'),
+    'utf8'
+  );
+  assert(
+    sepTimeoutSrc.includes('AI_SEPARATION_MAX_TIMEOUT_MS') &&
+      sepTimeoutSrc.includes('gpu-fallback-requested') &&
+      sepTimeoutSrc.includes('allowInProcessWasmFallback') &&
+      sepTimeoutSrc.includes('utilityProcess'),
+    'AI separator: bounded timeout + Hidden Renderer gpu-fallback → utilityProcess'
+  );
+}
 
 // -------------------------------------------------------------
 // Suite: Instrumental subtitles confirmation modal + 429-safe sub-langs

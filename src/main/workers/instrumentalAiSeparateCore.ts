@@ -11,7 +11,8 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { pathToFileURL } from 'url';
-import * as ort from 'onnxruntime-web';
+// Bare `onnxruntime-web` → ort.node.min.js (no WebGPU). `/all` registers WebGPU + WASM.
+import * as ort from 'onnxruntime-web/all';
 import {
   isAiVocalRemoverMethod,
   methodToModelId,
@@ -27,6 +28,10 @@ import {
   resolveWorkerOrtProviders,
   type AiOrtBackend
 } from '../../shared/aiWorkerWebGpu';
+import {
+  GpuFallbackRequestedError,
+  isGpuFallbackRequestedError
+} from '../../shared/aiGpuFallback';
 import { MdxNetSeparator, MDX_SAMPLE_RATE } from '../ai/MdxNetSeparator';
 import { separateDemucsWithAdvancedOptions } from '../ai/demucsSeparateWithOptions';
 import { readPcmWavFile, writePcmWavFile } from '../ai/wavPcm';
@@ -42,6 +47,11 @@ export type InstrumentalAiSeparateRequest = {
   aiCpuThreads?: number | null;
   aiEnableGpu?: boolean;
   aiGpuSupported?: boolean;
+  /**
+   * Hidden Renderer only: forbid in-process WASM after WebGPU failure so main
+   * can re-route to utilityProcess (avoids SharedArrayBuffer multithread deadlock).
+   */
+  allowInProcessWasmFallback?: boolean;
   mdxSegmentSize?: number;
   mdxOverlap?: number;
   mdxEnableOrt?: boolean;
@@ -62,7 +72,9 @@ export type InstrumentalAiOutMessage =
       ortNumThreads?: number;
     }
   | { type: 'done'; requestId: number; outputWav: string }
-  | { type: 'error'; requestId: number; message: string };
+  | { type: 'error'; requestId: number; message: string }
+  /** Hidden Renderer → main: re-route this job to utilityProcess WASM. */
+  | { type: 'gpu-fallback-requested'; requestId: number; reason: string };
 
 export type InstrumentalAiPost = (msg: InstrumentalAiOutMessage) => void;
 
@@ -106,6 +118,7 @@ async function separateMdx(
     aiCpuThreads?: number | null;
     aiEnableGpu?: boolean;
     aiGpuSupported?: boolean;
+    allowInProcessWasmFallback?: boolean;
   }
 ): Promise<void> {
   const wav = readPcmWavFile(inputWav);
@@ -131,7 +144,8 @@ async function separateMdx(
     ...advanced,
     aiCpuThreads: mdxOpts?.aiCpuThreads,
     aiEnableGpu: mdxOpts?.aiEnableGpu,
-    aiGpuSupported: mdxOpts?.aiGpuSupported
+    aiGpuSupported: mdxOpts?.aiGpuSupported,
+    allowInProcessWasmFallback: mdxOpts?.allowInProcessWasmFallback
   });
   separator.onProgress((info) => {
     post({
@@ -182,6 +196,7 @@ async function separateDemucs(
     aiCpuThreads?: number | null;
     aiEnableGpu?: boolean;
     aiGpuSupported?: boolean;
+    allowInProcessWasmFallback?: boolean;
     demucsShifts?: number;
     demucsSegmentSize?: number;
     demucsOverlap?: number;
@@ -308,6 +323,9 @@ async function separateDemucs(
       const detail = formatOrtInitError(err);
       ortFallbackReason = `WebGPU session.create failed: ${detail}`;
       console.warn(`[instrumentalAiSeparateCore] HTDemucs ${ortFallbackReason}`);
+      if (demucsOpts?.allowInProcessWasmFallback === false) {
+        throw new GpuFallbackRequestedError(ortFallbackReason);
+      }
       ortBackend = 'wasm';
       post({
         type: 'progress',
@@ -322,6 +340,12 @@ async function separateDemucs(
       await createAndRun(['wasm']);
     }
   } else {
+    if (demucsOpts?.allowInProcessWasmFallback === false) {
+      throw new GpuFallbackRequestedError(
+        ortFallbackReason ||
+          'WebGPU not preferred in Hidden Renderer — re-route to utilityProcess WASM'
+      );
+    }
     if (ortFallbackReason) {
       console.warn(
         `[instrumentalAiSeparateCore] HTDemucs skipping WebGPU: ${ortFallbackReason}`
@@ -384,6 +408,7 @@ export async function runInstrumentalAiSeparate(
   const expectedId = methodToModelId(aiMethod);
   const totalCpus = Math.max(1, os.cpus()?.length || 1);
   const threads = resolveAiCpuThreads(req.aiCpuThreads, totalCpus);
+  const allowInProcessWasmFallback = req.allowInProcessWasmFallback !== false;
   const workerGpu = probeWorkerWebGpu();
   post({
     type: 'progress',
@@ -404,33 +429,47 @@ export async function runInstrumentalAiSeparate(
     );
   }
 
-  switch (aiMethod) {
-    case 'aiMdxKaraoke2':
-      await separateMdx(modelPath, ortDir, inputWav, outputWav, requestId, post, {
-        mdxSegmentSize: req.mdxSegmentSize,
-        mdxOverlap: req.mdxOverlap,
-        mdxEnableOrt: req.mdxEnableOrt,
-        aiCpuThreads: req.aiCpuThreads,
-        aiEnableGpu: req.aiEnableGpu,
-        aiGpuSupported: req.aiGpuSupported
+  try {
+    switch (aiMethod) {
+      case 'aiMdxKaraoke2':
+        await separateMdx(modelPath, ortDir, inputWav, outputWav, requestId, post, {
+          mdxSegmentSize: req.mdxSegmentSize,
+          mdxOverlap: req.mdxOverlap,
+          mdxEnableOrt: req.mdxEnableOrt,
+          aiCpuThreads: req.aiCpuThreads,
+          aiEnableGpu: req.aiEnableGpu,
+          aiGpuSupported: req.aiGpuSupported,
+          allowInProcessWasmFallback
+        });
+        break;
+      case 'aiHtDemucs':
+        await separateDemucs(modelPath, ortDir, inputWav, outputWav, requestId, post, {
+          aiCpuThreads: req.aiCpuThreads,
+          aiEnableGpu: req.aiEnableGpu,
+          aiGpuSupported: req.aiGpuSupported,
+          allowInProcessWasmFallback,
+          demucsShifts: req.demucsShifts,
+          demucsSegmentSize: req.demucsSegmentSize,
+          demucsOverlap: req.demucsOverlap
+        });
+        break;
+      case 'aiBsRoformer':
+        throw new Error(
+          'BS-Roformer (ViperX) needs band-split STFT preprocessing not yet reliable in Electron WASM. Model can still be cached under userData/models. Choose UVR-MDX-NET Karaoke 2 (recommended) or HTDemucs for Download Instrumental.'
+        );
+      default:
+        throw new Error(`Unsupported AI method: ${method}`);
+    }
+  } catch (err) {
+    if (isGpuFallbackRequestedError(err)) {
+      post({
+        type: 'gpu-fallback-requested',
+        requestId,
+        reason: err.reason || err.message || 'WebGPU unavailable'
       });
-      break;
-    case 'aiHtDemucs':
-      await separateDemucs(modelPath, ortDir, inputWav, outputWav, requestId, post, {
-        aiCpuThreads: req.aiCpuThreads,
-        aiEnableGpu: req.aiEnableGpu,
-        aiGpuSupported: req.aiGpuSupported,
-        demucsShifts: req.demucsShifts,
-        demucsSegmentSize: req.demucsSegmentSize,
-        demucsOverlap: req.demucsOverlap
-      });
-      break;
-    case 'aiBsRoformer':
-      throw new Error(
-        'BS-Roformer (ViperX) needs band-split STFT preprocessing not yet reliable in Electron WASM. Model can still be cached under userData/models. Choose UVR-MDX-NET Karaoke 2 (recommended) or HTDemucs for Download Instrumental.'
-      );
-    default:
-      throw new Error(`Unsupported AI method: ${method}`);
+      return;
+    }
+    throw err;
   }
 
   if (!fs.existsSync(outputWav) || fs.statSync(outputWav).size < 1024) {

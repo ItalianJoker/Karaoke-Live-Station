@@ -526,7 +526,7 @@ export const ControlWindow: React.FC = () => {
 
   useEffect(() => {
     if (!audioGraphRef.current) return;
-    audioGraphRef.current.setDspEngine(settings.dspEngine || 'bungee');
+    audioGraphRef.current.setDspEngine(settings.dspEngine || 'soundtouch');
     audioGraphRef.current.setPitchOffset(playback.livePitchOffset);
     audioGraphRef.current.setPlaybackSpeed(playback.playbackSpeed);
     audioGraphRef.current.setMutedMidiChannels(playback.mutedMidiChannels);
@@ -544,7 +544,7 @@ export const ControlWindow: React.FC = () => {
       (videoRef.current as any).mozPreservesPitch = true;
       (videoRef.current as any).webkitPreservesPitch = true;
       // Bungee owns tempo in Wasm — keep element at 1.0. SoundTouch uses element rate.
-      const engine = settings.dspEngine || 'bungee';
+      const engine = settings.dspEngine || 'soundtouch';
       videoRef.current.playbackRate =
         engine === 'soundtouch' ? playback.playbackSpeed : 1.0;
     }
@@ -786,7 +786,7 @@ export const ControlWindow: React.FC = () => {
             (videoRef.current as any).mozPreservesPitch = true;
             (videoRef.current as any).webkitPreservesPitch = true;
             // Bungee owns tempo in Wasm — keep element at 1.0 (avoids double rate / chipmunk).
-            const engine = settings.dspEngine || 'bungee';
+            const engine = settings.dspEngine || 'soundtouch';
             videoRef.current.playbackRate =
               engine === 'soundtouch' ? playback.playbackSpeed : 1.0;
           }
@@ -1224,7 +1224,7 @@ export const ControlWindow: React.FC = () => {
                   (video as any).mozPreservesPitch = true;
                   (video as any).webkitPreservesPitch = true;
                   // Bungee owns tempo in Wasm — keep element at 1.0. SoundTouch uses element rate.
-                  const engine = settings.dspEngine || 'bungee';
+                  const engine = settings.dspEngine || 'soundtouch';
                   video.playbackRate =
                     engine === 'soundtouch' ? playback.playbackSpeed : 1.0;
                   audioGraphRef.current?.bindMediaElement(video);
@@ -1236,7 +1236,7 @@ export const ControlWindow: React.FC = () => {
                   video.preservesPitch = true;
                   (video as any).mozPreservesPitch = true;
                   (video as any).webkitPreservesPitch = true;
-                  const engine = settings.dspEngine || 'bungee';
+                  const engine = settings.dspEngine || 'soundtouch';
                   video.playbackRate =
                     engine === 'soundtouch' ? playback.playbackSpeed : 1.0;
                   audioGraphRef.current?.initContext();
