@@ -4469,7 +4469,7 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     libraryPanelSrc.includes('estimateStudioLibraryRowStride') &&
       libraryPanelSrc.includes('library-row-actions') &&
       libraryPanelSrc.includes('data-studio-library-row') &&
-      libraryPanelSrc.includes('mt-2.5') &&
+      libraryPanelSrc.includes('mt-3') &&
       libraryPanelSrc.includes('computeVirtualWindowVariable') &&
       libraryPanelSrc.includes('minHeight') &&
       libraryPanelSrc.includes('overflow-visible'),

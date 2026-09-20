@@ -53,19 +53,21 @@ const STUDIO_LIBRARY_ROW_GAP = 8;
 
 /**
  * Studio Desk card stride (content + gap). Cards grow with tags / wrapped titles;
- * this estimate must stay ≥ visual height so virtualization never clips buttons.
+ * this estimate must stay ≥ visual height so virtualization never overlaps/clips.
  */
 function estimateStudioLibraryRowStride(track: KaraokeMediaTrack): number {
   const tags = extractVersionTags(track);
-  // p-3 vertical ≈ 24; title 1–2 lines; meta; optional tag line; mt-2.5 gap; actions; gap
-  let content = 24;
-  content += track.title.length > 42 ? 36 : 18;
-  if (track.title.length > 84) content += 16;
-  content += 20; // artist + chips
-  if (tags.length > 0) content += 20; // version pills (e.g. Strumentale)
-  content += 12; // padding between info and action row
-  content += 40; // action buttons
-  return Math.max(156, content) + STUDIO_LIBRARY_ROW_GAP;
+  // Generous estimate: padding + multi-line title + meta wrap + tags + gap + actions
+  let content = 28; // p-2.5 / p-3 vertical
+  const titleLines = 1 + Math.min(2, Math.floor(Math.max(0, track.title.length - 36) / 32));
+  content += 18 * titleLines;
+  content += 22; // artist
+  content += 24; // key/bpm/source chips (often wrap onto a 2nd meta line)
+  if (tags.length > 0) content += 22; // version pills e.g. Strumentale
+  content += 14; // mt-2.5 / mt-3 between info and actions
+  content += 44; // action button row
+  content += 10; // bottom inset inside card (matches short-card look)
+  return Math.max(184, content) + STUDIO_LIBRARY_ROW_GAP;
 }
 
 /** Intent to enqueue only after YouTube download + auto-archive succeed. */
@@ -1321,7 +1323,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
             const trackActions = (
               <div
                 className={`flex items-center gap-1.5 sm:gap-2 flex-wrap ${
-                  embedded ? 'mt-2.5 shrink-0' : 'shrink-0'
+                  embedded ? 'mt-3 shrink-0' : 'shrink-0'
                 }`}
                 data-testid={embedded ? 'library-row-actions' : undefined}
               >
@@ -1527,7 +1529,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
                 {embedded ? (
                   <div className="flex items-start gap-3 min-w-0 flex-1">
                     {thumb}
-                    <div className="min-w-0 flex-1 flex flex-col pb-0.5">
+                    <div className="min-w-0 flex-1 flex flex-col pb-1.5">
                       {trackMeta}
                       {trackActions}
                     </div>
