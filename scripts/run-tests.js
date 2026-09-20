@@ -4445,6 +4445,20 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     'Studio deck: inline speed/pitch/volume labels beside controls'
   );
   assert(
+    studioDeckSrc.includes('gap-x-3') &&
+      studioDeckSrc.includes('studio-dsp-panel') &&
+      studioDeckSrc.includes('studio-volume-row') &&
+      studioDeckSrc.includes('studio-volume-slider') &&
+      !studioDeckSrc.includes('w-[9.5rem]'),
+    'Studio deck: gap before DSP panel + full-width volume row'
+  );
+  assert(
+    controlSrc.includes('setShowStudioMidiMixer(true)') &&
+      controlSrc.includes('studioMidiTrackKey') &&
+      controlSrc.includes('playback.isPlaying'),
+    'Studio: MIDI mixer opens by default when MIDI/KAR starts playing'
+  );
+  assert(
     controlSrc.includes("isStudioDesk ? 'max-h-[40vh]'") ||
       controlSrc.includes('max-h-[40vh]'),
     'Studio now-playing video enlarged (max-h 40vh)'

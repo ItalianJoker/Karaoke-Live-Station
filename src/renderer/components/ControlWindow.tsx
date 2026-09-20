@@ -889,10 +889,21 @@ export const ControlWindow: React.FC = () => {
   const [studioLocalSearchNonce, setStudioLocalSearchNonce] = useState(0);
   /** Studio MIDI mixer column visibility (toggle lives in transport row). */
   const [showStudioMidiMixer, setShowStudioMidiMixer] = useState(false);
+  /** Track key so a new MIDI/KAR cue re-opens the mixer even if already playing. */
+  const studioMidiTrackKey = isMidiTrack
+    ? (currentTrack?.uri || currentTrack?.localFilePath || currentTrack?.id || 'midi')
+    : null;
 
   useEffect(() => {
-    if (!isMidiTrack) setShowStudioMidiMixer(false);
-  }, [isMidiTrack]);
+    if (!isMidiTrack) {
+      setShowStudioMidiMixer(false);
+      return;
+    }
+    // Default-on: open MIDI mixer column when a MIDI/KAR track starts playing.
+    if (playback.isPlaying) {
+      setShowStudioMidiMixer(true);
+    }
+  }, [isMidiTrack, playback.isPlaying, studioMidiTrackKey]);
 
   const libraryPanelNode = (
     <LibraryPanel

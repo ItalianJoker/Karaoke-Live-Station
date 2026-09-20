@@ -12,8 +12,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - None yet.
 
 ### Changed
-- **IT:** Tema **Studio Desk** — polish UX (#77 pass 1–3): shell Studio (menu/logo/Stage/QR), Libreria→Locale / Ricerca→Web, transport a sinistra con Velo|Ton|Vol **inline**, video senza header «In Riproduzione», MIDI sempre visibile (disabled se non MIDI/KAR), SoundFont su riga propria, scrollbar coda, **riavvio al cambio tema Regia**. Regia classica invariata. (PR #77)
-- **EN:** **Studio Desk** theme UX polish (#77 pass 1–3): Studio shell (menu/logo/Stage/QR), Library→Locale / Search→Web, transport left with **inline** Speed|Pitch|Volume, larger video (no Now Playing header), MIDI always visible (disabled when not MIDI/KAR), SoundFont on its own line, queue scrollbar, **relaunch on Control Room theme change**. Classic Regia unchanged. (PR #77)
+- **IT:** Tema **Studio Desk** — polish UX (#77 pass 1–4): shell Studio (menu/logo/Stage/QR), Libreria→Locale / Ricerca→Web, transport a sinistra con Velo|Ton **inline** + volume a tutta larghezza pannello, gap MIDI→pannello DSP, video senza header «In Riproduzione», MIDI sempre visibile (disabled se non MIDI/KAR) e **mixer aperto di default** all’avvio di un MIDI/KAR, SoundFont su riga propria, scrollbar coda, **riavvio al cambio tema Regia**. Regia classica invariata. (PR #77)
+- **EN:** **Studio Desk** theme UX polish (#77 pass 1–4): Studio shell (menu/logo/Stage/QR), Library→Locale / Search→Web, transport left with **inline** Speed|Pitch + full-width volume in the DSP panel, gap MIDI→DSP panel, larger video (no Now Playing header), MIDI always visible (disabled when not MIDI/KAR) and **mixer open by default** when a MIDI/KAR track starts, SoundFont on its own line, queue scrollbar, **relaunch on Control Room theme change**. Classic Regia unchanged. (PR #77)
 
 ### Fixed
 - None yet.
