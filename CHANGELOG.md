@@ -9,13 +9,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- None yet.
+- **IT:** Badge velocità sul Palco con etichetta localizzata (**Velocità** / Speed / …) + chip `N.NNx` anche sull’overlay titolo (coerente con Key/BPM).
+- **EN:** Stage speed badge with localized **Speed** label + `N.NNx` chip on the title overlay (Key/BPM parity).
 
 ### Changed
-- None yet.
+- **IT/EN:** All’apertura/riapertura lo Stage viene posizionato sul monitor esterno (TV/proiettore) in fullscreen quando disponibile; con un solo display resta in finestra centrata (non copre la Regia).
 
 ### Fixed
-- None yet.
+- **IT:** Palco / Live che lasciava il secondo monitor sul desktop — Stage non veniva mai spostato sul display non primario.
+- **EN:** Stage / Live leaving the second monitor on the OS desktop — Stage was never moved to a non-primary display.
+- **IT/EN:** `.stage-screen-container` ora ha fallback opaco `#000` se manca la classe tema.
 
 ### Breaking Changes
 - None yet.

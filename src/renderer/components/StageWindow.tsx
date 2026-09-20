@@ -669,9 +669,12 @@ export const StageWindow: React.FC = () => {
           <div
             className="bg-slate-950/95 backdrop-blur-md border border-emerald-500/50 px-4 py-2 rounded-full text-sm font-mono text-emerald-300 font-bold shadow-[0_8px_30px_rgba(0,0,0,0.65)] tracking-wide flex items-center gap-2"
             data-testid="stage-speed-badge"
-            aria-label={`Speed ${(playback.playbackSpeed || 1).toFixed(2)}x`}
+            aria-label={`${t('player.speed')} ${(playback.playbackSpeed || 1).toFixed(2)}x`}
           >
-            <span>{`${Number(playback.playbackSpeed || 1).toFixed(2)}x`}</span>
+            <span className="text-emerald-200/90 font-sans uppercase tracking-wider text-[10px] md:text-xs">
+              {t('player.speed')}
+            </span>
+            <span data-testid="stage-speed-value">{`${Number(playback.playbackSpeed || 1).toFixed(2)}x`}</span>
             <span
               className={stageBpmLabel ? 'text-emerald-200' : 'text-slate-500'}
               data-testid="stage-bpm-label"
@@ -701,6 +704,7 @@ export const StageWindow: React.FC = () => {
               initialBpm={activeTrack.initialBpm}
               pitchOffset={playback.livePitchOffset}
               speed={playback.playbackSpeed || 1}
+              showSpeedRatio={settings?.showSpeedOnStage ?? true}
             />
           </div>
         </div>

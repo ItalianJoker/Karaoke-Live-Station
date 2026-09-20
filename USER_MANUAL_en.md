@@ -411,6 +411,8 @@ Stage opens hidden (`show: false`) with a black background. Before showing:
 2. Double `requestAnimationFrame`
 3. Signals `signalStageReady()` to the main process
 
+The main process **places Stage on the external monitor** (TV/projector) when available and enters fullscreen; with a single display it stays a centered window so Control is not covered. Reopen Stage / `P` re-runs placement.
+
 So no flash of raw layout appears. If you close Stage, **Reopen Stage** (`Riapri Palco`) or key **`P`** recreates and resyncs it. Closing Control also closes Stage.
 
 ### 7.2 Semitone badge and `showPitchOnStage`
@@ -434,7 +436,8 @@ The backdrop applies **only while that message is visible**. When the banner/car
 
 Setting **Show playback speed on stage screen** (`Mostra velocità di riproduzione sullo schermo del palco`) (`showSpeedOnStage`, typically default ON):
 
-- Shows the speed badge (e.g. **`1.00x`**, **`1.25x`**)
+- Shows the **Speed** badge with multiplier (e.g. **`1.00x`**, **`1.25x`**) and effective BPM
+- The title overlay also shows an `N.NNx` chip next to Key/BPM
 - UI description: «Visualizza il badge della velocità di riproduzione (es. 1.00x, 1.25x) sullo schermo del palco per il cantante.» (Italian UI)
 
 ### 7.3 Fullscreen and layout

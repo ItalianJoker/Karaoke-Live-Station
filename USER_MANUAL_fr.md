@@ -411,6 +411,8 @@ La Stage s’ouvre masquée (`show: false`) avec fond noir. Avant de s’affiche
 2. Double `requestAnimationFrame`
 3. Signale `signalStageReady()` au processus main
 
+Le processus main **place la Stage sur le moniteur externe** (TV/projecteur) lorsqu’il est disponible et passe en plein écran ; avec un seul écran elle reste une fenêtre centrée pour ne pas couvrir la Régie. Rouvrir / `P` réapplique le placement.
+
 Ainsi aucun flash de layout brut n’apparaît. Si vous fermez la Stage, **Rouvrir la scène** (`Riapri Palco`) ou la touche **`P`** la recrée et la resynchronise. La fermeture de la Régie ferme aussi la Stage.
 
 ### 7.2 Badge de demi-tons et `showPitchOnStage`
@@ -429,7 +431,8 @@ Dans **Paramètres → Écran scène**, chaque message superposé peut définir 
 
 Réglage **Afficher la vitesse de lecture sur l’écran de scène** (`Mostra velocità di riproduzione sullo schermo del palco`) (`showSpeedOnStage`, typiquement ON par défaut) :
 
-- Affiche le badge de vitesse (ex. **`1.00x`**, **`1.25x`**)
+- Affiche le badge **Vitesse** avec multiplicateur (ex. **`1.00x`**, **`1.25x`**) et BPM effectif
+- L’overlay titre montre aussi le chip `N.NNx` à côté de Key/BPM
 - Description UI : «Visualizza il badge della velocità di riproduzione (es. 1.00x, 1.25x) sullo schermo del palco per il cantante.» (texte d’UI en italien)
 
 ### 7.3 Plein écran et layout
