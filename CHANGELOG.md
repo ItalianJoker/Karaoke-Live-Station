@@ -12,8 +12,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - None yet.
 
 ### Changed
-- **IT:** Tema **Studio Desk** — polish UX (#77 pass 1–5): shell Studio (menu/logo/Stage/QR), Libreria→Locale / Ricerca→Web, transport a sinistra con Velo|Ton|Vol **su una riga** (volume a riempimento), gap MIDI→pannello DSP, video senza header «In Riproduzione», MIDI sempre visibile (disabled se non MIDI/KAR) e **mixer aperto di default** all’avvio di un MIDI/KAR, righe libreria con **azioni sotto il titolo**, SoundFont su riga propria, scrollbar coda, **riavvio al cambio tema Regia**. Regia classica invariata. (PR #77)
-- **EN:** **Studio Desk** theme UX polish (#77 pass 1–5): Studio shell (menu/logo/Stage/QR), Library→Locale / Search→Web, transport left with Speed|Pitch|Volume on **one compact row** (volume fills remainder), gap MIDI→DSP panel, larger video (no Now Playing header), MIDI always visible (disabled when not MIDI/KAR) and **mixer open by default** when a MIDI/KAR track starts, library rows with **actions under the title**, SoundFont on its own line, queue scrollbar, **relaunch on Control Room theme change**. Classic Regia unchanged. (PR #77)
+- **IT:** Tema **Studio Desk** — polish UX (#77 pass 1–6): shell Studio, transport + Velo|Ton|Vol **una riga**, MIDI default-on, libreria con **azioni sotto titolo**, card che **crescono** (niente bottoni tagliati) + gap info→azioni, SoundFont/scrollbar/relaunch. Regia classica invariata. (PR #77)
+- **EN:** **Studio Desk** theme UX polish (#77 pass 1–6): Studio shell, transport + Speed|Pitch|Volume on **one row**, MIDI mixer default-on, library **actions under title**, cards that **grow** (no clipped buttons) + info→actions gap, SoundFont/scrollbar/relaunch. Classic Regia unchanged. (PR #77)
 
 ### Fixed
 - None yet.

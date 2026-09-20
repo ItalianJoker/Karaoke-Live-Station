@@ -99,10 +99,10 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
 
   return (
     <div
-      className="mt-2 flex flex-wrap items-center gap-2 gap-x-3"
+      className="mt-2 flex flex-nowrap items-center gap-x-3 min-w-0"
       data-testid="studio-player-deck"
     >
-      <div className="flex flex-wrap items-center content-center gap-1 shrink-0 max-w-full">
+      <div className="flex flex-nowrap items-center content-center gap-1 shrink-0">
         <button
           type="button"
           onClick={onPlayPause}
@@ -191,13 +191,12 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
       </div>
 
       {/*
-        Single compact row: Velo | Ton | Volume (fills remainder).
-        `flex-nowrap` keeps panel height ≈ adjacent transport buttons.
-        Panel `px-2.5` = equal left/right padding (matches Velocità inset).
+        Single compact row via CSS grid: Velo | Ton | Volume (1fr fills remainder).
+        Panel height ≈ adjacent transport buttons. `px-2.5` = equal end padding.
         Parent `gap-x-3` separates last transport (MIDI) from this panel.
       */}
       <div
-        className="flex flex-nowrap items-center gap-x-3 px-2.5 py-1.5 rounded-xl border border-[color:var(--border-color)] bg-[color:var(--bg-subtle)] flex-1 basis-0 min-w-[14rem]"
+        className="grid grid-cols-[auto_auto_minmax(7rem,1fr)] items-center gap-x-3 px-2.5 py-1.5 rounded-xl border border-[color:var(--border-color)] bg-[color:var(--bg-subtle)] flex-1 min-w-0"
         data-testid="studio-dsp-panel"
       >
         <div className="flex items-center gap-1.5 shrink-0">
@@ -289,13 +288,13 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
         </div>
 
         <div
-          className="flex items-center gap-1.5 flex-1 basis-0 min-w-[7rem]"
+          className="flex flex-nowrap items-center gap-1.5 min-w-0"
           data-testid="studio-volume-row"
         >
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] shrink-0">
             {t('player.volume')}
           </span>
-          <div className="flex items-center gap-1.5 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1.5 py-0.5 flex-1 min-w-0">
+          <div className="flex flex-nowrap items-center gap-1.5 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1.5 py-0.5 flex-1 min-w-0">
             <button
               type="button"
               onClick={() => setPlaybackState({ isMuted: !isMuted })}

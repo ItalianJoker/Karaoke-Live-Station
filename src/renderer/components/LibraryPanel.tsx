@@ -35,7 +35,7 @@ import {
   checkTrackLocalFileExists,
   trackNeedsLocalFileCheck
 } from '../utils/localFileCheck';
-import { computeVirtualWindow } from '../utils/listVirtualization';
+import { computeVirtualWindow, computeVirtualWindowVariable } from '../utils/listVirtualization';
 import { TrackKeyBpmBadges } from './TrackKeyBpmBadges';
 
 function logLibrary(level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown): void {
@@ -48,11 +48,25 @@ function logLibrary(level: 'debug' | 'info' | 'warn' | 'error', message: string,
 
 /** Approx row height incl. vertical gap — keep in sync with list row padding. */
 const LIBRARY_ROW_HEIGHT = 96;
+/** Bottom margin between Studio library cards (px). */
+const STUDIO_LIBRARY_ROW_GAP = 8;
+
 /**
- * Studio Desk (`embedded`): title + meta on first lines, action buttons on a
- * row under the title — taller than classic side-by-side rows.
+ * Studio Desk card stride (content + gap). Cards grow with tags / wrapped titles;
+ * this estimate must stay ≥ visual height so virtualization never clips buttons.
  */
-const STUDIO_LIBRARY_ROW_HEIGHT = 128;
+function estimateStudioLibraryRowStride(track: KaraokeMediaTrack): number {
+  const tags = extractVersionTags(track);
+  // p-3 vertical ≈ 24; title 1–2 lines; meta; optional tag line; mt-2.5 gap; actions; gap
+  let content = 24;
+  content += track.title.length > 42 ? 36 : 18;
+  if (track.title.length > 84) content += 16;
+  content += 20; // artist + chips
+  if (tags.length > 0) content += 20; // version pills (e.g. Strumentale)
+  content += 12; // padding between info and action row
+  content += 40; // action buttons
+  return Math.max(156, content) + STUDIO_LIBRARY_ROW_GAP;
+}
 
 /** Intent to enqueue only after YouTube download + auto-archive succeed. */
 type PendingArchiveEnqueue = {
@@ -857,15 +871,26 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
     return () => ro.disconnect();
   }, [resultsListRef, displayedTracks.length, searchMode]);
 
-  const libraryRowHeight = embedded ? STUDIO_LIBRARY_ROW_HEIGHT : LIBRARY_ROW_HEIGHT;
+  const libraryRowHeight = LIBRARY_ROW_HEIGHT;
+  const studioRowStrides = useMemo(() => {
+    if (!embedded) return null;
+    return displayedTracks.map((t) => estimateStudioLibraryRowStride(t));
+  }, [embedded, displayedTracks]);
 
-  const virtWindow = computeVirtualWindow(
-    listScrollTop,
-    listViewportH,
-    displayedTracks.length,
-    libraryRowHeight,
-    8
-  );
+  const virtWindow = embedded && studioRowStrides
+    ? computeVirtualWindowVariable(
+        listScrollTop,
+        listViewportH,
+        studioRowStrides,
+        8
+      )
+    : computeVirtualWindow(
+        listScrollTop,
+        listViewportH,
+        displayedTracks.length,
+        libraryRowHeight,
+        8
+      );
   const virtualizedTracks = displayedTracks.slice(virtWindow.startIndex, virtWindow.endIndex);
 
   const handleListScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
@@ -1284,14 +1309,19 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
             }}
             data-testid="library-virtual-window"
           >
-          {virtualizedTracks.map((track) => {
+          {virtualizedTracks.map((track, windowIdx) => {
             const versionTags = extractVersionTags(track);
             const isMissing = missingTrackIdSet.has(track.id);
+            const absIndex = virtWindow.startIndex + windowIdx;
+            const studioStride =
+              embedded && studioRowStrides
+                ? studioRowStrides[absIndex] ?? estimateStudioLibraryRowStride(track)
+                : null;
 
             const trackActions = (
               <div
                 className={`flex items-center gap-1.5 sm:gap-2 flex-wrap ${
-                  embedded ? 'mt-1' : 'shrink-0'
+                  embedded ? 'mt-2.5 shrink-0' : 'shrink-0'
                 }`}
                 data-testid={embedded ? 'library-row-actions' : undefined}
               >
@@ -1430,7 +1460,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
               <>
                 <div
                   onClick={() => setPreviewTrack(track)}
-                  className={`font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5 min-w-0 ${
+                  className={`font-semibold text-xs transition-colors cursor-pointer flex items-start gap-1.5 min-w-0 w-full ${
                     embedded ? 'whitespace-normal break-words' : 'truncate'
                   } ${
                     isMissing
@@ -1439,7 +1469,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
                   }`}
                   title={track.title}
                 >
-                  <span className={embedded ? 'min-w-0' : 'truncate'}>{track.title}</span>
+                  <span className={embedded ? 'min-w-0 flex-1' : 'truncate'}>{track.title}</span>
                   {isMissing && (
                     <span
                       className="inline-flex items-center gap-0.5 text-rose-400 shrink-0"
@@ -1475,9 +1505,17 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
             return (
               <div
                 key={track.id}
-                style={{ height: libraryRowHeight - 8, marginBottom: 8 }}
-                className={`p-2.5 sm:p-3 border rounded-2xl flex gap-3 transition-all group/item box-border overflow-hidden ${
-                  embedded ? 'items-start' : 'items-center justify-between'
+                style={
+                  embedded
+                    ? {
+                        // Grow with content; minHeight keeps bottom inset like short cards.
+                        minHeight: (studioStride ?? estimateStudioLibraryRowStride(track)) - STUDIO_LIBRARY_ROW_GAP,
+                        marginBottom: STUDIO_LIBRARY_ROW_GAP
+                      }
+                    : { height: LIBRARY_ROW_HEIGHT - 8, marginBottom: 8 }
+                }
+                className={`p-2.5 sm:p-3 border rounded-2xl flex gap-3 transition-all group/item box-border ${
+                  embedded ? 'items-start overflow-visible' : 'items-center justify-between overflow-hidden'
                 } ${
                   isMissing
                     ? 'bg-rose-950/40 border-rose-500/70 hover:bg-rose-950/55'
@@ -1487,9 +1525,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
                 data-studio-library-row={embedded ? 'true' : undefined}
               >
                 {embedded ? (
-                  <div className="flex items-start gap-3 overflow-hidden min-w-0 flex-1">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
                     {thumb}
-                    <div className="min-w-0 flex-1 flex flex-col">
+                    <div className="min-w-0 flex-1 flex flex-col pb-0.5">
                       {trackMeta}
                       {trackActions}
                     </div>

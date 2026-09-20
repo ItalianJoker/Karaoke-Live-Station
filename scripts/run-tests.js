@@ -4449,11 +4449,11 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
       studioDeckSrc.includes('studio-dsp-panel') &&
       studioDeckSrc.includes('studio-volume-row') &&
       studioDeckSrc.includes('studio-volume-slider') &&
+      studioDeckSrc.includes('grid-cols-[auto_auto_minmax(7rem,1fr)]') &&
       studioDeckSrc.includes('flex-nowrap') &&
-      studioDeckSrc.includes('basis-0') &&
       !studioDeckSrc.includes('w-[9.5rem]') &&
       !studioDeckSrc.includes('flex-col gap-y-1.5'),
-    'Studio deck: single-row DSP panel; volume fills remainder (no wrap)'
+    'Studio deck: single-row DSP grid; volume fills remainder (no wrap)'
   );
   assert(
     controlSrc.includes('setShowStudioMidiMixer(true)') &&
@@ -4466,11 +4466,22 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     'utf8'
   );
   assert(
-    libraryPanelSrc.includes('STUDIO_LIBRARY_ROW_HEIGHT') &&
+    libraryPanelSrc.includes('estimateStudioLibraryRowStride') &&
       libraryPanelSrc.includes('library-row-actions') &&
       libraryPanelSrc.includes('data-studio-library-row') &&
-      libraryPanelSrc.includes('embedded ?'),
-    'Studio library rows: actions under title (embedded Locale/Web)'
+      libraryPanelSrc.includes('mt-2.5') &&
+      libraryPanelSrc.includes('computeVirtualWindowVariable') &&
+      libraryPanelSrc.includes('minHeight') &&
+      libraryPanelSrc.includes('overflow-visible'),
+    'Studio library rows: actions under title, grow height, no clip'
+  );
+  const virtSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/utils/listVirtualization.ts'),
+    'utf8'
+  );
+  assert(
+    virtSrc.includes('computeVirtualWindowVariable'),
+    'Variable-height virtual window helper for Studio library cards'
   );
   assert(
     controlSrc.includes("isStudioDesk ? 'max-h-[40vh]'") ||
