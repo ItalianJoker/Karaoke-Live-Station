@@ -431,8 +431,9 @@ In **Impostazioni → Schermo Stage**, ogni messaggio overlay (Ora Canta, Prepar
 
 Impostazione **Mostra velocità di riproduzione sullo schermo del palco** (`showSpeedOnStage`, default tipicamente ON):
 
-- Mostra il badge **Velocità** con moltiplicatore (es. **`1.00x`**, **`1.25x`**) e BPM effettivo
-- Anche sull’overlay titolo compare il chip `N.NNx` insieme a Key/BPM
+- Mostra il badge in forma parentesi: **`1.00x (103 BPM)`** (moltiplicatore + BPM effettivo; placeholder `— BPM` se sconosciuto)
+- Il badge tonalità usa la stessa forma: **`0 (D)`** / **`+2 (D→E)`** (offset + chiave)
+- Anche sull’overlay titolo compaiono gli stessi chip
 - Descrizione UI: «Visualizza il badge della velocità di riproduzione (es. 1.00x, 1.25x) sullo schermo del palco per il cantante.»
 
 ### 7.3 Fullscreen e layout

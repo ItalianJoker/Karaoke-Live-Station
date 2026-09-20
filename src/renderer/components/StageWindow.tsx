@@ -14,7 +14,6 @@ import { CdgParser } from '../core/CdgParser';
 import { useKaraokeStore } from '../store/karaokeStore';
 import appLogo from '../assets/logo.png';
 import { formatBpmTransition, formatKeyTransition } from '../../shared/musicalKeys';
-import { TrackKeyBpmBadges } from './TrackKeyBpmBadges';
 
 /**
  * StageWindow (Palco / Singer Display)
@@ -468,9 +467,18 @@ export const StageWindow: React.FC = () => {
     playback.playbackSpeed || 1
   );
   const stageBpmUnit = t('player.bpm');
-  const stageBpmDisplay = stageBpmLabel
+  // Parentheses form (Luca): `0 (D)` / `1.00x (103 BPM)` — key/BPM stay visible with placeholders
+  const stagePitchOffsetText =
+    playback.livePitchOffset > 0
+      ? `+${playback.livePitchOffset}`
+      : `${playback.livePitchOffset}`;
+  const stageKeyInParens = stageKeyLabel ?? t('player.keyPlaceholder');
+  const stagePitchBadgeText = `${stagePitchOffsetText} (${stageKeyInParens})`;
+  const stageSpeedRatioText = `${Number(playback.playbackSpeed || 1).toFixed(2)}x`;
+  const stageBpmInParens = stageBpmLabel
     ? `${stageBpmLabel} ${stageBpmUnit}`
     : t('player.bpmPlaceholder', { unit: stageBpmUnit });
+  const stageSpeedBadgeText = `${stageSpeedRatioText} (${stageBpmInParens})`;
 
   const stageMessages = mergeStageMessages(settings?.stageMessages);
   const unassignedMsg = resolveStageMessage(
@@ -643,43 +651,36 @@ export const StageWindow: React.FC = () => {
         </div>
       )}
 
-      {/* Floating pitch/speed badges — stacked to avoid overlap when Key/BPM text is long */}
+      {/* Floating pitch/speed badges — parentheses form: `0 (D)` / `1.00x (103 BPM)` */}
       <div className="absolute top-6 right-6 z-[70] flex flex-col items-end gap-2 pointer-events-none">
         {(settings?.showPitchOnStage ?? true) && (
           <div
-            className="bg-slate-950/95 backdrop-blur-md border border-indigo-500/50 px-4 py-2 rounded-full text-sm font-mono text-indigo-300 font-bold shadow-[0_8px_30px_rgba(0,0,0,0.65)] tracking-wide flex items-center gap-2"
+            className="bg-slate-950/95 backdrop-blur-md border border-indigo-500/50 px-4 py-2 rounded-full text-sm font-mono text-indigo-300 font-bold shadow-[0_8px_30px_rgba(0,0,0,0.65)] tracking-wide"
             data-testid="stage-semitone-badge"
-            aria-label={`Pitch ${playback.livePitchOffset > 0 ? '+' : ''}${playback.livePitchOffset}`}
+            aria-label={`${t('player.pitch')} ${stagePitchBadgeText}`}
           >
-            <span>
-              {playback.livePitchOffset > 0
-                ? `+${playback.livePitchOffset}`
-                : `${playback.livePitchOffset}`}
-            </span>
+            <span data-testid="stage-pitch-offset">{stagePitchOffsetText}</span>
             <span
               className={stageKeyLabel ? 'text-indigo-200' : 'text-slate-500'}
               data-testid="stage-key-label"
             >
-              {stageKeyLabel ?? t('player.keyPlaceholder')}
+              {` (${stageKeyInParens})`}
             </span>
           </div>
         )}
 
         {(settings?.showSpeedOnStage ?? true) && (
           <div
-            className="bg-slate-950/95 backdrop-blur-md border border-emerald-500/50 px-4 py-2 rounded-full text-sm font-mono text-emerald-300 font-bold shadow-[0_8px_30px_rgba(0,0,0,0.65)] tracking-wide flex items-center gap-2"
+            className="bg-slate-950/95 backdrop-blur-md border border-emerald-500/50 px-4 py-2 rounded-full text-sm font-mono text-emerald-300 font-bold shadow-[0_8px_30px_rgba(0,0,0,0.65)] tracking-wide"
             data-testid="stage-speed-badge"
-            aria-label={`${t('player.speed')} ${(playback.playbackSpeed || 1).toFixed(2)}x`}
+            aria-label={`${t('player.speed')} ${stageSpeedBadgeText}`}
           >
-            <span className="text-emerald-200/90 font-sans uppercase tracking-wider text-[10px] md:text-xs">
-              {t('player.speed')}
-            </span>
-            <span data-testid="stage-speed-value">{`${Number(playback.playbackSpeed || 1).toFixed(2)}x`}</span>
+            <span data-testid="stage-speed-value">{stageSpeedRatioText}</span>
             <span
               className={stageBpmLabel ? 'text-emerald-200' : 'text-slate-500'}
               data-testid="stage-bpm-label"
             >
-              {stageBpmDisplay}
+              {` (${stageBpmInParens})`}
             </span>
           </div>
         )}
@@ -697,15 +698,29 @@ export const StageWindow: React.FC = () => {
                 {activeTrack.artist}
               </span>
             )}
-            <TrackKeyBpmBadges
-              className="mt-1"
-              size="md"
-              initialKey={activeTrack.initialKey}
-              initialBpm={activeTrack.initialBpm}
-              pitchOffset={playback.livePitchOffset}
-              speed={playback.playbackSpeed || 1}
-              showSpeedRatio={settings?.showSpeedOnStage ?? true}
-            />
+            <div
+              className="mt-1 inline-flex items-center gap-2 shrink-0"
+              data-testid="stage-title-key-speed"
+            >
+              {(settings?.showPitchOnStage ?? true) && (
+                <span
+                  className="px-2 py-0.5 text-[11px] font-mono font-bold rounded-full border shrink-0 tabular-nums whitespace-nowrap bg-indigo-950/50 text-indigo-300/90 border-indigo-800/50"
+                  title={t('player.pitch')}
+                  data-testid="stage-title-pitch"
+                >
+                  {stagePitchBadgeText}
+                </span>
+              )}
+              {(settings?.showSpeedOnStage ?? true) && (
+                <span
+                  className="px-2 py-0.5 text-[11px] font-mono font-bold rounded-full border shrink-0 tabular-nums whitespace-nowrap bg-emerald-950/50 text-emerald-300/90 border-emerald-800/50"
+                  title={t('player.speed')}
+                  data-testid="stage-title-speed"
+                >
+                  {stageSpeedBadgeText}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}

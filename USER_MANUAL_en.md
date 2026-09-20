@@ -436,8 +436,9 @@ The backdrop applies **only while that message is visible**. When the banner/car
 
 Setting **Show playback speed on stage screen** (`Mostra velocità di riproduzione sullo schermo del palco`) (`showSpeedOnStage`, typically default ON):
 
-- Shows the **Speed** badge with multiplier (e.g. **`1.00x`**, **`1.25x`**) and effective BPM
-- The title overlay also shows an `N.NNx` chip next to Key/BPM
+- Shows the badge in parentheses form: **`1.00x (103 BPM)`** (rate + effective BPM; placeholder `— BPM` when unknown)
+- Pitch badge uses the same form: **`0 (D)`** / **`+2 (D→E)`** (offset + key)
+- Title overlay shows the same chips
 - UI description: «Visualizza il badge della velocità di riproduzione (es. 1.00x, 1.25x) sullo schermo del palco per il cantante.» (Italian UI)
 
 ### 7.3 Fullscreen and layout

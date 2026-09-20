@@ -431,8 +431,9 @@ En **Ajustes → Pantalla de escenario**, cada mensaje superpuesto puede definir
 
 Ajuste **Mostrar velocidad de reproducción en la pantalla del escenario** (`Mostra velocità di riproduzione sullo schermo del palco`) (`showSpeedOnStage`, por defecto típicamente ON):
 
-- Muestra el badge **Velocidad** con multiplicador (p. ej. **`1.00x`**, **`1.25x`**) y BPM efectivo
-- El overlay de título también muestra el chip `N.NNx` junto a Key/BPM
+- Muestra el badge en forma de paréntesis: **`1.00x (103 BPM)`** (multiplicador + BPM efectivo; placeholder `— BPM` si desconocido)
+- El badge de tonalidad usa la misma forma: **`0 (D)`** / **`+2 (D→E)`** (offset + clave)
+- El overlay de título muestra los mismos chips
 - Descripción UI: «Visualizza il badge della velocità di riproduzione (es. 1.00x, 1.25x) sullo schermo del palco per il cantante.» (texto de UI en italiano)
 
 ### 7.3 Pantalla completa y layout

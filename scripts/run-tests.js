@@ -4243,9 +4243,10 @@ console.log('\n\x1b[36m▶ Suite: Pitch/BPM UX + single-instance dialog\x1b[0m')
   assert(
     stageSrc.includes('stage-key-label') &&
       stageSrc.includes('stage-bpm-label') &&
-      stageSrc.includes('TrackKeyBpmBadges') &&
+      stageSrc.includes('stagePitchBadgeText') &&
+      stageSrc.includes('stageSpeedBadgeText') &&
       stageSrc.includes('player.bpm'),
-    'Stage shows Key/BPM on pitch/speed badges and title overlay'
+    'Stage shows Key/BPM in parentheses pitch/speed badges'
   );
 
   assert(
@@ -4432,13 +4433,23 @@ console.log('\n\x1b[36m▶ Suite: Stage live blank fix + speed on Stage\x1b[0m')
   assert(
     stageSrc.includes("t('player.speed')") &&
       stageSrc.includes('stage-speed-value') &&
-      stageSrc.includes('showSpeedRatio') &&
+      stageSrc.includes('stageSpeedBadgeText') &&
+      stageSrc.includes('stagePitchBadgeText') &&
+      stageSrc.includes('stage-title-key-speed') &&
       stageSrc.includes('showSpeedOnStage'),
-    'Stage shows localized Speed label + ratio; title overlay can show speed chip'
+    'Stage shows parentheses Speed/Pitch badges + title overlay chips'
+  );
+  // Explicit parentheses form locks (Luca): `0 (D)` / `1.00x (103 BPM)`
+  assert(
+    stageSrc.includes('(${stageKeyInParens})') &&
+      stageSrc.includes('(${stageBpmInParens})') &&
+      stageSrc.includes('stagePitchBadgeText') &&
+      stageSrc.includes('stageSpeedBadgeText'),
+    'Stage pitch/speed use parentheses form around key and BPM'
   );
   assert(
     badgesSrc.includes('showSpeedRatio') && badgesSrc.includes('track-speed-badge'),
-    'TrackKeyBpmBadges optional speed ratio chip for Stage overlay'
+    'TrackKeyBpmBadges optional speed ratio chip retained for Regia/lists reuse'
   );
 
   for (const lang of ['it', 'en', 'es', 'fr']) {
