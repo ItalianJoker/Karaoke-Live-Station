@@ -31,7 +31,7 @@ export interface StudioPlayerDeckControlsProps {
   onStop: () => void;
   onRestart: () => void;
   onNext: () => void;
-  /** When true, show MIDI mixer toggle beside transport (on-demand column). */
+  /** Enables MIDI mixer toggle when true; button stays visible but disabled otherwise. */
   isMidiTrack?: boolean;
   showMidiMixer?: boolean;
   onToggleMidiMixer?: () => void;
@@ -40,9 +40,10 @@ export interface StudioPlayerDeckControlsProps {
 /**
  * Studio Desk transport + DSP row (opt-in `studio-desk` theme only).
  *
- * Layout: transport (+ MIDI toggle) on the LEFT; Velocità | Tonalità | Volume
- * on the RIGHT (short volume bar). Stage reopen lives in {@link StudioDeskShell}
- * menu footer. Classic {@link PlayerDeckControls} stays unchanged.
+ * Layout: transport (+ always-visible MIDI toggle) on the LEFT; Velocità /
+ * Tonalità / Volume on the RIGHT with **inline** label+control rows so the
+ * panel height matches the adjacent transport buttons. Stage reopen lives in
+ * {@link StudioDeskShell} menu footer. Classic {@link PlayerDeckControls} unchanged.
  */
 export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> = ({
   pitchRange,
@@ -89,13 +90,16 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
     'bg-[color:var(--bg-subtle)] border-[color:var(--border-color)] text-[color:var(--text-muted)] hover:text-[color:var(--text-main)] hover:border-[color:var(--accent)]';
   const transportActive =
     'bg-[color:color-mix(in_srgb,var(--accent)_18%,transparent)] border-[color:var(--accent)] text-[color:var(--accent)]';
+  const transportDisabled =
+    'bg-[color:var(--bg-subtle)] border-[color:var(--border-color)] text-[color:var(--text-muted)] opacity-40 cursor-not-allowed';
+
+  const midiEnabled = Boolean(isMidiTrack && onToggleMidiMixer);
 
   return (
     <div
-      className="mt-2 flex flex-wrap items-stretch gap-2"
+      className="mt-2 flex flex-wrap items-center gap-2"
       data-testid="studio-player-deck"
     >
-      {/* Transport LEFT of pitch/speed/volume — frees vertical space for the scaletta. */}
       <div className="flex flex-wrap items-center content-center gap-1 shrink-0 max-w-full">
         <button
           type="button"
@@ -153,31 +157,41 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
           <Music2 className="w-4 h-4" />
           <span>{t('studio.bgmShort', 'BGM')}</span>
         </button>
-        {isMidiTrack && onToggleMidiMixer && (
-          <button
-            type="button"
-            onClick={onToggleMidiMixer}
-            className={`${transportBtn} ${showMidiMixer ? transportActive : transportIdle}`}
-            title={
-              showMidiMixer
+        {/* Always visible; disabled when current media is not .mid/.kar. */}
+        <button
+          type="button"
+          onClick={() => {
+            if (midiEnabled) onToggleMidiMixer?.();
+          }}
+          disabled={!midiEnabled}
+          aria-disabled={!midiEnabled}
+          className={`${transportBtn} ${
+            !midiEnabled
+              ? transportDisabled
+              : showMidiMixer
+                ? transportActive
+                : transportIdle
+          }`}
+          title={
+            !midiEnabled
+              ? t('studio.midiMixerDisabled', 'MIDI mixer (MIDI/KAR tracks only)')
+              : showMidiMixer
                 ? t('studio.hideMidiMixer', 'Hide MIDI mixer')
                 : t('studio.showMidiMixer', 'Show MIDI mixer')
-            }
-            data-testid="studio-midi-mixer-toggle"
-          >
-            <AudioLines className="w-4 h-4" />
-            <span className="max-w-[4.5rem] truncate">
-              {showMidiMixer
-                ? t('studio.midiMixerShortHide', 'MIDI')
-                : t('studio.midiMixerShortShow', 'MIDI')}
-            </span>
-          </button>
-        )}
+          }
+          data-testid="studio-midi-mixer-toggle"
+        >
+          <AudioLines className="w-4 h-4" />
+          <span className="max-w-[4.5rem] truncate">
+            {t('studio.midiMixerShortShow', 'MIDI')}
+          </span>
+        </button>
       </div>
 
-      <div className="flex flex-wrap items-end gap-2 px-2.5 py-2 rounded-xl border border-[color:var(--border-color)] bg-[color:var(--bg-subtle)] flex-1 min-w-[14rem]">
-        <div className="flex flex-col gap-1 min-w-[6.5rem]">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)]">
+      {/* Inline label + control per row — height matches adjacent transport buttons. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-2.5 py-1.5 rounded-xl border border-[color:var(--border-color)] bg-[color:var(--bg-subtle)] flex-1 min-w-[14rem]">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] shrink-0">
             {t('player.speed')}
             <span
               className={`ml-1 font-mono normal-case ${bpmLabel ? 'text-[color:var(--accent)]' : 'text-[color:var(--text-muted)]'}`}
@@ -187,7 +201,7 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
               {bpmDisplay}
             </span>
           </span>
-          <div className="flex items-center gap-1 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1.5 py-1">
+          <div className="flex items-center gap-1 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1 py-0.5">
             <button
               type="button"
               onClick={() =>
@@ -202,7 +216,7 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
             <button
               type="button"
               onClick={() => setPlaybackSpeed(1.0)}
-              className="font-mono font-bold text-xs min-w-[3.25rem] text-center text-[color:var(--accent)]"
+              className="font-mono font-bold text-xs min-w-[3rem] text-center text-[color:var(--accent)]"
               title="1.00x"
             >
               {playbackSpeed.toFixed(2)}x
@@ -221,8 +235,8 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
           </div>
         </div>
 
-        <div className="flex flex-col gap-1 min-w-[7rem]">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)]">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] shrink-0">
             {t('player.pitch')}
             <span
               className={`ml-1 font-mono normal-case ${keyLabel ? 'text-[color:var(--accent)]' : 'text-[color:var(--text-muted)]'}`}
@@ -232,7 +246,7 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
               {keyDisplay}
             </span>
           </span>
-          <div className="flex items-center gap-1 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1.5 py-1">
+          <div className="flex items-center gap-1 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1 py-0.5">
             <button
               type="button"
               onClick={() => setLivePitch(livePitchOffset - 1)}
@@ -245,7 +259,7 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
             <button
               type="button"
               onClick={() => setLivePitch(0)}
-              className="font-mono font-bold text-xs min-w-[3.75rem] px-1 text-center text-[color:var(--text-main)]"
+              className="font-mono font-bold text-xs min-w-[3.5rem] px-1 text-center text-[color:var(--text-main)]"
               title="0 ST"
               data-testid="studio-pitch-field"
             >
@@ -264,12 +278,11 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
           </div>
         </div>
 
-        {/* Short volume bar — recovered width goes to queue vertical space via shorter deck. */}
-        <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)]">
+        <div className="flex items-center gap-1.5 w-[9.5rem] shrink-0">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] shrink-0">
             {t('player.volume')}
           </span>
-          <div className="flex items-center gap-1.5 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-2 py-1.5">
+          <div className="flex items-center gap-1.5 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1.5 py-0.5 flex-1 min-w-0">
             <button
               type="button"
               onClick={() => setPlaybackState({ isMuted: !isMuted })}

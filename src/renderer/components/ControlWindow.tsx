@@ -949,45 +949,62 @@ export const ControlWindow: React.FC = () => {
 
   const nowPlayingInner = (
     <>
-      <div className="flex items-center justify-between mb-2.5">
-        <span
-          className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-            isStudioDesk ? 'text-[color:var(--accent)]' : 'text-indigo-400'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" /> {t('player.nowPlaying')}
-        </span>
-        <div className="flex items-center gap-2 overflow-hidden">
-          <span className="text-xs text-slate-400 font-mono truncate max-w-xs">
-            {currentTrack
-              ? `${currentTrack.artist} - ${currentTrack.title}`
-              : t('player.noTrackLoaded')}
+      {/* Classic keeps «In Riproduzione» + title; Studio omits them to enlarge the video. */}
+      {!isStudioDesk && (
+        <div className="flex items-center justify-between mb-2.5">
+          <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-indigo-400">
+            <Sparkles className="w-4 h-4" /> {t('player.nowPlaying')}
           </span>
-          {currentTrack &&
-            (currentTrack.source !== 'local_library' ||
-              currentTrack.localFilePath?.includes('queue_cache')) &&
-            currentTrack.localFilePath && (
-              <button
-                type="button"
-                onClick={() => handleSaveToPermanentLibrary(currentTrack)}
-                disabled={savingTrackIds.has(currentTrack.id)}
-                className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-700/60 text-[10px] font-semibold transition-all shrink-0 active:scale-95 shadow-sm"
-                title={t('library.saveToLibrary', 'Salva in Libreria')}
-              >
-                <Download
-                  className={`w-3 h-3 ${savingTrackIds.has(currentTrack.id) ? 'animate-spin' : ''}`}
-                />
-                <span>{t('library.saveToLibrary', 'Salva')}</span>
-              </button>
-            )}
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className="text-xs text-slate-400 font-mono truncate max-w-xs">
+              {currentTrack
+                ? `${currentTrack.artist} - ${currentTrack.title}`
+                : t('player.noTrackLoaded')}
+            </span>
+            {currentTrack &&
+              (currentTrack.source !== 'local_library' ||
+                currentTrack.localFilePath?.includes('queue_cache')) &&
+              currentTrack.localFilePath && (
+                <button
+                  type="button"
+                  onClick={() => handleSaveToPermanentLibrary(currentTrack)}
+                  disabled={savingTrackIds.has(currentTrack.id)}
+                  className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-700/60 text-[10px] font-semibold transition-all shrink-0 active:scale-95 shadow-sm"
+                  title={t('library.saveToLibrary', 'Salva in Libreria')}
+                >
+                  <Download
+                    className={`w-3 h-3 ${savingTrackIds.has(currentTrack.id) ? 'animate-spin' : ''}`}
+                  />
+                  <span>{t('library.saveToLibrary', 'Salva')}</span>
+                </button>
+              )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div
         className={`w-full aspect-video bg-black rounded-xl overflow-hidden relative flex items-center justify-center border border-slate-800 mx-auto ${
-          isStudioDesk ? 'max-h-[28vh]' : 'max-h-[32vh]'
+          isStudioDesk ? 'max-h-[40vh]' : 'max-h-[32vh]'
         }`}
       >
+        {isStudioDesk &&
+          currentTrack &&
+          (currentTrack.source !== 'local_library' ||
+            currentTrack.localFilePath?.includes('queue_cache')) &&
+          currentTrack.localFilePath && (
+            <button
+              type="button"
+              onClick={() => handleSaveToPermanentLibrary(currentTrack)}
+              disabled={savingTrackIds.has(currentTrack.id)}
+              className="absolute top-2 right-2 z-20 flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-700/60 text-[10px] font-semibold transition-all shrink-0 active:scale-95 shadow-sm"
+              title={t('library.saveToLibrary', 'Salva in Libreria')}
+            >
+              <Download
+                className={`w-3 h-3 ${savingTrackIds.has(currentTrack.id) ? 'animate-spin' : ''}`}
+              />
+              <span>{t('library.saveToLibrary', 'Salva')}</span>
+            </button>
+          )}
         <video
           ref={videoRef}
           className="w-full h-full object-contain"

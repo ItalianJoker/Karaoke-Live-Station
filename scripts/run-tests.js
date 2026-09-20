@@ -4435,8 +4435,28 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
   );
   assert(
     studioDeckSrc.includes('studio-midi-mixer-toggle') &&
-      studioDeckSrc.includes('isMidiTrack'),
-    'Studio deck hosts MIDI mixer toggle in transport row'
+      studioDeckSrc.includes('disabled={!midiEnabled}') &&
+      studioDeckSrc.includes('MIDI/KAR'),
+    'Studio deck always shows MIDI toggle (disabled when not MIDI/KAR)'
+  );
+  assert(
+    studioDeckSrc.includes('flex items-center gap-1.5') &&
+      studioDeckSrc.indexOf('player.speed') > studioDeckSrc.indexOf('onPlayPause'),
+    'Studio deck: inline speed/pitch/volume labels beside controls'
+  );
+  assert(
+    controlSrc.includes("isStudioDesk ? 'max-h-[40vh]'") ||
+      controlSrc.includes('max-h-[40vh]'),
+    'Studio now-playing video enlarged (max-h 40vh)'
+  );
+  assert(
+    controlSrc.includes('{!isStudioDesk && (') &&
+      controlSrc.includes("t('player.nowPlaying')"),
+    'Studio omits In Riproduzione header; classic keeps it'
+  );
+  assert(
+    studioShellSrc.includes('mt-3.5') && studioShellSrc.includes('studio-stage-reopen'),
+    'Studio Stage button has extra gap before footer separator'
   );
   assert(
     studioDeckSrc.indexOf('onPlayPause') < studioDeckSrc.indexOf('player.speed') ||

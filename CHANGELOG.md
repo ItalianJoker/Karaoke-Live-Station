@@ -12,8 +12,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - None yet.
 
 ### Changed
-- **IT:** Tema **Studio Desk** — polish UX (#77): colonna Libreria/Storico larga, «Impostazioni» corta, logo + gap, menu senza Coda/DSP, Stage pill verde/rosso (come Dark Stage), QR+Scorciatoie in footer, Download portal, Libreria→Locale / Ricerca→Web, transport a sinistra di Velo|Ton|Vol (volume corto), MIDI nel transport, SoundFont su riga propria, scrollbar coda, **riavvio app al cambio tema Regia**. Regia classica invariata. (PR #77)
-- **EN:** **Studio Desk** theme UX polish (#77): wider library/history column, short Settings label, logo + gap, menu without Queue/DSP, Stage pill green/red (Dark Stage parity), QR+Shortcuts in footer, Download portal, Library→Locale / Search→Web, transport left of Speed|Pitch|Volume (short volume), MIDI in transport, SoundFont on its own line, queue scrollbar, **app relaunch on Control Room theme change**. Classic Regia unchanged. (PR #77)
+- **IT:** Tema **Studio Desk** — polish UX (#77 pass 1–3): shell Studio (menu/logo/Stage/QR), Libreria→Locale / Ricerca→Web, transport a sinistra con Velo|Ton|Vol **inline**, video senza header «In Riproduzione», MIDI sempre visibile (disabled se non MIDI/KAR), SoundFont su riga propria, scrollbar coda, **riavvio al cambio tema Regia**. Regia classica invariata. (PR #77)
+- **EN:** **Studio Desk** theme UX polish (#77 pass 1–3): Studio shell (menu/logo/Stage/QR), Library→Locale / Search→Web, transport left with **inline** Speed|Pitch|Volume, larger video (no Now Playing header), MIDI always visible (disabled when not MIDI/KAR), SoundFont on its own line, queue scrollbar, **relaunch on Control Room theme change**. Classic Regia unchanged. (PR #77)
 
 ### Fixed
 - None yet.

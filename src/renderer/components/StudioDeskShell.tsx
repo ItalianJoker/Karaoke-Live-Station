@@ -307,7 +307,7 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
           })}
         </nav>
 
-        <div className="pt-2 mt-2 shrink-0 space-y-1">
+        <div className="pt-2 mt-2 shrink-0">
           {/* Match classic Dark Stage header Stage pill: green active / red inactive + status dot. */}
           <button
             type="button"
@@ -332,7 +332,8 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
             </span>
           </button>
 
-          <div className="border-t border-[color:var(--border-subtle)] pt-2 space-y-1">
+          {/* Slightly more gap under Stage before the footer separator (Luca pass 3). */}
+          <div className="border-t border-[color:var(--border-subtle)] mt-3.5 pt-2 space-y-1">
             <button
               type="button"
               onClick={() => selectNav('qr')}

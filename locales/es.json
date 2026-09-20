@@ -448,6 +448,7 @@
     "vocalShort": "Quitar voz guía",
     "bgmShort": "BGM",
     "midiMixerShortShow": "MIDI",
-    "midiMixerShortHide": "MIDI"
+    "midiMixerShortHide": "MIDI",
+    "midiMixerDisabled": "Mezclador MIDI (solo pistas MIDI/KAR)"
   }
 }
