@@ -6,6 +6,22 @@
     "stageWindow": "Stage Screen",
     "reopenStage": "Reopen Stage"
   },
+  "regia": {
+    "railAria": "Regia navigation",
+    "railLibrary": "Library",
+    "railSearch": "Search",
+    "railQueue": "Queue",
+    "railHistory": "History",
+    "railStage": "Stage",
+    "railSingers": "Singers",
+    "railDownloads": "Downloads",
+    "railHelp": "Help",
+    "railDsp": "DSP",
+    "railSettings": "Settings",
+    "guestQrTitle": "Guest Portal QR",
+    "guestQrLoading": "Open QR…",
+    "showGuestQr": "Show Guest Portal QR code"
+  },
   "player": {
     "play": "Play",
     "pause": "Pause",

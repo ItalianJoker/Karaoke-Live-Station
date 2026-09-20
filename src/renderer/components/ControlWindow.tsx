@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import {
   Mic,
   Music,
-  Sliders,
   Sparkles,
   QrCode,
   Trash2,
@@ -22,7 +21,9 @@ import {
   XCircle,
   HelpCircle,
   Info,
-  AudioLines
+  AudioLines,
+  Monitor,
+  ListMusic
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { AudioGraphManager } from '../core/AudioGraphManager';
@@ -71,24 +72,14 @@ function logControl(level: 'debug' | 'info' | 'warn' | 'error', message: string,
  *
  * This is the primary mission-control window used by the karaoke operator/DJ.
  * Key responsibilities:
- * 1. Audio & Video Playback:
- *    - Hosts the hidden/docked `<video>` element for MP4/WEBM tracks.
- *    - Integrates with AudioGraphManager for real-time Web Audio DSP (pitch shifting in semitones,
- *      vocal cancellation via center-channel attenuation, mic ducking, and SpessaSynth MIDI synthesis).
- * 2. Stage Sync Dispatch:
- *    - Continuously transmits authoritative playback state (currentTime, isPlaying, duration, pitch)
- *      and queue updates to the separate audience-facing StageWindow via Electron IPC.
- * 3. Fair Queue & Singer Management:
- *    - Renders the fair-queue rotation with live singer combobox auto-complete and search.
- *    - Allows manual track jumps, per-track pitch pre-adjustment, and instant queue manipulation.
- * 4. Timeline Scrubbing & Seeking:
- *    - Interactive progress bar with real-time frame seeking and synchronized timecode broadcasts.
- * 5. Headphone CUE & Library Management:
- *    - Independent CUE preview routing to secondary soundcards for pre-listening tracks.
- *    - Integrated local SQLite database search and yt-dlp web downloader with live progress updates.
- * 6. Historical Execution Log & SIAE Reporting:
- *    - Dedicated History tab tracking completed song executions with performer names, timestamps, and durations.
- *    - 1-click SIAE / copyright CSV borderò export and persistent execution clearing.
+ * Shell layout (Regia column swap):
+ *   1. Brand/QR column (logo + Guest Portal QR; no title-bar header, no stage message).
+ *   2. Work panels (Queue / Library / History — former right column, now first content zone).
+ *   3. Now Playing + PlayerDeckControls (former left column — transport, Key/BPM, vocal/BGM).
+ *   4. Icon rail (nav + Download + Settings + Stage reopen — former header actions).
+ *
+ * Audio/video, Stage sync, fair queue, scrubbing, CUE, and SIAE history behavior are unchanged;
+ * only chrome placement moves. No waveform / Loop / Previous transport controls.
  */
 export const ControlWindow: React.FC = () => {
   const { t } = useTranslation();
@@ -109,7 +100,7 @@ export const ControlWindow: React.FC = () => {
   );
   const downloadsMenuRef = useRef<HTMLDivElement>(null);
 
-  // View tabs on right panel: 'queue' | 'library' | 'history'
+  // Work-panel view driven by icon rail: 'queue' | 'library' | 'history'
   const [activeRightTab, setActiveRightTab] = useState<'queue' | 'library' | 'history'>(() => {
     try {
       const saved = sessionStorage.getItem('kls.control.activeRightTab');
@@ -876,131 +867,396 @@ export const ControlWindow: React.FC = () => {
 
   return (
     <div className="h-screen max-h-screen app-control-container flex flex-col font-sans select-none overflow-hidden">
-      {/* Top Navigation Bar - Material Design 3 Elevated Surface */}
-      <header className="h-14 shrink-0 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-6 flex items-center justify-between shadow-sm z-20">
-        <div className="flex items-center gap-3">
-          <img
-            src={appLogo}
-            alt="Karaoke Live Station"
-            className="w-10 h-10 object-contain drop-shadow-[0_2px_8px_rgba(99,102,241,0.35)] shrink-0"
-          />
-          <div>
-            <h1 className="font-extrabold text-sm tracking-wide text-white">{t('app.title')}</h1>
-            <p className="text-[10px] text-slate-400 font-medium">{t('app.subtitle')}</p>
-          </div>
-        </div>
+      {/*
+        Regia shell after column swap (Safety-First layout only):
+        [Brand + QR + work panels] | [Now Playing + deck] | [Icon rail]
+        Header title-bar chrome removed; Download lives on the rail.
+      */}
+      <main className="flex-1 min-h-0 p-3 md:p-3.5 flex gap-3 md:gap-3.5 overflow-hidden">
+        {/* FIRST column (former right / right-stack intent): logo + QR, no anteprima, no messaggio stage */}
+        <section
+          className="w-[min(100%,20rem)] sm:w-[22rem] lg:w-[24rem] xl:w-[26rem] shrink-0 flex flex-col h-full min-h-0 overflow-hidden gap-3"
+          data-testid="regia-brand-column"
+        >
+          <div className="shrink-0 bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-lg flex flex-col gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <img
+                src={appLogo}
+                alt={t('app.title')}
+                className="w-12 h-12 object-contain drop-shadow-[0_2px_8px_rgba(99,102,241,0.35)] shrink-0"
+              />
+              <div className="min-w-0">
+                <h1 className="font-extrabold text-sm tracking-wide text-white truncate">{t('app.title')}</h1>
+                <p className="text-[10px] text-slate-400 font-medium leading-snug line-clamp-2">{t('app.subtitle')}</p>
+              </div>
+            </div>
 
-        <div className="flex items-center gap-2">
-          {/* Stage Window Status / Auto-Recovery pill */}
+            <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                <QrCode className="w-3.5 h-3.5" />
+                {t('regia.guestQrTitle')}
+              </span>
+              {portalInfo.qrCode ? (
+                <button
+                  type="button"
+                  onClick={() => setShowPortalQrModal(true)}
+                  className="bg-white p-2 rounded-xl shadow-md border border-white/20 hover:scale-[1.02] transition-transform active:scale-95"
+                  title={t('regia.showGuestQr')}
+                >
+                  <img
+                    src={portalInfo.qrCode}
+                    alt={t('regia.guestQrTitle')}
+                    className="w-36 h-36 object-contain"
+                    data-testid="regia-inline-qr"
+                  />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowPortalQrModal(true)}
+                  className="w-36 h-36 rounded-xl bg-slate-900 border border-slate-800 flex flex-col items-center justify-center gap-2 text-[11px] text-slate-500 hover:border-indigo-500/40 hover:text-slate-300 transition-colors"
+                  title={t('regia.showGuestQr')}
+                >
+                  <QrCode className="w-8 h-8 opacity-40" />
+                  {t('regia.guestQrLoading')}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowGuestModal(true)}
+                className="relative w-full px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95"
+              >
+                <Smartphone className="w-4 h-4 text-indigo-400" />
+                {t('guestRequests.badge')}
+                {pendingRequests.length > 0 && (
+                  <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-bounce shadow-sm">
+                    {pendingRequests.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Work panels (Queue / Library / History) — stay mounted for Zero Regression */}
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-slate-900/40 border border-slate-800/80 rounded-2xl p-2.5">
+            <div className={activeRightTab === 'queue' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
+              <QueueList
+                isPlaying={playback.isPlaying}
+                enableFairQueue={Boolean(settings.enableFairQueue)}
+                queueFileDropActive={queueFileDropActive}
+                setQueueFileDropActive={setQueueFileDropActive}
+                onOsFileDrop={(files) => { void handleOsQueueFileDrop(files); }}
+                onPlayPause={() => { void handlePlayPause(); }}
+                onStop={handleStop}
+                onJumpToTrack={(index) => { void handleJumpToTrack(index); }}
+                onSaveToPermanentLibrary={handleSaveToPermanentLibrary}
+                savingTrackIds={savingTrackIds}
+                onEditSinger={(item) => {
+                  setEditingSingerItem(item);
+                  setEditingSingerText(item.assignedSingerName || '');
+                }}
+              />
+            </div>
+
+            <div className={activeRightTab === 'library' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
+              <LibraryPanel
+                onPlayCue={handlePlayCue}
+                onStopCue={handleStopCue}
+                activeCueUri={activeCueUri}
+                searchInputRef={searchInputRef}
+              />
+            </div>
+
+            <div className={activeRightTab === 'history' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
+              <HistoryPanel />
+            </div>
+          </div>
+        </section>
+
+        {/* CENTER / former left column: Now Playing + deck (vocal/BGM stay in player) */}
+        <section className="flex-1 min-w-0 flex flex-col h-full min-h-0 overflow-y-auto pr-0.5 gap-3">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl relative">
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4" /> {t('player.nowPlaying')}
+              </span>
+              <div className="flex items-center gap-2 overflow-hidden">
+                <span className="text-xs text-slate-400 font-mono truncate max-w-xs">
+                  {currentTrack ? `${currentTrack.artist} - ${currentTrack.title}` : t('player.noTrackLoaded')}
+                </span>
+                {currentTrack && (currentTrack.source !== 'local_library' || currentTrack.localFilePath?.includes('queue_cache')) && currentTrack.localFilePath && (
+                  <button
+                    type="button"
+                    onClick={() => handleSaveToPermanentLibrary(currentTrack)}
+                    disabled={savingTrackIds.has(currentTrack.id)}
+                    className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-700/60 text-[10px] font-semibold transition-all shrink-0 active:scale-95 shadow-sm"
+                    title={t('library.saveToLibrary', 'Salva in Libreria')}
+                  >
+                    <Download className={`w-3 h-3 ${savingTrackIds.has(currentTrack.id) ? 'animate-spin' : ''}`} />
+                    <span>{t('library.saveToLibrary', 'Salva')}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Video preview element */}
+            <div className="w-full aspect-video max-h-[36vh] bg-black rounded-xl overflow-hidden relative flex items-center justify-center border border-slate-800 mx-auto">
+              <video
+                ref={videoRef}
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  const mediaErr = e.currentTarget.error;
+                  window.karaokeApi?.logger?.log('error', 'ControlWindow:Video', 'Media playback error', {
+                    code: mediaErr?.code,
+                    message: mediaErr?.message,
+                    src: e.currentTarget.currentSrc
+                  });
+                  const track = useKaraokeStore.getState().queue[0]?.track;
+                  const queueId = useKaraokeStore.getState().queue[0]?.queueId;
+                  if (track && trackNeedsLocalFileCheck(track)) {
+                    pauseResetForMissingFile();
+                    openMissingForQueueItem(
+                      track,
+                      track.localFilePath || e.currentTarget.currentSrc || '',
+                      queueId
+                    );
+                  }
+                }}
+                onLoadedMetadata={(e) => {
+                  const video = e.currentTarget;
+                  video.preservesPitch = true;
+                  (video as any).mozPreservesPitch = true;
+                  (video as any).webkitPreservesPitch = true;
+                  video.playbackRate = playback.playbackSpeed;
+                  audioGraphRef.current?.bindMediaElement(video);
+                  audioGraphRef.current?.setPitchOffset(playback.livePitchOffset);
+                  audioGraphRef.current?.setPlaybackSpeed(playback.playbackSpeed);
+                }}
+                onPlay={(e) => {
+                  const video = e.currentTarget;
+                  video.preservesPitch = true;
+                  (video as any).mozPreservesPitch = true;
+                  (video as any).webkitPreservesPitch = true;
+                  video.playbackRate = playback.playbackSpeed;
+                  audioGraphRef.current?.initContext();
+                }}
+                onTimeUpdate={() => {
+                  if (videoRef.current) {
+                    setPlaybackState({
+                      currentTime: videoRef.current.currentTime,
+                      duration: videoRef.current.duration || playback.duration || 0
+                    });
+                  }
+                }}
+                onEnded={() => {
+                  advanceToNextTrack({ naturalEnd: true });
+                }}
+              />
+              {playback.activeLyricsText && (
+                <div className="absolute inset-0 flex items-center justify-center p-4 text-center pointer-events-none bg-black/40 backdrop-blur-[1px] z-10">
+                  <span className="text-base md:text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-400 to-indigo-300 drop-shadow-md">
+                    {playback.activeLyricsText}
+                  </span>
+                </div>
+              )}
+              {!playback.isPlaying && currentTrack && !playback.activeLyricsText && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-slate-950/85 backdrop-blur-[2px] z-10 pointer-events-none select-none animate-fadeIn">
+                  <span className="text-[10px] uppercase tracking-widest text-indigo-400 font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 mb-1.5 inline-flex items-center gap-1">
+                    <Mic className="w-3 h-3" /> {t('banner.upNextOnStage')}
+                  </span>
+                  <span className="text-base md:text-lg font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-pink-400 to-indigo-300 line-clamp-1">
+                    {currentQueueItem?.assignedSingerName || t('banner.nextSingerUnassigned')}
+                  </span>
+                  <span className="text-xs text-white font-semibold line-clamp-1 mt-0.5">
+                    {currentTrack.title}
+                  </span>
+                  {currentTrack.artist && (
+                    <span className="text-[11px] text-slate-400 font-medium line-clamp-1">
+                      {currentTrack.artist}
+                    </span>
+                  )}
+                  {currentQueueItem?.pitchOffset !== 0 && (
+                    <span className="text-[10px] font-mono text-amber-400 mt-1 font-semibold">
+                      {t('guestRequests.pitch')}: {currentQueueItem.pitchOffset > 0 ? `+${currentQueueItem.pitchOffset}` : currentQueueItem.pitchOffset}
+                    </span>
+                  )}
+                </div>
+              )}
+              {!currentTrack && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-slate-500 text-xs gap-2.5 pointer-events-none">
+                  <Music className="w-10 h-10 opacity-30" />
+                  <span className="max-w-xs leading-relaxed">{t('queue.empty')}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Scrubbing Bar — no waveform chrome */}
+            <div className="mt-3">
+              <div className="flex justify-between text-[10px] text-slate-400 font-mono mb-1">
+                <span>{formatTime(isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime)}</span>
+                <span>{formatTime(playback.duration)}</span>
+              </div>
+              <div className="relative flex items-center py-1.5 cursor-pointer group">
+                <input
+                  type="range"
+                  min="0"
+                  max={playback.duration || 100}
+                  step="0.25"
+                  value={isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime}
+                  onPointerDown={(e) => {
+                    setIsScrubbing(true);
+                    setScrubTime(parseFloat(e.currentTarget.value));
+                  }}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setScrubTime(val);
+                    if (!isScrubbing) {
+                      handleSeek(val);
+                    }
+                  }}
+                  onPointerUp={(e) => {
+                    const val = parseFloat(e.currentTarget.value);
+                    handleSeek(val);
+                    setIsScrubbing(false);
+                    setScrubTime(null);
+                  }}
+                  className="w-full h-2 rounded-lg cursor-pointer transition-all appearance-none focus:outline-none"
+                  style={{
+                    background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${
+                      playback.duration > 0
+                        ? (((isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime) / playback.duration) * 100).toFixed(2)
+                        : 0
+                    }%, #1e293b ${
+                      playback.duration > 0
+                        ? (((isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime) / playback.duration) * 100).toFixed(2)
+                        : 0
+                    }%, #1e293b 100%)`
+                  }}
+                />
+              </div>
+            </div>
+
+            <PlayerDeckControls
+              pitchRange={pitchRange}
+              speedRange={speedRange}
+              dspEngine={coerceDspPitchEngine(settings.dspEngine)}
+              onPlayPause={() => { void handlePlayPause(); }}
+              onStop={handleStop}
+              onRestart={handleRestart}
+              onNext={() => advanceToNextTrack()}
+            />
+          </div>
+
+          {isMidiTrack && (
+            <MidiChannelMixer onToggleMuteChannel={toggleMidiChannelMute} />
+          )}
+        </section>
+
+        {/* LAST column: icon rail (nav + Download — former header / mockup first rail) */}
+        <nav
+          className="w-[4.25rem] shrink-0 flex flex-col h-full min-h-0 bg-slate-900/90 border border-slate-800 rounded-2xl py-2 px-1 gap-0.5 overflow-y-auto shadow-lg"
+          data-testid="regia-icon-rail"
+          aria-label={t('regia.railAria')}
+        >
+          {(
+            [
+              {
+                id: 'library',
+                label: t('regia.railLibrary'),
+                icon: Layers,
+                active: activeRightTab === 'library',
+                onClick: () => setActiveRightTab('library')
+              },
+              {
+                id: 'search',
+                label: t('regia.railSearch'),
+                icon: Search,
+                active: activeRightTab === 'library',
+                onClick: () => {
+                  setActiveRightTab('library');
+                  requestAnimationFrame(() => searchInputRef.current?.focus());
+                }
+              },
+              {
+                id: 'queue',
+                label: t('regia.railQueue'),
+                icon: ListMusic,
+                active: activeRightTab === 'queue',
+                onClick: () => setActiveRightTab('queue')
+              },
+              {
+                id: 'history',
+                label: t('regia.railHistory'),
+                icon: History,
+                active: activeRightTab === 'history',
+                onClick: () => setActiveRightTab('history')
+              }
+            ] as const
+          ).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={item.onClick}
+              className={`flex flex-col items-center gap-0.5 w-full px-1 py-2 rounded-lg text-[9px] font-semibold transition-all active:scale-95 ${
+                item.active
+                  ? 'bg-indigo-600/90 text-white shadow-md shadow-indigo-600/25'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
+              }`}
+              title={item.label}
+            >
+              <item.icon className="w-4 h-4 shrink-0" />
+              <span className="leading-tight text-center line-clamp-2">{item.label}</span>
+            </button>
+          ))}
+
+          <div className="h-px bg-slate-800 my-1 mx-1 shrink-0" />
+
           <button
             type="button"
             onClick={() => window.karaokeApi?.reopenStageWindow()}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 border shadow-sm transition-all duration-200 active:scale-95 ${
+            className={`flex flex-col items-center gap-0.5 w-full px-1 py-2 rounded-lg text-[9px] font-semibold transition-all active:scale-95 ${
               stageOpen
-                ? 'bg-emerald-950/40 border-emerald-800/70 text-emerald-400 hover:bg-emerald-900/50'
-                : 'bg-red-950/40 border-red-800/70 text-red-400 animate-pulse hover:bg-red-900/50'
+                ? 'text-emerald-400 hover:bg-emerald-950/40'
+                : 'text-red-400 animate-pulse hover:bg-red-950/40'
             }`}
+            title={stageOpen ? t('app.stageWindow') : t('app.reopenStage')}
           >
-            <span className={`w-2 h-2 rounded-full ${stageOpen ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 'bg-red-400'}`} />
-            {stageOpen ? t('app.stageWindow') : 'Riapri Palco'}
+            <Monitor className="w-4 h-4 shrink-0" />
+            <span className="leading-tight text-center line-clamp-2">
+              {stageOpen ? t('regia.railStage') : t('app.reopenStage')}
+            </span>
           </button>
 
-          {/* Guest Requests Badge & Modal trigger */}
-          <button
-            type="button"
-            onClick={() => setShowGuestModal(true)}
-            className="relative px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm flex items-center gap-1.5 transition-all duration-200 active:scale-95"
-          >
-            <Smartphone className="w-4 h-4 text-indigo-400" />
-            Richieste Guest
-            {pendingRequests.length > 0 && (
-              <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full animate-bounce shadow-sm">
-                {pendingRequests.length}
-              </span>
-            )}
-          </button>
-
-          {/* Guest Portal QR Code */}
-          <button
-            type="button"
-            onClick={() => setShowPortalQrModal(true)}
-            className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95"
-            title="Mostra QR Code Guest Portal"
-          >
-            <QrCode className="w-4 h-4 text-indigo-400" />
-          </button>
-
-          {/* Gestione Cantanti */}
           <button
             type="button"
             onClick={() => setShowSingersModal(true)}
-            className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm flex items-center gap-1.5 transition-all duration-200 active:scale-95"
+            className="flex flex-col items-center gap-0.5 w-full px-1 py-2 rounded-lg text-[9px] font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 transition-all active:scale-95"
+            title={t('singers.title')}
           >
-            <Users className="w-4 h-4 text-amber-400" />
-            Cantanti
+            <Users className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="leading-tight text-center line-clamp-2">{t('regia.railSingers')}</span>
           </button>
 
-          {/* Scorciatoie + DSP engine comparison (HelpCircle / Info) */}
-          <div className="relative flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setShowShortcutsModal(true)}
-              className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95"
-              title={t('shortcuts.title', 'Scorciatoie da Tastiera') + ' (F1 / ?)'}
-            >
-              <HelpCircle className="w-4 h-4 text-indigo-400 hover:text-indigo-300" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowDspCompare((v) => !v)}
-              className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95"
-              title={t('settings.dspEngineCompareTitle')}
-              aria-expanded={showDspCompare}
-            >
-              <Info className="w-4 h-4 text-cyan-400 hover:text-cyan-300" />
-            </button>
-            {showDspCompare && (
-              <div className="absolute right-0 top-full mt-2 w-80 z-50 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 space-y-2 text-[11px] text-slate-300">
-                <div className="flex items-center gap-1.5 text-cyan-400 font-bold uppercase tracking-wider text-[10px]">
-                  <AudioLines className="w-3.5 h-3.5" />
-                  {t('settings.dspEngineCompareTitle')}
-                </div>
-                <p className="leading-relaxed">{t('settings.dspEngineCompareBody')}</p>
-                <ul className="space-y-1.5 list-none pl-0">
-                  <li>
-                    <span className="text-indigo-300 font-semibold">Signalsmith</span>
-                    {' — '}
-                    {t('settings.dspEngineSignalsmithBlurb')}
-                  </li>
-                  <li>
-                    <span className="text-amber-300 font-semibold">SoundTouch</span>
-                    {' — '}
-                    {t('settings.dspEngineSoundTouchBlurb')}
-                  </li>
-                </ul>
-                <p className="text-slate-500 leading-relaxed">{t('settings.dspEngineMidiNote')}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Downloads menu — active/queued progress (replaces alert list above library rows) */}
-          <div className="relative" ref={downloadsMenuRef}>
+          {/* Downloads menu on rail — was header-only; keep accessible after header removal */}
+          <div className="relative w-full" ref={downloadsMenuRef}>
             <button
               type="button"
               onClick={() => setShowDownloadsMenu((v) => !v)}
-              className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95 relative"
+              className="relative flex flex-col items-center gap-0.5 w-full px-1 py-2 rounded-lg text-[9px] font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 transition-all active:scale-95"
               title={t('library.downloadsMenu')}
               aria-expanded={showDownloadsMenu}
+              data-testid="regia-rail-downloads"
             >
-              <Download className="w-4 h-4 text-cyan-400 hover:text-cyan-300" />
+              <Download className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span className="leading-tight text-center line-clamp-2">{t('regia.railDownloads')}</span>
               {Object.keys(headerDownloads).length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 flex items-center justify-center">
+                <span className="absolute top-1 right-1 min-w-[1rem] h-4 px-1 rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 flex items-center justify-center">
                   {Object.keys(headerDownloads).length}
                 </span>
               )}
             </button>
             {showDownloadsMenu && (
-              <div className="absolute right-0 mt-2 w-80 max-h-80 overflow-y-auto z-50 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 space-y-2.5">
+              <div className="absolute right-full top-0 mr-2 w-80 max-h-80 overflow-y-auto z-50 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 space-y-2.5">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5">
                     <Download className="w-3.5 h-3.5" /> {t('library.downloadsMenu')}
@@ -1166,285 +1422,69 @@ export const ControlWindow: React.FC = () => {
             )}
           </div>
 
-          {/* Impostazioni Sistema */}
+          <div className="relative w-full">
+            <button
+              type="button"
+              onClick={() => setShowShortcutsModal(true)}
+              className="flex flex-col items-center gap-0.5 w-full px-1 py-2 rounded-lg text-[9px] font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 transition-all active:scale-95"
+              title={t('shortcuts.title', 'Scorciatoie da Tastiera') + ' (F1 / ?)'}
+            >
+              <HelpCircle className="w-4 h-4 text-indigo-400 shrink-0" />
+              <span className="leading-tight text-center line-clamp-2">{t('regia.railHelp')}</span>
+            </button>
+          </div>
+
+          <div className="relative w-full">
+            <button
+              type="button"
+              onClick={() => setShowDspCompare((v) => !v)}
+              className="flex flex-col items-center gap-0.5 w-full px-1 py-2 rounded-lg text-[9px] font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 transition-all active:scale-95"
+              title={t('settings.dspEngineCompareTitle')}
+              aria-expanded={showDspCompare}
+            >
+              <Info className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span className="leading-tight text-center line-clamp-2">{t('regia.railDsp')}</span>
+            </button>
+            {showDspCompare && (
+              <div className="absolute right-full top-0 mr-2 w-80 z-50 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 space-y-2 text-[11px] text-slate-300">
+                <div className="flex items-center gap-1.5 text-cyan-400 font-bold uppercase tracking-wider text-[10px]">
+                  <AudioLines className="w-3.5 h-3.5" />
+                  {t('settings.dspEngineCompareTitle')}
+                </div>
+                <p className="leading-relaxed">{t('settings.dspEngineCompareBody')}</p>
+                <ul className="space-y-1.5 list-none pl-0">
+                  <li>
+                    <span className="text-indigo-300 font-semibold">Signalsmith</span>
+                    {' — '}
+                    {t('settings.dspEngineSignalsmithBlurb')}
+                  </li>
+                  <li>
+                    <span className="text-amber-300 font-semibold">SoundTouch</span>
+                    {' — '}
+                    {t('settings.dspEngineSoundTouchBlurb')}
+                  </li>
+                </ul>
+                <p className="text-slate-500 leading-relaxed">{t('settings.dspEngineMidiNote')}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 min-h-2" />
+
           <button
             type="button"
             onClick={() => setShowSettingsModal(true)}
-            className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95"
+            className="flex flex-col items-center gap-0.5 w-full px-1 py-2 rounded-lg text-[9px] font-semibold text-slate-400 hover:text-white hover:bg-slate-800/70 transition-all active:scale-95 mt-auto"
             title={t('settings.title')}
           >
-            <Settings className="w-4 h-4 text-slate-400 hover:text-white" />
+            <Settings className="w-4 h-4 shrink-0" />
+            <span className="leading-tight text-center line-clamp-2">{t('regia.railSettings')}</span>
           </button>
-        </div>
-      </header>
-
-      {/* Main Studio Grid */}
-      <main className="flex-1 min-h-0 p-3.5 md:p-4 grid grid-cols-12 gap-3.5 md:gap-4 overflow-hidden">
-        {/* Left Column: Player & DSP Controls (7 Cols) */}
-        <section className="col-span-12 lg:col-span-7 flex flex-col h-full min-h-0 overflow-y-auto pr-1 gap-3">
-          {/* Active Screen Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl relative">
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4" /> {t('player.nowPlaying')}
-              </span>
-              <div className="flex items-center gap-2 overflow-hidden">
-                <span className="text-xs text-slate-400 font-mono truncate max-w-xs">
-                  {currentTrack ? `${currentTrack.artist} - ${currentTrack.title}` : t('player.noTrackLoaded')}
-                </span>
-                {currentTrack && (currentTrack.source !== 'local_library' || currentTrack.localFilePath?.includes('queue_cache')) && currentTrack.localFilePath && (
-                  <button
-                    type="button"
-                    onClick={() => handleSaveToPermanentLibrary(currentTrack)}
-                    disabled={savingTrackIds.has(currentTrack.id)}
-                    className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-700/60 text-[10px] font-semibold transition-all shrink-0 active:scale-95 shadow-sm"
-                    title={t('library.saveToLibrary', 'Salva in Libreria')}
-                  >
-                    <Download className={`w-3 h-3 ${savingTrackIds.has(currentTrack.id) ? 'animate-spin' : ''}`} />
-                    <span>{t('library.saveToLibrary', 'Salva')}</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Video preview element */}
-            <div className="w-full aspect-video max-h-[32vh] bg-black rounded-xl overflow-hidden relative flex items-center justify-center border border-slate-800 mx-auto">
-              <video
-                ref={videoRef}
-                className="w-full h-full object-contain"
-                onError={(e) => {
-                  const mediaErr = e.currentTarget.error;
-                  window.karaokeApi?.logger?.log('error', 'ControlWindow:Video', 'Media playback error', {
-                    code: mediaErr?.code,
-                    message: mediaErr?.message,
-                    src: e.currentTarget.currentSrc
-                  });
-                  // Mid-session USB unplug / deleted file — surface MissingFileModal (no uncaught rejection)
-                  const track = useKaraokeStore.getState().queue[0]?.track;
-                  const queueId = useKaraokeStore.getState().queue[0]?.queueId;
-                  if (track && trackNeedsLocalFileCheck(track)) {
-                    pauseResetForMissingFile();
-                    openMissingForQueueItem(
-                      track,
-                      track.localFilePath || e.currentTarget.currentSrc || '',
-                      queueId
-                    );
-                  }
-                }}
-                onLoadedMetadata={(e) => {
-                  const video = e.currentTarget;
-                  video.preservesPitch = true;
-                  (video as any).mozPreservesPitch = true;
-                  (video as any).webkitPreservesPitch = true;
-                  // Hi-Fi (Signalsmith) + SoundTouch: media element drives tempo; Hi-Fi compensates pitch.
-                  video.playbackRate = playback.playbackSpeed;
-                  audioGraphRef.current?.bindMediaElement(video);
-                  audioGraphRef.current?.setPitchOffset(playback.livePitchOffset);
-                  audioGraphRef.current?.setPlaybackSpeed(playback.playbackSpeed);
-                }}
-                onPlay={(e) => {
-                  const video = e.currentTarget;
-                  video.preservesPitch = true;
-                  (video as any).mozPreservesPitch = true;
-                  (video as any).webkitPreservesPitch = true;
-                  video.playbackRate = playback.playbackSpeed;
-                  audioGraphRef.current?.initContext();
-                }}
-                onTimeUpdate={() => {
-                  if (videoRef.current) {
-                    setPlaybackState({
-                      currentTime: videoRef.current.currentTime,
-                      duration: videoRef.current.duration || playback.duration || 0
-                    });
-                  }
-                }}
-                onEnded={() => {
-                  advanceToNextTrack({ naturalEnd: true });
-                }}
-              />
-              {/* Centered lyrics in control preview */}
-              {playback.activeLyricsText && (
-                <div className="absolute inset-0 flex items-center justify-center p-4 text-center pointer-events-none bg-black/40 backdrop-blur-[1px] z-10">
-                  <span className="text-base md:text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-400 to-indigo-300 drop-shadow-md">
-                    {playback.activeLyricsText}
-                  </span>
-                </div>
-              )}
-              {!playback.isPlaying && currentTrack && !playback.activeLyricsText && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-slate-950/85 backdrop-blur-[2px] z-10 pointer-events-none select-none animate-fadeIn">
-                  <span className="text-[10px] uppercase tracking-widest text-indigo-400 font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 mb-1.5 inline-flex items-center gap-1">
-                    <Mic className="w-3 h-3" /> {t('banner.upNextOnStage')}
-                  </span>
-                  <span className="text-base md:text-lg font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-pink-400 to-indigo-300 line-clamp-1">
-                    {currentQueueItem?.assignedSingerName || t('banner.nextSingerUnassigned')}
-                  </span>
-                  <span className="text-xs text-white font-semibold line-clamp-1 mt-0.5">
-                    {currentTrack.title}
-                  </span>
-                  {currentTrack.artist && (
-                    <span className="text-[11px] text-slate-400 font-medium line-clamp-1">
-                      {currentTrack.artist}
-                    </span>
-                  )}
-                  {currentQueueItem?.pitchOffset !== 0 && (
-                    <span className="text-[10px] font-mono text-amber-400 mt-1 font-semibold">
-                      {t('guestRequests.pitch')}: {currentQueueItem.pitchOffset > 0 ? `+${currentQueueItem.pitchOffset}` : currentQueueItem.pitchOffset}
-                    </span>
-                  )}
-                </div>
-              )}
-              {!currentTrack && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-slate-500 text-xs gap-2.5 pointer-events-none">
-                  <Music className="w-10 h-10 opacity-30" />
-                  <span className="max-w-xs leading-relaxed">{t('queue.empty')}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Scrubbing Bar */}
-            <div className="mt-3">
-              <div className="flex justify-between text-[10px] text-slate-400 font-mono mb-1">
-                <span>{formatTime(isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime)}</span>
-                <span>{formatTime(playback.duration)}</span>
-              </div>
-              <div className="relative flex items-center py-1.5 cursor-pointer group">
-                <input
-                  type="range"
-                  min="0"
-                  max={playback.duration || 100}
-                  step="0.25"
-                  value={isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime}
-                  onPointerDown={(e) => {
-                    setIsScrubbing(true);
-                    setScrubTime(parseFloat(e.currentTarget.value));
-                  }}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    setScrubTime(val);
-                    if (!isScrubbing) {
-                      handleSeek(val);
-                    }
-                  }}
-                  onPointerUp={(e) => {
-                    const val = parseFloat(e.currentTarget.value);
-                    handleSeek(val);
-                    setIsScrubbing(false);
-                    setScrubTime(null);
-                  }}
-                  className="w-full h-2 rounded-lg cursor-pointer transition-all appearance-none focus:outline-none"
-                  style={{
-                    background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${
-                      playback.duration > 0
-                        ? (((isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime) / playback.duration) * 100).toFixed(2)
-                        : 0
-                    }%, #1e293b ${
-                      playback.duration > 0
-                        ? (((isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime) / playback.duration) * 100).toFixed(2)
-                        : 0
-                    }%, #1e293b 100%)`
-                  }}
-                />
-              </div>
-            </div>
-
-            <PlayerDeckControls
-              pitchRange={pitchRange}
-              speedRange={speedRange}
-              dspEngine={coerceDspPitchEngine(settings.dspEngine)}
-              onPlayPause={() => { void handlePlayPause(); }}
-              onStop={handleStop}
-              onRestart={handleRestart}
-              onNext={() => advanceToNextTrack()}
-            />
-          </div>
-
-          {/* MIDI 16-Channel Mixer - Rendered ONLY if file is MIDI/KAR compatible */}
-          {isMidiTrack && (
-            <MidiChannelMixer onToggleMuteChannel={toggleMidiChannelMute} />
-          )}
-        </section>
-
-        {/* Right Column: Tab Switcher (Queue, Library, History) (5 Cols) */}
-        <section className="col-span-12 lg:col-span-5 flex flex-col h-full min-h-0 overflow-hidden">
-          {/* Tab Navigation - M3 Pill Segmented Switcher */}
-          <div className="flex items-center gap-1.5 mb-3 bg-slate-900/90 p-1.5 rounded-full border border-slate-800/80 text-xs font-semibold shrink-0 shadow-sm">
-            <button
-              type="button"
-              onClick={() => setActiveRightTab('queue')}
-              className={`flex-1 py-1.5 rounded-full flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 ${
-                activeRightTab === 'queue'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-bold'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-              }`}
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              {t('queue.title')} ({queue.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveRightTab('library')}
-              className={`flex-1 py-1.5 rounded-full flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 ${
-                activeRightTab === 'library'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-bold'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              {t('library.title')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveRightTab('history')}
-              className={`flex-1 py-1.5 rounded-full flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 ${
-                activeRightTab === 'history'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-bold'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-              }`}
-            >
-              <History className="w-3.5 h-3.5" />
-              {t('history.tabTitle')}
-            </button>
-          </div>
-
-          {/* Tab 1: Queue (Fair Queue) */}
-          {/* Tabs stay mounted so search/scroll/downloads persist across navigation */}
-          <div className={activeRightTab === 'queue' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
-            <QueueList
-              isPlaying={playback.isPlaying}
-              enableFairQueue={Boolean(settings.enableFairQueue)}
-              queueFileDropActive={queueFileDropActive}
-              setQueueFileDropActive={setQueueFileDropActive}
-              onOsFileDrop={(files) => { void handleOsQueueFileDrop(files); }}
-              onPlayPause={() => { void handlePlayPause(); }}
-              onStop={handleStop}
-              onJumpToTrack={(index) => { void handleJumpToTrack(index); }}
-              onSaveToPermanentLibrary={handleSaveToPermanentLibrary}
-              savingTrackIds={savingTrackIds}
-              onEditSinger={(item) => {
-                setEditingSingerItem(item);
-                setEditingSingerText(item.assignedSingerName || '');
-              }}
-            />
-          </div>
-
-          {/* Tab 2: Library Panel — kept mounted so downloads/search persist */}
-          <div className={activeRightTab === 'library' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
-            <LibraryPanel
-              onPlayCue={handlePlayCue}
-              onStopCue={handleStopCue}
-              activeCueUri={activeCueUri}
-              searchInputRef={searchInputRef}
-            />
-          </div>
-
-          {/* Tab 3: Execution History & Royalty/SIAE Logging */}
-          <div className={activeRightTab === 'history' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
-            <HistoryPanel />
-          </div>
-        </section>
+        </nav>
       </main>
 
       {/* Modals */}
+
       <SettingsModal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
       <ToastHost />
       <SingersModal

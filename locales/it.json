@@ -6,6 +6,22 @@
     "stageWindow": "Schermo Palco",
     "reopenStage": "Riapri Palco"
   },
+  "regia": {
+    "railAria": "Navigazione Regia",
+    "railLibrary": "Libreria",
+    "railSearch": "Ricerca",
+    "railQueue": "Coda",
+    "railHistory": "Storico",
+    "railStage": "Palco",
+    "railSingers": "Cantanti",
+    "railDownloads": "Download",
+    "railHelp": "Aiuto",
+    "railDsp": "DSP",
+    "railSettings": "Impostazioni",
+    "guestQrTitle": "QR Guest Portal",
+    "guestQrLoading": "Apri QR…",
+    "showGuestQr": "Mostra QR Code Guest Portal"
+  },
   "player": {
     "play": "Riproduci",
     "pause": "Pausa",

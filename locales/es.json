@@ -6,6 +6,22 @@
     "stageWindow": "Pantalla Escenario",
     "reopenStage": "Reabrir Escenario"
   },
+  "regia": {
+    "railAria": "Navegación de control",
+    "railLibrary": "Biblioteca",
+    "railSearch": "Buscar",
+    "railQueue": "Cola",
+    "railHistory": "Historial",
+    "railStage": "Escenario",
+    "railSingers": "Cantantes",
+    "railDownloads": "Descargas",
+    "railHelp": "Ayuda",
+    "railDsp": "DSP",
+    "railSettings": "Ajustes",
+    "guestQrTitle": "QR Portal Guest",
+    "guestQrLoading": "Abrir QR…",
+    "showGuestQr": "Mostrar código QR del Portal Guest"
+  },
   "player": {
     "play": "Reproducir",
     "pause": "Pausa",
