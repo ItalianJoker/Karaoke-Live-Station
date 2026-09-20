@@ -113,10 +113,14 @@ export class SignalsmithPitchShifterNode {
         return true;
       }
     } catch (err) {
-      console.warn(
-        '[SignalsmithPitchShifterNode] Could not pre-load static signalsmith worklet module:',
-        err
-      );
+      if (typeof window !== 'undefined' && window.karaokeApi?.logger) {
+        window.karaokeApi.logger.log(
+          'warn',
+          'SignalsmithPitchShifterNode',
+          'Could not pre-load static signalsmith worklet module',
+          err
+        );
+      }
     }
     return false;
   }
@@ -198,9 +202,13 @@ export class SignalsmithPitchShifterNode {
         this.stopWatchdog();
         // Dry pass-through immediately so the operator hears audio while host switches.
         this.applyBypassRouting(true);
-        console.warn(
-          '[SignalsmithPitchShifterNode] Mute watchdog — dry pass-through + SoundTouch fallback'
-        );
+        if (typeof window !== 'undefined' && window.karaokeApi?.logger) {
+          window.karaokeApi.logger.log(
+            'warn',
+            'SignalsmithPitchShifterNode',
+            'Mute watchdog — dry pass-through + SoundTouch fallback'
+          );
+        }
         try {
           this.underrunFallbackHandler?.();
         } catch {

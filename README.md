@@ -307,6 +307,8 @@ Se trovi utile **Karaoke Live Station** per le tue serate, feste o eventi e desi
 | **ffmpeg-static** | Demux / remux strumentale e miniature |
 | **electron** | Main + utilityProcess worker AI (ORT fuori dal thread UI) |
 | **zustand** | Persistenza impostazioni (incluso metodo strumentale e knobs MDX) |
+| **signalsmith-stretch** | Pitch Hi-Fi AudioWorklet (default `dspEngine: 'signalsmith'`) |
+| **Logger** (`src/main/services/Logger.ts`) | Log diagnostico su disco; livello Settings → `debug`/`info`/`warn`/`error`/`off`; maschera secret keys |
 
 ### Linee guida Contesto AI (per sviluppatori / agenti)
 
@@ -319,6 +321,7 @@ Se trovi utile **Karaoke Live Station** per le tue serate, feste o eventi e desi
 - GPU-First (`aiEnableGpu`, default on) + probe `system:get-gpu-status` → ORT `executionProviders` `webgpu`→`wasm` oppure solo `wasm`.
 - HTDemucs avanzato: `demucsShifts` (0|1|2), `demucsSegmentSize` (5–20 s), `demucsOverlap` (0.10–0.50); MDX knobs invariati.
 - **Modularizzazione (Safety-First):** transport/scorciatoie Regia in `useControlPlayback` / `useKeyboardShortcuts` + `PlayerDeckControls` / `QueueList`; tab Impostazioni in `src/renderer/components/settings/`. Lista libreria con virtualizzazione a finestra (`listVirtualization.ts`) per cataloghi 16k+. Preferire selettori Zustand granulari; GC solo `queue_cache` / temp — mai `libraryPath`.
+- **Hot path 14k+:** dedup download via SQL `findLocalMediaDedupCandidates` (non `getAllTracks`); Guest Portal `searchTracks`/id; ZIP inflate async; analisi Key/BPM con yield FFT.
 
 ---
 
@@ -681,7 +684,7 @@ If you find **Karaoke Live Station** valuable for your shows, venues, or private
 | **Bungee** (prebuilt Wasm) | Default pitch+speed Wasm AudioWorklet (`dspEngine: 'bungee'`); MPL-2.0 upstream |
 | **spessasynth_lib** | MIDI/KAR SoundFont synth (5 ms scheduler, `latencyHint: 'playback'`) |
 | **qrcode** | Guest Portal LAN QR generation |
-| **clsx** / **tailwind-merge** | Declared class-name helpers (Watchlist: unused in current `src/`; do not remove without audit) |
+| **Logger** (`src/main/services/Logger.ts`) | Disk diagnostic log; Settings level `debug`/`info`/`warn`/`error`/`off`; sensitive-key masking |
 
 ### AI Context & Critical Invariants (for developers / agents)
 
@@ -696,6 +699,7 @@ If you find **Karaoke Live Station** valuable for your shows, venues, or private
 - HTDemucs advanced: `demucsShifts` (0|1|2), `demucsSegmentSize` (5–20 s), `demucsOverlap` (0.10–0.50); MDX knobs unchanged.
 - Frozen contracts: IPC / `electronAPI` (`src/preload/index.ts`), `src/shared/types.ts`, Zustand `useKaraokeStore` shape, SQLite WAL schema. Dynamic/preload/Socket.IO/global-shortcut handlers → **Watchlist** (never delete as “dead”).
 - **Modularization (Safety-First):** Control transport/shortcuts live in `useControlPlayback` / `useKeyboardShortcuts` + `PlayerDeckControls` / `QueueList`; Settings tabs under `src/renderer/components/settings/`. Library results use windowed virtualization (`listVirtualization.ts`) for 16k+ catalogs. Prefer granular Zustand selectors; GC still only `queue_cache` / temp — never `libraryPath`.
+- **14k+ hot paths:** download dedup via SQL `findLocalMediaDedupCandidates` (not `getAllTracks`); Guest Portal `searchTracks`/id lookup; async ZIP inflate; Key/BPM analysis yields during FFT.
 
 **Critical invariants (must not regress)**
 | Invariant | Location | Rule |
@@ -736,8 +740,6 @@ Karaoke Live Station is powered by open-source libraries, open standards, and co
 | **Lucide Icons** | Lucide Contributors | ISC | [lucide.dev](https://lucide.dev/) | Clean, consistent vector iconography throughout the application |
 | **Zustand** | Paul Henschel & Zustand contributors | MIT | [github.com/pmndrs/zustand](https://github.com/pmndrs/zustand) | Centralized, reactive global application state management |
 | **i18next & react-i18next** | i18next Community | MIT | [i18next.com](https://www.i18next.com/) | Comprehensive internationalization framework (English, Italian, Spanish, French) |
-| **clsx** | Luke Edwards | MIT | [github.com/lukeed/clsx](https://github.com/lukeed/clsx) | Class-name composition helper (declared; see Watchlist) |
-| **tailwind-merge** | Dany Castillo | MIT | [github.com/dcastil/tailwind-merge](https://github.com/dcastil/tailwind-merge) | Tailwind class conflict merge helper (declared; see Watchlist) |
 
 ---
 

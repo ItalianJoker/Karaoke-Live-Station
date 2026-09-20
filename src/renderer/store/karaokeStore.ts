@@ -38,6 +38,18 @@ import { coerceAiEnableGpu } from '../../shared/aiOrtProviders';
 import { clampPitchForEngine, clampSpeedForEngine, coerceDspPitchEngine } from '../../shared/dspPitch';
 
 
+function logStore(level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown): void {
+  try {
+    if (typeof window !== 'undefined') {
+      window.karaokeApi?.logger?.log(level, 'karaokeStore', message, data);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+
+
 export type MissingFileContext = 'library' | 'queue';
 
 /**
@@ -287,7 +299,7 @@ export function cleanupQueueCacheFileIfUnreferenced(filePath?: string, remaining
 
   if (!isStillReferenced) {
     window.karaokeApi.downloads.deleteCachedFile(filePath).catch((err) => {
-      console.warn('Queue GC failed for cached file:', filePath, err);
+      logStore('warn', 'Queue GC failed for cached file', { filePath, err });
     });
   }
 }
@@ -516,7 +528,7 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
             });
             set({ singers: map });
           } catch (err) {
-            console.warn('Failed to load singers from db:', err);
+            logStore('warn', 'Failed to load singers from db:', err);
           }
         }
       },
@@ -1196,7 +1208,7 @@ if (typeof window !== 'undefined' && window.karaokeApi?.downloads?.cleanupUnrefe
         .filter((p): p is string => Boolean(p));
       window.karaokeApi?.downloads.cleanupUnreferencedCache(activePaths);
     } catch (err) {
-      console.warn('Startup queue cache reconciliation skipped:', err);
+      logStore('warn', 'Startup queue cache reconciliation skipped:', err);
     }
   }, 4000);
 }

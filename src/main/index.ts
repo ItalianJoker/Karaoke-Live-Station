@@ -250,11 +250,12 @@ class KaraokeMainProcess {
 
     this.db = new DatabaseManager(userDataPath);
     this.downloadManager = new DownloadManager(tempDownloadDir, queueCacheDir);
-    this.zipCdgCache = new ZipCdgCache(tempDownloadDir);
+    this.zipCdgCache = new ZipCdgCache(tempDownloadDir, this.logger);
     this.trackAnalysis = new TrackAnalysisService(
       this.db,
       tempDownloadDir,
-      resolveFfmpegPath()
+      resolveFfmpegPath(),
+      this.logger
     );
     this.ytDlpUpdater = new YtDlpUpdater(userDataPath, this.logger);
     this.vocalModelManager = new OfflineVocalModelManager(this.logger);
@@ -457,6 +458,10 @@ class KaraokeMainProcess {
     app.on('before-quit', async () => {
       // Stop orphans first: yt-dlp downloads/search, Hidden Renderer GPU window,
       // then guest HTTP, caches, and SQLite — so Node/GPU processes cannot linger.
+      const quitStartedAt = Date.now();
+      this.logger.debug('MainProcess', 'before-quit cleanup starting', {
+        correlationId: `quit_${quitStartedAt}`
+      });
       try {
         this.downloadManager.cancelAllDownloads();
       } catch {
@@ -481,6 +486,10 @@ class KaraokeMainProcess {
       this.downloadManager.cleanupTempFiles();
       this.zipCdgCache.cleanupAll();
       this.db.close();
+      this.logger.debug('MainProcess', 'before-quit cleanup finished', {
+        correlationId: `quit_${quitStartedAt}`,
+        elapsedMs: Date.now() - quitStartedAt
+      });
     });
 
     app.whenReady().then(async () => {
@@ -794,7 +803,9 @@ class KaraokeMainProcess {
           }
         );
       },
-      getLibraryTracks: () => this.db.getAllTracks()
+      getLibraryTrackById: (id: string) => this.db.getTrackById(id),
+      getLibraryTrackCount: () => this.db.getTracksCount(),
+      searchLibraryTracks: (query: string, limit: number) => this.db.searchTracks(query, limit)
     });
 
     this.guestServer.start().then(() => {
@@ -1330,18 +1341,25 @@ class KaraokeMainProcess {
       ) => {
         const libraryPath =
           options.libraryPath?.trim() || this.currentSettings?.libraryPath?.trim() || undefined;
-        let catalogTracks: KaraokeMediaTrack[] = [];
-        try {
-          catalogTracks = this.db.getAllTracks();
-        } catch {
-          catalogTracks = [];
-        }
         const instrumental = options.instrumental === true;
         const titleHint = instrumental
           ? /instrumental/i.test(options.titleHint || '')
             ? options.titleHint
             : `${(options.titleHint || 'Unknown').trim()} (Instrumental)`
           : options.titleHint;
+        const ytId = DownloadManager.extractYouTubeId(options.trackId || options.url);
+        let catalogTracks: KaraokeMediaTrack[] = [];
+        try {
+          // Targeted SQL candidates — avoid getAllTracks() dump on every download start.
+          catalogTracks = this.db.findLocalMediaDedupCandidates({
+            ytId,
+            title: titleHint,
+            artist: options.artistHint,
+            instrumentalOnly: instrumental
+          });
+        } catch {
+          catalogTracks = [];
+        }
         const method = coerceInstrumentalVocalRemoverMethod(
           options.vocalRemoverAlgorithm ||
             this.currentSettings?.instrumentalVocalRemoverMethod ||
@@ -1439,9 +1457,14 @@ class KaraokeMainProcess {
     }) => {
       const libraryPath =
         options.libraryPath?.trim() || this.currentSettings?.libraryPath?.trim() || undefined;
+      const ytId = DownloadManager.extractYouTubeId(options.trackId || options.url);
       let catalogTracks: KaraokeMediaTrack[] = [];
       try {
-        catalogTracks = this.db.getAllTracks();
+        catalogTracks = this.db.findLocalMediaDedupCandidates({
+          ytId,
+          title: options.title,
+          artist: options.artist
+        });
       } catch {
         catalogTracks = [];
       }

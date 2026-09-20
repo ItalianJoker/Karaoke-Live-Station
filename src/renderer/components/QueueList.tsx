@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Play,
@@ -61,6 +61,8 @@ export const QueueList: React.FC<QueueListProps> = ({
 
   const queue = useKaraokeStore((s) => s.queue);
   const missingTrackIds = useKaraokeStore((s) => s.missingTrackIds);
+  /** O(1) membership during row render — avoids O(V·M) includes on large missing sets. */
+  const missingTrackIdSet = useMemo(() => new Set(missingTrackIds), [missingTrackIds]);
   const reorderQueue = useKaraokeStore((s) => s.reorderQueue);
   const restoreFairQueueOrder = useKaraokeStore((s) => s.restoreFairQueueOrder);
   const setQueueItemPitch = useKaraokeStore((s) => s.setQueueItemPitch);
@@ -160,7 +162,7 @@ export const QueueList: React.FC<QueueListProps> = ({
           queue.map((item, index) => {
             const isDragging = draggedIndex === index;
             const isDragOver = dragOverIndex === index;
-            const isMissing = missingTrackIds.includes(item.track.id);
+            const isMissing = missingTrackIdSet.has(item.track.id);
 
             return (
               <div

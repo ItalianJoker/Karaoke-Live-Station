@@ -1,14 +1,7 @@
-/**
- * On-demand ZIP CD+G extract cache under `userData/temp/zip_cache/<trackId>/`.
- *
- * Why: catalog keeps the `.zip` as `localFilePath`; playback serves extracted
- * MP3/WAV + CDG via `karaoke://local/`. Cleanup on dequeue / app quit only
- * touches this temp subtree (Safety-First — never libraryPath).
- */
-
 import fs from 'fs';
 import path from 'path';
-import { extractZipCdgPair, inspectZipForCdgPair, type ZipCdgPair } from '../../shared/zipCdg';
+import { extractZipCdgPairAsync, inspectZipForCdgPair, type ZipCdgPair } from '../../shared/zipCdg';
+import type { Logger } from './Logger';
 
 export type ZipPlaybackPaths = {
   trackId: string;
@@ -23,9 +16,11 @@ export class ZipCdgCache {
   private readonly cacheRoot: string;
   /** In-flight extracts — coalesce concurrent play requests for the same track. */
   private readonly inflight = new Map<string, Promise<ZipPlaybackPaths>>();
+  private logger?: Logger;
 
-  constructor(tempDir: string) {
+  constructor(tempDir: string, logger?: Logger) {
     this.cacheRoot = path.join(tempDir, 'zip_cache');
+    this.logger = logger;
   }
 
   getCacheRoot(): string {
@@ -40,7 +35,7 @@ export class ZipCdgCache {
 
   /**
    * Ensure the CD+G pair is extracted. Reuses cache when both files exist.
-   * Yields to the event loop before heavy inflate work so Regia stays responsive.
+   * Uses async inflate so large packs do not freeze Electron main during play-start.
    */
   async ensureExtracted(trackId: string, zipPath: string): Promise<ZipPlaybackPaths> {
     const existing = this.inflight.get(trackId);
@@ -54,8 +49,8 @@ export class ZipCdgCache {
   }
 
   private async extractJob(trackId: string, zipPath: string): Promise<ZipPlaybackPaths> {
-    // Non-blocking yield before sync inflate (large packs)
-    await new Promise<void>((r) => setImmediate(r));
+    const startedAt = Date.now();
+    this.logger?.debug('ZipCdgCache', 'extract start', { trackId, zipPath });
 
     if (!fs.existsSync(zipPath)) {
       throw new Error(`ZIP missing on disk: ${zipPath}`);
@@ -71,6 +66,10 @@ export class ZipCdgCache {
     const cdgPath = path.join(cacheDir, 'track.cdg');
 
     if (fs.existsSync(audioPath) && fs.existsSync(cdgPath)) {
+      this.logger?.debug('ZipCdgCache', 'extract cache hit', {
+        trackId,
+        elapsedMs: Date.now() - startedAt
+      });
       return { trackId, zipPath, audioPath, cdgPath, audioExt: pair.audioExt, cacheDir };
     }
 
@@ -78,8 +77,12 @@ export class ZipCdgCache {
       fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    await new Promise<void>((r) => setImmediate(r));
-    const extracted = extractZipCdgPair(zipPath, cacheDir, pair);
+    const extracted = await extractZipCdgPairAsync(zipPath, cacheDir, pair);
+    this.logger?.debug('ZipCdgCache', 'extract complete', {
+      trackId,
+      elapsedMs: Date.now() - startedAt,
+      audioExt: extracted.audioExt
+    });
 
     return {
       trackId,
@@ -99,7 +102,10 @@ export class ZipCdgCache {
         fs.rmSync(dir, { recursive: true, force: true });
       }
     } catch (err) {
-      console.warn('ZipCdgCache: failed releasing track cache', trackId, err);
+      this.logger?.warn('ZipCdgCache', 'failed releasing track cache', {
+        trackId,
+        err: err instanceof Error ? err.message : String(err)
+      });
     }
   }
 
@@ -110,7 +116,7 @@ export class ZipCdgCache {
         fs.rmSync(this.cacheRoot, { recursive: true, force: true });
       }
     } catch (err) {
-      console.warn('ZipCdgCache: failed cleanupAll', err);
+      this.logger?.warn('ZipCdgCache', 'failed cleanupAll', err);
     }
   }
 }

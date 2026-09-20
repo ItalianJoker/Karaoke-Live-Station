@@ -193,6 +193,8 @@ export function isKaraokeCdgZip(zipPath: string): boolean {
 
 /**
  * Extract one Central Directory entry to an absolute output path (STORE or DEFLATE).
+ * Sync path kept for analysis / CLI callers; prefer {@link extractZipEntryToFileAsync}
+ * on the Electron main play-start path so inflate does not freeze Regia.
  */
 export function extractZipEntryToFile(
   zipPath: string,
@@ -238,6 +240,57 @@ export function extractZipEntryToFile(
 }
 
 /**
+ * Async extract — uses zlib.inflateRaw (non-blocking) for DEFLATE entries.
+ * Time O(compressed size); frees the Electron main event loop during inflate.
+ */
+export async function extractZipEntryToFileAsync(
+  zipPath: string,
+  entry: ZipCentralEntry,
+  outputPath: string
+): Promise<void> {
+  const fh = await fs.promises.open(zipPath, 'r');
+  try {
+    const lfh = Buffer.alloc(30);
+    await fh.read(lfh, 0, 30, entry.localHeaderOffset);
+    if (readUInt32LE(lfh, 0) !== LFH_SIG) {
+      throw new Error(`ZIP: bad local header for ${entry.fileName}`);
+    }
+    const nameLen = readUInt16LE(lfh, 26);
+    const extraLen = readUInt16LE(lfh, 28);
+    const dataOffset = entry.localHeaderOffset + 30 + nameLen + extraLen;
+    const compressed = Buffer.alloc(entry.compressedSize);
+    if (entry.compressedSize > 0) {
+      await fh.read(compressed, 0, entry.compressedSize, dataOffset);
+    }
+
+    let raw: Buffer;
+    if (entry.compressionMethod === 0) {
+      raw = compressed;
+    } else if (entry.compressionMethod === 8) {
+      raw = await new Promise<Buffer>((resolve, reject) => {
+        zlib.inflateRaw(compressed, (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        });
+      });
+    } else {
+      throw new Error(`ZIP: unsupported compression method ${entry.compressionMethod}`);
+    }
+
+    if (entry.uncompressedSize > 0 && raw.length !== entry.uncompressedSize) {
+      if (entry.compressionMethod === 0) {
+        throw new Error(`ZIP: size mismatch for ${entry.fileName}`);
+      }
+    }
+
+    await fs.promises.mkdir(path.dirname(outputPath), { recursive: true });
+    await fs.promises.writeFile(outputPath, raw);
+  } finally {
+    await fh.close();
+  }
+}
+
+/**
  * Extract the CD+G audio+graphics pair from a zip into `destDir`.
  * Returns absolute paths to the extracted files.
  */
@@ -264,6 +317,36 @@ export function extractZipCdgPair(
 
   extractZipEntryToFile(zipPath, audioEntry, audioPath);
   extractZipEntryToFile(zipPath, cdgEntry, cdgPath);
+
+  return { audioPath, cdgPath, audioExt: resolved.audioExt };
+}
+
+/**
+ * Async CD+G pair extract for ZipCdgCache play-start (non-blocking inflate).
+ */
+export async function extractZipCdgPairAsync(
+  zipPath: string,
+  destDir: string,
+  pair?: ZipCdgPair | null
+): Promise<{ audioPath: string; cdgPath: string; audioExt: '.mp3' | '.wav' }> {
+  const resolved = pair || inspectZipForCdgPair(zipPath);
+  if (!resolved) {
+    throw new Error(`ZIP is not a karaoke CD+G archive: ${zipPath}`);
+  }
+  const entries = readZipCentralDirectoryFromFile(zipPath);
+  const audioEntry = entries.find((e) => e.fileName === resolved.audioEntry);
+  const cdgEntry = entries.find((e) => e.fileName === resolved.cdgEntry);
+  if (!audioEntry || !cdgEntry) {
+    throw new Error('ZIP pair entries missing from Central Directory');
+  }
+
+  const audioName = `track${resolved.audioExt}`;
+  const cdgName = 'track.cdg';
+  const audioPath = path.join(destDir, audioName);
+  const cdgPath = path.join(destDir, cdgName);
+
+  await extractZipEntryToFileAsync(zipPath, audioEntry, audioPath);
+  await extractZipEntryToFileAsync(zipPath, cdgEntry, cdgPath);
 
   return { audioPath, cdgPath, audioExt: resolved.audioExt };
 }
