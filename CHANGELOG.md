@@ -12,7 +12,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - None yet.
 
 ### Changed
-- None yet.
+- **IT:** Tema **Studio Desk** — polish UX solo layout Studio: colonna Libreria/Storico più larga, label «Impostazioni» corta, logo più grande, menu senza Coda/DSP, Stage sopra il separator (QR+Scorciatoie sotto), submenu Download in portal, Ricerca → tab Web, più spazio coda, Velo/Ton/Vol sopra il transport. Regia classica invariata. (PR #77)
+- **EN:** **Studio Desk** theme — Studio-layout-only UX polish: wider library/history column, short Settings label, larger logo, menu without Queue/DSP, Stage above footer separator (QR+Shortcuts below), Download submenu via portal, Search → Web tab, more queue space, Speed/Pitch/Volume above transport. Classic Regia unchanged. (PR #77)
 
 ### Fixed
 - None yet.
