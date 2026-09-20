@@ -24,6 +24,7 @@ export default defineConfig({
                 'socket.io',
                 'qrcode',
                 'onnxruntime-web',
+                'onnxruntime-web/all',
                 'demucs-web',
                 'fft.js'
               ]
@@ -42,7 +43,13 @@ export default defineConfig({
               output: {
                 entryFileNames: 'instrumentalAiWorker.js'
               },
-              external: ['onnxruntime-web', 'demucs-web', 'fft.js', 'electron']
+              external: [
+                'onnxruntime-web',
+                'onnxruntime-web/all',
+                'demucs-web',
+                'fft.js',
+                'electron'
+              ]
             }
           }
         }
@@ -58,7 +65,13 @@ export default defineConfig({
               output: {
                 entryFileNames: 'instrumentalAiGpuRenderer.js'
               },
-              external: ['onnxruntime-web', 'demucs-web', 'fft.js', 'electron']
+              external: [
+                'onnxruntime-web',
+                'onnxruntime-web/all',
+                'demucs-web',
+                'fft.js',
+                'electron'
+              ]
             }
           }
         }

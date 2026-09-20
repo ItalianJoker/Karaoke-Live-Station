@@ -1,41 +1,57 @@
+import SignalsmithStretch, {
+  type SignalsmithStretchNode
+} from 'signalsmith-stretch';
 import {
   BUNGEE_PITCH_ABSOLUTE_MAX,
   BUNGEE_PITCH_ABSOLUTE_MIN,
-  clampBungeeAbsoluteSpeed,
-  isDspNeutralBypass
+  clampBungeeAbsoluteSpeed
 } from '../../shared/dspPitch';
 
-/** Max wait for Wasm `initialized` from the AudioWorklet (ms). */
-const BUNGEE_INIT_TIMEOUT_MS = 8000;
+/** Max wait for Signalsmith Stretch AudioWorklet factory (ms). */
+const HIFI_INIT_TIMEOUT_MS = 8000;
+/** Analyser FFT size for mute watchdog (power of 2). */
+const WATCHDOG_FFT = 256;
+/** Poll interval ≈ one Web Audio quantum @ 44.1 kHz (128/44100 ≈ 2.9 ms) × 4. */
+const WATCHDOG_POLL_MS = 12;
+/** Consecutive silent polls with live input before SoundTouch fallback. */
+const WATCHDOG_SILENT_POLLS = 4;
 
 /**
- * BungeePitchShifterNode
+ * BungeePitchShifterNode (Hi-Fi DSP)
  *
- * Stereo pitch + independent speed via Bungee phase-vocoder Wasm AudioWorklet.
+ * Stereo pitch via **Signalsmith Stretch** (MIT) — successor to the broken
+ * `bungee-pitch-shift@1.0.8` Wasm path. Settings id remains `bungee` (Hi-Fi)
+ * for persistence; UI labels say Signalsmith / Hi-Fi.
  *
- * **Upstream (runtime Wasm only — no C++ source vendored):**
- * https://github.com/bungee-audio-stretch/bungee — Mozilla Public License 2.0 (MPL-2.0).
- * Prebuilt assets: `public/workers/bungee_processor.js`, `public/workers/bungee.wasm`
- * (see `public/workers/BUNGEE_NOTICE.md`).
+ * **Upstream:** https://github.com/Signalsmith-Audio/signalsmith-stretch (MIT)
+ * npm: `signalsmith-stretch` (official Web Audio / AudioWorklet release).
+ *
+ * Live input: pitch via `schedule({ semitones })`. Tempo via HTMLMediaElement
+ * with `preservesPitch` (browser time-stretch); Signalsmith live ignores `rate`.
+ * SoundTouch remains emergency fallback on init failure or mute watchdog.
  *
  * **Critical invariant (Safety-First):** when pitch === 0 && speed === 1.0,
- * the AudioWorklet is disconnected (`input → output` direct) for true
+ * the Stretch node is disconnected (`input → output` direct) for true
  * zero-latency / zero-CPU bit-perfect pass-through.
- *
- * {@link create} resolves only after the worklet posts `initialized` (Wasm ready).
- * Timeout / worklet `error` → throw so {@link AudioGraphManager} can fall back to SoundTouch.
  */
 export class BungeePitchShifterNode {
   private readonly audioCtx: AudioContext;
   private readonly _input: GainNode;
   private readonly _output: GainNode;
-  private worklet: AudioWorkletNode | null = null;
+  private stretch: SignalsmithStretchNode | null = null;
+  private inputAnalyser: AnalyserNode | null = null;
+  private outputAnalyser: AnalyserNode | null = null;
   private semitones = 0;
   private speed = 1.0;
   private bypassActive = true;
   private disposed = false;
-  /** True after worklet posts `{ type: 'initialized' }`. */
   private wasmReady = false;
+  private underrunFallbackHandler: (() => void) | null = null;
+  private underrunNotified = false;
+  private silentPolls = 0;
+  private watchdogTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly watchdogIn = new Float32Array(WATCHDOG_FFT);
+  private readonly watchdogOut = new Float32Array(WATCHDOG_FFT);
 
   private constructor(audioCtx: AudioContext) {
     this.audioCtx = audioCtx;
@@ -45,13 +61,13 @@ export class BungeePitchShifterNode {
   }
 
   /**
-   * Loads the Bungee AudioWorklet (blob URL, same pattern as SpessaSynth),
-   * waits for Wasm `initialized`, and returns a ready node.
-   * Throws on load / init / timeout so the caller can fall back to SoundTouch.
+   * Creates Signalsmith Stretch, configures the default preset, and returns a
+   * ready node. Throws on load / timeout so {@link AudioGraphManager} falls back
+   * to SoundTouch.
    */
   public static async create(audioCtx: AudioContext): Promise<BungeePitchShifterNode> {
     const node = new BungeePitchShifterNode(audioCtx);
-    await node.loadWorklet();
+    await node.loadStretch();
     return node;
   }
 
@@ -68,111 +84,113 @@ export class BungeePitchShifterNode {
   }
 
   /**
-   * Fetches `bungee_processor.js` and registers it via AudioWorklet.
-   * Uses a blob URL so Electron `file://` / packaged paths stay CORS-safe.
-   *
-   * License note at load site: Bungee Wasm from
-   * https://github.com/bungee-audio-stretch/bungee (MPL-2.0). No upstream
-   * `.cpp`/`.h` trees are present in this repository.
+   * Host callback when the mute watchdog fires (live input, silent wet).
+   * Switch to SoundTouch without stopping playback.
    */
-  private async loadWorklet(): Promise<void> {
-    // Upstream: https://github.com/bungee-audio-stretch/bungee — MPL-2.0 (Wasm prebuilt only).
-    // Fetch as ArrayBuffer to preserve embedded SINGLE_FILE Wasm bytes (nulls / high bytes).
-    const scriptUrl = '/workers/bungee_processor.js';
-    const response = await fetch(scriptUrl).catch(() =>
-      fetch(new URL('workers/bungee_processor.js', window.location.href).href)
-    );
-    if (!response.ok) {
-      throw new Error(`Bungee processor fetch failed: HTTP ${response.status}`);
-    }
-    const scriptBytes = await response.arrayBuffer();
-    const blob = new Blob([scriptBytes], { type: 'application/javascript' });
-    const blobUrl = URL.createObjectURL(blob);
-    try {
-      await this.audioCtx.audioWorklet.addModule(blobUrl);
-    } finally {
-      URL.revokeObjectURL(blobUrl);
-    }
+  public setUnderrunFallbackHandler(handler: (() => void) | null): void {
+    this.underrunFallbackHandler = handler;
+  }
 
-    this.worklet = new AudioWorkletNode(this.audioCtx, 'bungee-processor', {
+  private async loadStretch(): Promise<void> {
+    // Upstream: Signalsmith Stretch — MIT (official npm Web Audio release).
+    const stretchPromise = SignalsmithStretch(this.audioCtx, {
       numberOfInputs: 1,
       numberOfOutputs: 1,
+      outputChannelCount: [2],
       channelCount: 2,
       channelCountMode: 'explicit',
       channelInterpretation: 'speakers'
     });
 
-    await this.waitForWasmReady();
+    const timeout = new Promise<never>((_, reject) => {
+      window.setTimeout(
+        () =>
+          reject(
+            new Error(`Signalsmith Stretch init timed out after ${HIFI_INIT_TIMEOUT_MS}ms`)
+          ),
+        HIFI_INIT_TIMEOUT_MS
+      );
+    });
 
-    // Re-send params after Wasm ready (covers any messages lost during async init).
-    this.send('setPitch', this.semitones);
-    this.send('setSpeed', this.speed);
-    this.send('setMix', 1.0);
+    this.stretch = await Promise.race([stretchPromise, timeout]);
+    await this.stretch.configure({ preset: 'default' });
+
+    this.inputAnalyser = this.audioCtx.createAnalyser();
+    this.outputAnalyser = this.audioCtx.createAnalyser();
+    this.inputAnalyser.fftSize = WATCHDOG_FFT;
+    this.outputAnalyser.fftSize = WATCHDOG_FFT;
+    this.inputAnalyser.smoothingTimeConstant = 0;
+    this.outputAnalyser.smoothingTimeConstant = 0;
+
+    this.wasmReady = true;
     this.refreshBypass();
   }
 
-  /**
-   * Resolves when the worklet posts `initialized`; rejects on `error` or timeout.
-   * Pending setPitch/setSpeed values are already buffered on the processor
-   * (`this.pitchSemitones` / `this.speed`) and applied inside initializeWasm.
-   */
-  private waitForWasmReady(): Promise<void> {
-    const worklet = this.worklet;
-    if (!worklet) {
-      return Promise.reject(new Error('Bungee AudioWorkletNode missing'));
+  private stopWatchdog(): void {
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
     }
+    this.silentPolls = 0;
+  }
 
-    return new Promise<void>((resolve, reject) => {
-      let settled = false;
-      const timer = window.setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        worklet.port.onmessage = null;
-        reject(new Error(`Bungee Wasm init timed out after ${BUNGEE_INIT_TIMEOUT_MS}ms`));
-      }, BUNGEE_INIT_TIMEOUT_MS);
-
-      worklet.port.onmessage = (event: MessageEvent) => {
-        const data = event.data as { type?: string; message?: string };
-        if (data?.type === 'initialized') {
-          if (settled) return;
-          settled = true;
-          window.clearTimeout(timer);
-          this.wasmReady = true;
-          // Keep listening for late errors (do not clear onmessage).
-          worklet.port.onmessage = (later: MessageEvent) => {
-            const d = later.data as { type?: string; message?: string };
-            if (d?.type === 'error') {
-              console.warn('[BungeePitchShifterNode]', d.message ?? 'worklet error');
-            }
-          };
-          resolve();
-          return;
+  private startWatchdog(): void {
+    this.stopWatchdog();
+    if (!this.inputAnalyser || !this.outputAnalyser) return;
+    this.watchdogTimer = setInterval(() => {
+      if (this.disposed || this.bypassActive || this.underrunNotified) return;
+      try {
+        this.inputAnalyser!.getFloatTimeDomainData(this.watchdogIn);
+        this.outputAnalyser!.getFloatTimeDomainData(this.watchdogOut);
+      } catch {
+        return;
+      }
+      let inEnergy = 0;
+      let outMax = 0;
+      for (let i = 0; i < this.watchdogIn.length; i++) {
+        const s = this.watchdogIn[i];
+        inEnergy += s * s;
+      }
+      for (let i = 0; i < this.watchdogOut.length; i++) {
+        const a = Math.abs(this.watchdogOut[i]);
+        if (a > outMax) outMax = a;
+      }
+      const inRms = Math.sqrt(inEnergy / Math.max(1, this.watchdogIn.length));
+      if (inRms > 0.001 && outMax < 1e-6) {
+        this.silentPolls++;
+      } else {
+        this.silentPolls = 0;
+      }
+      if (this.silentPolls > WATCHDOG_SILENT_POLLS) {
+        this.underrunNotified = true;
+        this.stopWatchdog();
+        // Dry pass-through immediately so the operator hears audio while host switches.
+        this.applyBypassRouting(true);
+        console.warn(
+          '[BungeePitchShifterNode] Signalsmith mute watchdog — dry pass-through + SoundTouch fallback'
+        );
+        try {
+          this.underrunFallbackHandler?.();
+        } catch {
+          /* ignore host errors */
         }
-        if (data?.type === 'error') {
-          if (settled) {
-            console.warn('[BungeePitchShifterNode]', data.message ?? 'worklet error');
-            return;
-          }
-          settled = true;
-          window.clearTimeout(timer);
-          worklet.port.onmessage = null;
-          reject(new Error(data.message ?? 'Bungee worklet Wasm init failed'));
-        }
-      };
+      }
+    }, WATCHDOG_POLL_MS);
+  }
 
-      // Kick info request — processor also posts `initialized` from initializeWasm.
-      this.send('getInfo');
+  private applySchedule(): void {
+    if (!this.stretch || this.bypassActive) return;
+    const when = this.audioCtx.currentTime;
+    void this.stretch.schedule({
+      active: true,
+      output: when,
+      semitones: this.semitones,
+      tonalityHz: 8000
     });
   }
 
-  private send(type: string, value?: number): void {
-    if (!this.worklet) return;
-    this.worklet.port.postMessage(value === undefined ? { type } : { type, value });
-  }
-
   /**
-   * Connects either input→output (bypass) or input→worklet→output.
-   * When leaving bypass, wet mix is forced to 1.0 (fully processed).
+   * Connects either input→output (bypass) or input→Signalsmith→output.
    */
   private applyBypassRouting(bypass: boolean): void {
     try {
@@ -181,36 +199,51 @@ export class BungeePitchShifterNode {
       /* ignore */
     }
     try {
-      this.worklet?.disconnect();
+      this.stretch?.disconnect();
+    } catch {
+      /* ignore */
+    }
+    try {
+      this.inputAnalyser?.disconnect();
+    } catch {
+      /* ignore */
+    }
+    try {
+      this.outputAnalyser?.disconnect();
     } catch {
       /* ignore */
     }
 
     this.bypassActive = bypass;
-    if (bypass || !this.worklet) {
-      // Flush worklet FIFO / grain state so re-engage does not play stale audio.
-      this.send('reset');
+    if (bypass || !this.stretch) {
+      this.stopWatchdog();
+      void this.stretch?.schedule({ active: false, output: this.audioCtx.currentTime });
       this._input.connect(this._output);
     } else {
-      this.send('reset');
-      this.send('setMix', 1.0);
-      this._input.connect(this.worklet);
-      this.worklet.connect(this._output);
+      // input → analyser → stretch → analyser → output
+      this._input.connect(this.inputAnalyser!);
+      this.inputAnalyser!.connect(this.stretch);
+      this.stretch.connect(this.outputAnalyser!);
+      this.outputAnalyser!.connect(this._output);
+      this.applySchedule();
+      void this.stretch.start({ active: true, semitones: this.semitones });
+      this.startWatchdog();
     }
   }
 
   private refreshBypass(): void {
-    const needsDsp = !isDspNeutralBypass(this.semitones, this.speed);
+    // Tempo is HTMLMediaElement (+ preservesPitch). Signalsmith only needed for pitch ≠ 0.
+    const needsDsp = this.semitones !== 0;
     if (needsDsp === this.bypassActive) {
       this.applyBypassRouting(!needsDsp);
+    } else if (needsDsp && !this.bypassActive) {
+      this.applySchedule();
     }
   }
 
   /**
    * Sets live pitch offset in whole semitones (absolute clamp ±12).
    * Neutral with speed 1.0 → true bypass.
-   * Values are always posted to the worklet; if Wasm is not ready yet they are
-   * also held on the processor side until initializeWasm applies them.
    */
   public setPitchOffset(semitones: number): void {
     const clamped = Math.max(
@@ -225,12 +258,12 @@ export class BungeePitchShifterNode {
       return;
     }
     this.semitones = clamped;
-    this.send('setPitch', clamped);
     this.refreshBypass();
   }
 
   /**
-   * Sets independent playback speed (0.50x–1.50x). Neutral with pitch 0 → bypass.
+   * Records playback speed for bypass decisions. Host drives tempo via
+   * HTMLMediaElement.playbackRate (+ preservesPitch); Signalsmith live ignores rate.
    */
   public setPlaybackSpeed(speed: number): void {
     const clamped = clampBungeeAbsoluteSpeed(speed);
@@ -239,13 +272,16 @@ export class BungeePitchShifterNode {
       return;
     }
     this.speed = clamped;
-    this.send('setSpeed', clamped);
     this.refreshBypass();
   }
 
-  /** Resets internal Bungee grain state (e.g. after seek). */
+  /** Resets Stretch state after seek (re-schedule current params). */
   public reset(): void {
-    this.send('reset');
+    this.silentPolls = 0;
+    this.underrunNotified = false;
+    if (!this.bypassActive) {
+      this.applySchedule();
+    }
   }
 
   public get isBypassActive(): boolean {
@@ -255,17 +291,21 @@ export class BungeePitchShifterNode {
   public dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.stopWatchdog();
     try {
+      void this.stretch?.stop();
       this._input.disconnect();
-      this.worklet?.disconnect();
-      if (this.worklet) {
-        this.worklet.port.onmessage = null;
-      }
+      this.stretch?.disconnect();
+      this.inputAnalyser?.disconnect();
+      this.outputAnalyser?.disconnect();
       this._output.disconnect();
     } catch {
       /* ignore teardown */
     }
-    this.worklet = null;
+    this.stretch = null;
+    this.inputAnalyser = null;
+    this.outputAnalyser = null;
     this.wasmReady = false;
+    this.underrunFallbackHandler = null;
   }
 }

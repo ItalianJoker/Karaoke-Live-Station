@@ -23,7 +23,9 @@
  * Heavy work yields to the event loop between frames/chunks; a keep-alive timer
  * posts progress during long `session.run` so the parent idle watchdog stays armed.
  */
-import * as ort from 'onnxruntime-web';
+// `onnxruntime-web` (bare) resolves to ort.node.min.js under Electron nodeIntegration
+// and never registers the WebGPU EP. `/all` loads ort.all.min.js (WASM + WebGPU).
+import * as ort from 'onnxruntime-web/all';
 import { hannWindow, realFftFrame, realIfftFrame, warmAudioFftForMdx } from './audioFft';
 import {
   MDX_KARA2,
@@ -45,6 +47,7 @@ import {
   resolveWorkerOrtProviders,
   type AiOrtBackend
 } from '../../shared/aiWorkerWebGpu';
+import { GpuFallbackRequestedError } from '../../shared/aiGpuFallback';
 import os from 'os';
 
 export type MdxProgress = {
@@ -75,6 +78,12 @@ export type MdxRuntimeOptions = MdxAdvancedSettingsInput & {
   aiEnableGpu?: boolean;
   /** Main-process GPU probe snapshot. */
   aiGpuSupported?: boolean;
+  /**
+   * When false (Hidden Renderer), WebGPU failure must NOT create a WASM session
+   * in-process — throw {@link GpuFallbackRequestedError} so main re-routes to
+   * utilityProcess. Default true (utilityProcess / Node fork).
+   */
+  allowInProcessWasmFallback?: boolean;
 };
 
 type ProgressListener = (info: MdxProgress) => void;
@@ -132,6 +141,11 @@ export class MdxNetSeparator {
   private readonly preferWebGpu: boolean;
   /** Set when WebGPU was requested by Settings but skipped before session.create. */
   private readonly skipWebGpuReason?: string;
+  /**
+   * When false, never create WASM in this process after WebGPU failure
+   * (Hidden Renderer → main must re-route to utilityProcess).
+   */
+  private readonly allowInProcessWasmFallback: boolean;
   /** Actual EP after loadModel (defaults wasm until create succeeds). */
   private ortBackend: AiOrtBackend = 'wasm';
   private ortFallbackReason?: string;
@@ -159,6 +173,7 @@ export class MdxNetSeparator {
     });
     this.preferWebGpu = resolved.preferWebGpu;
     this.skipWebGpuReason = resolved.skipWebGpuReason;
+    this.allowInProcessWasmFallback = options?.allowInProcessWasmFallback !== false;
     if (resolved.skipWebGpuReason) {
       this.ortFallbackReason = resolved.skipWebGpuReason;
     }
@@ -257,7 +272,8 @@ export class MdxNetSeparator {
         graphOptimizationLevel: graphOptimizationLevel as 'all' | 'disabled'
       };
       // Prefer WebGPU-only first so a silent WASM pick inside ['webgpu','wasm'] cannot
-      // look like a GPU hit. On failure, log the exact error and create WASM-only.
+      // look like a GPU hit. On failure: utilityProcess may create WASM here; Hidden
+      // Renderer must throw GpuFallbackRequestedError (no in-window WASM / SAB deadlock).
       if (this.preferWebGpu) {
         try {
           this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
@@ -271,6 +287,9 @@ export class MdxNetSeparator {
           this.ortFallbackReason = `WebGPU session.create failed: ${detail}`;
           // Surface exact WebGPU init failure via stderr (piped to main Logger).
           console.warn(`[MdxNetSeparator] ${this.ortFallbackReason}`);
+          if (!this.allowInProcessWasmFallback) {
+            throw new GpuFallbackRequestedError(this.ortFallbackReason);
+          }
           this.emit({
             phase: 'model',
             progress: 0.2,
@@ -286,6 +305,13 @@ export class MdxNetSeparator {
           this.ortBackend = 'wasm';
         }
       } else {
+        if (!this.allowInProcessWasmFallback) {
+          throw new GpuFallbackRequestedError(
+            this.skipWebGpuReason ||
+              this.ortFallbackReason ||
+              'WebGPU not preferred in Hidden Renderer — re-route to utilityProcess WASM'
+          );
+        }
         this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
           ...sessionOptionsBase,
           executionProviders: ['wasm']

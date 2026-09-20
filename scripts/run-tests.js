@@ -3263,8 +3263,14 @@ function isDspNeutralBypassTest(pitch, speed) {
 }
 
 assert(
+  dspPitchShared.includes("return 'bungee'") &&
+    dspPitchShared.includes("Unknown / missing → `'bungee'`"),
+  'coerceDspPitchEngine defaults to bungee (Hi-Fi Signalsmith)'
+);
+
+assert(
   /dspEngine:\s*'bungee'/.test(storeDspSrc),
-  'Default settings.dspEngine === bungee'
+  'Default settings.dspEngine === bungee (Hi-Fi)'
 );
 assert(
   dspPitchShared.includes("export type DspPitchEngine = 'bungee' | 'soundtouch'") &&
@@ -3277,14 +3283,14 @@ assert(
     dspPitchShared.includes('BUNGEE_SPEED_ABSOLUTE_MAX = 2.0') &&
     dspPitchShared.includes('getSpeedRangeForEngine') &&
     dspPitchShared.includes('clampSpeedForEngine'),
-  'Shared pitch + speed ranges: Bungee UI ±8 / 0.50–1.50, SoundTouch ±4 / 0.75–1.25'
+  'Shared pitch + speed ranges: Hi-Fi UI ±8 / 0.50–1.50, SoundTouch ±4 / 0.75–1.25'
 );
 assert(
   clampPitchForEngineTest(9, 'bungee') === 8 &&
     clampPitchForEngineTest(-9, 'bungee') === -8 &&
     clampPitchForEngineTest(5, 'soundtouch') === 4 &&
     clampPitchForEngineTest(-5, 'soundtouch') === -4,
-  'Semitone clamp per engine (Bungee ±8, SoundTouch ±4)'
+  'Semitone clamp per engine (Hi-Fi ±8, SoundTouch ±4)'
 );
 assert(
   clampSpeedForEngineTest(0.4, 'bungee') === 0.5 &&
@@ -3292,28 +3298,28 @@ assert(
     clampSpeedForEngineTest(0.6, 'soundtouch') === 0.75 &&
     clampSpeedForEngineTest(1.4, 'soundtouch') === 1.25 &&
     clampSpeedForEngineTest(1.111, 'bungee') === 1.11,
-  'Speed clamp per engine (Bungee 0.50–1.50, SoundTouch 0.75–1.25, round 0.01)'
+  'Speed clamp per engine (Hi-Fi 0.50–1.50, SoundTouch 0.75–1.25, round 0.01)'
 );
 assert(
   clampSpeedForEngineTest(0.6, 'soundtouch') === 0.75,
-  'Engine switch Bungee→SoundTouch re-clips 0.60 → 0.75'
+  'Engine switch Hi-Fi→SoundTouch re-clips 0.60 → 0.75'
 );
 assert(
   isDspNeutralBypassTest(0, 1.0) === true &&
     isDspNeutralBypassTest(1, 1.0) === false &&
     isDspNeutralBypassTest(0, 1.05) === false &&
     isDspNeutralBypassTest(0, 0.75) === false,
-  'Bypass when pitch 0 & speed 1.0 only (speed≠1 also exits bypass)'
+  'Shared isDspNeutralBypass: pitch 0 & speed 1.0 only'
 );
 assert(
-  bungeeNodeSrc.includes('isDspNeutralBypass') &&
+  bungeeNodeSrc.includes('signalsmith-stretch') &&
+    bungeeNodeSrc.includes('SignalsmithStretch') &&
     bungeeNodeSrc.includes('applyBypassRouting') &&
-    bungeeNodeSrc.includes('bungee-audio-stretch/bungee') &&
-    bungeeNodeSrc.includes('MPL-2.0') &&
-    bungeeNodeSrc.includes('waitForWasmReady') &&
-    bungeeNodeSrc.includes('initialized') &&
-    bungeeNodeSrc.includes('BUNGEE_INIT_TIMEOUT_MS'),
-  'BungeePitchShifterNode: true bypass + wait for Wasm initialized + MPL attribution'
+    bungeeNodeSrc.includes('semitones !== 0') &&
+    bungeeNodeSrc.includes('setUnderrunFallbackHandler') &&
+    bungeeNodeSrc.includes('WATCHDOG_SILENT_POLLS') &&
+    bungeeNodeSrc.includes('HIFI_INIT_TIMEOUT_MS'),
+  'BungeePitchShifterNode: Signalsmith Stretch Hi-Fi + pitch-0 bypass + mute watchdog'
 );
 assert(
   pitchShifterSrc.includes('SOUNDTOUCH_PITCH_MIN') &&
@@ -3326,13 +3332,12 @@ assert(
     audioGraphDspSrc.includes('BungeePitchShifterNode') &&
     audioGraphDspSrc.includes('falling back to SoundTouch') &&
     audioGraphDspSrc.includes('PitchShifterNode') &&
-    audioGraphDspSrc.includes('Bungee DSP wired') &&
+    audioGraphDspSrc.includes('Signalsmith Hi-Fi wired') &&
     audioGraphDspSrc.includes('Pitch offset applied') &&
     audioGraphDspSrc.includes('dspEnsurePromise') &&
     audioGraphDspSrc.includes('applyMediaElementRateForActiveEngine') &&
-    /activeDspEngine === 'bungee'[\s\S]*?playbackRate = 1\.0/.test(audioGraphDspSrc) &&
-    audioGraphDspSrc.includes('Bungee owns tempo'),
-  'AudioGraphManager: Bungee wire re-applies pitch/speed + element rate 1.0 + SoundTouch fallback'
+    audioGraphDspSrc.includes('Signalsmith Hi-Fi mute watchdog'),
+  'AudioGraphManager: Signalsmith Hi-Fi wire + media rate + SoundTouch emergency fallback'
 );
 {
   const controlDspSrc = fs.readFileSync(
@@ -3341,14 +3346,14 @@ assert(
   );
   const controlUiDspSrc = readControlUiSource();
   assert(
-    controlDspSrc.includes("engine === 'soundtouch' ? playback.playbackSpeed : 1.0") &&
-      controlDspSrc.includes('Bungee owns tempo') &&
+    controlDspSrc.includes('playback.playbackSpeed') &&
+      controlDspSrc.includes('preservesPitch') &&
       controlDspSrc.includes('getSpeedRangeForEngine') &&
       controlUiDspSrc.includes('speedRange.min') &&
       controlUiDspSrc.includes('speedRange.max') &&
       controlUiDspSrc.includes('setPlaybackSpeed(1.0)') &&
       controlUiDspSrc.includes('clampSpeedForEngine'),
-    'Control UI: Bungee element rate 1.0 + dynamic speed range + reset 1.00x'
+    'Control UI: media rate = playbackSpeed + preservesPitch + dynamic speed range'
   );
 }
 assert(
@@ -3360,43 +3365,33 @@ assert(
 assert(
   settingsDspSrc.includes("value=\"bungee\"") &&
     settingsDspSrc.includes("value=\"soundtouch\"") &&
-    settingsDspSrc.includes('dspEngine'),
-  'SettingsModal exposes Bungee / SoundTouch engine select'
+    settingsDspSrc.includes('dspEngine') &&
+    settingsDspSrc.includes('dspEngineHiFiLabel'),
+  'SettingsModal exposes Hi-Fi (bungee id) / SoundTouch engine select'
 );
 assert(
-  fs.existsSync(path.resolve(__dirname, '../public/workers/bungee_processor.js')) &&
-    fs.existsSync(path.resolve(__dirname, '../public/workers/bungee.wasm')) &&
-    fs.existsSync(path.resolve(__dirname, '../public/workers/BUNGEE_NOTICE.md')),
-  'Prebuilt Bungee Wasm assets + NOTICE present (no C++ tree)'
+  fs.existsSync(path.resolve(__dirname, '../public/workers/SIGNALSMITH_NOTICE.md')) &&
+    !fs.existsSync(path.resolve(__dirname, '../public/workers/bungee_processor.js')) &&
+    !fs.existsSync(path.resolve(__dirname, '../public/workers/bungee.wasm')),
+  'Signalsmith NOTICE present; broken Bungee Wasm assets removed'
 );
 {
-  const bungeeProc = fs.readFileSync(
-    path.resolve(__dirname, '../public/workers/bungee_processor.js')
+  const pkgJson = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
   );
   assert(
-    !bungeeProc.includes('export default createBungeeModule') &&
-      bungeeProc.includes('AudioWorkletGlobalScope') &&
-      bungeeProc.includes("registerProcessor('bungee-processor'"),
-    'bungee_processor.js: no ESM export default; AudioWorkletGlobalScope worker detect; registerProcessor present'
+    !!pkgJson.dependencies?.['signalsmith-stretch'],
+    'package.json depends on signalsmith-stretch'
   );
   assert(
-    bungeeProc.includes('Module["_malloc"]=_malloc') &&
-      bungeeProc.includes('Module["_free"]=_free') &&
-      bungeeProc.includes('Module["HEAPF32"]=HEAPF32'),
-    'bungee_processor.js: Module exposes _malloc/_free/HEAPF32 for AudioWorklet'
+    bungeeNodeSrc.includes("this.send('reset')") === false &&
+      bungeeNodeSrc.includes('setUnderrunFallbackHandler'),
+    'Hi-Fi node uses Signalsmith schedule API (no legacy bungee port messages)'
   );
   assert(
-    bungeeProc.includes('WASM_MAX_FRAMES = 8192') &&
-      bungeeProc.includes('fifoPushInterleaved') &&
-      bungeeProc.includes('fifoClear') &&
-      bungeeProc.includes('fifoPop') &&
-      !bungeeProc.includes('Math.min(outputFrames, frameCount)'),
-    'bungee_processor.js: 8192-frame Wasm buffers + output FIFO (no excess-frame discard)'
-  );
-  assert(
-    bungeeNodeSrc.includes("this.send('reset')") &&
-      bungeeNodeSrc.includes('Flush worklet FIFO'),
-    'BungeePitchShifterNode: reset/FIFO flush on bypass routing'
+    audioGraphDspSrc.includes('Signalsmith Hi-Fi mute watchdog') &&
+      audioGraphDspSrc.includes("preferredDspEngine = 'soundtouch'"),
+    'AudioGraphManager: Hi-Fi mute watchdog switches to SoundTouch'
   );
 }
 assert(
@@ -3408,9 +3403,50 @@ assert(
   enLocale.settings?.dspEngine &&
     itLocale.settings?.dspEngine &&
     esLocale.settings?.dspEngine &&
-    frLocale.settings?.dspEngine,
-  'i18n DSP engine keys present in en/it/es/fr'
+    frLocale.settings?.dspEngine &&
+    String(enLocale.settings.dspEngineBungee || '').toLowerCase().includes('signalsmith') &&
+    String(enLocale.settings.dspEngineSoundTouch || '').toLowerCase().includes('emergency') &&
+    enLocale.settings?.dspEngineHiFiLabel &&
+    itLocale.settings?.dspEngineHiFiLabel &&
+    esLocale.settings?.dspEngineHiFiLabel &&
+    frLocale.settings?.dspEngineHiFiLabel,
+  'i18n DSP engine keys: Signalsmith Hi-Fi default + SoundTouch emergency in en/it/es/fr'
 );
+
+// -------------------------------------------------------------
+// Suite: Signalsmith pitch lab (-1..-4 ST, 500+ blocks, no mute)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Signalsmith pitch lab (-1..-4 ST)\x1b[0m');
+
+{
+  const labScript = path.resolve(__dirname, 'lab-signalsmith-pitch.js');
+  assert(fs.existsSync(labScript), 'scripts/lab-signalsmith-pitch.js exists');
+  const { spawnSync } = require('child_process');
+  const labRun = spawnSync(process.execPath, [labScript], {
+    encoding: 'utf8',
+    cwd: path.resolve(__dirname, '..'),
+    timeout: 60000
+  });
+  assert(
+    labRun.status === 0 &&
+      (labRun.stdout || '').includes('lab-signalsmith-pitch: all checks passed'),
+    'Signalsmith lab: 520 blocks at -1..-4 ST, maxAmp never 0 after warm-up',
+    (labRun.stderr || labRun.stdout || `exit ${labRun.status}`).slice(0, 800)
+  );
+
+  // AI conversion must not hang forever: hard timeout still bounded + Part 1 intact.
+  const sepTimeoutSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/InstrumentalAiSeparator.ts'),
+    'utf8'
+  );
+  assert(
+    sepTimeoutSrc.includes('AI_SEPARATION_MAX_TIMEOUT_MS') &&
+      sepTimeoutSrc.includes('gpu-fallback-requested') &&
+      sepTimeoutSrc.includes('allowInProcessWasmFallback') &&
+      sepTimeoutSrc.includes('utilityProcess'),
+    'AI separator: bounded timeout + Hidden Renderer gpu-fallback → utilityProcess'
+  );
+}
 
 // -------------------------------------------------------------
 // Suite: Instrumental subtitles confirmation modal + 429-safe sub-langs

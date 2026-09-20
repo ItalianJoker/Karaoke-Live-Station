@@ -543,10 +543,8 @@ export const ControlWindow: React.FC = () => {
       videoRef.current.preservesPitch = true;
       (videoRef.current as any).mozPreservesPitch = true;
       (videoRef.current as any).webkitPreservesPitch = true;
-      // Bungee owns tempo in Wasm — keep element at 1.0. SoundTouch uses element rate.
-      const engine = settings.dspEngine || 'bungee';
-      videoRef.current.playbackRate =
-        engine === 'soundtouch' ? playback.playbackSpeed : 1.0;
+      // Hi-Fi (Signalsmith) + SoundTouch: media element drives tempo; Hi-Fi compensates pitch.
+      videoRef.current.playbackRate = playback.playbackSpeed;
     }
   }, [
     playback.livePitchOffset,
@@ -785,10 +783,8 @@ export const ControlWindow: React.FC = () => {
             videoRef.current.preservesPitch = true;
             (videoRef.current as any).mozPreservesPitch = true;
             (videoRef.current as any).webkitPreservesPitch = true;
-            // Bungee owns tempo in Wasm — keep element at 1.0 (avoids double rate / chipmunk).
-            const engine = settings.dspEngine || 'bungee';
-            videoRef.current.playbackRate =
-              engine === 'soundtouch' ? playback.playbackSpeed : 1.0;
+            // Hi-Fi (Signalsmith) + SoundTouch: media element drives tempo; Hi-Fi compensates pitch.
+            videoRef.current.playbackRate = playback.playbackSpeed;
           }
 
           if (playback.isPlaying) {
@@ -1223,10 +1219,8 @@ export const ControlWindow: React.FC = () => {
                   video.preservesPitch = true;
                   (video as any).mozPreservesPitch = true;
                   (video as any).webkitPreservesPitch = true;
-                  // Bungee owns tempo in Wasm — keep element at 1.0. SoundTouch uses element rate.
-                  const engine = settings.dspEngine || 'bungee';
-                  video.playbackRate =
-                    engine === 'soundtouch' ? playback.playbackSpeed : 1.0;
+                  // Hi-Fi (Signalsmith) + SoundTouch: media element drives tempo; Hi-Fi compensates pitch.
+                  video.playbackRate = playback.playbackSpeed;
                   audioGraphRef.current?.bindMediaElement(video);
                   audioGraphRef.current?.setPitchOffset(playback.livePitchOffset);
                   audioGraphRef.current?.setPlaybackSpeed(playback.playbackSpeed);
@@ -1236,9 +1230,7 @@ export const ControlWindow: React.FC = () => {
                   video.preservesPitch = true;
                   (video as any).mozPreservesPitch = true;
                   (video as any).webkitPreservesPitch = true;
-                  const engine = settings.dspEngine || 'bungee';
-                  video.playbackRate =
-                    engine === 'soundtouch' ? playback.playbackSpeed : 1.0;
+                  video.playbackRate = playback.playbackSpeed;
                   audioGraphRef.current?.initContext();
                 }}
                 onTimeUpdate={() => {

@@ -55,9 +55,12 @@ assert(
     mdx.includes('formatOrtInitError') &&
     mdx.includes('ortFallbackReason') &&
     mdx.includes('console.warn') &&
+    mdx.includes("from 'onnxruntime-web/all'") &&
+    mdx.includes('GpuFallbackRequestedError') &&
+    mdx.includes('allowInProcessWasmFallback') &&
     !mdx.includes('preferGpu ? [\'webgpu\', \'wasm\']') &&
     !/catch\s*\{\s*\n\s*this\.session = await ort\.InferenceSession\.create/.test(mdx),
-  'MdxNetSeparator: webgpu-only then wasm; logs fallback; no silent catch'
+  'MdxNetSeparator: ort/all + webgpu-only then wasm (or GpuFallback); no silent catch'
 );
 
 assert(
@@ -66,8 +69,11 @@ assert(
     sepCore.includes('resolveWorkerOrtProviders') &&
     sepCore.includes("createAndRun(['webgpu'])") &&
     sepCore.includes('formatOrtInitError') &&
+    sepCore.includes("from 'onnxruntime-web/all'") &&
+    sepCore.includes('gpu-fallback-requested') &&
+    sepCore.includes('allowInProcessWasmFallback') &&
     !/catch\s*\{\s*\n\s*\/\/ WebGPU EP may be unavailable/.test(sepCore),
-  'instrumentalAiWorker + separateCore: Demucs webgpu-only + logged fallback'
+  'instrumentalAiWorker + separateCore: ort/all + Demucs webgpu + gpu-fallback IPC'
 );
 
 assert(
@@ -75,8 +81,11 @@ assert(
     sep.includes('backend not found') &&
     sep.includes('ORT stderr indicates WebGPU EP unavailable') &&
     sep.includes("ortBackend: 'pending'") &&
+    sep.includes('gpu-fallback-requested') &&
+    sep.includes('allowInProcessWasmFallback') &&
+    sep.includes('Hidden Renderer requested WASM re-route') &&
     !sep.includes("ortBackend: 'wasm',\n      ortNumThreads: 1"),
-  'InstrumentalAiSeparator: stderr webgpu hint + no hardcoded ortNumThreads:1'
+  'InstrumentalAiSeparator: stderr webgpu hint + gpu-fallback → utility + no hardcoded ortNumThreads:1'
 );
 
 assert(
@@ -121,9 +130,11 @@ assert(
   gpuRenderer.includes('ipcRenderer') &&
     gpuRenderer.includes('runInstrumentalAiSeparate') &&
     gpuRenderer.includes('requestAdapter') &&
+    gpuRenderer.includes('gpu-fallback-requested') &&
     sepCore.includes('runInstrumentalAiSeparate') &&
-    sepCore.includes("createAndRun(['webgpu'])"),
-  'GPU renderer entry + shared separate core with WebGPU-then-WASM'
+    sepCore.includes("createAndRun(['webgpu'])") &&
+    sepCore.includes('GpuFallbackRequestedError'),
+  'GPU renderer entry + shared core: WebGPU then gpu-fallback (no in-window WASM)'
 );
 
 assert(

@@ -5,9 +5,13 @@
  * nodeIntegration) so `navigator.gpu` exists — unlike utilityProcess where ORT
  * strips the WebGPU EP (`backend not found`).
  *
+ * Uses `onnxruntime-web/all` (via shared core) so the WebGPU backend is registered.
+ * On WebGPU failure the core posts `gpu-fallback-requested` — main re-routes to
+ * utilityProcess WASM (never multithreaded WASM inside this window).
+ *
  * Main ↔ renderer protocol (IPC):
  *   main → renderer: `ai-gpu-renderer:separate` | `ai-gpu-renderer:probe`
- *   renderer → main: `ai-gpu-renderer:message` (progress/done/error/probe-result)
+ *   renderer → main: `ai-gpu-renderer:message` (progress/done/error/probe-result/gpu-fallback-requested)
  */
 import { ipcRenderer } from 'electron';
 import {

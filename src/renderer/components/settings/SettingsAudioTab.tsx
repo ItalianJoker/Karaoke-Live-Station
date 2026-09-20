@@ -212,7 +212,9 @@ export const SettingsAudioTab: React.FC<SettingsAudioTabProps> = ({
                     </select>
                     <div className="text-[11px] text-slate-400 leading-relaxed space-y-1 border-t border-slate-800/80 pt-2">
                       <p>
-                        <span className="text-indigo-300 font-semibold">Bungee</span>
+                        <span className="text-indigo-300 font-semibold">
+                          {t('settings.dspEngineHiFiLabel')}
+                        </span>
                         {' — '}
                         {t('settings.dspEngineBungeeBlurb')}
                       </p>

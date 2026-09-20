@@ -313,6 +313,8 @@ export async function separateInstrumentalWithAi(
   let lastOrtBackend: 'webgpu' | 'wasm' | 'unknown' = 'unknown';
   let lastOrtFallbackReason: string | undefined;
   let lastOrtNumThreads: number | undefined = options.aiCpuThreads;
+  /** Prevents double utility re-route if Hidden Renderer posts fallback twice. */
+  let utilityFallbackStarted = false;
 
   attachWorkerStdioLogging(
     worker.kind === 'hidden-renderer' ? null : worker,
@@ -522,6 +524,8 @@ export async function separateInstrumentalWithAi(
         // utility/fork path: false so worker skips doomed webgpu session.create.
         aiGpuSupported:
           worker.kind === 'hidden-renderer' ? true : options.aiGpuSupported === true,
+        // Never run multithreaded WASM inside the Hidden BrowserWindow.
+        allowInProcessWasmFallback: worker.kind !== 'hidden-renderer',
         // Only attach MDX knobs for aiMdxKaraoke2 — Demucs must not receive them.
         ...(mdxPayload || {}),
         // Only attach Demucs knobs for aiHtDemucs — MDX must not receive them.
@@ -560,6 +564,7 @@ export async function separateInstrumentalWithAi(
         progress?: number;
         message?: string;
         outputWav?: string;
+        reason?: string;
         ortBackend?: 'webgpu' | 'wasm' | string;
         ortFallbackReason?: string;
         ortNumThreads?: number;
@@ -567,6 +572,67 @@ export async function separateInstrumentalWithAi(
       if (!msg?.type) return;
       // Ignore Hidden Renderer probe-result noise on the job channel.
       if (msg.type === 'probe-result') return;
+
+      // Hidden Renderer WebGPU failed — never WASM in-window; re-route to utilityProcess.
+      if (
+        msg.type === 'gpu-fallback-requested' &&
+        worker.kind === 'hidden-renderer' &&
+        (msg.requestId === undefined || msg.requestId === requestId)
+      ) {
+        if (utilityFallbackStarted || settled) return;
+        utilityFallbackStarted = true;
+        const reason =
+          (typeof msg.reason === 'string' && msg.reason.trim()) ||
+          'WebGPU unavailable in Hidden Renderer';
+        lastOrtFallbackReason = reason;
+        lastOrtBackend = 'wasm';
+        lastProgressAt = Date.now();
+        lastProgressMessage = `WebGPU unavailable — switching to WASM CPU (${reason})`;
+        logger?.warn(
+          'InstrumentalAiSeparator',
+          'Hidden Renderer requested WASM re-route (utilityProcess)',
+          {
+            reason,
+            ortNumThreads: lastOrtNumThreads ?? options.aiCpuThreads ?? null,
+            elapsedMs: Date.now() - startedAt
+          }
+        );
+        onProgress?.({
+          phase: 'model',
+          progress: 0.05,
+          message: lastProgressMessage,
+          ortBackend: 'wasm',
+          ortFallbackReason: reason,
+          ortNumThreads: lastOrtNumThreads
+        });
+        // Detach Hidden Renderer job; keep outer promise open for utility re-run.
+        clearTimers();
+        signal?.removeEventListener('abort', onAbort);
+        kill();
+        void separateInstrumentalWithAi(
+          {
+            ...options,
+            aiEnableGpu: false,
+            aiGpuSupported: false
+          },
+          logger
+        ).then(
+          () => {
+            if (settled) return;
+            settled = true;
+            resolve();
+          },
+          (err: unknown) => {
+            if (settled) return;
+            const message = err instanceof Error ? err.message : String(err);
+            const asAbort =
+              err instanceof Error && (err.name === 'AbortError' || message === 'Aborted');
+            fail(message, asAbort, asAbort ? 'cancel' : 'utility_fallback_error');
+          }
+        );
+        return;
+      }
+
       if (msg.type === 'progress') {
         // Any progress (including worker-ready ping) proves the child is alive.
         lastProgressAt = Date.now();
