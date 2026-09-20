@@ -197,7 +197,7 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
         Parent `gap-x-3` separates last transport (MIDI) from this panel.
       */}
       <div
-        className="flex flex-nowrap items-center gap-x-3 px-2.5 py-1.5 rounded-xl border border-[color:var(--border-color)] bg-[color:var(--bg-subtle)] flex-1 min-w-[14rem]"
+        className="flex flex-nowrap items-center gap-x-3 px-2.5 py-1.5 rounded-xl border border-[color:var(--border-color)] bg-[color:var(--bg-subtle)] flex-1 basis-0 min-w-[14rem]"
         data-testid="studio-dsp-panel"
       >
         <div className="flex items-center gap-1.5 shrink-0">
@@ -289,7 +289,7 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
         </div>
 
         <div
-          className="flex items-center gap-1.5 flex-1 min-w-[7rem]"
+          className="flex items-center gap-1.5 flex-1 basis-0 min-w-[7rem]"
           data-testid="studio-volume-row"
         >
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] shrink-0">

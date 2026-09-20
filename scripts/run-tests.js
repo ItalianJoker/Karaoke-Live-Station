@@ -4450,6 +4450,7 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
       studioDeckSrc.includes('studio-volume-row') &&
       studioDeckSrc.includes('studio-volume-slider') &&
       studioDeckSrc.includes('flex-nowrap') &&
+      studioDeckSrc.includes('basis-0') &&
       !studioDeckSrc.includes('w-[9.5rem]') &&
       !studioDeckSrc.includes('flex-col gap-y-1.5'),
     'Studio deck: single-row DSP panel; volume fills remainder (no wrap)'
