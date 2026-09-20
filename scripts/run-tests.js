@@ -4470,10 +4470,11 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
       libraryPanelSrc.includes('library-row-actions') &&
       libraryPanelSrc.includes('data-studio-library-row') &&
       libraryPanelSrc.includes('mt-3') &&
+      libraryPanelSrc.includes('py-3') &&
       libraryPanelSrc.includes('computeVirtualWindowVariable') &&
-      libraryPanelSrc.includes('minHeight') &&
+      !libraryPanelSrc.includes('minHeight:') &&
       libraryPanelSrc.includes('overflow-visible'),
-    'Studio library rows: actions under title, grow height, no clip'
+    'Studio library rows: equal py-3 insets, actions under title, content-sized'
   );
   const virtSrc = fs.readFileSync(
     path.resolve(__dirname, '../src/renderer/utils/listVirtualization.ts'),

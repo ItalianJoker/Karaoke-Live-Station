@@ -52,22 +52,21 @@ const LIBRARY_ROW_HEIGHT = 96;
 const STUDIO_LIBRARY_ROW_GAP = 8;
 
 /**
- * Studio Desk card stride (content + gap). Cards grow with tags / wrapped titles;
- * this estimate must stay ≥ visual height so virtualization never overlaps/clips.
+ * Studio Desk card stride for virtualization only (scroll math).
+ * Visual cards are content-sized with equal `py-3` — do NOT set minHeight from this.
  */
 function estimateStudioLibraryRowStride(track: KaraokeMediaTrack): number {
   const tags = extractVersionTags(track);
-  // Generous estimate: padding + multi-line title + meta wrap + tags + gap + actions
-  let content = 28; // p-2.5 / p-3 vertical
-  const titleLines = 1 + Math.min(2, Math.floor(Math.max(0, track.title.length - 36) / 32));
+  // py-3×2=24; title 1–2 lines; meta (+ wrap); tags; mt-3; actions; gap
+  let content = 24;
+  const titleLines = 1 + Math.min(1, Math.floor(Math.max(0, track.title.length - 40) / 36));
   content += 18 * titleLines;
-  content += 22; // artist
-  content += 24; // key/bpm/source chips (often wrap onto a 2nd meta line)
-  if (tags.length > 0) content += 22; // version pills e.g. Strumentale
-  content += 14; // mt-2.5 / mt-3 between info and actions
-  content += 44; // action button row
-  content += 10; // bottom inset inside card (matches short-card look)
-  return Math.max(184, content) + STUDIO_LIBRARY_ROW_GAP;
+  content += 20; // artist
+  content += 22; // chips (may wrap)
+  if (tags.length > 0) content += 20;
+  content += 12; // mt-3 before actions
+  content += 40; // action row
+  return Math.max(148, content) + STUDIO_LIBRARY_ROW_GAP;
 }
 
 /** Intent to enqueue only after YouTube download + auto-archive succeed. */
@@ -1311,14 +1310,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
             }}
             data-testid="library-virtual-window"
           >
-          {virtualizedTracks.map((track, windowIdx) => {
+          {virtualizedTracks.map((track) => {
             const versionTags = extractVersionTags(track);
             const isMissing = missingTrackIdSet.has(track.id);
-            const absIndex = virtWindow.startIndex + windowIdx;
-            const studioStride =
-              embedded && studioRowStrides
-                ? studioRowStrides[absIndex] ?? estimateStudioLibraryRowStride(track)
-                : null;
 
             const trackActions = (
               <div
@@ -1510,14 +1504,16 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
                 style={
                   embedded
                     ? {
-                        // Grow with content; minHeight keeps bottom inset like short cards.
-                        minHeight: (studioStride ?? estimateStudioLibraryRowStride(track)) - STUDIO_LIBRARY_ROW_GAP,
+                        // Content-sized: equal py-* keeps top inset == bottom inset
+                        // (no minHeight — that left extra gap under 1-line titles).
                         marginBottom: STUDIO_LIBRARY_ROW_GAP
                       }
                     : { height: LIBRARY_ROW_HEIGHT - 8, marginBottom: 8 }
                 }
-                className={`p-2.5 sm:p-3 border rounded-2xl flex gap-3 transition-all group/item box-border ${
-                  embedded ? 'items-start overflow-visible' : 'items-center justify-between overflow-hidden'
+                className={`border rounded-2xl flex gap-3 transition-all group/item box-border ${
+                  embedded
+                    ? 'items-start overflow-visible py-3 px-2.5 sm:px-3'
+                    : 'p-2.5 sm:p-3 items-center justify-between overflow-hidden'
                 } ${
                   isMissing
                     ? 'bg-rose-950/40 border-rose-500/70 hover:bg-rose-950/55'
@@ -1529,7 +1525,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
                 {embedded ? (
                   <div className="flex items-start gap-3 min-w-0 flex-1">
                     {thumb}
-                    <div className="min-w-0 flex-1 flex flex-col pb-1.5">
+                    <div className="min-w-0 flex-1 flex flex-col">
                       {trackMeta}
                       {trackActions}
                     </div>
