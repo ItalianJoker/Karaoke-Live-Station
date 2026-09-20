@@ -1,4 +1,4 @@
-# 🎤 Karaoke Live Station v1.5.0 — Release Notes
+# 🎤 Karaoke Live Station v2.0.0 — Release Notes
 
 <p align="center">
   <a href="#-italiano">🇮🇹 <strong>Italiano</strong></a> • <a href="#-english">🇬🇧 <strong>English</strong></a>
@@ -6,108 +6,98 @@
 
 ---
 
-<a name="v150-italiano"></a>
-# 🇮🇹 Note di Rilascio — Versione 1.5.0
+<a name="v200-italiano"></a>
+# 🇮🇹 Note di Rilascio — Versione 2.0.0
 
-Sovrascrittura release GitHub **v1.5.0** (stessa versione; **non** tocca `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Parte dalla baseline **v1.4.0**. PR **#72** + fold **#74** / **#76**. Pacchetto resta **1.5.0**.
+Nuova release GitHub **v2.0.0** (tag nuovo; **non** sovrascrive `v1.5.0` / `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Parte dalla baseline **v1.5.0** (#72 + #74 + #76) e include **#77–#80**. Pacchetto **2.0.0**.
 
 ## 📦 File di Installazione
 
 | Piattaforma | File | Descrizione |
 | :--- | :--- | :--- |
-| **Windows** | `Karaoke Live Station 1.5.0.exe` | Eseguibile portatile |
-| **Windows** | `Karaoke Live Station-1.5.0-win.zip` | Archivio completo Windows 64-bit |
-| **Linux** | `Karaoke Live Station-1.5.0.AppImage` | AppImage universale |
-| **Linux** | `karaoke-live-station_1.5.0_amd64.deb` | Pacchetto Debian/Ubuntu |
-| **macOS** | `Karaoke Live Station-1.5.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
+| **Windows** | `Karaoke Live Station 2.0.0.exe` | Eseguibile portatile |
+| **Windows** | `Karaoke Live Station-2.0.0-win.zip` | Archivio completo Windows 64-bit |
+| **Linux** | `Karaoke Live Station-2.0.0.AppImage` | AppImage universale |
+| **Linux** | `karaoke-live-station_2.0.0_amd64.deb` | Pacchetto Debian/Ubuntu |
+| **macOS** | `Karaoke Live Station-2.0.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa versione
 
-### 🎛️ Tema Studio Desk opt-in (#76)
-- Nuovo tema **`studio-desk`**: layout Regia Studio (logo+menu, player, MIDI on-demand) e palette cyan/purple.
-- I temi esistenti restano selezionabili e ripristinano la Regia classica.
-- **Default invariato** (`dark-stage`) — attivazione solo da Impostazioni → Tema Grafico Regia.
+### 🎛️ Studio Desk default + polish UX (#77)
+- **Default Regia** → tema **`studio-desk`** (primo in picker; altri temi etichettati « (Legacy)»).
+- Persistenza: chi ha già un altro `themeHost` salvato **lo conserva**.
+- Polish layout Studio: colonne, menu, deck, MIDI note-on meters, card libreria, Stage pill, relaunch al cambio tema Regia.
+- Id temi invariati; path Regia classica resta disponibile.
 
-### 🔑 Key/BPM sempre visibili + istanza singola (#74)
-- Chip Key/BPM sempre presenti in Libreria, Coda, Regia e Palco (placeholder «—» se mancanti).
-- Etichetta **BPM** accanto al tempo.
-- Secondo avvio: dialogo OS «Software già in esecuzione» (+ EN/ES/FR) prima di uscire.
+### 🖥️ Palco su display esterno + velocità (#78)
+- Stage/Palco posizionato sul monitor non primario (fullscreen su TV/proiettore; finestra centrata su singolo display).
+- Badge velocità/tonalità sul Palco in forma parentesi: `1.00x (103 BPM)`, `0 (D)`.
+- Fallback CSS opaco `#000` su `.stage-screen-container`.
 
-### ⚡ Hot path libreria / download / Guest (#72)
-- Dedup download via SQL mirato (`findLocalMediaDedupCandidates`) al posto di dump `getAllTracks()`.
-- Guest Portal: ricerca FTS/`searchTracks` + lookup per id (niente catalogo completo in memoria).
-- Inflate ZIP CD+G asincrono (`inflateRaw`); yield FFT ogni 64 frame in analisi Key/BPM.
-- Indici O(1): `pendingById` Map; UI `missingTrackIds` Set.
+### 📚 Aggiorna Libreria + DnD overlay (#80)
+- **Aggiorna Libreria** ricalcola i flag «file mancante» e toglie i falsi positivi quando il file torna su disco.
+- Overlay drag-and-drop Library/Coda non resta bloccato dopo drop sulla coda (Studio + Regia classica).
 
-### 📦 Dipendenze (#72)
-- Rimossi orphan inutilizzati: `clsx`, `tailwind-merge`, `autoprefixer`, `postcss` (Tailwind v4 via `@tailwindcss/vite`).
-- Lockfile rigenerato; runtime/build critici invariati (ffmpeg, better-sqlite3, ORT, demucs, Signalsmith, SpessaSynth, Socket.IO).
+### 🔎 Mostra in Libreria Locale dalla Coda (#79)
+- Pulsante su ogni riga eleggibile della Coda: apre Libreria Locale, cerca/scorre ed evidenzia il brano (id / percorso).
+- File mancante → modale esistente; brano non in catalogo → toast. Condiviso classic + Studio Desk.
 
-### 🪵 Logging strutturato (#72)
-- Migrazione `console.*` → `Logger` (DownloadManager, ZipCdgCache, TrackAnalysis, AudioGraph, Library/Control/store, Signalsmith).
-- DEBUG su `before-quit` e extract ZIP; maschera campi secret (`[REDACTED]`).
-- Livello da Impostazioni → `logLevel`.
-
-### 🧪 Test & docs (#72)
-- Source-lock suite (orphan deps, SQL dedup, guest FTS, async ZIP, FFT yield, logger masking) — **414** test green.
-- README + CHANGELOG Keep a Changelog IT/EN.
+### 🔑 Già in 1.5.0 (baseline inclusa)
+- Key/BPM sempre visibili + dialogo seconda istanza (#74).
+- Studio Desk introdotto come tema opt-in (#76) — ora default in 2.0.0 via #77.
+- Hot path libreria / download / Guest, Logger strutturato, prune deps (#72).
 
 ### 🏷️ Versione
-- Badge UI / pacchetto **v1.5.0**.
+- Badge UI / pacchetto **v2.0.0**.
 
-## ✅ Baseline 1.4.0
-Resta incluso: Signalsmith Hi-Fi DSP, ZIP CD+G + Key/BPM, AI WebGPU Hidden Renderer / quit watchdog, Library Phase 2 14k (FTS5 / `getTracksPage` / delta rescan), modal sottotitoli strumentale, Safety-First modularizzazione, baseline 1.3.0.
+## ✅ Baseline 1.5.0
+Resta incluso: hot path 14k+, Studio Desk shell, Key/BPM UX, Signalsmith Hi-Fi DSP, ZIP CD+G, AI WebGPU / quit watchdog, Library Phase 2 FTS5, modal sottotitoli strumentale, Safety-First modularizzazione.
 
 ---
 
-<a name="v150-english"></a>
-# 🇬🇧 Release Notes — Version 1.5.0
+<a name="v200-english"></a>
+# 🇬🇧 Release Notes — Version 2.0.0
 
-Overwrite of GitHub release **v1.5.0** (same version; does **not** touch `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on **v1.4.0** baseline. PR **#72** + fold **#74** / **#76**. Package stays **1.5.0**.
+New GitHub release **v2.0.0** (new tag; does **not** overwrite `v1.5.0` / `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on **v1.5.0** baseline (#72 + #74 + #76) and includes **#77–#80**. Package **2.0.0**.
 
 ## 📦 Installer Files
 
 | Platform | File | Description |
 | :--- | :--- | :--- |
-| **Windows** | `Karaoke Live Station 1.5.0.exe` | Portable executable |
-| **Windows** | `Karaoke Live Station-1.5.0-win.zip` | Full Windows 64-bit archive |
-| **Linux** | `Karaoke Live Station-1.5.0.AppImage` | Universal AppImage |
-| **Linux** | `karaoke-live-station_1.5.0_amd64.deb` | Debian/Ubuntu package |
-| **macOS** | `Karaoke Live Station-1.5.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
+| **Windows** | `Karaoke Live Station 2.0.0.exe` | Portable executable |
+| **Windows** | `Karaoke Live Station-2.0.0-win.zip` | Full Windows 64-bit archive |
+| **Linux** | `Karaoke Live Station-2.0.0.AppImage` | Universal AppImage |
+| **Linux** | `karaoke-live-station_2.0.0_amd64.deb` | Debian/Ubuntu package |
+| **macOS** | `Karaoke Live Station-2.0.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new
 
-### 🎛️ Studio Desk theme opt-in (#76)
-- New **`studio-desk`** theme: Studio Regia layout (logo+menu, player, on-demand MIDI) and cyan/purple palette.
-- Existing themes stay selectable and restore classic Regia.
-- **Default unchanged** (`dark-stage`) — enable only via Settings → Control Room Theme.
+### 🎛️ Studio Desk default + UX polish (#77)
+- **Default Control Room** → **`studio-desk`** theme (first in picker; other themes labeled « (Legacy)»).
+- Persistence: an already-saved different `themeHost` is **kept**.
+- Studio layout polish: columns, menu, deck, MIDI note-on meters, library cards, Stage pill, relaunch on Control Room theme change.
+- Theme ids unchanged; classic Regia path remains available.
 
-### 🔑 Always-visible Key/BPM + single-instance (#74)
-- Key/BPM chips always shown in Library, Queue, Control, and Stage (“—” placeholder when unknown).
-- **BPM** unit beside tempo.
-- Second launch: OS dialog “Software already running” (+ IT/ES/FR) before quit.
+### 🖥️ Stage on external display + speed (#78)
+- Stage placed on the non-primary monitor (fullscreen on TV/projector; centered window on single display).
+- Stage speed/pitch badges in parentheses form: `1.00x (103 BPM)`, `0 (D)`.
+- Opaque `#000` CSS fallback on `.stage-screen-container`.
 
-### ⚡ Library / download / Guest hot paths (#72)
-- Download dedup via targeted SQL (`findLocalMediaDedupCandidates`) instead of `getAllTracks()` dumps.
-- Guest Portal: FTS/`searchTracks` + id lookup (no full-catalog materialize).
-- Async ZIP CD+G inflate (`inflateRaw`); FFT yield every 64 frames in Key/BPM analysis.
-- O(1) indexes: `pendingById` Map; UI `missingTrackIds` Set.
+### 📚 Refresh Library + DnD overlay (#80)
+- **Refresh Library** re-checks missing-file flags and clears false positives when the file is back on disk.
+- Library/Queue OS drag overlays no longer stick after a queue drop (Studio + classic Regia).
 
-### 📦 Dependencies (#72)
-- Removed unused orphans: `clsx`, `tailwind-merge`, `autoprefixer`, `postcss` (Tailwind v4 via `@tailwindcss/vite`).
-- Lockfile regenerated; critical runtime/build deps unchanged (ffmpeg, better-sqlite3, ORT, demucs, Signalsmith, SpessaSynth, Socket.IO).
+### 🔎 Show in Local Library from Queue (#79)
+- Control on each eligible Queue row: opens Local Library, searches/scrolls and highlights the track (id / path).
+- Missing file → existing modal; not in catalog → toast. Shared classic + Studio Desk.
 
-### 🪵 Structured logging (#72)
-- Migrated `console.*` → `Logger` (DownloadManager, ZipCdgCache, TrackAnalysis, AudioGraph, Library/Control/store, Signalsmith).
-- DEBUG on `before-quit` and ZIP extract; sensitive-key masking (`[REDACTED]`).
-- Level from Settings → `logLevel`.
-
-### 🧪 Tests & docs (#72)
-- Source-lock suite (orphan deps, SQL dedup, guest FTS, async ZIP, FFT yield, logger masking) — **414** tests green.
-- README + Keep a Changelog IT/EN.
+### 🔑 Already in 1.5.0 (baseline included)
+- Always-visible Key/BPM + second-instance dialog (#74).
+- Studio Desk introduced as opt-in (#76) — now default in 2.0.0 via #77.
+- Library / download / Guest hot paths, structured Logger, deps prune (#72).
 
 ### 🏷️ Version
-- UI badge / package **v1.5.0**.
+- UI badge / package **v2.0.0**.
 
-## ✅ 1.4.0 baseline
-Still includes: Signalsmith Hi-Fi DSP, ZIP CD+G + Key/BPM, AI WebGPU Hidden Renderer / quit watchdog, Library Phase 2 14k (FTS5 / `getTracksPage` / delta rescan), instrumental subtitles modal, Safety-First modularization, plus the 1.3.0 baseline.
+## ✅ 1.5.0 baseline
+Still includes: 14k+ hot paths, Studio Desk shell, Key/BPM UX, Signalsmith Hi-Fi DSP, ZIP CD+G, AI WebGPU / quit watchdog, Library Phase 2 FTS5, instrumental subtitles modal, Safety-First modularization.
