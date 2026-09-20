@@ -9,6 +9,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
+- **IT:** Tema opt-in **Studio Desk** (`studio-desk`): layout Regia Studio (logo+menu, player, MIDI on-demand) e palette cyan/purple; i temi esistenti restano selezionabili e ripristinano la Regia classica. Default invariato (`dark-stage`).
+- **EN:** Opt-in **Studio Desk** theme (`studio-desk`): Studio Regia layout (logo+menu, player, on-demand MIDI) and cyan/purple palette; existing themes stay selectable and restore classic Regia. Default unchanged (`dark-stage`).
 - **IT:** Chip Key/BPM sempre visibili in Libreria, Coda, Regia e Palco (placeholder «—» se mancanti); etichetta **BPM** accanto al tempo; dialogo istanza singola «Software già in esecuzione» (+ EN/ES/FR).
 - **EN:** Always-visible Key/BPM chips in Library, Queue, Control, and Stage (“—” placeholder when unknown); **BPM** unit beside tempo; single-instance dialog “Software already running” (+ IT/ES/FR).
 

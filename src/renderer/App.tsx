@@ -9,7 +9,7 @@ import './i18n';
  *
  * Inspects URL query parameters (`?window=stage` vs `?window=control`) to route
  * Electron windows to either the audience StageWindow or the operator ControlWindow.
- * Dynamically applies the user-configured host/stage theme classes (from 9 distinct visual palettes)
+ * Dynamically applies the user-configured host/stage theme classes (from 10 distinct visual palettes)
  * to `document.documentElement`.
  */
 export const App: React.FC = () => {
@@ -30,7 +30,8 @@ export const App: React.FC = () => {
       'emerald-matrix',
       'royal-amethyst',
       'high-contrast',
-      'light'
+      'light',
+      'studio-desk'
     );
     const activeTheme = windowMode === 'stage' ? themeStage : themeHost;
     root.classList.add(activeTheme || 'dark-stage');

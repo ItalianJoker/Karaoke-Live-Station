@@ -52,6 +52,8 @@ import { SingersModal } from './SingersModal';
 import { GuestRequestsModal } from './GuestRequestsModal';
 import { FirewallGuideCard } from './FirewallGuideCard';
 import { ShortcutsHelpModal } from './ShortcutsHelpModal';
+import { StudioDeskShell } from './StudioDeskShell';
+import { StudioPlayerDeckControls } from './StudioPlayerDeckControls';
 import { AppSettings, DownloadProgressPayload } from '../../shared/types';
 import { textMatchesSearch } from '../../shared/textNormalize';
 import appLogo from '../assets/logo.png';
@@ -874,8 +876,480 @@ export const ControlWindow: React.FC = () => {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
+  /** Opt-in Studio Desk shell — classic Regia header/grid stays on all other themes. */
+  const isStudioDesk = settings.themeHost === 'studio-desk';
+
+  const libraryPanelNode = (
+    <LibraryPanel
+      onPlayCue={handlePlayCue}
+      onStopCue={handleStopCue}
+      activeCueUri={activeCueUri}
+      searchInputRef={searchInputRef}
+    />
+  );
+
+  const queuePanelNode = (
+    <QueueList
+      isPlaying={playback.isPlaying}
+      enableFairQueue={Boolean(settings.enableFairQueue)}
+      queueFileDropActive={queueFileDropActive}
+      setQueueFileDropActive={setQueueFileDropActive}
+      onOsFileDrop={(files) => { void handleOsQueueFileDrop(files); }}
+      onPlayPause={() => { void handlePlayPause(); }}
+      onStop={handleStop}
+      onJumpToTrack={(index) => { void handleJumpToTrack(index); }}
+      onSaveToPermanentLibrary={handleSaveToPermanentLibrary}
+      savingTrackIds={savingTrackIds}
+      onEditSinger={(item) => {
+        setEditingSingerItem(item);
+        setEditingSingerText(item.assignedSingerName || '');
+      }}
+    />
+  );
+
+  const historyPanelNode = <HistoryPanel />;
+
+  const midiMixerNode = (
+    <MidiChannelMixer onToggleMuteChannel={toggleMidiChannelMute} />
+  );
+
+  const scrubPercent =
+    playback.duration > 0
+      ? (
+          ((isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime) /
+            playback.duration) *
+          100
+        ).toFixed(2)
+      : '0';
+  const scrubAccent = isStudioDesk ? '#00D4F0' : '#6366f1';
+  const scrubAccentSoft = isStudioDesk ? '#67e8f9' : '#818cf8';
+  const scrubTrack = isStudioDesk ? '#1E2229' : '#1e293b';
+
+  const nowPlayingInner = (
+    <>
+      <div className="flex items-center justify-between mb-2.5">
+        <span
+          className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+            isStudioDesk ? 'text-[color:var(--accent)]' : 'text-indigo-400'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" /> {t('player.nowPlaying')}
+        </span>
+        <div className="flex items-center gap-2 overflow-hidden">
+          <span className="text-xs text-slate-400 font-mono truncate max-w-xs">
+            {currentTrack
+              ? `${currentTrack.artist} - ${currentTrack.title}`
+              : t('player.noTrackLoaded')}
+          </span>
+          {currentTrack &&
+            (currentTrack.source !== 'local_library' ||
+              currentTrack.localFilePath?.includes('queue_cache')) &&
+            currentTrack.localFilePath && (
+              <button
+                type="button"
+                onClick={() => handleSaveToPermanentLibrary(currentTrack)}
+                disabled={savingTrackIds.has(currentTrack.id)}
+                className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-700/60 text-[10px] font-semibold transition-all shrink-0 active:scale-95 shadow-sm"
+                title={t('library.saveToLibrary', 'Salva in Libreria')}
+              >
+                <Download
+                  className={`w-3 h-3 ${savingTrackIds.has(currentTrack.id) ? 'animate-spin' : ''}`}
+                />
+                <span>{t('library.saveToLibrary', 'Salva')}</span>
+              </button>
+            )}
+        </div>
+      </div>
+
+      <div className="w-full aspect-video max-h-[32vh] bg-black rounded-xl overflow-hidden relative flex items-center justify-center border border-slate-800 mx-auto">
+        <video
+          ref={videoRef}
+          className="w-full h-full object-contain"
+          onError={(e) => {
+            const mediaErr = e.currentTarget.error;
+            window.karaokeApi?.logger?.log('error', 'ControlWindow:Video', 'Media playback error', {
+              code: mediaErr?.code,
+              message: mediaErr?.message,
+              src: e.currentTarget.currentSrc
+            });
+            const track = useKaraokeStore.getState().queue[0]?.track;
+            const queueId = useKaraokeStore.getState().queue[0]?.queueId;
+            if (track && trackNeedsLocalFileCheck(track)) {
+              pauseResetForMissingFile();
+              openMissingForQueueItem(
+                track,
+                track.localFilePath || e.currentTarget.currentSrc || '',
+                queueId
+              );
+            }
+          }}
+          onLoadedMetadata={(e) => {
+            const video = e.currentTarget;
+            video.preservesPitch = true;
+            (video as any).mozPreservesPitch = true;
+            (video as any).webkitPreservesPitch = true;
+            video.playbackRate = playback.playbackSpeed;
+            audioGraphRef.current?.bindMediaElement(video);
+            audioGraphRef.current?.setPitchOffset(playback.livePitchOffset);
+            audioGraphRef.current?.setPlaybackSpeed(playback.playbackSpeed);
+          }}
+          onPlay={(e) => {
+            const video = e.currentTarget;
+            video.preservesPitch = true;
+            (video as any).mozPreservesPitch = true;
+            (video as any).webkitPreservesPitch = true;
+            video.playbackRate = playback.playbackSpeed;
+            audioGraphRef.current?.initContext();
+          }}
+          onTimeUpdate={() => {
+            if (videoRef.current) {
+              setPlaybackState({
+                currentTime: videoRef.current.currentTime,
+                duration: videoRef.current.duration || playback.duration || 0
+              });
+            }
+          }}
+          onEnded={() => {
+            advanceToNextTrack({ naturalEnd: true });
+          }}
+        />
+        {playback.activeLyricsText && (
+          <div
+            className={`absolute inset-0 flex items-center justify-center p-4 text-center pointer-events-none z-10 ${
+              isStudioDesk ? 'bg-black/30' : 'bg-black/40 backdrop-blur-[1px]'
+            }`}
+          >
+            <span
+              className={
+                isStudioDesk
+                  ? 'text-base md:text-xl font-extrabold text-white tracking-wide'
+                  : 'text-base md:text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-400 to-indigo-300 drop-shadow-md'
+              }
+              style={
+                isStudioDesk
+                  ? {
+                      textShadow: 'var(--neon-lyric-glow)',
+                      WebkitTextStroke: '1px var(--neon-lyric-stroke)'
+                    }
+                  : undefined
+              }
+            >
+              {playback.activeLyricsText}
+            </span>
+          </div>
+        )}
+        {!playback.isPlaying && currentTrack && !playback.activeLyricsText && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-slate-950/85 backdrop-blur-[2px] z-10 pointer-events-none select-none animate-fadeIn">
+            <span
+              className={`text-[10px] uppercase tracking-widest font-bold px-2.5 py-0.5 rounded-full mb-1.5 inline-flex items-center gap-1 ${
+                isStudioDesk
+                  ? 'text-[color:var(--accent)] bg-[color:color-mix(in_srgb,var(--accent)_12%,transparent)] border border-[color:var(--accent)]'
+                  : 'text-indigo-400 bg-indigo-500/10 border border-indigo-500/30'
+              }`}
+            >
+              <Mic className="w-3 h-3" /> {t('banner.upNextOnStage')}
+            </span>
+            <span className="text-base md:text-lg font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-pink-400 to-indigo-300 line-clamp-1">
+              {currentQueueItem?.assignedSingerName || t('banner.nextSingerUnassigned')}
+            </span>
+            <span className="text-xs text-white font-semibold line-clamp-1 mt-0.5">
+              {currentTrack.title}
+            </span>
+            {currentTrack.artist && (
+              <span className="text-[11px] text-slate-400 font-medium line-clamp-1">
+                {currentTrack.artist}
+              </span>
+            )}
+            {currentQueueItem?.pitchOffset !== 0 && (
+              <span className="text-[10px] font-mono text-amber-400 mt-1 font-semibold">
+                {t('guestRequests.pitch')}:{' '}
+                {currentQueueItem!.pitchOffset > 0
+                  ? `+${currentQueueItem!.pitchOffset}`
+                  : currentQueueItem!.pitchOffset}
+              </span>
+            )}
+          </div>
+        )}
+        {!currentTrack && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-slate-500 text-xs gap-2.5 pointer-events-none">
+            <Music className="w-10 h-10 opacity-30" />
+            <span className="max-w-xs leading-relaxed">{t('queue.empty')}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3">
+        <div className="flex justify-between text-[10px] text-slate-400 font-mono mb-1">
+          <span>
+            {formatTime(isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime)}
+          </span>
+          <span>{formatTime(playback.duration)}</span>
+        </div>
+        <div className="relative flex items-center py-1.5 cursor-pointer group">
+          <input
+            type="range"
+            min="0"
+            max={playback.duration || 100}
+            step="0.25"
+            value={isScrubbing && scrubTime !== null ? scrubTime : playback.currentTime}
+            onPointerDown={(e) => {
+              setIsScrubbing(true);
+              setScrubTime(parseFloat(e.currentTarget.value));
+            }}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value);
+              setScrubTime(val);
+              if (!isScrubbing) {
+                handleSeek(val);
+              }
+            }}
+            onPointerUp={(e) => {
+              const val = parseFloat(e.currentTarget.value);
+              handleSeek(val);
+              setIsScrubbing(false);
+              setScrubTime(null);
+            }}
+            className="w-full h-2 rounded-lg cursor-pointer transition-all appearance-none focus:outline-none"
+            style={{
+              background: `linear-gradient(to right, ${scrubAccent} 0%, ${scrubAccentSoft} ${scrubPercent}%, ${scrubTrack} ${scrubPercent}%, ${scrubTrack} 100%)`
+            }}
+          />
+        </div>
+      </div>
+    </>
+  );
+
+  const downloadsMenuBody = (
+    <>
+      <div className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5">
+          <Download className="w-3.5 h-3.5" /> {t('library.downloadsMenu')}
+        </span>
+        {Object.keys(headerDownloads).length > 0 && (
+          <button
+            type="button"
+            onClick={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const activeStatuses = new Set([
+                'queued',
+                'downloading',
+                'converting',
+                'processing',
+                'downloading_model',
+                'removing_vocals',
+                'remuxing'
+              ]);
+              const hasActive = Object.values(headerDownloads).some((d) =>
+                activeStatuses.has(d.status)
+              );
+              if (
+                hasActive &&
+                !(await confirmAsync(
+                  t(
+                    'library.confirmClearDownloads',
+                    'Annullare tutti i download in corso e svuotare l’elenco?'
+                  )
+                ))
+              ) {
+                return;
+              }
+              try {
+                await window.karaokeApi?.downloads.cancelAll();
+              } catch {
+                /* still clear the menu list */
+              }
+              setHeaderDownloads({});
+            }}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold normal-case tracking-normal text-slate-300 hover:text-rose-300 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60"
+            title={t('library.clearDownloads', 'Pulisci coda')}
+            data-testid="downloads-clear-all"
+          >
+            <Trash2 className="w-3 h-3 text-rose-400" />
+            {t('library.clearDownloads', 'Pulisci coda')}
+          </button>
+        )}
+      </div>
+      {Object.keys(headerDownloads).length === 0 ? (
+        <p className="text-[11px] text-slate-500 py-2">{t('library.downloadsEmpty')}</p>
+      ) : (
+        Object.values(headerDownloads).map((dl) => {
+          const isConversionPhase =
+            dl.instrumental === true &&
+            (dl.status === 'processing' ||
+              dl.status === 'downloading_model' ||
+              dl.status === 'removing_vocals' ||
+              dl.status === 'remuxing' ||
+              dl.status === 'converting');
+          const showSpeed = dl.status === 'downloading' && Boolean(dl.speed);
+          const showEta =
+            (dl.status === 'downloading' || dl.status === 'removing_vocals') &&
+            Boolean(dl.eta) &&
+            dl.eta !== '--:--' &&
+            !/^n\/?a$/i.test(dl.eta);
+          const reuseNotice = dl.alreadyExists
+            ? t('library.alreadyLocal', {
+                path: dl.outputFilePath || '',
+                defaultValue:
+                  'Track already available locally. Linked existing file without re-downloading:\n{{path}}'
+              }).replace(/\n+/g, ' ')
+            : null;
+          const statusLabel = reuseNotice
+            ? reuseNotice
+            : dl.status === 'downloading_model'
+              ? t('library.downloadingModel')
+              : dl.status === 'queued'
+                ? t('library.queued')
+                : dl.status === 'removing_vocals'
+                  ? t('library.removingVocals')
+                  : dl.status === 'remuxing'
+                    ? t('library.remuxingInstrumental')
+                    : dl.status === 'processing' ||
+                        (dl.status === 'converting' && dl.instrumental)
+                      ? t('library.convertingInstrumental')
+                      : dl.status === 'converting'
+                        ? t('library.converting')
+                        : dl.status === 'downloading'
+                          ? t('library.downloading')
+                          : dl.status === 'completed'
+                            ? t('library.downloadCompleted')
+                            : dl.status === 'error'
+                              ? dl.errorMessage
+                                ? t('errors.downloadFailed', {
+                                    error: dl.errorMessage
+                                  })
+                                : t('common.error', 'Error')
+                              : dl.status === 'cancelled'
+                                ? t('common.cancelled', 'Cancelled')
+                                : String(dl.status);
+          const statusTone =
+            dl.alreadyExists || dl.status === 'error' ? 'text-amber-400' : 'text-slate-500';
+          return (
+            <div key={dl.downloadId} className="flex items-center gap-2 text-xs">
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] text-slate-300 truncate mb-0.5">
+                  {dl.titleHint || dl.downloadId}
+                  {dl.instrumental ? ' · Inst.' : ''}
+                </div>
+                <div
+                  className={`flex justify-between gap-2 text-[10px] mb-1 font-mono ${statusTone}`}
+                >
+                  <span className="min-w-0 break-words whitespace-normal">
+                    {statusLabel}
+                    {showSpeed ? ` · ${dl.speed}` : ''}
+                    {showEta ? ` · ETA ${dl.eta}` : ''}
+                  </span>
+                  <span className="shrink-0">{dl.percent.toFixed(0)}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 ${
+                      dl.status === 'completed'
+                        ? 'bg-emerald-500'
+                        : dl.status === 'error'
+                          ? 'bg-amber-500'
+                          : isConversionPhase
+                            ? 'bg-amber-500'
+                            : 'bg-cyan-500'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(0, dl.percent))}%` }}
+                  />
+                </div>
+              </div>
+              {(dl.status === 'queued' ||
+                dl.status === 'downloading' ||
+                dl.status === 'converting' ||
+                dl.status === 'processing' ||
+                dl.status === 'downloading_model' ||
+                dl.status === 'removing_vocals' ||
+                dl.status === 'remuxing') && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void window.karaokeApi?.downloads.cancel(dl.downloadId);
+                  }}
+                  className="text-slate-500 hover:text-red-400 p-1 rounded-full hover:bg-slate-800"
+                  title={t('common.cancel', 'Cancel')}
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          );
+        })
+      )}
+    </>
+  );
+
+  const dspCompareBody = (
+    <>
+      <p className="leading-relaxed">{t('settings.dspEngineCompareBody')}</p>
+      <ul className="space-y-1.5 list-none pl-0 mt-2">
+        <li>
+          <span className="text-indigo-300 font-semibold">Signalsmith</span>
+          {' — '}
+          {t('settings.dspEngineSignalsmithBlurb')}
+        </li>
+        <li>
+          <span className="text-amber-300 font-semibold">SoundTouch</span>
+          {' — '}
+          {t('settings.dspEngineSoundTouchBlurb')}
+        </li>
+      </ul>
+      <p className="text-slate-500 leading-relaxed mt-2">{t('settings.dspEngineMidiNote')}</p>
+    </>
+  );
+
   return (
     <div className="h-screen max-h-screen app-control-container flex flex-col font-sans select-none overflow-hidden">
+      {isStudioDesk ? (
+        <StudioDeskShell
+          activeRightTab={activeRightTab}
+          setActiveRightTab={setActiveRightTab}
+          onFocusLibrarySearch={() => {
+            setActiveRightTab('library');
+            window.setTimeout(() => searchInputRef.current?.focus(), 0);
+          }}
+          pendingGuestCount={pendingRequests.length}
+          onOpenGuestRequests={() => setShowGuestModal(true)}
+          onOpenPortalQr={() => setShowPortalQrModal(true)}
+          onOpenSingers={() => setShowSingersModal(true)}
+          onOpenShortcuts={() => setShowShortcutsModal(true)}
+          onOpenSettings={() => setShowSettingsModal(true)}
+          downloadsSlot={downloadsMenuBody}
+          showDownloadsMenu={showDownloadsMenu}
+          setShowDownloadsMenu={setShowDownloadsMenu}
+          downloadsMenuRef={downloadsMenuRef}
+          downloadBadgeCount={Object.keys(headerDownloads).length}
+          showDspCompare={showDspCompare}
+          setShowDspCompare={setShowDspCompare}
+          dspCompareBody={dspCompareBody}
+          nowPlaying={nowPlayingInner}
+          playerDeck={
+            <StudioPlayerDeckControls
+              pitchRange={pitchRange}
+              speedRange={speedRange}
+              dspEngine={coerceDspPitchEngine(settings.dspEngine)}
+              onPlayPause={() => {
+                void handlePlayPause();
+              }}
+              onStop={handleStop}
+              onRestart={handleRestart}
+              onNext={() => advanceToNextTrack()}
+              stageOpen={stageOpen}
+              onReopenStage={() => window.karaokeApi?.reopenStageWindow()}
+            />
+          }
+          libraryColumn={libraryPanelNode}
+          queueColumn={queuePanelNode}
+          historyColumn={historyPanelNode}
+          isMidiTrack={isMidiTrack}
+          midiColumn={midiMixerNode}
+        />
+      ) : (
+        <>
       {/* Top Navigation Bar - Material Design 3 Elevated Surface */}
       <header className="h-14 shrink-0 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-6 flex items-center justify-between shadow-sm z-20">
         <div className="flex items-center gap-3">
@@ -1443,6 +1917,8 @@ export const ControlWindow: React.FC = () => {
           </div>
         </section>
       </main>
+        </>
+      )}
 
       {/* Modals */}
       <SettingsModal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
