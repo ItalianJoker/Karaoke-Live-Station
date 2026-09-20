@@ -58,24 +58,25 @@ assert(
   'PitchShifterNode: pitch 0 bypasses SoundTouch ScriptProcessor'
 );
 
-const bungeeSrc = fs.readFileSync(
-  path.join(root, 'src/renderer/core/BungeePitchShifterNode.ts'),
+const signalsmithSrc = fs.readFileSync(
+  path.join(root, 'src/renderer/core/SignalsmithPitchShifterNode.ts'),
   'utf8'
 );
 assert(
-  bungeeSrc.includes('signalsmith-stretch') &&
-    bungeeSrc.includes('SignalsmithStretch') &&
-    bungeeSrc.includes('applyBypassRouting') &&
-    bungeeSrc.includes('semitones !== 0') &&
-    bungeeSrc.includes('setUnderrunFallbackHandler'),
-  'BungeePitchShifterNode: Signalsmith Stretch Hi-Fi + pitch-0 bypass + mute watchdog'
+  signalsmithSrc.includes('signalsmith-stretch') &&
+    signalsmithSrc.includes('SignalsmithStretch') &&
+    signalsmithSrc.includes('applyBypassRouting') &&
+    signalsmithSrc.includes('semitones !== 0') &&
+    signalsmithSrc.includes('setUnderrunFallbackHandler'),
+  'SignalsmithPitchShifterNode: Signalsmith Stretch Hi-Fi + pitch-0 bypass + mute watchdog'
 );
 assert(
   audioSrc.includes('falling back to SoundTouch') &&
     audioSrc.includes('setDspEngine') &&
     audioSrc.includes('PitchShifterNode') &&
     audioSrc.includes('applyMediaElementRateForActiveEngine') &&
-    audioSrc.includes('Signalsmith Hi-Fi mute watchdog'),
+    audioSrc.includes('Signalsmith Hi-Fi mute watchdog') &&
+    audioSrc.includes('applySoundTouchFallback'),
   'AudioGraphManager keeps SoundTouch emergency path + Signalsmith Hi-Fi + mute watchdog'
 );
 

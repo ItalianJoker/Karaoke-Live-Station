@@ -7,7 +7,7 @@ import {
 } from '../../shared/dspPitch';
 import { MidiParser, TimedMidiEvent } from './MidiParser';
 import { PitchShifterNode } from './PitchShifterNode';
-import { BungeePitchShifterNode } from './BungeePitchShifterNode';
+import { SignalsmithPitchShifterNode } from './SignalsmithPitchShifterNode';
 import { WorkletSynthesizer } from 'spessasynth_lib';
 import {
   AlgorithmicVocalRemoverNode,
@@ -30,6 +30,12 @@ export type LyricCallback = (lyric: MidiLyricEvent | null) => void;
 export type PlaybackEndCallback = () => void;
 
 /**
+ * Host notified when Hi-Fi falls back to SoundTouch (mute watchdog / init failure).
+ * Why: Settings + Control pitch/speed UI must switch to SoundTouch ±4 / 0.75–1.25 bounds.
+ */
+export type DspEngineFallbackCallback = (engine: DspPitchEngine) => void;
+
+/**
  * Tracks an active voice in fallback oscillator synthesis mode.
  */
 interface ActiveMidiVoice {
@@ -43,7 +49,7 @@ interface ActiveMidiVoice {
 /**
  * Master Web Audio graph for Control Desk playback (media + MIDI/KAR).
  *
- * - Media element pitch/speed DSP: **Signalsmith Stretch Hi-Fi** (default, settings id `bungee`) or
+ * - Media element pitch/speed DSP: **Signalsmith Stretch Hi-Fi** (default, settings id `signalsmith`) or
  *   SoundTouch WSOLA (emergency/light). Mute watchdog auto-falls back to SoundTouch — see {@link setDspEngine}
  * - Independent tempo scaling (0.50x to 1.50x)
  * - Guide-vocal removal: realtime algorithmic mid/side DSP only (never live AI)
@@ -56,7 +62,7 @@ interface ActiveMidiVoice {
  * **Critical invariants (Safety-First):**
  * - `latencyHint: 'playback'` on AudioContext (stable buffer, not interactive)
  * - Master gain = `volume²` clamped [0,1] ({@link computePerceptualGain})
- * - Pitch 0 (+ speed 1.0 for Bungee) bypasses DSP (bit-perfect / zero CPU)
+ * - Pitch 0 (+ speed 1.0 for Signalsmith) bypasses DSP (bit-perfect / zero CPU)
  * - SpessaSynth MIDI scheduler ticks every **5 ms** (worker or fallback interval)
  * - MIDI/KAR pitch is note-number transpose — never routed through media DSP
  *
@@ -71,15 +77,17 @@ export class AudioGraphManager {
   private dspBridgeOut: GainNode | null = null;
   /** SoundTouch WSOLA path — kept selectable; do not remove. */
   private pitchShifterNode: PitchShifterNode | null = null;
-  /** Bungee Wasm path (default). */
-  private bungeeNode: BungeePitchShifterNode | null = null;
+  /** Signalsmith Stretch Hi-Fi path (default). */
+  private signalsmithNode: SignalsmithPitchShifterNode | null = null;
   /** Operator preference from Settings (`dspEngine`). */
-  private preferredDspEngine: DspPitchEngine = 'bungee';
+  private preferredDspEngine: DspPitchEngine = 'signalsmith';
   /** Engine currently wired into the bridge (may be SoundTouch after silent fallback). */
   private activeDspEngine: DspPitchEngine | null = null;
   private dspInitGeneration = 0;
   /** In-flight ensureDspEngine promise — dedupes concurrent bind/setDspEngine calls. */
   private dspEnsurePromise: Promise<void> | null = null;
+  /** Notifies Control/Settings when mute watchdog or init failure switches to SoundTouch. */
+  private dspEngineFallbackHandler: DspEngineFallbackCallback | null = null;
 
   // Vocal Remover — algorithmic mid/side DSP only (live); AI ids coerce to default algo
   private vocalRemoverNode: AlgorithmicVocalRemoverNode | null = null;
@@ -245,7 +253,7 @@ export class AudioGraphManager {
     (element as any).preservesPitch = true;
     (element as any).mozPreservesPitch = true;
     (element as any).webkitPreservesPitch = true;
-    // Bungee owns tempo in Wasm — never set element rate to currentPlaybackSpeed here
+    // Hi-Fi tempo via media element rate — apply after DSP engine is wired
     // (would double-accelerate once the worklet also stretches). SoundTouch uses element rate.
     this.applyMediaElementRateForActiveEngine();
 
@@ -304,7 +312,7 @@ export class AudioGraphManager {
 
   /**
    * Ensures the preferred DSP engine is loaded and wired.
-   * Silent fallback to SoundTouch when Bungee Wasm/Worklet init fails.
+   * Silent fallback to SoundTouch when Signalsmith AudioWorklet init fails.
    * Concurrent callers share one in-flight promise (avoids double create + generation abort).
    */
   private async ensureDspEngine(): Promise<void> {
@@ -314,12 +322,12 @@ export class AudioGraphManager {
       await this.dspEnsurePromise;
     }
 
-    // Already on the preferred engine (or silent SoundTouch fallback after Bungee failure).
+    // Already on the preferred engine (or silent SoundTouch fallback after Hi-Fi failure).
     if (this.activeDspEngine === this.preferredDspEngine) return;
     if (
-      this.preferredDspEngine === 'bungee' &&
+      this.preferredDspEngine === 'signalsmith' &&
       this.activeDspEngine === 'soundtouch' &&
-      !this.bungeeNode
+      !this.signalsmithNode
     ) {
       return;
     }
@@ -336,43 +344,60 @@ export class AudioGraphManager {
     const generation = ++this.dspInitGeneration;
     const preferred = this.preferredDspEngine;
 
-    if (preferred === 'bungee') {
-      if (!this.bungeeNode) {
+    if (preferred === 'signalsmith') {
+      if (!this.signalsmithNode) {
         try {
-          // Hi-Fi: Signalsmith Stretch (MIT) — replaces broken bungee-pitch-shift Wasm.
-          // Settings id remains `bungee` for persistence; UI labels say Signalsmith / Hi-Fi.
-          this.bungeeNode = await BungeePitchShifterNode.create(this.audioCtx);
-          this.bungeeNode.setUnderrunFallbackHandler(() => {
+          this.signalsmithNode = await SignalsmithPitchShifterNode.create(this.audioCtx);
+          this.signalsmithNode.setUnderrunFallbackHandler(() => {
             this.log(
               'warn',
               'Signalsmith Hi-Fi mute watchdog — falling back to SoundTouch WSOLA'
             );
-            // Prefer SoundTouch going forward for this session (avoid mute loops).
-            this.preferredDspEngine = 'soundtouch';
-            this.wireSoundTouchEngine();
+            this.applySoundTouchFallback('mute_watchdog');
           });
           this.log('info', 'Signalsmith Stretch Hi-Fi DSP initialized (AudioWorklet)');
         } catch (err) {
           this.log(
             'warn',
-            'Bungee DSP init failed — falling back to SoundTouch WSOLA',
+            'Signalsmith DSP init failed — falling back to SoundTouch WSOLA',
             err
           );
           if (generation !== this.dspInitGeneration) return;
-          this.wireSoundTouchEngine();
+          this.applySoundTouchFallback('init_failed');
           return;
         }
       }
       if (generation !== this.dspInitGeneration) return;
-      if (this.preferredDspEngine !== 'bungee') {
+      if (this.preferredDspEngine !== 'signalsmith') {
         this.wireSoundTouchEngine();
         return;
       }
-      this.wireBungeeEngine();
+      this.wireSignalsmithEngine();
       return;
     }
 
     this.wireSoundTouchEngine();
+  }
+
+  /**
+   * Session fallback to SoundTouch: clamp pitch/speed into ±4 / 0.75–1.25,
+   * wire SoundTouch, and notify Control so Settings + UI bounds switch immediately.
+   */
+  private applySoundTouchFallback(_reason: 'mute_watchdog' | 'init_failed'): void {
+    this.preferredDspEngine = 'soundtouch';
+    this.currentPitchOffset = clampPitchForEngine(this.currentPitchOffset, 'soundtouch');
+    this.currentPlaybackSpeed = clampSpeedForEngine(this.currentPlaybackSpeed, 'soundtouch');
+    this.wireSoundTouchEngine();
+    try {
+      this.dspEngineFallbackHandler?.('soundtouch');
+    } catch {
+      /* ignore host errors */
+    }
+  }
+
+  /** Host callback when Hi-Fi auto-falls back to SoundTouch (bounds + settings sync). */
+  public setDspEngineFallbackHandler(handler: DspEngineFallbackCallback | null): void {
+    this.dspEngineFallbackHandler = handler;
   }
 
   private disconnectDspBridgeInternals(): void {
@@ -388,21 +413,21 @@ export class AudioGraphManager {
       /* ignore */
     }
     try {
-      this.bungeeNode?.output.disconnect();
+      this.signalsmithNode?.output.disconnect();
     } catch {
       /* ignore */
     }
   }
 
-  private wireBungeeEngine(): void {
-    if (!this.dspBridgeIn || !this.dspBridgeOut || !this.bungeeNode) return;
+  private wireSignalsmithEngine(): void {
+    if (!this.dspBridgeIn || !this.dspBridgeOut || !this.signalsmithNode) return;
     this.disconnectDspBridgeInternals();
-    this.dspBridgeIn.connect(this.bungeeNode.input);
-    this.bungeeNode.output.connect(this.dspBridgeOut);
-    this.activeDspEngine = 'bungee';
+    this.dspBridgeIn.connect(this.signalsmithNode.input);
+    this.signalsmithNode.output.connect(this.dspBridgeOut);
+    this.activeDspEngine = 'signalsmith';
     // Re-apply live params after wire (covers pitch/speed set while ensureDspEngine was pending).
-    this.bungeeNode.setPitchOffset(this.currentPitchOffset);
-    this.bungeeNode.setPlaybackSpeed(this.currentPlaybackSpeed);
+    this.signalsmithNode.setPitchOffset(this.currentPitchOffset);
+    this.signalsmithNode.setPlaybackSpeed(this.currentPlaybackSpeed);
     this.applyMediaElementRateForActiveEngine();
     this.log(
       'info',
@@ -419,6 +444,9 @@ export class AudioGraphManager {
     this.dspBridgeIn.connect(this.pitchShifterNode.input);
     this.pitchShifterNode.output.connect(this.dspBridgeOut);
     this.activeDspEngine = 'soundtouch';
+    // Always clamp into SoundTouch UI windows before apply (covers ±8 → ±4 fallback).
+    this.currentPitchOffset = clampPitchForEngine(this.currentPitchOffset, 'soundtouch');
+    this.currentPlaybackSpeed = clampSpeedForEngine(this.currentPlaybackSpeed, 'soundtouch');
     this.pitchShifterNode.setPitchOffset(this.currentPitchOffset);
     this.applyMediaElementRateForActiveEngine();
   }
@@ -430,7 +458,7 @@ export class AudioGraphManager {
    */
   private applyMediaElementRateForActiveEngine(): void {
     if (!this.mediaElement || this.isMidiMode) return;
-    if (this.activeDspEngine === null && this.preferredDspEngine === 'bungee') {
+    if (this.activeDspEngine === null && this.preferredDspEngine === 'signalsmith') {
       this.mediaElement.playbackRate = 1.0;
     } else {
       this.mediaElement.playbackRate = this.currentPlaybackSpeed;
@@ -510,7 +538,7 @@ export class AudioGraphManager {
   // ==========================================
 
   /**
-   * Selects the media pitch/speed DSP engine (`bungee` = Signalsmith Hi-Fi default,
+   * Selects the media pitch/speed DSP engine (`signalsmith` = Hi-Fi default,
    * `soundtouch` = emergency/light WSOLA).
    * Public API for pitch/speed ({@link setPitchOffset}, {@link setPlaybackSpeed}) is unchanged.
    * On Hi-Fi init failure or mute watchdog the graph falls back to SoundTouch.
@@ -532,28 +560,30 @@ export class AudioGraphManager {
     return this.preferredDspEngine;
   }
 
-  /** Engine actually wired (may differ after Bungee fallback). */
+  /** Engine actually wired (may differ after Signalsmith → SoundTouch fallback). */
   public getActiveDspEngine(): DspPitchEngine | null {
     return this.activeDspEngine;
   }
 
   /**
    * Updates real-time pitch transposition in semitones without modifying speed.
-   * Range depends on the preferred engine (Bungee UI ±8, SoundTouch ±4).
+   * Range depends on the preferred engine (Signalsmith UI ±8, SoundTouch ±4).
    *
-   * Always stores {@link currentPitchOffset} so {@link wireBungeeEngine} /
+   * Always stores {@link currentPitchOffset} so {@link wireSignalsmithEngine} /
    * {@link wireSoundTouchEngine} can re-apply after async DSP init.
    * When `activeDspEngine` is still null, prefers the matching node if already created.
    *
    * @param semitones - Transposition offset
    */
   public setPitchOffset(semitones: number): void {
-    const clamped = clampPitchForEngine(semitones, this.preferredDspEngine);
+    const clampEngine =
+      this.activeDspEngine === 'soundtouch' ? 'soundtouch' : this.preferredDspEngine;
+    const clamped = clampPitchForEngine(semitones, clampEngine);
     if (clamped === this.currentPitchOffset) return;
     this.currentPitchOffset = clamped;
 
-    if (this.activeDspEngine === 'bungee' || (this.activeDspEngine === null && this.bungeeNode)) {
-      this.bungeeNode?.setPitchOffset(clamped);
+    if (this.activeDspEngine === 'signalsmith' || (this.activeDspEngine === null && this.signalsmithNode)) {
+      this.signalsmithNode?.setPitchOffset(clamped);
       this.log('info', `Pitch offset applied (Signalsmith Hi-Fi): ${clamped} ST`);
     } else if (this.activeDspEngine === 'soundtouch' || this.pitchShifterNode) {
       this.pitchShifterNode?.setPitchOffset(clamped);
@@ -569,14 +599,15 @@ export class AudioGraphManager {
 
   /**
    * Adjusts playback rate / speed (0.50x to 1.50x) without modifying pitch.
-   * Bungee applies speed in Wasm (element rate forced to 1.0).
-   * SoundTouch uses HTMLMediaElement.playbackRate (pitch compensate via WSOLA).
+   * Signalsmith + SoundTouch both use HTMLMediaElement.playbackRate (+ preservesPitch).
    * Stores {@link currentPlaybackSpeed} for re-apply on engine wire.
    *
    * @param speed - Playback speed multiplier
    */
   public setPlaybackSpeed(speed: number): void {
-    const clamped = clampSpeedForEngine(speed, this.preferredDspEngine);
+    const clampEngine =
+      this.activeDspEngine === 'soundtouch' ? 'soundtouch' : this.preferredDspEngine;
+    const clamped = clampSpeedForEngine(speed, clampEngine);
     if (clamped === this.currentPlaybackSpeed) return;
     this.currentPlaybackSpeed = clamped;
 
@@ -586,15 +617,15 @@ export class AudioGraphManager {
       this.midiPlaybackStartTimeMs = performance.now() - (currentMs / this.currentPlaybackSpeed);
     }
 
-    if (this.activeDspEngine === 'bungee' || (this.activeDspEngine === null && this.bungeeNode)) {
-      this.bungeeNode?.setPlaybackSpeed(clamped);
+    if (this.activeDspEngine === 'signalsmith' || (this.activeDspEngine === null && this.signalsmithNode)) {
+      this.signalsmithNode?.setPlaybackSpeed(clamped);
       this.applyMediaElementRateForActiveEngine();
       this.log(
         'info',
         `Playback speed applied (Signalsmith Hi-Fi / media rate): ${clamped.toFixed(2)}x`
       );
-    } else if (this.activeDspEngine === null && this.preferredDspEngine === 'bungee') {
-      // Pending Hi-Fi init — keep element at 1.0 until wireBungeeEngine.
+    } else if (this.activeDspEngine === null && this.preferredDspEngine === 'signalsmith') {
+      // Pending Hi-Fi init — keep element at 1.0 until wireSignalsmithEngine.
       this.applyMediaElementRateForActiveEngine();
       this.log('debug', `Playback speed queued (Signalsmith pending): ${clamped.toFixed(2)}x`);
     } else if (this.mediaElement && !this.isMidiMode) {
@@ -1354,8 +1385,8 @@ export class AudioGraphManager {
     this.disconnectDspBridgeInternals();
     this.pitchShifterNode?.dispose();
     this.pitchShifterNode = null;
-    this.bungeeNode?.dispose();
-    this.bungeeNode = null;
+    this.signalsmithNode?.dispose();
+    this.signalsmithNode = null;
     // Explicit disconnects so MediaElementSource / gains release their graphs
     for (const node of [
       this.sourceNode,

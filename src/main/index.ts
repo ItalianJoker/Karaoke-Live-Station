@@ -33,7 +33,11 @@ import {
 } from '../shared/vocalRemover';
 import { ORT_WASM_ASSET_FILES } from '../shared/ortWasm';
 import { resolveKaraokeLocalFilePath, buildKaraokeLocalUri } from '../shared/karaokeLocalPath';
-import { discoverLibraryMedia, discoverLibraryFilesFromPaths } from '../shared/libraryScanner';
+import {
+  discoverLibraryMediaAsync,
+  discoverLibraryFilesFromPaths,
+  zipContainsCdgKaraokePair
+} from '../shared/libraryScanner';
 import { coerceAiCpuThreads, resolveAiCpuThreads } from '../shared/aiCpuThreads';
 import { ZipCdgCache } from './services/ZipCdgCache';
 import { TrackAnalysisService } from './services/TrackAnalysisService';
@@ -1062,6 +1066,20 @@ class KaraokeMainProcess {
       return this.scanFolder(folderPath);
     });
 
+    ipcMain.handle('db:get-tracks-page', (_event, limit?: number, cursor?: unknown) => {
+      const c =
+        cursor &&
+        typeof cursor === 'object' &&
+        typeof (cursor as { id?: unknown }).id === 'string'
+          ? (cursor as { artist: string; title: string; id: string })
+          : null;
+      return this.db.getTracksPage(typeof limit === 'number' ? limit : 200, c);
+    });
+
+    ipcMain.handle('db:get-tracks-count', () => {
+      return this.db.getTracksCount();
+    });
+
     /**
      * Catalog absolute filesystem paths from OS drag-and-drop (or equivalent).
      * Why: extends the library surface without changing scanFolder contracts.
@@ -1599,41 +1617,88 @@ class KaraokeMainProcess {
   }
 
   /**
-   * Recursively scans a filesystem directory (and all relative subfolders) for
-   * karaoke files (.mp4, .webm, .mkv, .avi, .mp3+.cdg, .mid, .kar), extracts song
-   * titles and artist names from filename patterns ("Artist - Title"), and
-   * persists them to the SQLite library table. Discovery logic lives in
-   * shared/libraryScanner so recursive coverage is unit-tested without Electron.
-   *
-   * Scan path is FFmpeg-free: reuses DB / disk cache thumbnails only, then batch-upserts
-   * in one SQLite transaction. Missing video thumbs are filled by async backfill.
+   * Async library folder scan with progress IPC + delta upsert.
+   * Pass 1 walks via opendir (no ZIP CD on hot path); unchanged mtime/size rows
+   * are skipped; ZIP packs validated only when new/changed.
    *
    * @param folderPath - Library root directory path to scan
-   * @returns Discovered tracks list
+   * @returns Discovered / refreshed tracks list (changed + unchanged catalogued)
    */
-  private scanFolder(folderPath: string): KaraokeMediaTrack[] {
-    const discovered: KaraokeMediaTrack[] = [];
-    const found = discoverLibraryMedia(folderPath);
+  private async scanFolder(folderPath: string): Promise<KaraokeMediaTrack[]> {
+    const root = (folderPath || '').trim();
+    if (!root) return [];
 
-    // Warm path: reuse thumbnailUrl already stored for the same local path (skip MD5/exists).
-    const existingByPath = new Map<string, KaraokeMediaTrack>();
-    try {
-      for (const t of this.db.getAllTracks()) {
-        if (t.localFilePath) {
-          existingByPath.set(t.localFilePath.toLowerCase(), t);
-        }
+    const sendProgress = (scanned: number, found: number, phase: 'walk' | 'upsert' | 'done') => {
+      try {
+        this.controlWindow?.webContents.send('library:scan-progress', {
+          scanned,
+          found,
+          phase,
+          root
+        });
+      } catch {
+        /* ignore */
       }
-    } catch (err) {
-      this.logger.warn('LibraryScan', 'Failed loading existing catalog for thumb reuse', {
-        error: String(err)
-      });
-    }
+    };
 
+    const fingerprints = this.db.getPathFingerprints();
+    const found = await discoverLibraryMediaAsync(root, {
+      onProgress: ({ scanned, found: foundCount }) => {
+        sendProgress(scanned, foundCount, 'walk');
+      }
+    });
+
+    sendProgress(found.length, found.length, 'upsert');
+
+    const discovered: KaraokeMediaTrack[] = [];
     const needThumbIds: string[] = [];
+    const seenPaths = new Set<string>();
+    let unchanged = 0;
 
     for (const item of found) {
-      const prev = existingByPath.get(item.absolutePath.toLowerCase());
-      let thumb = prev?.thumbnailUrl;
+      seenPaths.add(item.absolutePath);
+      const key = item.absolutePath.toLowerCase();
+      const prev = fingerprints.get(key);
+      const mtime = item.fileMtimeMs;
+      const size = item.fileSizeBytes;
+
+      // Delta: identical fingerprint → keep catalog row, no re-upsert.
+      if (
+        prev &&
+        mtime != null &&
+        size != null &&
+        prev.fileMtimeMs === mtime &&
+        prev.fileSizeBytes === size
+      ) {
+        unchanged += 1;
+        discovered.push({
+          id: prev.id,
+          source: item.source,
+          title: item.title,
+          artist: item.artist,
+          durationSec: 0,
+          uri: buildKaraokeLocalUri(item.absolutePath),
+          localFilePath: item.absolutePath,
+          thumbnailUrl: prev.thumbnailUrl ?? undefined,
+          hasEmbeddedLyrics: item.hasEmbeddedLyrics,
+          isMultiplex: false,
+          isEmbeddable: true,
+          initialKey: prev.initialKey ?? undefined,
+          initialBpm: prev.initialBpm != null ? Number(prev.initialBpm) : undefined,
+          fileMtimeMs: mtime,
+          fileSizeBytes: size
+        });
+        continue;
+      }
+
+      // New or changed — validate ZIP packs now (deferred from walk).
+      if (path.extname(item.absolutePath).toLowerCase() === '.zip') {
+        if (!zipContainsCdgKaraokePair(item.absolutePath)) {
+          continue;
+        }
+      }
+
+      let thumb = prev?.thumbnailUrl ?? undefined;
       if (!thumb) {
         thumb = this.peekCachedThumbnail(item.absolutePath);
       }
@@ -1649,9 +1714,10 @@ class KaraokeMainProcess {
         hasEmbeddedLyrics: item.hasEmbeddedLyrics,
         isMultiplex: false,
         isEmbeddable: true,
-        // Preserve prior async analysis across rescan upserts
-        initialKey: prev?.initialKey,
-        initialBpm: prev?.initialBpm
+        initialKey: prev?.initialKey ?? undefined,
+        initialBpm: prev?.initialBpm != null ? Number(prev.initialBpm) : undefined,
+        fileMtimeMs: mtime,
+        fileSizeBytes: size
       };
       if (!thumb && track.localFilePath && this.isVideoThumbnailCandidate(track.localFilePath)) {
         needThumbIds.push(track.id);
@@ -1659,10 +1725,31 @@ class KaraokeMainProcess {
       discovered.push(track);
     }
 
-    this.db.upsertTracksBatch(discovered);
+    // Upsert only new/changed rows (delta).
+    const toUpsert = discovered.filter((t) => {
+      const key = (t.localFilePath || '').toLowerCase();
+      const prev = fingerprints.get(key);
+      if (!prev || t.fileMtimeMs == null || t.fileSizeBytes == null) return true;
+      return prev.fileMtimeMs !== t.fileMtimeMs || prev.fileSizeBytes !== t.fileSizeBytes;
+    });
+    this.db.upsertTracksBatch(toUpsert);
+    try {
+      this.db.deleteTracksMissingFromScan(root, seenPaths);
+    } catch (err) {
+      this.logger.warn('LibraryScan', 'Failed pruning missing paths after scan', {
+        error: String(err)
+      });
+    }
     this.enqueueThumbnailBackfill(needThumbIds);
-    // Background key/BPM — must not delay scan IPC return
-    setImmediate(() => this.trackAnalysis.enqueueMany(discovered));
+    setImmediate(() => this.trackAnalysis.enqueueMany(toUpsert));
+    this.logger.info('LibraryScan', 'Folder scan complete', {
+      root,
+      found: found.length,
+      upserted: toUpsert.length,
+      unchanged,
+      catalogued: discovered.length
+    });
+    sendProgress(found.length, discovered.length, 'done');
     return discovered;
   }
 
@@ -1782,7 +1869,9 @@ class KaraokeMainProcess {
         isMultiplex: false,
         isEmbeddable: true,
         initialKey: prev?.initialKey,
-        initialBpm: prev?.initialBpm
+        initialBpm: prev?.initialBpm,
+        fileMtimeMs: item.fileMtimeMs,
+        fileSizeBytes: item.fileSizeBytes
       };
       if (!thumb && track.localFilePath && this.isVideoThumbnailCandidate(track.localFilePath)) {
         needThumbIds.push(track.id);

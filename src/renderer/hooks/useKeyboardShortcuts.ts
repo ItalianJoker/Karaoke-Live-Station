@@ -4,6 +4,7 @@ import { useKaraokeStore } from '../store/karaokeStore';
 import {
   clampSpeedForEngine,
   coerceDspPitchEngine,
+  getPitchRangeForEngine,
   getSpeedRangeForEngine
 } from '../../shared/dspPitch';
 
@@ -16,8 +17,9 @@ export type ControlRightTab = 'queue' | 'library' | 'history';
  * Ignored while focus is in INPUT/TEXTAREA/SELECT except Escape (blur + close modals).
  *
  * **Audience (AI):** Do not delete handlers that look unused — shortcuts are a Watchlist
- * surface (Space/N/M/Ctrl+F etc.). Pitch clamp here uses ±8 ST (UI deck may use engine
- * range). Speed ± uses `clampSpeedForEngine` / `getSpeedRangeForEngine` (#56) — keep in sync
+ * surface (Space/N/M/Ctrl+F etc.). Pitch clamp uses {@link getPitchRangeForEngine}
+ * (Signalsmith ±8 / SoundTouch ±4). Speed ± uses `clampSpeedForEngine` /
+ * `getSpeedRangeForEngine` — keep in sync with PlayerDeckControls.
  * with PlayerDeckControls.
  *
  * @param deps - Transport handlers + modal/tab setters wired by ControlWindow
@@ -70,6 +72,7 @@ export function useKeyboardShortcuts(deps: {
   const advanceToNextTrack = useKaraokeStore((s) => s.advanceToNextTrack);
   const dspEngine = useKaraokeStore((s) => coerceDspPitchEngine(s.settings.dspEngine));
   const speedRange = getSpeedRangeForEngine(dspEngine);
+  const pitchRange = getPitchRangeForEngine(dspEngine);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -132,10 +135,10 @@ export function useKeyboardShortcuts(deps: {
         setShowShortcutsModal((prev) => !prev);
       } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowUp') {
         e.preventDefault();
-        setLivePitch(Math.min(8, livePitchOffset + 1));
+        setLivePitch(Math.min(pitchRange.max, livePitchOffset + 1));
       } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowDown') {
         e.preventDefault();
-        setLivePitch(Math.max(-8, livePitchOffset - 1));
+        setLivePitch(Math.max(pitchRange.min, livePitchOffset - 1));
       } else if ((e.ctrlKey || e.metaKey) && e.code === 'ArrowLeft') {
         e.preventDefault();
         setPlaybackSpeed(
@@ -162,10 +165,10 @@ export function useKeyboardShortcuts(deps: {
         setPlaybackState({ masterVolume: Math.max(0, masterVolume - 0.05) });
       } else if (e.key === '+' || e.code === 'NumpadAdd' || e.key === '=') {
         e.preventDefault();
-        setLivePitch(Math.min(8, livePitchOffset + 1));
+        setLivePitch(Math.min(pitchRange.max, livePitchOffset + 1));
       } else if (e.key === '-' || e.code === 'NumpadSubtract') {
         e.preventDefault();
-        setLivePitch(Math.max(-8, livePitchOffset - 1));
+        setLivePitch(Math.max(pitchRange.min, livePitchOffset - 1));
       } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyF') {
         e.preventDefault();
         setActiveRightTab('library');
@@ -201,7 +204,9 @@ export function useKeyboardShortcuts(deps: {
       duration,
       masterVolume,
       dspEngine,
-      speedRange.step
+      speedRange.step,
+      pitchRange.min,
+      pitchRange.max
     ]
   );
 

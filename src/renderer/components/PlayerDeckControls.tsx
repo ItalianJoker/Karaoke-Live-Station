@@ -20,7 +20,7 @@ import { formatBpmTransition, formatKeyTransition } from '../../shared/musicalKe
 export interface PlayerDeckControlsProps {
   /** Inclusive pitch range for the active DSP engine (semitones). */
   pitchRange: { min: number; max: number };
-  /** Per-engine Control speed range (Bungee 0.50–1.50 / SoundTouch 0.75–1.25). */
+  /** Per-engine Control speed range (Signalsmith 0.50–1.50 / SoundTouch 0.75–1.25). */
   speedRange: { min: number; max: number; step: number };
   /** Active DSP engine — used with `clampSpeedForEngine` on ± buttons. */
   dspEngine: DspPitchEngine;

@@ -182,7 +182,8 @@ export interface AppSettings {
   enableAudioNormalization?: boolean;
   /**
    * Media pitch/speed DSP engine.
-   * `bungee` (default) = Signalsmith Stretch Hi-Fi AudioWorklet (settings id kept);
+   * `signalsmith` (default) = Signalsmith Stretch Hi-Fi AudioWorklet;
+   * legacy persisted `bungee` migrates via coerceDspPitchEngine;
    * `soundtouch` = emergency/light WSOLA ScriptProcessor.
    * MIDI/KAR never uses this — SpessaSynth note transpose only.
    */
@@ -271,6 +272,37 @@ export interface KaraokeMediaTrack {
    * Not required in SQLite; Stage uses this when present.
    */
   cdgFilePath?: string;
+  /**
+   * Last observed filesystem mtime (ms since epoch) for delta rescan.
+   * Optional — older DBs / non-file rows leave this unset.
+   */
+  fileMtimeMs?: number;
+  /**
+   * Last observed filesystem size (bytes) for delta rescan.
+   */
+  fileSizeBytes?: number;
+}
+
+/** Keyset cursor for paged Local catalog browse (artist / title / id). */
+export interface LibraryTracksPageCursor {
+  artist: string;
+  title: string;
+  id: string;
+}
+
+/** Result of {@link DatabaseManager.getTracksPage}. */
+export interface LibraryTracksPage {
+  tracks: KaraokeMediaTrack[];
+  nextCursor: LibraryTracksPageCursor | null;
+  total: number;
+}
+
+/** Scan progress payload (Main → Renderer IPC). */
+export interface LibraryScanProgress {
+  scanned: number;
+  found: number;
+  phase?: 'walk' | 'upsert' | 'done';
+  root?: string;
 }
 
 /**

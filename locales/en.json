@@ -161,7 +161,9 @@
     "loadMoreVideos": "Load more videos",
     "loadingMore": "Loading more…",
     "clearDownloads": "Clear downloads",
-    "confirmClearDownloads": "Cancel all in-progress downloads and clear the list?"
+    "confirmClearDownloads": "Cancel all in-progress downloads and clear the list?",
+    "scanProgress": "Scanning… {{scanned}} checked, {{found}} found",
+    "scanWarm": "Library ready (cached)"
   },
   "settings": {
     "title": "System Settings",
@@ -299,13 +301,13 @@
     "aiCpuCoresAvailable": "Available CPU cores: {{count}}",
     "aiCpuThreadsResetMax": "Reset to Maximum ({{count}})",
     "dspEngine": "Pitch / Speed DSP Engine",
-    "dspEngineDesc": "Default is Signalsmith Stretch Hi-Fi (settings id: bungee). SoundTouch remains available as a light / emergency fallback. MIDI/KAR always uses SpessaSynth note transpose — not this DSP.",
+    "dspEngineDesc": "Default is Signalsmith Stretch Hi-Fi (settings id: signalsmith; legacy bungee migrates automatically). SoundTouch remains available as a light / emergency fallback. MIDI/KAR always uses SpessaSynth note transpose — not this DSP.",
     "dspEngineBungee": "Signalsmith Stretch (Hi-Fi default) — ±8 ST, pitch+speed",
     "dspEngineHiFiLabel": "Signalsmith Stretch (Hi-Fi)",
     "dspEngineSoundTouch": "SoundTouch (emergency/light) — WSOLA, ±4 ST",
     "dspEngineCompareTitle": "Hi-Fi vs SoundTouch",
     "dspEngineCompareBody": "Compare architecture, quality range, latency, and CPU. Bypass is bit-perfect when pitch is 0 and speed is 1.00x.",
-    "dspEngineBungeeBlurb": "Signalsmith Stretch (MIT) AudioWorklet — successor to Bungee. Recommended ±8 ST (up to ±12). Tempo via media element (preservesPitch). Auto-falls back to SoundTouch if the mute watchdog fires.",
+    "dspEngineBungeeBlurb": "Signalsmith Stretch (MIT) AudioWorklet. Recommended ±8 ST (up to ±12). Tempo via media element (preservesPitch). Auto-falls back to SoundTouch if the mute watchdog fires — pitch/speed bounds then switch to SoundTouch (±4 ST, 0.75–1.25×).",
     "dspEngineSoundTouchBlurb": "WSOLA ScriptProcessor — emergency/light fallback. Hard ±4 ST. Speed via media element. Near-zero CPU at pitch 0 (processor disconnected).",
     "dspEngineMidiNote": "MIDI/KAR pitch and tempo never pass through Signalsmith or SoundTouch.",
     "demucsAdvancedTitle": "Advanced HTDemucs Settings",
@@ -323,7 +325,9 @@
     "aiGpuBadgeGpu": "GPU: WebGPU Active ({{name}})",
     "aiGpuBadgeCpu": "CPU: {{detail}}",
     "aiGpuBadgeWasmWorker": "WASM CPU",
-    "aiGpuBadgeHardwareOnly": "Hardware GPU detected: {{name}} — AI still uses WASM (no WebGPU adapter)"
+    "aiGpuBadgeHardwareOnly": "Hardware GPU detected: {{name}} — AI still uses WASM (no WebGPU adapter)",
+    "dspEngineSignalsmith": "Signalsmith Stretch (Hi-Fi default) — ±8 ST, pitch+speed",
+    "dspEngineSignalsmithBlurb": "Signalsmith Stretch (MIT) AudioWorklet. Recommended ±8 ST (up to ±12). Tempo via media element (preservesPitch). Auto-falls back to SoundTouch if the mute watchdog fires — pitch/speed bounds then switch to SoundTouch (±4 ST, 0.75–1.25×)."
   },
   "history": {
     "title": "Playback History",

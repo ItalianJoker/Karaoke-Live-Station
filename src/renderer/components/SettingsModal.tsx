@@ -480,6 +480,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const matchDspEngine = matchesSearch(
     t('settings.dspEngine'),
     t('settings.dspEngineDesc'),
+    'signalsmith',
     'bungee',
     'soundtouch',
     'pitch',

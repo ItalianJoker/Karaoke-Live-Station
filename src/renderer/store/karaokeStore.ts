@@ -162,7 +162,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   maxSimultaneousDownloads: 2,
   enableAutoDuckingBGM: false,
   enableAudioNormalization: true,
-  dspEngine: 'bungee',
+  dspEngine: 'signalsmith',
   enableGuestPortal: true,
   enableSiaeReporting: true,
   autoArchiveWebTracks: true,
@@ -381,7 +381,7 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           updatedSettings = updated;
 
           // Engine switch: re-clamp live pitch + speed into the new UI ranges
-          // (e.g. Bungee 0.60x → SoundTouch 0.75x).
+          // (e.g. Signalsmith 0.60x → SoundTouch 0.75x).
           if (partial.dspEngine !== undefined) {
             const engine = coerceDspPitchEngine(updated.dspEngine);
             const nextSpeed = clampSpeedForEngine(state.playback.playbackSpeed, engine);

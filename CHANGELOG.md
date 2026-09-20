@@ -9,16 +9,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- None yet.
+- **Library Phase 2 (14k scale)** — Delta rescan (`fileMtimeMs`/`fileSizeBytes`), async `opendir` walk + `library:scan-progress`, FTS5 Local search, keyset `getTracksPage` so empty Local never IPC-dumps the full catalog. ZIP CD inspect deferred off the hot walk.
 
 ### Changed
-- None yet.
+- **DSP Settings id `signalsmith`** — Legacy `bungee` migrates via `coerceDspPitchEngine` (no settings wipe). `SignalsmithPitchShifterNode` replaces Bungee naming; thin alias kept.
 
 ### Fixed
-- None yet.
+- **Signalsmith → SoundTouch pitch bounds** — Fallback / manual SoundTouch clamps UI + live pitch/speed to ±4 ST / 0.75–1.25×; shortcuts honor engine range; Settings syncs via fallback handler.
+- **WebGPU → WASM CPU threads** — UtilityProcess re-route reasserts Settings `aiCpuThreads` (`resolveAiCpuThreads`); logs/badge show effective WASM thread count.
 
 ### Breaking Changes
-- None yet.
+- None yet (legacy `dspEngine: 'bungee'` still loads as Signalsmith Hi-Fi).
 
 ## [1.4.0] — Signalsmith Hi-Fi DSP + ZIP CD+G + AI WebGPU + Safety-First — 2026-09-20
 
