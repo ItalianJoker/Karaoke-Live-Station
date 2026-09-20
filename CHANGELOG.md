@@ -9,24 +9,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- **Library Phase 2 (14k scale)** — Delta rescan (`fileMtimeMs`/`fileSizeBytes`), async `opendir` walk + `library:scan-progress`, FTS5 Local search, keyset `getTracksPage` so empty Local never IPC-dumps the full catalog. ZIP CD inspect deferred off the hot walk.
+- None yet.
 
 ### Changed
-- **DSP Settings id `signalsmith`** — Legacy `bungee` migrates via `coerceDspPitchEngine` (no settings wipe). `SignalsmithPitchShifterNode` replaces Bungee naming; thin alias kept.
+- None yet.
 
 ### Fixed
-- **Signalsmith → SoundTouch pitch bounds** — Fallback / manual SoundTouch clamps UI + live pitch/speed to ±4 ST / 0.75–1.25×; shortcuts honor engine range; Settings syncs via fallback handler.
-- **WebGPU → WASM CPU threads** — UtilityProcess re-route reasserts Settings `aiCpuThreads` (`resolveAiCpuThreads`); logs/badge show effective WASM thread count.
+- None yet.
 
 ### Breaking Changes
-- None yet (legacy `dspEngine: 'bungee'` still loads as Signalsmith Hi-Fi).
+- None yet.
 
-## [1.4.0] — Signalsmith Hi-Fi DSP + ZIP CD+G + AI WebGPU + Safety-First — 2026-09-20
+## [1.4.0] — Signalsmith Hi-Fi DSP + ZIP CD+G + AI WebGPU + Library Phase 2 — 2026-09-20
 
-Overwrite of GitHub Release **v1.4.0** after PRs **#52**–**#68** (same version; does **not** touch `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on `v1.3.0` baseline. Package stays **1.4.0** (no 1.5.0).
+Overwrite of GitHub Release **v1.4.0** after PRs **#52**–**#70** (same version; does **not** touch `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on `v1.3.0` baseline. Package stays **1.4.0** (no 1.5.0).
 
 ### Added
-- **Signalsmith Stretch Hi-Fi pitch DSP (default)** — `BungeePitchShifterNode` wraps npm `signalsmith-stretch` (MIT AudioWorklet). Settings id stays `dspEngine: 'bungee'` for persistence; UI labels Hi-Fi. Tempo via media `playbackRate` + `preservesPitch`; pitch via `schedule({ semitones })`. Mute watchdog → dry pass-through + SoundTouch emergency. Notice: `public/workers/SIGNALSMITH_NOTICE.md`. Lab: `scripts/lab-signalsmith-pitch.js`. MIDI/KAR unchanged (SpessaSynth). (PR #66; supersedes Bungee Wasm from #52/#56/#60/#63)
+- **Library Phase 2 (14k scale)** — Delta rescan (`fileMtimeMs`/`fileSizeBytes`), async `opendir` walk + `library:scan-progress`, FTS5 Local search, keyset `getTracksPage` so empty Local never IPC-dumps the full catalog. ZIP CD inspect deferred off the hot walk. (PR #70)
+- **Signalsmith Stretch Hi-Fi pitch DSP (default)** — `SignalsmithPitchShifterNode` (thin `BungeePitchShifterNode` alias) wraps npm `signalsmith-stretch` (MIT AudioWorklet). Settings id `dspEngine: 'signalsmith'` (legacy `bungee` migrates). Tempo via media `playbackRate` + `preservesPitch`; pitch via `schedule({ semitones })`. Mute watchdog → dry pass-through + SoundTouch emergency. Notice: `public/workers/SIGNALSMITH_NOTICE.md`. Lab: `scripts/lab-signalsmith-pitch.js`. MIDI/KAR unchanged (SpessaSynth). (PR #66 / #70; supersedes Bungee Wasm from #52/#56/#60/#63)
 - **Bungee default pitch/speed DSP** — *(historical #52 path; removed in #66)* Wasm AudioWorklet phase vocoder (`bungee_processor.js` + `bungee.wasm`, MPL-2.0). Settings `dspEngine: 'bungee' | 'soundtouch'` (default `bungee`). Control pitch UI ±8 / ±4. True bypass when pitch 0 && speed 1.00x. Silent fallback to SoundTouch if init fails. (PR #52)
 - **Instrumental subtitles confirmation modal** — Clicking Scarica strumentale opens `InstrumentalSubtitlesModal` (title/artist + amber ASR warning) before download. Actions: with subtitles / instrumental only / cancel (Esc / outside). Optional remember → `instrumentalSubtitlesPolicy: 'ask' | 'always' | 'never'`. `DownloadOptions.includeSubtitles` opt-in; normal download unchanged. (PR #53)
 - **Native `.zip` CD+G karaoke packs** — Library scan/import discovers ZIP archives that contain an MP3/WAV + `.cdg` pair (Central Directory inspect). Playback extracts on demand to `userData/temp/zip_cache/<trackId>/`, serves via `karaoke://local/`, and cleans up on dequeue / app quit. Title/artist from the ZIP filename. (PR #54)
@@ -43,6 +43,7 @@ Overwrite of GitHub Release **v1.4.0** after PRs **#52**–**#68** (same version
 - **App quit cleanup + WebGPU device/session watchdog** — Control close: Stage → dispose Hidden Renderer → cancel downloads/search → `app.quit()`. `before-quit`: same dispose + guestServer/temp/zip/`db.close()`. Probe requires `requestAdapter` + `requestDevice` (5s race). 15s watchdog on WebGPU `InferenceSession.create` (MDX + HTDemucs) → `GpuFallbackRequestedError` → utilityProcess WASM. WebGPU uses JSEP `wasmPaths` only (never CPU `wasmBinary`). (PR #68)
 
 ### Changed
+- **DSP Settings id `signalsmith`** — Legacy `bungee` migrates via `coerceDspPitchEngine` (no settings wipe). `SignalsmithPitchShifterNode` replaces Bungee naming; thin alias kept. (PR #70)
 - SoundTouch WSOLA remains selectable as emergency/light engine (hard ±4 ST); no longer the sole media pitch path. (PR #52 / #66)
 - README / RELEASE_NOTES attribution for Signalsmith (MIT) + `public/workers/SIGNALSMITH_NOTICE.md` (replaces Bungee MPL notice / Wasm assets removed in #66). (PR #52 → #66)
 - **yt-dlp instrumental `--sub-langs`** — Extended from `.*-orig` to `.*-orig,default` (still no bare `all`; 429-safe). Auto-subs flags only when `instrumental && includeSubtitles === true`. (PR #53)
@@ -55,6 +56,9 @@ Overwrite of GitHub Release **v1.4.0** after PRs **#52**–**#68** (same version
 - App version **1.4.0** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer. (this release)
 
 ### Fixed
+- **Signalsmith → SoundTouch pitch bounds** — Fallback / manual SoundTouch clamps UI + live pitch/speed to ±4 ST / 0.75–1.25×; shortcuts honor engine range; Settings syncs via fallback handler. (PR #70)
+- **WebGPU → WASM CPU threads** — UtilityProcess re-route reasserts Settings `aiCpuThreads` (`resolveAiCpuThreads`); logs/badge show effective WASM thread count. (PR #70)
+- **WebGPU hardware bind + Signalsmith worklet load** — Pre-import `ort.all.bundle.min.mjs` in Hidden Renderer; JSEP `wasmPaths` wasm-only + `powerPreference: 'high-performance'`; Chromium WebGPU flags; static `signalsmith_processor.js` + `ensureWorkletModuleLoaded`; utilityProcess `location.origin` banner. (`ae0135d`)
 - **Orphan processes after closing Regia** — Hidden Renderer stayed open so `window-all-closed` / `before-quit` never ran (guestServer + GPU helpers lingered). Control `closed` now disposes Hidden Renderer and calls `app.quit()`. (PR #68)
 - **Indefinite freeze on “Creating ORT session (WebGPU)”** — Adapter-only probe was a false positive; `InferenceSession.create` had no timeout; embedding CPU `wasmBinary` broke JSEP. Fixed via `requestDevice` probe, 15s create watchdog → utilityProcess WASM, and JSEP-only `wasmPaths` on WebGPU. (PR #68)
 - **Bungee pitch + time-stretch no-op** — *(historical #56; Wasm path removed in #66)* AudioWorklet processor: drop `export default`, Emscripten `ENVIRONMENT_IS_WORKER` detects `AudioWorkletGlobalScope`. `BungeePitchShifterNode.create` waits for Wasm `initialized` (timeout → SoundTouch). Graph re-applies pitch **and** speed on wire; Bungee keeps `HTMLMediaElement.playbackRate = 1.0` (WASM owns tempo, no double rate / chipmunk); SoundTouch still uses element rate. Bypass exits for pitch≠0 **or** speed≠1.0. (PR #56)
@@ -67,7 +71,7 @@ Overwrite of GitHub Release **v1.4.0** after PRs **#52**–**#68** (same version
 
 ### Breaking Changes
 - Persisted Download Instrumental methods that were DSP or `aiBsRoformer` coerce to `aiMdxKaraoke2`. (PR #55)
-- Missing `dspEngine` in persisted settings coerces to `bungee`; missing `instrumentalSubtitlesPolicy` coerces to `ask`. (PR #52 / #53)
+- Missing `dspEngine` in persisted settings coerces to `signalsmith`; legacy `bungee` migrates to `signalsmith`; missing `instrumentalSubtitlesPolicy` coerces to `ask`. (PR #52 / #53 / #70)
 
 ## [1.3.0] — Startup maximize / Stage launch / AI CPU cores / Settings layout — 2026-09-19
 
