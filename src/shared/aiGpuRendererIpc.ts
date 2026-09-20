@@ -17,6 +17,11 @@ export const AI_GPU_RENDERER_CHANNELS = {
 
 export type AiGpuRendererProbeResult = {
   available: boolean;
+  /**
+   * True only when requestAdapter() and requestDevice() both succeed
+   * (device probe is raced at 5s). Adapter alone is a false positive for
+   * ORT WebGPU readiness.
+   */
   adapterOk: boolean;
   reason?: string;
   navigatorType: string;

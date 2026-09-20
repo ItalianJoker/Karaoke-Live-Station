@@ -57,7 +57,7 @@ export async function probeGpuStatus(): Promise<GpuStatus> {
 
     const hardwareGpuPresent = webgpuOk || webglOk || compositingOk;
 
-    // Real AI WebGPU = Hidden Renderer adapter (not utilityProcess, not hardware-only).
+    // Real AI WebGPU = Hidden Renderer adapter+device (not utilityProcess, not hardware-only).
     let workerWebGpuAvailable = false;
     let workerOrtNote =
       'Instrumental AI: probing Hidden Renderer WebGPU (utilityProcess has no navigator.gpu)';
@@ -66,11 +66,11 @@ export async function probeGpuStatus(): Promise<GpuStatus> {
       const probe = await hidden.probeWebGpu();
       workerWebGpuAvailable = probe.adapterOk === true;
       if (workerWebGpuAvailable) {
-        workerOrtNote = 'Instrumental AI Hidden Renderer: WebGPU adapter available';
+        workerOrtNote = 'Instrumental AI Hidden Renderer: WebGPU adapter+device available';
       } else {
         workerOrtNote =
           probe.reason ||
-          'Hidden Renderer has no WebGPU adapter — Instrumental AI uses WASM CPU in utilityProcess';
+          'Hidden Renderer has no WebGPU device — Instrumental AI uses WASM CPU in utilityProcess';
       }
     } catch (err) {
       workerWebGpuAvailable = false;

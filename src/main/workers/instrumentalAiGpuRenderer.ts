@@ -24,6 +24,7 @@ import {
   AI_GPU_RENDERER_CHANNELS,
   type AiGpuRendererProbeResult
 } from '../../shared/aiGpuRendererIpc';
+import { WEBGPU_DEVICE_PROBE_TIMEOUT_MS } from '../../shared/aiGpuFallback';
 
 function post(msg: InstrumentalAiOutMessage): void {
   ipcRenderer.send(AI_GPU_RENDERER_CHANNELS.message, msg);
@@ -41,7 +42,15 @@ async function probeAdapter(): Promise<AiGpuRendererProbeResult> {
   }
   try {
     const gpu = (
-      globalThis as { navigator?: { gpu?: { requestAdapter?: () => Promise<unknown> } } }
+      globalThis as {
+        navigator?: {
+          gpu?: {
+            requestAdapter?: () => Promise<{
+              requestDevice?: () => Promise<{ destroy?: () => void }>;
+            } | null>;
+          };
+        };
+      }
     ).navigator?.gpu;
     const adapter = gpu?.requestAdapter ? await gpu.requestAdapter() : null;
     if (!adapter) {
@@ -51,6 +60,44 @@ async function probeAdapter(): Promise<AiGpuRendererProbeResult> {
         reason: 'navigator.gpu.requestAdapter() returned null',
         navigatorType: sync.navigatorType
       };
+    }
+    // Adapter alone is a false positive — ORT needs a real GPUDevice.
+    let device: { destroy?: () => void } | null = null;
+    try {
+      if (!adapter.requestDevice) {
+        return {
+          available: true,
+          adapterOk: false,
+          reason: 'adapter.requestDevice missing',
+          navigatorType: sync.navigatorType
+        };
+      }
+      device = await Promise.race([
+        adapter.requestDevice(),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `requestDevice timed out after ${WEBGPU_DEVICE_PROBE_TIMEOUT_MS}ms`
+                )
+              ),
+            WEBGPU_DEVICE_PROBE_TIMEOUT_MS
+          )
+        )
+      ]);
+    } catch (devErr) {
+      return {
+        available: true,
+        adapterOk: false,
+        reason: devErr instanceof Error ? devErr.message : String(devErr),
+        navigatorType: sync.navigatorType
+      };
+    }
+    try {
+      device?.destroy?.();
+    } catch {
+      /* ignore */
     }
     return {
       available: true,

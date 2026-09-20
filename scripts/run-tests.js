@@ -3443,8 +3443,42 @@ console.log('\n\x1b[36m▶ Suite: Signalsmith pitch lab (-1..-4 ST)\x1b[0m');
     sepTimeoutSrc.includes('AI_SEPARATION_MAX_TIMEOUT_MS') &&
       sepTimeoutSrc.includes('gpu-fallback-requested') &&
       sepTimeoutSrc.includes('allowInProcessWasmFallback') &&
-      sepTimeoutSrc.includes('utilityProcess'),
+      sepTimeoutSrc.includes('utilityProcess') &&
+      sepTimeoutSrc.includes('clearJobHandler'),
     'AI separator: bounded timeout + Hidden Renderer gpu-fallback → utilityProcess'
+  );
+
+  const mainQuitSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+  const hiddenProbeSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/InstrumentalAiHiddenRenderer.ts'),
+    'utf8'
+  );
+  const mdxWatchSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/ai/MdxNetSeparator.ts'),
+    'utf8'
+  );
+  const sepCoreWatchSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/workers/instrumentalAiSeparateCore.ts'),
+    'utf8'
+  );
+  const gpuFallbackShared = fs.readFileSync(
+    path.resolve(__dirname, '../src/shared/aiGpuFallback.ts'),
+    'utf8'
+  );
+  assert(
+    mainQuitSrc.includes("controlWindow.on('closed'") &&
+      mainQuitSrc.includes('app.quit()') &&
+      mainQuitSrc.includes('getInstrumentalAiHiddenRenderer') &&
+      mainQuitSrc.includes('cancelAllDownloads') &&
+      mainQuitSrc.includes("app.on('before-quit'") &&
+      hiddenProbeSrc.includes('requestDevice') &&
+      hiddenProbeSrc.includes('WEBGPU_DEVICE_PROBE_TIMEOUT_MS') &&
+      mdxWatchSrc.includes('WEBGPU_SESSION_TIMEOUT_MS') &&
+      sepCoreWatchSrc.includes('WEBGPU_SESSION_TIMEOUT_MS') &&
+      sepCoreWatchSrc.includes('jsepWasm') &&
+      gpuFallbackShared.includes('WEBGPU_SESSION_TIMEOUT_MS = 15_000') &&
+      gpuFallbackShared.includes('WEBGPU_DEVICE_PROBE_TIMEOUT_MS = 5_000'),
+    'Quit: Control close disposes Hidden Renderer + app.quit; WebGPU device probe + 15s session watchdog'
   );
 }
 

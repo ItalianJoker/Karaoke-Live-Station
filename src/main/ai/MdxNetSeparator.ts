@@ -47,7 +47,11 @@ import {
   resolveWorkerOrtProviders,
   type AiOrtBackend
 } from '../../shared/aiWorkerWebGpu';
-import { GpuFallbackRequestedError } from '../../shared/aiGpuFallback';
+import {
+  GpuFallbackRequestedError,
+  raceWithTimeout,
+  WEBGPU_SESSION_TIMEOUT_MS
+} from '../../shared/aiGpuFallback';
 import os from 'os';
 
 export type MdxProgress = {
@@ -68,6 +72,9 @@ export type OrtWasmPathConfig =
       mjs?: string;
       /** Prefer embedding the .wasm bytes — avoids file:// fetch hangs in utilityProcess. */
       wasmBinary?: ArrayBuffer | Uint8Array;
+      /** JSEP URLs for WebGPU — used instead of wasm/mjs when preferWebGpu. */
+      jsepWasm?: string;
+      jsepMjs?: string;
     };
 
 /** Runtime knobs from Settings → worker (MDX path only). */
@@ -211,7 +218,10 @@ export class MdxNetSeparator {
   }
 
   /** Apply ORT WASM paths (file:// or karaoke://). Required in main/utility workers. */
-  private async configureOrt(wasmPaths?: OrtWasmPathConfig): Promise<void> {
+  private async configureOrt(
+    wasmPaths?: OrtWasmPathConfig,
+    opts?: { forWebGpu?: boolean }
+  ): Promise<void> {
     if (!wasmPaths) {
       throw new Error('ORT WASM paths required for instrumental AI separation');
     }
@@ -222,6 +232,24 @@ export class MdxNetSeparator {
     ort.env.wasm.proxy = false;
     if (typeof wasmPaths === 'string') {
       ort.env.wasm.wasmPaths = wasmPaths.endsWith('/') ? wasmPaths : `${wasmPaths}/`;
+      return;
+    }
+    const forWebGpu = opts?.forWebGpu ?? this.preferWebGpu;
+    // WebGPU/JSEP must load jsep assets via wasmPaths — never embed the CPU
+    // ort-wasm-simd-threaded.wasm bytes (breaks JSEP and can deadlock file:// SAB).
+    if (forWebGpu) {
+      const jsepWasm = wasmPaths.jsepWasm || wasmPaths.wasm;
+      const jsepMjs = wasmPaths.jsepMjs || wasmPaths.mjs;
+      ort.env.wasm.wasmPaths = {
+        wasm: jsepWasm,
+        mjs: jsepMjs
+      };
+      try {
+        // Clear any prior utilityProcess embedding if this env was reused.
+        delete (ort.env.wasm as { wasmBinary?: ArrayBuffer }).wasmBinary;
+      } catch {
+        /* ignore */
+      }
       return;
     }
     if (wasmPaths.wasmBinary) {
@@ -272,14 +300,18 @@ export class MdxNetSeparator {
         graphOptimizationLevel: graphOptimizationLevel as 'all' | 'disabled'
       };
       // Prefer WebGPU-only first so a silent WASM pick inside ['webgpu','wasm'] cannot
-      // look like a GPU hit. On failure: utilityProcess may create WASM here; Hidden
-      // Renderer must throw GpuFallbackRequestedError (no in-window WASM / SAB deadlock).
+      // look like a GPU hit. On failure / 15s hang: utilityProcess may create WASM here;
+      // Hidden Renderer must throw GpuFallbackRequestedError (no in-window WASM / SAB deadlock).
       if (this.preferWebGpu) {
         try {
-          this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
-            ...sessionOptionsBase,
-            executionProviders: ['webgpu']
-          });
+          this.session = await raceWithTimeout(
+            ort.InferenceSession.create(modelBuffer.slice(0), {
+              ...sessionOptionsBase,
+              executionProviders: ['webgpu']
+            }),
+            WEBGPU_SESSION_TIMEOUT_MS,
+            'ORT InferenceSession.create(WebGPU)'
+          );
           this.ortBackend = 'webgpu';
           this.ortFallbackReason = undefined;
         } catch (err) {
@@ -298,6 +330,8 @@ export class MdxNetSeparator {
             ortFallbackReason: this.ortFallbackReason,
             ortNumThreads: this.numThreads
           });
+          // Switch from JSEP paths to CPU wasmBinary before WASM session.create.
+          await this.configureOrt(wasmPaths, { forWebGpu: false });
           this.session = await ort.InferenceSession.create(modelBuffer.slice(0), {
             ...sessionOptionsBase,
             executionProviders: ['wasm']
