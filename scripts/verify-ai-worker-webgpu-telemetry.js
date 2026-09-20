@@ -119,22 +119,31 @@ assert(
     hidden.includes('executeJavaScript') &&
     hidden.includes('userData') &&
     hidden.includes('requestAdapter') &&
+    hidden.includes('requestDevice') &&
+    hidden.includes('WEBGPU_DEVICE_PROBE_TIMEOUT_MS') &&
     sep.includes('hidden-renderer') &&
     sep.includes('getInstrumentalAiHiddenRenderer') &&
     sep.includes('gpuToggleOn') &&
     !sep.includes('aiEnableGpu !== false && options.aiGpuSupported === true'),
-  'Hidden Renderer: asar-safe shell + executeJavaScript probe; route on live GPU toggle (not sticky snapshot)'
+  'Hidden Renderer: asar-safe shell + requestDevice probe; route on live GPU toggle (not sticky snapshot)'
 );
 
 assert(
   gpuRenderer.includes('ipcRenderer') &&
     gpuRenderer.includes('runInstrumentalAiSeparate') &&
     gpuRenderer.includes('requestAdapter') &&
+    gpuRenderer.includes('requestDevice') &&
     gpuRenderer.includes('gpu-fallback-requested') &&
     sepCore.includes('runInstrumentalAiSeparate') &&
     sepCore.includes("createAndRun(['webgpu'])") &&
-    sepCore.includes('GpuFallbackRequestedError'),
-  'GPU renderer entry + shared core: WebGPU then gpu-fallback (no in-window WASM)'
+    sepCore.includes('GpuFallbackRequestedError') &&
+    sepCore.includes('WEBGPU_SESSION_TIMEOUT_MS') &&
+    sepCore.includes('jsepWasm') &&
+    mdx.includes('WEBGPU_SESSION_TIMEOUT_MS') &&
+    mdx.includes('raceWithTimeout') &&
+    mdx.includes('forWebGpu') &&
+    mdx.includes('jsepWasm'),
+  'GPU renderer entry + shared core: WebGPU watchdog + JSEP paths (no CPU wasmBinary on WebGPU)'
 );
 
 assert(

@@ -20,12 +20,14 @@ import {
   AI_GPU_RENDERER_CHANNELS,
   type AiGpuRendererProbeResult
 } from '../../shared/aiGpuRendererIpc';
+import { WEBGPU_DEVICE_PROBE_TIMEOUT_MS } from '../../shared/aiGpuFallback';
 import type {
   InstrumentalAiOutMessage,
   InstrumentalAiSeparateRequest
 } from '../workers/instrumentalAiSeparateCore';
 
 const READY_TIMEOUT_MS = 60_000;
+/** Outer ceiling for the full probe script (adapter + device + marshalling). */
 const PROBE_TIMEOUT_MS = 20_000;
 
 export type HiddenRendererJobHandlers = {
@@ -203,6 +205,8 @@ export class InstrumentalAiHiddenRenderer {
 
   /**
    * Probe WebGPU via executeJavaScript in the Hidden Renderer.
+   * Requires requestAdapter + requestDevice (5s race) — adapter-only probes
+   * are false positives for ORT WebGPU session.create.
    * Does not require the ORT worker bundle (fast + asar-safe).
    */
   async probeWebGpu(opts?: { forceRefresh?: boolean }): Promise<AiGpuRendererProbeResult> {
@@ -212,6 +216,7 @@ export class InstrumentalAiHiddenRenderer {
         return this.lastProbe;
       }
 
+      const deviceTimeoutMs = WEBGPU_DEVICE_PROBE_TIMEOUT_MS;
       const probePromise = win.webContents.executeJavaScript(
         `(async () => {
           const nav = typeof navigator !== 'undefined' ? navigator : undefined;
@@ -237,6 +242,32 @@ export class InstrumentalAiHiddenRenderer {
                 navigatorType
               };
             }
+            // Adapter alone is insufficient — ORT needs a real GPUDevice.
+            const deviceTimeoutMs = ${deviceTimeoutMs};
+            let device = null;
+            try {
+              device = await Promise.race([
+                adapter.requestDevice(),
+                new Promise((_, reject) =>
+                  setTimeout(
+                    () => reject(new Error('requestDevice timed out after ' + deviceTimeoutMs + 'ms')),
+                    deviceTimeoutMs
+                  )
+                )
+              ]);
+            } catch (devErr) {
+              return {
+                available: true,
+                adapterOk: false,
+                reason: devErr && devErr.message
+                  ? String(devErr.message)
+                  : 'adapter.requestDevice() failed',
+                navigatorType
+              };
+            }
+            try {
+              if (device && typeof device.destroy === 'function') device.destroy();
+            } catch (_) { /* ignore */ }
             return { available: true, adapterOk: true, navigatorType };
           } catch (err) {
             return {
@@ -287,7 +318,7 @@ export class InstrumentalAiHiddenRenderer {
     }
   }
 
-  /** True when Hidden Renderer can attempt ORT WebGPU (adapter present). */
+  /** True when Hidden Renderer can attempt ORT WebGPU (adapter+device present). */
   async isWebGpuReady(): Promise<boolean> {
     const probe = await this.probeWebGpu({ forceRefresh: true });
     return probe.adapterOk === true;

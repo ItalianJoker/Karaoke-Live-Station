@@ -30,11 +30,20 @@ import {
 } from '../../shared/aiWorkerWebGpu';
 import {
   GpuFallbackRequestedError,
-  isGpuFallbackRequestedError
+  isGpuFallbackRequestedError,
+  raceWithTimeout,
+  WEBGPU_SESSION_TIMEOUT_MS
 } from '../../shared/aiGpuFallback';
+import { ORT_WASM_CPU_FILES } from '../../shared/ortWasm';
 import { MdxNetSeparator, MDX_SAMPLE_RATE } from '../ai/MdxNetSeparator';
 import { separateDemucsWithAdvancedOptions } from '../ai/demucsSeparateWithOptions';
 import { readPcmWavFile, writePcmWavFile } from '../ai/wavPcm';
+
+/** JSEP pair required by ORT WebGPU — never embed CPU wasmBinary with these. */
+const ORT_WASM_JSEP_FILES = {
+  wasm: 'ort-wasm-simd-threaded.jsep.wasm',
+  mjs: 'ort-wasm-simd-threaded.jsep.mjs'
+} as const;
 
 export type InstrumentalAiSeparateRequest = {
   type: 'separate';
@@ -86,21 +95,36 @@ function toArrayBuffer(u8: Uint8Array): ArrayBuffer {
 }
 
 function ortWasmConfigFromDir(ortDir: string): {
+  /** CPU WASM pair (utilityProcess / in-process WASM fallback). */
   wasm: string;
   mjs: string;
   wasmBinary: Uint8Array;
+  /** JSEP pair for WebGPU — never embed as wasmBinary. */
+  jsepWasm: string;
+  jsepMjs: string;
 } {
-  const wasm = path.join(ortDir, 'ort-wasm-simd-threaded.wasm');
-  const mjs = path.join(ortDir, 'ort-wasm-simd-threaded.mjs');
-  if (!fs.existsSync(wasm) || !fs.existsSync(mjs)) {
-    throw new Error(`ORT WASM assets missing under ${ortDir}`);
+  const cpuWasm = path.join(ortDir, ORT_WASM_CPU_FILES.wasm);
+  const cpuMjs = path.join(ortDir, ORT_WASM_CPU_FILES.mjs);
+  const jsepWasm = path.join(ortDir, ORT_WASM_JSEP_FILES.wasm);
+  const jsepMjs = path.join(ortDir, ORT_WASM_JSEP_FILES.mjs);
+  if (!fs.existsSync(cpuWasm) || !fs.existsSync(cpuMjs)) {
+    throw new Error(
+      `ORT WASM assets missing under ${ortDir} (${ORT_WASM_CPU_FILES.wasm} / ${ORT_WASM_CPU_FILES.mjs})`
+    );
   }
-  // Load .wasm bytes from disk — utilityProcess / file:// fetch of large WASM can hang.
-  const wasmBinary = new Uint8Array(toArrayBuffer(new Uint8Array(fs.readFileSync(wasm))));
+  if (!fs.existsSync(jsepWasm) || !fs.existsSync(jsepMjs)) {
+    throw new Error(
+      `ORT JSEP assets missing under ${ortDir} (${ORT_WASM_JSEP_FILES.wasm} / ${ORT_WASM_JSEP_FILES.mjs})`
+    );
+  }
+  // Embed CPU .wasm bytes for utilityProcess WASM — avoids file:// fetch hangs.
+  const wasmBinary = new Uint8Array(toArrayBuffer(new Uint8Array(fs.readFileSync(cpuWasm))));
   return {
-    wasm: pathToFileURL(wasm).href,
-    mjs: pathToFileURL(mjs).href,
-    wasmBinary
+    wasm: pathToFileURL(cpuWasm).href,
+    mjs: pathToFileURL(cpuMjs).href,
+    wasmBinary,
+    jsepWasm: pathToFileURL(jsepWasm).href,
+    jsepMjs: pathToFileURL(jsepMjs).href
   };
 }
 
@@ -159,6 +183,7 @@ async function separateMdx(
       ortNumThreads: info.ortNumThreads ?? separator.getOrtNumThreads()
     });
   });
+  // Match separator EP preference: full config carries CPU + JSEP; configureOrt picks.
   await separator.loadModel(modelBuffer, ortWasmConfigFromDir(ortDir));
   post({
     type: 'progress',
@@ -211,17 +236,28 @@ async function separateDemucs(
     standaloneMask: typeof standaloneMask;
     standaloneIspec: typeof standaloneIspec;
   } = { CONSTANTS, prepareModelInput, standaloneMask, standaloneIspec };
-  const wasmPaths = ortWasmConfigFromDir(ortDir);
+  const ortAssets = ortWasmConfigFromDir(ortDir);
   const totalCpus = Math.max(1, os.cpus()?.length || 1);
   const threads = resolveAiCpuThreads(demucsOpts?.aiCpuThreads, totalCpus);
   ort.env.wasm.numThreads = threads;
   ort.env.wasm.simd = true;
   ort.env.wasm.proxy = false;
-  ort.env.wasm.wasmBinary = wasmPaths.wasmBinary.buffer.slice(
-    wasmPaths.wasmBinary.byteOffset,
-    wasmPaths.wasmBinary.byteOffset + wasmPaths.wasmBinary.byteLength
-  );
-  ort.env.wasm.wasmPaths = { mjs: wasmPaths.mjs, wasm: wasmPaths.wasm };
+
+  const applyOrtWasmCpu = () => {
+    ort.env.wasm.wasmBinary = ortAssets.wasmBinary.buffer.slice(
+      ortAssets.wasmBinary.byteOffset,
+      ortAssets.wasmBinary.byteOffset + ortAssets.wasmBinary.byteLength
+    );
+    ort.env.wasm.wasmPaths = { mjs: ortAssets.mjs, wasm: ortAssets.wasm };
+  };
+  const applyOrtWasmJsep = () => {
+    try {
+      delete (ort.env.wasm as { wasmBinary?: ArrayBuffer }).wasmBinary;
+    } catch {
+      /* ignore */
+    }
+    ort.env.wasm.wasmPaths = { mjs: ortAssets.jsepMjs, wasm: ortAssets.jsepWasm };
+  };
 
   const wav = readPcmWavFile(inputWav);
   if (Math.abs(wav.sampleRate - CONSTANTS.SAMPLE_RATE) > 1) {
@@ -245,6 +281,13 @@ async function separateDemucs(
     aiGpuSupported: demucsOpts?.aiGpuSupported,
     resolveProviders: resolveAiOrtExecutionProviders
   });
+  // WebGPU → JSEP paths only (no CPU wasmBinary). WASM → embed CPU binary.
+  if (resolved.preferWebGpu) {
+    applyOrtWasmJsep();
+  } else {
+    applyOrtWasmCpu();
+  }
+
   let ortBackend: AiOrtBackend = 'wasm';
   let ortFallbackReason: string | undefined = resolved.skipWebGpuReason;
   const modelBuffer = toArrayBuffer(new Uint8Array(fs.readFileSync(modelPath)));
@@ -277,7 +320,17 @@ async function separateDemucs(
         });
       }
     });
-    await demucs.loadModel(modelBuffer);
+    const loadPromise = demucs.loadModel(modelBuffer);
+    // Watchdog only WebGPU session create — WASM may legitimately take longer.
+    if (executionProviders[0] === 'webgpu') {
+      await raceWithTimeout(
+        loadPromise,
+        WEBGPU_SESSION_TIMEOUT_MS,
+        'HTDemucs ORT InferenceSession.create(WebGPU)'
+      );
+    } else {
+      await loadPromise;
+    }
     post({
       type: 'progress',
       requestId,
@@ -327,6 +380,7 @@ async function separateDemucs(
         throw new GpuFallbackRequestedError(ortFallbackReason);
       }
       ortBackend = 'wasm';
+      applyOrtWasmCpu();
       post({
         type: 'progress',
         requestId,

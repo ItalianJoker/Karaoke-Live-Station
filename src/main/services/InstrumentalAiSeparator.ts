@@ -608,7 +608,10 @@ export async function separateInstrumentalWithAi(
         // Detach Hidden Renderer job; keep outer promise open for utility re-run.
         clearTimers();
         signal?.removeEventListener('abort', onAbort);
+        // clearJobHandler via kill() — do not destroy the window mid-probe cache;
+        // Control close / before-quit dispose the Hidden Renderer.
         kill();
+        getInstrumentalAiHiddenRenderer(logger).clearJobHandler();
         void separateInstrumentalWithAi(
           {
             ...options,

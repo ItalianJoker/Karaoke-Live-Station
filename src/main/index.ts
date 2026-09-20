@@ -450,11 +450,18 @@ class KaraokeMainProcess {
     });
 
     app.on('before-quit', async () => {
-      if (this.guestServer) {
-        await this.guestServer.stop();
+      // Stop orphans first: yt-dlp downloads/search, Hidden Renderer GPU window,
+      // then guest HTTP, caches, and SQLite — so Node/GPU processes cannot linger.
+      try {
+        this.downloadManager.cancelAllDownloads();
+      } catch {
+        /* ignore cancel races on quit */
       }
-      this.downloadManager.cleanupTempFiles();
-      this.zipCdgCache.cleanupAll();
+      try {
+        this.cancelYouTubeSearch();
+      } catch {
+        /* ignore */
+      }
       try {
         const { getInstrumentalAiHiddenRenderer } = await import(
           './services/InstrumentalAiHiddenRenderer'
@@ -463,6 +470,11 @@ class KaraokeMainProcess {
       } catch {
         /* ignore dispose errors on quit */
       }
+      if (this.guestServer) {
+        await this.guestServer.stop();
+      }
+      this.downloadManager.cleanupTempFiles();
+      this.zipCdgCache.cleanupAll();
       this.db.close();
     });
 
@@ -559,11 +571,31 @@ class KaraokeMainProcess {
     }
 
     this.controlWindow.on('closed', () => {
-      this.logger.info('ControlWindow', 'Control window closed');
+      this.logger.info('ControlWindow', 'Control window closed — quitting to avoid orphan processes');
       this.controlWindow = null;
-      if (this.stageWindow) {
+      // Stage alone is not enough: Hidden Renderer stays open → window-all-closed
+      // never fires → before-quit skipped → guestServer + GPU keep Node alive.
+      if (this.stageWindow && !this.stageWindow.isDestroyed()) {
         this.stageWindow.close();
       }
+      try {
+        // Sync dispose so the hidden GPU window is gone before app.quit().
+        const { getInstrumentalAiHiddenRenderer } = require('./services/InstrumentalAiHiddenRenderer');
+        getInstrumentalAiHiddenRenderer(this.logger).dispose();
+      } catch {
+        /* ignore dispose errors on Control close */
+      }
+      try {
+        this.downloadManager.cancelAllDownloads();
+      } catch {
+        /* ignore */
+      }
+      try {
+        this.cancelYouTubeSearch();
+      } catch {
+        /* ignore */
+      }
+      app.quit();
     });
 
     this.controlWindow.webContents.on('render-process-gone', (_event, details) => {
