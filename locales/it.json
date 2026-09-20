@@ -14,6 +14,9 @@
     "restart": "Ricomincia",
     "pitch": "Tonalità",
     "speed": "Velocità",
+    "bpm": "BPM",
+    "keyPlaceholder": "—",
+    "bpmPlaceholder": "— {{unit}}",
     "volume": "Volume",
     "mute": "Muto",
     "cue": "Pre-ascolto Cuffie (CUE)",
@@ -359,7 +362,9 @@
     "removeFromQueue": "Rimuovi dalla Coda",
     "dismiss": "Ignora",
     "downloadFailed": "Download fallito: {{error}}",
-    "libraryPathRequired": "Imposta la cartella libreria nelle impostazioni prima di scaricare."
+    "libraryPathRequired": "Imposta la cartella libreria nelle impostazioni prima di scaricare.",
+    "alreadyRunningTitle": "Karaoke Live Station",
+    "alreadyRunning": "Software già in esecuzione"
   },
   "firewall": {
     "title": "Assistente Firewall & Connessione LAN",

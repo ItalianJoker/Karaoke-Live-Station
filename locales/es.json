@@ -14,6 +14,9 @@
     "restart": "Reiniciar",
     "pitch": "Tonalidad",
     "speed": "Velocidad",
+    "bpm": "BPM",
+    "keyPlaceholder": "—",
+    "bpmPlaceholder": "— {{unit}}",
     "volume": "Volumen",
     "mute": "Silenciar",
     "cue": "Preescucha Auriculares (CUE)",
@@ -359,7 +362,9 @@
     "removeFromQueue": "Eliminar de la Cola",
     "dismiss": "Descartar",
     "downloadFailed": "Descarga fallida: {{error}}",
-    "libraryPathRequired": "Configura la carpeta de biblioteca en ajustes antes de descargar."
+    "libraryPathRequired": "Configura la carpeta de biblioteca en ajustes antes de descargar.",
+    "alreadyRunningTitle": "Karaoke Live Station",
+    "alreadyRunning": "Software ya en ejecución"
   },
   "firewall": {
     "title": "Asistente de Firewall y Red LAN",

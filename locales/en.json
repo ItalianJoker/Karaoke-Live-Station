@@ -14,6 +14,9 @@
     "restart": "Restart",
     "pitch": "Pitch",
     "speed": "Speed",
+    "bpm": "BPM",
+    "keyPlaceholder": "—",
+    "bpmPlaceholder": "— {{unit}}",
     "volume": "Volume",
     "mute": "Mute",
     "cue": "Headphone CUE Preview",
@@ -359,7 +362,9 @@
     "removeFromQueue": "Remove from Queue",
     "dismiss": "Dismiss",
     "downloadFailed": "Download failed: {{error}}",
-    "libraryPathRequired": "Set the library folder in settings before downloading."
+    "libraryPathRequired": "Set the library folder in settings before downloading.",
+    "alreadyRunningTitle": "Karaoke Live Station",
+    "alreadyRunning": "Software already running"
   },
   "firewall": {
     "title": "Firewall & LAN Connection Assistant",

@@ -38,7 +38,8 @@ export interface PlayerDeckControlsProps {
  * **Audience (AI):** Uses granular Zustand selectors. Pitch 0 / speed 1.00 click resets are
  * intentional UX; do not change volume² curve (lives in AudioGraphManager). Keep button
  * titles/shortcut hints in sync with `appShortcuts.ts`. Key/BPM labels (#54) and
- * `clampSpeedForEngine` (#56) must stay beside pitch/speed controls.
+ * `clampSpeedForEngine` (#56) must stay beside pitch/speed controls. Always show
+ * Key/BPM (or placeholders) so layout does not hide metadata on unanalyzed tracks.
  */
 export const PlayerDeckControls: React.FC<PlayerDeckControlsProps> = ({
   pitchRange,
@@ -71,6 +72,11 @@ export const PlayerDeckControls: React.FC<PlayerDeckControlsProps> = ({
 
   const keyLabel = formatKeyTransition(initialKey, livePitchOffset);
   const bpmLabel = formatBpmTransition(initialBpm, playbackSpeed);
+  const bpmUnit = t('player.bpm');
+  const keyDisplay = keyLabel ?? t('player.keyPlaceholder');
+  const bpmDisplay = bpmLabel
+    ? `${bpmLabel} ${bpmUnit}`
+    : t('player.bpmPlaceholder', { unit: bpmUnit });
 
   return (
     <div className="mt-4 p-3.5 bg-slate-950/60 border border-slate-800/80 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-inner">
@@ -109,13 +115,17 @@ export const PlayerDeckControls: React.FC<PlayerDeckControlsProps> = ({
         </button>
       </div>
 
-      {/* Pitch Controls (range depends on DSP engine) — key label affixed side-by-side */}
+      {/* Pitch Controls (range depends on DSP engine) — key always visible (value or placeholder) */}
       <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm shrink-0">
         <span className="text-[11px] font-semibold text-slate-300 shrink-0" title="Tonalità in semitoni">
           {t('player.pitch')}:
-          {keyLabel ? (
-            <span className="ml-1 font-mono text-indigo-300/90 font-bold">{keyLabel}</span>
-          ) : null}
+          <span
+            className={`ml-1 font-mono font-bold ${keyLabel ? 'text-indigo-300/90' : 'text-slate-500'}`}
+            data-testid="regia-key-label"
+            data-has-key={keyLabel ? 'true' : 'false'}
+          >
+            {keyDisplay}
+          </span>
         </span>
         <button
           type="button"
@@ -145,13 +155,17 @@ export const PlayerDeckControls: React.FC<PlayerDeckControlsProps> = ({
         </button>
       </div>
 
-      {/* Speed Controls — per-engine range + BPM label affixed side-by-side */}
+      {/* Speed Controls — BPM value + localized "BPM" unit always affixed */}
       <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/70 shadow-sm shrink-0">
         <span className="text-[11px] font-semibold text-slate-300 shrink-0">
           {t('player.speed')}:
-          {bpmLabel ? (
-            <span className="ml-1 font-mono text-emerald-300/90 font-bold">{bpmLabel}</span>
-          ) : null}
+          <span
+            className={`ml-1 font-mono font-bold ${bpmLabel ? 'text-emerald-300/90' : 'text-slate-500'}`}
+            data-testid="regia-bpm-label"
+            data-has-bpm={bpmLabel ? 'true' : 'false'}
+          >
+            {bpmDisplay}
+          </span>
         </span>
         <button
           type="button"

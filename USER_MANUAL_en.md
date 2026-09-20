@@ -62,7 +62,7 @@ Built-in web server (Express + Socket.IO) on the venue Wi‑Fi. Guests scan a QR
 
 ### 1.4 Single instance (Single Instance Lock)
 
-The application allows **only one running instance**. A second launch is blocked: the new process exits and the already-open Control window is restored and focused. This avoids duplicate Control rooms, audio conflicts, and duplicate Guest Portal ports.
+The application allows **only one running instance**. A second launch is blocked: the new process shows a localized dialog (**“Software already running”** / Italian **“Software già in esecuzione”** / ES/FR equivalents), then exits, and the already-open Control window is restored and focused. This avoids duplicate Control rooms, audio conflicts, and duplicate Guest Portal ports.
 
 ### 1.5 Audio / video flow in brief
 
@@ -228,7 +228,9 @@ Examples: 100% → full gain; 50% → gain 0.25 (about −12 dB, perceived half 
 
 ### 4.3 Pitch (semitones) and speed
 
-- **Key:** from **−8 to +8** semitones (`+` / `-` or `Ctrl+↑` / `Ctrl+↓`).
+- **Key:** from **−8 to +8** semitones (`+` / `-` or `Ctrl+↑` / `Ctrl+↓`). Beside the Control pitch controls the **detected musical key** appears (`Am→Bm` when transposed) or an “—” placeholder when unknown.
+- **Key / BPM** chips also appear on Library and Queue rows (always visible; placeholder when missing).
+- Beside tempo the BPM value shows with a **BPM** unit (or “— BPM” when unknown).
 - Pitch is tied to the **queue instance** (and the singer’s pitch memory): it stays stored for that performance.
 - At 0 semitones the engine can bypass the shifter (minimal latency/CPU).
 - **Speed:** engine-dependent (default **Bungee** ~0.50×–1.50×; **SoundTouch** ~0.75×–1.25× UI). `Ctrl+←` / `Ctrl+→` adjust by ±5%. Clicking the numeric indicator often resets to 1.00×.

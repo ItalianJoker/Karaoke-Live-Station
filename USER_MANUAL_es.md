@@ -62,7 +62,7 @@ Servidor web integrado (Express + Socket.IO) en la Wi‑Fi del local. Los invita
 
 ### 1.4 Instancia única (Single Instance Lock)
 
-La aplicación permite **una sola instancia** en ejecución. Un segundo arranque se bloquea: el proceso nuevo termina y la ventana de Regia ya abierta se restaura y recibe el foco. Evita dobles Regias, conflictos de audio y puertos Guest Portal duplicados.
+La aplicación permite **una sola instancia** en ejecución. Un segundo arranque se bloquea: el proceso nuevo muestra un diálogo (**«Software ya en ejecución»** / equivalentes IT/EN/FR), luego termina, y la ventana de Regia ya abierta se restaura y recibe el foco. Evita dobles Regias, conflictos de audio y puertos Guest Portal duplicados.
 
 ### 1.5 Flujo de audio / vídeo en síntesis
 
@@ -228,7 +228,9 @@ Ejemplos: 100% → ganancia plena; 50% → ganancia 0,25 (−12 dB aprox., mitad
 
 ### 4.3 Pitch (semitonos) y velocidad
 
-- **Tonalidad:** de **−8 a +8** semitonos (`+` / `-` o `Ctrl+↑` / `Ctrl+↓`).
+- **Tonalidad:** de **−8 a +8** semitonos (`+` / `-` o `Ctrl+↑` / `Ctrl+↓`). Junto a los controles de Regia aparece la **clave musical** detectada (`Am→Bm` si se transpone) o el marcador «—» si aún no se conoce.
+- Chips **Key / BPM** también en las filas de Biblioteca y Cola (siempre visibles; marcador si faltan).
+- Junto al tempo aparece el valor BPM con la etiqueta **BPM** (o «— BPM» si es desconocido).
 - El pitch está ligado a la **instancia en cola** (y a la memoria de tonalidad del cantante): permanece memorizado para esa actuación.
 - A 0 semitonos el motor puede omitir el shifter (latencia/CPU mínimas).
 - **Velocidad:** depende del motor (por defecto **Bungee** ~0,50×–1,50×; **SoundTouch** ~0,75×–1,25× en UI). `Ctrl+←` / `Ctrl+→` ajustan ±5%. Un clic en el indicador numérico suele restaurar 1,00×.

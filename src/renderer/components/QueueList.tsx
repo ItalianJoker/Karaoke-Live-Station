@@ -18,6 +18,7 @@ import { useKaraokeStore } from '../store/karaokeStore';
 import { dataTransferHasFiles } from '../utils/fsDragDrop';
 import { confirmAsync } from '../utils/toast';
 import type { KaraokeMediaTrack, QueueItem } from '../../shared/types';
+import { TrackKeyBpmBadges } from './TrackKeyBpmBadges';
 
 export interface QueueListProps {
   isPlaying: boolean;
@@ -278,8 +279,13 @@ export const QueueList: React.FC<QueueListProps> = ({
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
-                      <span className="truncate">{item.track.artist}</span>
+                    <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-1.5 mt-0.5 min-w-0">
+                      <span className="truncate min-w-0">{item.track.artist}</span>
+                      <TrackKeyBpmBadges
+                        initialKey={item.track.initialKey}
+                        initialBpm={item.track.initialBpm}
+                        pitchOffset={item.pitchOffset}
+                      />
                       <span>•</span>
                       <button
                         type="button"

@@ -1075,8 +1075,10 @@ assert(
   mainIndexSourceForPhase2.includes('requestSingleInstanceLock') &&
     mainIndexSourceForPhase2.includes('second-instance') &&
     (mainIndexSourceForPhase2.includes('controlWindow.focus()') ||
-      mainIndexSourceForPhase2.includes('.focus()')),
-  'Single-instance lock focuses existing Control window and exits duplicate process'
+      mainIndexSourceForPhase2.includes('.focus()')) &&
+    mainIndexSourceForPhase2.includes('showErrorBox') &&
+    mainIndexSourceForPhase2.includes('resolveSecondInstanceCopy'),
+  'Single-instance lock focuses existing Control window and shows localized dialog on duplicate'
 );
 assert(
   mainIndexSourceForPhase2.includes('Percorso libreria non configurato') ||
@@ -1416,8 +1418,10 @@ assert(
 // --- Single instance (re-assert for Phase 5 gate) ---
 assert(
   mainIndexSourceP45.includes('requestSingleInstanceLock') &&
-    mainIndexSourceP45.includes('second-instance'),
-  'Single-instance lock still enforced'
+    mainIndexSourceP45.includes('second-instance') &&
+    mainIndexSourceP45.includes('showErrorBox') &&
+    mainIndexSourceP45.includes('resolveSecondInstanceCopy'),
+  'Single-instance lock still enforced with user-visible dialog'
 );
 
 // --- SIAE ≥120s (re-assert binding to store) ---
@@ -3810,9 +3814,12 @@ console.log('\n\x1b[36m▶ Suite: ZIP CD+G + Key/BPM\x1b[0m');
       controlUiSrc.includes('setPlaybackSpeed(1.0)') &&
       controlUiSrc.includes('formatKeyTransition') &&
       controlUiSrc.includes('formatBpmTransition') &&
+      controlUiSrc.includes('player.bpm') &&
+      controlUiSrc.includes('keyPlaceholder') &&
+      controlUiSrc.includes('bpmPlaceholder') &&
       controlSrc.includes('ensureZipPlayback') &&
       controlSrc.includes('PlayerDeckControls'),
-    'Control UI keeps ±/reset pitch+speed, Key/BPM labels, ZIP playback, PlayerDeckControls'
+    'Control UI keeps ±/reset pitch+speed, Key/BPM labels + BPM unit + placeholders, ZIP playback, PlayerDeckControls'
   );
 
   assert(
@@ -4178,6 +4185,142 @@ console.log('\x1b[36m▶ Suite: Refactor MT deps logging audit\x1b[0m');
   const deflated = zlib.deflateRawSync(payload);
   assert(zlib.inflateRawSync(deflated).equals(payload), 'zlib inflateRawSync round-trip (baseline)');
   assert(typeof zlib.inflateRaw === 'function', 'zlib.inflateRaw available for async ZIP extract');
+}
+
+// -------------------------------------------------------------
+// Suite: Pitch/BPM visibility + BPM unit + single-instance dialog
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Pitch/BPM UX + single-instance dialog\x1b[0m');
+
+{
+  const badgesPath = path.resolve(__dirname, '../src/renderer/components/TrackKeyBpmBadges.tsx');
+  const singleI18nPath = path.resolve(__dirname, '../src/shared/singleInstanceI18n.ts');
+  const librarySrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  const queueSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/QueueList.tsx'),
+    'utf8'
+  );
+  const stageSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/StageWindow.tsx'),
+    'utf8'
+  );
+  const deckSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/PlayerDeckControls.tsx'),
+    'utf8'
+  );
+  const mainSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+  const singleI18nSrc = fs.readFileSync(singleI18nPath, 'utf8');
+  const badgesSrc = fs.readFileSync(badgesPath, 'utf8');
+
+  assert(fs.existsSync(badgesPath), 'TrackKeyBpmBadges component exists');
+  assert(fs.existsSync(singleI18nPath), 'singleInstanceI18n helper exists');
+
+  assert(
+    badgesSrc.includes('data-testid="track-key-bpm-badges"') &&
+      badgesSrc.includes('player.bpm') &&
+      badgesSrc.includes('keyPlaceholder') &&
+      badgesSrc.includes('bpmPlaceholder'),
+    'TrackKeyBpmBadges always renders Key + BPM with unit / placeholders'
+  );
+
+  assert(
+    librarySrc.includes('TrackKeyBpmBadges') &&
+      librarySrc.includes('initialKey={track.initialKey}') &&
+      librarySrc.includes('initialBpm={track.initialBpm}'),
+    'Library rows show Key/BPM badges'
+  );
+
+  assert(
+    queueSrc.includes('TrackKeyBpmBadges') &&
+      queueSrc.includes('initialKey={item.track.initialKey}') &&
+      queueSrc.includes('initialBpm={item.track.initialBpm}'),
+    'Queue rows show Key/BPM badges'
+  );
+
+  assert(
+    stageSrc.includes('stage-key-label') &&
+      stageSrc.includes('stage-bpm-label') &&
+      stageSrc.includes('TrackKeyBpmBadges') &&
+      stageSrc.includes('player.bpm'),
+    'Stage shows Key/BPM on pitch/speed badges and title overlay'
+  );
+
+  assert(
+    deckSrc.includes('regia-key-label') &&
+      deckSrc.includes('regia-bpm-label') &&
+      deckSrc.includes('player.bpm') &&
+      !deckSrc.includes('{keyLabel ? (') &&
+      !deckSrc.includes('{bpmLabel ? ('),
+    'Regia deck always shows Key/BPM (no conditional hide) with BPM unit'
+  );
+
+  assert(
+    mainSrc.includes('resolveSecondInstanceCopy') &&
+      mainSrc.includes('showErrorBox') &&
+      singleI18nSrc.includes('Software già in esecuzione') &&
+      singleI18nSrc.includes('Software already running'),
+    'Second instance shows localized ErrorBox before quit'
+  );
+
+  // Locale parity: player.bpm + errors.alreadyRunning* in IT/EN/ES/FR
+  for (const lang of ['it', 'en', 'es', 'fr']) {
+    const loc = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+    );
+    assert(loc.player?.bpm === 'BPM', `${lang}: player.bpm === BPM`);
+    assert(typeof loc.player?.keyPlaceholder === 'string', `${lang}: player.keyPlaceholder`);
+    assert(typeof loc.player?.bpmPlaceholder === 'string', `${lang}: player.bpmPlaceholder`);
+    assert(
+      typeof loc.errors?.alreadyRunning === 'string' && loc.errors.alreadyRunning.length > 0,
+      `${lang}: errors.alreadyRunning`
+    );
+    assert(
+      typeof loc.errors?.alreadyRunningTitle === 'string',
+      `${lang}: errors.alreadyRunningTitle`
+    );
+  }
+
+  assert(
+    JSON.parse(fs.readFileSync(path.resolve(__dirname, '../locales/it.json'), 'utf8')).errors
+      .alreadyRunning === 'Software già in esecuzione',
+    'IT alreadyRunning matches requested copy'
+  );
+
+  const { spawnSync } = require('child_process');
+  const probe = spawnSync(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      '--no-warnings',
+      '-e',
+      `
+      import {
+        resolveSecondInstanceCopy,
+        resolveUiLangFromLocale
+      } from ${JSON.stringify(singleI18nPath)};
+      const assert = (c, m) => { if (!c) { console.error('PROBE_FAIL', m); process.exit(2); } };
+      assert(resolveUiLangFromLocale('it-IT') === 'it', 'it-IT → it');
+      assert(resolveUiLangFromLocale('en_US') === 'en', 'en_US → en');
+      assert(resolveUiLangFromLocale('es-ES') === 'es', 'es → es');
+      assert(resolveUiLangFromLocale('fr-FR') === 'fr', 'fr → fr');
+      assert(resolveUiLangFromLocale('de-DE') === 'en', 'unknown → en');
+      assert(resolveSecondInstanceCopy('it').message === 'Software già in esecuzione', 'IT message');
+      assert(resolveSecondInstanceCopy('en').message === 'Software already running', 'EN message');
+      console.log('PROBE_OK');
+      `
+    ],
+    { encoding: 'utf8' }
+  );
+  assert(
+    probe.status === 0 && (probe.stdout || '').includes('PROBE_OK'),
+    'singleInstanceI18n locale probe'
+  );
+  if (probe.status !== 0) {
+    console.error(probe.stderr || probe.stdout);
+  }
 }
 
 // Summary
