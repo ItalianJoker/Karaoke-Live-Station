@@ -41,8 +41,9 @@ export interface StudioPlayerDeckControlsProps {
  * Studio Desk transport + DSP row (opt-in `studio-desk` theme only).
  *
  * Layout: transport (+ always-visible MIDI toggle) on the LEFT with a small
- * gap before the Velocità / Tonalità / Volume panel on the RIGHT (inline
- * Velo|Ton; Volume on a full-width row with end padding = panel left padding).
+ * gap before the Velocità / Tonalità / Volume panel on the RIGHT — all three
+ * DSP controls on **one** compact row (panel height ≈ transport buttons);
+ * Volume fills remaining panel width with end padding = left `px-2.5`.
  * Stage reopen lives in {@link StudioDeskShell} menu footer. Classic
  * {@link PlayerDeckControls} unchanged.
  */
@@ -190,106 +191,105 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
       </div>
 
       {/*
-        Inline Velo|Ton on first row; Volume on its own full-width row.
-        Panel `px-2.5` keeps end padding equal to the left padding before «Velocità».
-        `gap-x-3` on parent separates last transport (MIDI) from this panel.
+        Single compact row: Velo | Ton | Volume (fills remainder).
+        `flex-nowrap` keeps panel height ≈ adjacent transport buttons.
+        Panel `px-2.5` = equal left/right padding (matches Velocità inset).
+        Parent `gap-x-3` separates last transport (MIDI) from this panel.
       */}
       <div
-        className="flex flex-col gap-y-1.5 px-2.5 py-1.5 rounded-xl border border-[color:var(--border-color)] bg-[color:var(--bg-subtle)] flex-1 min-w-[14rem]"
+        className="flex flex-nowrap items-center gap-x-3 px-2.5 py-1.5 rounded-xl border border-[color:var(--border-color)] bg-[color:var(--bg-subtle)] flex-1 min-w-[14rem]"
         data-testid="studio-dsp-panel"
       >
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] shrink-0">
-              {t('player.speed')}
-              <span
-                className={`ml-1 font-mono normal-case ${bpmLabel ? 'text-[color:var(--accent)]' : 'text-[color:var(--text-muted)]'}`}
-                data-testid="regia-bpm-label"
-                data-has-bpm={bpmLabel ? 'true' : 'false'}
-              >
-                {bpmDisplay}
-              </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] shrink-0">
+            {t('player.speed')}
+            <span
+              className={`ml-1 font-mono normal-case ${bpmLabel ? 'text-[color:var(--accent)]' : 'text-[color:var(--text-muted)]'}`}
+              data-testid="regia-bpm-label"
+              data-has-bpm={bpmLabel ? 'true' : 'false'}
+            >
+              {bpmDisplay}
             </span>
-            <div className="flex items-center gap-1 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1 py-0.5">
-              <button
-                type="button"
-                onClick={() =>
-                  setPlaybackSpeed(clampSpeedForEngine(playbackSpeed - speedRange.step, engine))
-                }
-                disabled={playbackSpeed <= speedRange.min + 1e-6}
-                className="w-6 h-6 rounded-md bg-[color:var(--bg-subtle)] hover:bg-[color:var(--accent)] hover:text-[#0A0B10] disabled:opacity-40 text-xs font-bold"
-                title={`−${speedRange.step.toFixed(2)}x`}
-              >
-                −
-              </button>
-              <button
-                type="button"
-                onClick={() => setPlaybackSpeed(1.0)}
-                className="font-mono font-bold text-xs min-w-[3rem] text-center text-[color:var(--accent)]"
-                title="1.00x"
-              >
-                {playbackSpeed.toFixed(2)}x
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setPlaybackSpeed(clampSpeedForEngine(playbackSpeed + speedRange.step, engine))
-                }
-                disabled={playbackSpeed >= speedRange.max - 1e-6}
-                className="w-6 h-6 rounded-md bg-[color:var(--bg-subtle)] hover:bg-[color:var(--accent)] hover:text-[#0A0B10] disabled:opacity-40 text-xs font-bold"
-                title={`+${speedRange.step.toFixed(2)}x`}
-              >
-                +
-              </button>
-            </div>
+          </span>
+          <div className="flex items-center gap-1 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1 py-0.5">
+            <button
+              type="button"
+              onClick={() =>
+                setPlaybackSpeed(clampSpeedForEngine(playbackSpeed - speedRange.step, engine))
+              }
+              disabled={playbackSpeed <= speedRange.min + 1e-6}
+              className="w-6 h-6 rounded-md bg-[color:var(--bg-subtle)] hover:bg-[color:var(--accent)] hover:text-[#0A0B10] disabled:opacity-40 text-xs font-bold"
+              title={`−${speedRange.step.toFixed(2)}x`}
+            >
+              −
+            </button>
+            <button
+              type="button"
+              onClick={() => setPlaybackSpeed(1.0)}
+              className="font-mono font-bold text-xs min-w-[3rem] text-center text-[color:var(--accent)]"
+              title="1.00x"
+            >
+              {playbackSpeed.toFixed(2)}x
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setPlaybackSpeed(clampSpeedForEngine(playbackSpeed + speedRange.step, engine))
+              }
+              disabled={playbackSpeed >= speedRange.max - 1e-6}
+              className="w-6 h-6 rounded-md bg-[color:var(--bg-subtle)] hover:bg-[color:var(--accent)] hover:text-[#0A0B10] disabled:opacity-40 text-xs font-bold"
+              title={`+${speedRange.step.toFixed(2)}x`}
+            >
+              +
+            </button>
           </div>
+        </div>
 
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] shrink-0">
-              {t('player.pitch')}
-              <span
-                className={`ml-1 font-mono normal-case ${keyLabel ? 'text-[color:var(--accent)]' : 'text-[color:var(--text-muted)]'}`}
-                data-testid="regia-key-label"
-                data-has-key={keyLabel ? 'true' : 'false'}
-              >
-                {keyDisplay}
-              </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] shrink-0">
+            {t('player.pitch')}
+            <span
+              className={`ml-1 font-mono normal-case ${keyLabel ? 'text-[color:var(--accent)]' : 'text-[color:var(--text-muted)]'}`}
+              data-testid="regia-key-label"
+              data-has-key={keyLabel ? 'true' : 'false'}
+            >
+              {keyDisplay}
             </span>
-            <div className="flex items-center gap-1 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1 py-0.5">
-              <button
-                type="button"
-                onClick={() => setLivePitch(livePitchOffset - 1)}
-                disabled={livePitchOffset <= pitchRange.min}
-                className="w-6 h-6 rounded-md bg-[color:var(--bg-subtle)] hover:bg-[color:var(--accent)] hover:text-[#0A0B10] disabled:opacity-40 text-xs font-bold"
-                title="-1 ST"
-              >
-                −
-              </button>
-              <button
-                type="button"
-                onClick={() => setLivePitch(0)}
-                className="font-mono font-bold text-xs min-w-[3.5rem] px-1 text-center text-[color:var(--text-main)]"
-                title="0 ST"
-                data-testid="studio-pitch-field"
-              >
-                {livePitchOffset > 0 ? `+${livePitchOffset}` : livePitchOffset}
-                <span className="ml-1 text-[color:var(--accent)] pointer-events-none">ST</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setLivePitch(livePitchOffset + 1)}
-                disabled={livePitchOffset >= pitchRange.max}
-                className="w-6 h-6 rounded-md bg-[color:var(--bg-subtle)] hover:bg-[color:var(--accent)] hover:text-[#0A0B10] disabled:opacity-40 text-xs font-bold"
-                title="+1 ST"
-              >
-                +
-              </button>
-            </div>
+          </span>
+          <div className="flex items-center gap-1 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-1 py-0.5">
+            <button
+              type="button"
+              onClick={() => setLivePitch(livePitchOffset - 1)}
+              disabled={livePitchOffset <= pitchRange.min}
+              className="w-6 h-6 rounded-md bg-[color:var(--bg-subtle)] hover:bg-[color:var(--accent)] hover:text-[#0A0B10] disabled:opacity-40 text-xs font-bold"
+              title="-1 ST"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              onClick={() => setLivePitch(0)}
+              className="font-mono font-bold text-xs min-w-[3.5rem] px-1 text-center text-[color:var(--text-main)]"
+              title="0 ST"
+              data-testid="studio-pitch-field"
+            >
+              {livePitchOffset > 0 ? `+${livePitchOffset}` : livePitchOffset}
+              <span className="ml-1 text-[color:var(--accent)] pointer-events-none">ST</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setLivePitch(livePitchOffset + 1)}
+              disabled={livePitchOffset >= pitchRange.max}
+              className="w-6 h-6 rounded-md bg-[color:var(--bg-subtle)] hover:bg-[color:var(--accent)] hover:text-[#0A0B10] disabled:opacity-40 text-xs font-bold"
+              title="+1 ST"
+            >
+              +
+            </button>
           </div>
         </div>
 
         <div
-          className="flex items-center gap-1.5 w-full min-w-0"
+          className="flex items-center gap-1.5 flex-1 min-w-[7rem]"
           data-testid="studio-volume-row"
         >
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] shrink-0">
@@ -317,7 +317,7 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
               onChange={(e) =>
                 setPlaybackState({ masterVolume: parseFloat(e.target.value), isMuted: false })
               }
-              className="w-full h-1.5 accent-[color:var(--accent)] cursor-pointer"
+              className="w-full min-w-0 h-1.5 accent-[color:var(--accent)] cursor-pointer"
               data-testid="studio-volume-slider"
             />
           </div>

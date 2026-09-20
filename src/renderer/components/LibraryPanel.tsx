@@ -48,6 +48,11 @@ function logLibrary(level: 'debug' | 'info' | 'warn' | 'error', message: string,
 
 /** Approx row height incl. vertical gap — keep in sync with list row padding. */
 const LIBRARY_ROW_HEIGHT = 96;
+/**
+ * Studio Desk (`embedded`): title + meta on first lines, action buttons on a
+ * row under the title — taller than classic side-by-side rows.
+ */
+const STUDIO_LIBRARY_ROW_HEIGHT = 128;
 
 /** Intent to enqueue only after YouTube download + auto-archive succeed. */
 type PendingArchiveEnqueue = {
@@ -852,11 +857,13 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
     return () => ro.disconnect();
   }, [resultsListRef, displayedTracks.length, searchMode]);
 
+  const libraryRowHeight = embedded ? STUDIO_LIBRARY_ROW_HEIGHT : LIBRARY_ROW_HEIGHT;
+
   const virtWindow = computeVirtualWindow(
     listScrollTop,
     listViewportH,
     displayedTracks.length,
-    LIBRARY_ROW_HEIGHT,
+    libraryRowHeight,
     8
   );
   const virtualizedTracks = displayedTracks.slice(virtWindow.startIndex, virtWindow.endIndex);
@@ -871,7 +878,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
       !localQuery.trim() &&
       localHasMore &&
       !localLoadingMore &&
-      el.scrollHeight - el.scrollTop - el.clientHeight < LIBRARY_ROW_HEIGHT * 12
+      el.scrollHeight - el.scrollTop - el.clientHeight < libraryRowHeight * 12
     ) {
       void loadMoreLocalTracks();
     }
@@ -1281,147 +1288,59 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
             const versionTags = extractVersionTags(track);
             const isMissing = missingTrackIdSet.has(track.id);
 
-            return (
+            const trackActions = (
               <div
-                key={track.id}
-                style={{ height: LIBRARY_ROW_HEIGHT - 8, marginBottom: 8 }}
-                className={`p-2.5 sm:p-3 border rounded-2xl flex items-center justify-between gap-3 transition-all group/item box-border overflow-hidden ${
-                  isMissing
-                    ? 'bg-rose-950/40 border-rose-500/70 hover:bg-rose-950/55'
-                    : 'bg-slate-950/40 hover:bg-slate-950/80 border-slate-800/60 hover:border-slate-700/80'
+                className={`flex items-center gap-1.5 sm:gap-2 flex-wrap ${
+                  embedded ? 'mt-1' : 'shrink-0'
                 }`}
-                data-missing-file={isMissing ? 'true' : undefined}
+                data-testid={embedded ? 'library-row-actions' : undefined}
               >
-                <div className="flex items-center gap-3 overflow-hidden min-w-0">
-                  {/* 16:9 Video / Media Preview Thumbnail */}
-                  <div
-                    onClick={() => setPreviewTrack(track)}
-                    className={`w-20 sm:w-24 aspect-video rounded-xl bg-slate-950 overflow-hidden relative group/thumb shrink-0 cursor-pointer shadow-sm transition-all flex items-center justify-center ${
-                      isMissing
-                        ? 'border border-rose-500/70'
-                        : 'border border-slate-800/80 hover:border-indigo-500/80'
-                    }`}
-                    title={t('library.previewVideo')}
-                  >
-                    {track.thumbnailUrl ? (
-                      <img
-                        src={track.thumbnailUrl}
-                        alt={track.title}
-                        className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-200"
-                        loading="lazy"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLElement).style.display = 'none';
-                        }}
-                      />
-                    ) : track.source === 'midi' ? (
-                      <div className="w-full h-full bg-gradient-to-br from-indigo-950 to-slate-900 flex flex-col items-center justify-center text-indigo-400">
-                        <Music className="w-4 h-4 mb-0.5" />
-                        <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-indigo-300">MIDI</span>
-                      </div>
-                    ) : (
-                      <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center text-slate-500">
-                        <Film className="w-4 h-4 mb-0.5" />
-                        <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-slate-400">VIDEO</span>
-                      </div>
-                    )}
+                {/* Video Preview Button */}
+                <button
+                  type="button"
+                  onClick={() => setPreviewTrack(track)}
+                  className="p-2 bg-slate-800/80 hover:bg-slate-700 text-indigo-300 hover:text-white border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
+                  title={t('library.previewVideo')}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                </button>
 
-                    {/* Hover Play/Preview Overlay */}
-                    <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
-                      <div className="p-1.5 rounded-full bg-indigo-600/90 text-white shadow-md">
-                        <Play className="w-3 h-3 fill-white ml-0.5" />
-                      </div>
-                    </div>
-                  </div>
+                {/* Pre-Ascolto — opens themed preview modal only (CUE routing inside modal) */}
+                <button
+                  type="button"
+                  onClick={() => setPreviewTrack(track)}
+                  className="p-2 bg-slate-800/80 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
+                  title={t('player.cue')}
+                >
+                  <Headphones className="w-3.5 h-3.5" />
+                </button>
 
-                  {/* Track Metadata & Version Chips */}
-                  <div className="truncate min-w-0">
-                    <div
-                      onClick={() => setPreviewTrack(track)}
-                      className={`font-semibold text-xs transition-colors truncate cursor-pointer flex items-center gap-1.5 ${
-                        isMissing ? 'text-rose-200 hover:text-rose-100' : 'text-slate-200 hover:text-indigo-300'
-                      }`}
-                      title={track.title}
+                {track.source === 'youtube' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleStartDownload(track)}
+                      className="p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
+                      title={t('library.download')}
                     >
-                      <span className="truncate">{track.title}</span>
-                      {isMissing && (
-                        <span
-                          className="inline-flex items-center gap-0.5 text-rose-400 shrink-0"
-                          title={t('errors.missingFileTooltip')}
-                        >
-                          <FileX className="w-3.5 h-3.5" />
-                          <AlertCircle className="w-3 h-3 opacity-80" />
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-1.5 mt-0.5 min-w-0">
-                      <span className="truncate min-w-0 max-w-full">{track.artist}</span>
-                      <TrackKeyBpmBadges
-                        initialKey={track.initialKey}
-                        initialBpm={track.initialBpm}
-                      />
-                      <span className="text-slate-600">•</span>
-                      <span className="uppercase text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-slate-800/80 text-indigo-300 border border-slate-700/50 shrink-0">
-                        {track.source === 'local_library' ? 'locale' : track.source}
-                      </span>
-                      {versionTags.map((vTag) => (
-                        <span
-                          key={vTag}
-                          className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full bg-cyan-950/70 text-cyan-300 border border-cyan-800/60 shadow-sm shrink-0"
-                        >
-                          {vTag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                  {/* Video Preview Button */}
-                  <button
-                    type="button"
-                    onClick={() => setPreviewTrack(track)}
-                    className="p-2 bg-slate-800/80 hover:bg-slate-700 text-indigo-300 hover:text-white border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
-                    title={t('library.previewVideo')}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                  </button>
-
-                  {/* Pre-Ascolto — opens themed preview modal only (CUE routing inside modal) */}
-                  <button
-                    type="button"
-                    onClick={() => setPreviewTrack(track)}
-                    className="p-2 bg-slate-800/80 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
-                    title={t('player.cue')}
-                  >
-                    <Headphones className="w-3.5 h-3.5" />
-                  </button>
-
-                  {track.source === 'youtube' && (
-                    <>
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                    {isInstrumentalDownloadEligibleTitle(track.title) && (
                       <button
                         type="button"
-                        onClick={() => handleStartDownload(track)}
-                        className="p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
-                        title={t('library.download')}
+                        onClick={() => handleInstrumentalDownloadClick(track)}
+                        className="p-2 bg-slate-800/80 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
+                        title={t('library.downloadInstrumental')}
+                        data-testid="download-instrumental-btn"
                       >
-                        <Download className="w-3.5 h-3.5" />
+                        <Music className="w-3.5 h-3.5" />
                       </button>
-                      {isInstrumentalDownloadEligibleTitle(track.title) && (
-                        <button
-                          type="button"
-                          onClick={() => handleInstrumentalDownloadClick(track)}
-                          className="p-2 bg-slate-800/80 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
-                          title={t('library.downloadInstrumental')}
-                          data-testid="download-instrumental-btn"
-                        >
-                          <Music className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </>
-                  )}
+                    )}
+                  </>
+                )}
 
-
-                  {(track.source === 'local_library' || track.source === 'midi') && track.localFilePath && (
+                {(track.source === 'local_library' || track.source === 'midi') &&
+                  track.localFilePath && (
                     <button
                       type="button"
                       onClick={() => setTrackPendingDelete(track)}
@@ -1432,35 +1351,158 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      // Pre-check before opening singer modal — same gate as executeAddToQueue
-                      if (trackNeedsLocalFileCheck(track)) {
-                        const check = await checkTrackLocalFileExists(track);
-                        if (!check.exists) {
-                          markTrackMissing(track.id);
-                          showMissingFileModal({
-                            filePath: check.path,
-                            trackTitle: track.title,
-                            trackArtist: track.artist,
-                            trackId: track.id,
-                            context: 'library'
-                          });
-                          return;
-                        }
-                        clearTrackMissing(track.id);
+                <button
+                  type="button"
+                  onClick={async () => {
+                    // Pre-check before opening singer modal — same gate as executeAddToQueue
+                    if (trackNeedsLocalFileCheck(track)) {
+                      const check = await checkTrackLocalFileExists(track);
+                      if (!check.exists) {
+                        markTrackMissing(track.id);
+                        showMissingFileModal({
+                          filePath: check.path,
+                          trackTitle: track.title,
+                          trackArtist: track.artist,
+                          trackId: track.id,
+                          context: 'library'
+                        });
+                        return;
                       }
-                      useKaraokeStore.getState().loadSingersFromDb();
-                      setModalSingerInput('');
-                      setPlacementMode('auto');
-                      setPendingTrackForQueue(track);
+                      clearTrackMissing(track.id);
+                    }
+                    useKaraokeStore.getState().loadSingersFromDb();
+                    setModalSingerInput('');
+                    setPlacementMode('auto');
+                    setPendingTrackForQueue(track);
+                  }}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/25 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" /> {t('queue.addToQueue')}
+                </button>
+              </div>
+            );
+
+            const thumb = (
+              <div
+                onClick={() => setPreviewTrack(track)}
+                className={`w-20 sm:w-24 aspect-video rounded-xl bg-slate-950 overflow-hidden relative group/thumb shrink-0 cursor-pointer shadow-sm transition-all flex items-center justify-center ${
+                  isMissing
+                    ? 'border border-rose-500/70'
+                    : 'border border-slate-800/80 hover:border-indigo-500/80'
+                }`}
+                title={t('library.previewVideo')}
+              >
+                {track.thumbnailUrl ? (
+                  <img
+                    src={track.thumbnailUrl}
+                    alt={track.title}
+                    className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-200"
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = 'none';
                     }}
-                    className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/25 transition-all"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> {t('queue.addToQueue')}
-                  </button>
+                  />
+                ) : track.source === 'midi' ? (
+                  <div className="w-full h-full bg-gradient-to-br from-indigo-950 to-slate-900 flex flex-col items-center justify-center text-indigo-400">
+                    <Music className="w-4 h-4 mb-0.5" />
+                    <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-indigo-300">
+                      MIDI
+                    </span>
+                  </div>
+                ) : (
+                  <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center text-slate-500">
+                    <Film className="w-4 h-4 mb-0.5" />
+                    <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                      VIDEO
+                    </span>
+                  </div>
+                )}
+
+                <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
+                  <div className="p-1.5 rounded-full bg-indigo-600/90 text-white shadow-md">
+                    <Play className="w-3 h-3 fill-white ml-0.5" />
+                  </div>
                 </div>
+              </div>
+            );
+
+            const trackMeta = (
+              <>
+                <div
+                  onClick={() => setPreviewTrack(track)}
+                  className={`font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5 min-w-0 ${
+                    embedded ? 'whitespace-normal break-words' : 'truncate'
+                  } ${
+                    isMissing
+                      ? 'text-rose-200 hover:text-rose-100'
+                      : 'text-slate-200 hover:text-indigo-300'
+                  }`}
+                  title={track.title}
+                >
+                  <span className={embedded ? 'min-w-0' : 'truncate'}>{track.title}</span>
+                  {isMissing && (
+                    <span
+                      className="inline-flex items-center gap-0.5 text-rose-400 shrink-0"
+                      title={t('errors.missingFileTooltip')}
+                    >
+                      <FileX className="w-3.5 h-3.5" />
+                      <AlertCircle className="w-3 h-3 opacity-80" />
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-1.5 mt-0.5 min-w-0">
+                  <span className="truncate min-w-0 max-w-full">{track.artist}</span>
+                  <TrackKeyBpmBadges
+                    initialKey={track.initialKey}
+                    initialBpm={track.initialBpm}
+                  />
+                  <span className="text-slate-600">•</span>
+                  <span className="uppercase text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-slate-800/80 text-indigo-300 border border-slate-700/50 shrink-0">
+                    {track.source === 'local_library' ? 'locale' : track.source}
+                  </span>
+                  {versionTags.map((vTag) => (
+                    <span
+                      key={vTag}
+                      className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full bg-cyan-950/70 text-cyan-300 border border-cyan-800/60 shadow-sm shrink-0"
+                    >
+                      {vTag}
+                    </span>
+                  ))}
+                </div>
+              </>
+            );
+
+            return (
+              <div
+                key={track.id}
+                style={{ height: libraryRowHeight - 8, marginBottom: 8 }}
+                className={`p-2.5 sm:p-3 border rounded-2xl flex gap-3 transition-all group/item box-border overflow-hidden ${
+                  embedded ? 'items-start' : 'items-center justify-between'
+                } ${
+                  isMissing
+                    ? 'bg-rose-950/40 border-rose-500/70 hover:bg-rose-950/55'
+                    : 'bg-slate-950/40 hover:bg-slate-950/80 border-slate-800/60 hover:border-slate-700/80'
+                }`}
+                data-missing-file={isMissing ? 'true' : undefined}
+                data-studio-library-row={embedded ? 'true' : undefined}
+              >
+                {embedded ? (
+                  <div className="flex items-start gap-3 overflow-hidden min-w-0 flex-1">
+                    {thumb}
+                    <div className="min-w-0 flex-1 flex flex-col">
+                      {trackMeta}
+                      {trackActions}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3 overflow-hidden min-w-0">
+                      {thumb}
+                      <div className="truncate min-w-0">{trackMeta}</div>
+                    </div>
+                    {trackActions}
+                  </>
+                )}
               </div>
             );
           })}

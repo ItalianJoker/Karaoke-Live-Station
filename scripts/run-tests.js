@@ -4449,14 +4449,27 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
       studioDeckSrc.includes('studio-dsp-panel') &&
       studioDeckSrc.includes('studio-volume-row') &&
       studioDeckSrc.includes('studio-volume-slider') &&
-      !studioDeckSrc.includes('w-[9.5rem]'),
-    'Studio deck: gap before DSP panel + full-width volume row'
+      studioDeckSrc.includes('flex-nowrap') &&
+      !studioDeckSrc.includes('w-[9.5rem]') &&
+      !studioDeckSrc.includes('flex-col gap-y-1.5'),
+    'Studio deck: single-row DSP panel; volume fills remainder (no wrap)'
   );
   assert(
     controlSrc.includes('setShowStudioMidiMixer(true)') &&
       controlSrc.includes('studioMidiTrackKey') &&
       controlSrc.includes('playback.isPlaying'),
     'Studio: MIDI mixer opens by default when MIDI/KAR starts playing'
+  );
+  const libraryPanelSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  assert(
+    libraryPanelSrc.includes('STUDIO_LIBRARY_ROW_HEIGHT') &&
+      libraryPanelSrc.includes('library-row-actions') &&
+      libraryPanelSrc.includes('data-studio-library-row') &&
+      libraryPanelSrc.includes('embedded ?'),
+    'Studio library rows: actions under title (embedded Locale/Web)'
   );
   assert(
     controlSrc.includes("isStudioDesk ? 'max-h-[40vh]'") ||
