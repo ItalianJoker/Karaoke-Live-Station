@@ -17,7 +17,7 @@ export interface SettingsThemeOption {
 
 /**
  * Built-in theme catalog used by the General settings tab.
- * Labels are fixed EN/IT display strings (not locale keys) — preserve as-is.
+ * Labels are fallback display strings; Settings prefers `settings.themeOptions.<id>` i18n keys.
  */
 export const THEME_OPTIONS: SettingsThemeOption[] = [
   { id: 'dark-stage', label: 'Dark Stage (Predefinito)' },
@@ -29,6 +29,7 @@ export const THEME_OPTIONS: SettingsThemeOption[] = [
   { id: 'royal-amethyst', label: 'Royal Amethyst (Deep Purple)' },
   { id: 'high-contrast', label: 'High Contrast (Accessibile)' },
   { id: 'light', label: 'Light Studio (Clean)' },
+  { id: 'studio-desk', label: 'Studio Desk (Regia Layout)' },
 ];
 
 /**

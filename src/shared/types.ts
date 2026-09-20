@@ -19,7 +19,9 @@ export type AppTheme =
   | 'emerald-matrix'
   | 'royal-amethyst'
   | 'high-contrast'
-  | 'light';
+  | 'light'
+  /** Opt-in Studio Regia shell (layout + cyan/purple tokens). Default remains dark-stage. */
+  | 'studio-desk';
 
 /**
  * Supported UI localization languages with auto-detection fallback.

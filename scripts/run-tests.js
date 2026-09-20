@@ -4323,6 +4323,76 @@ console.log('\n\x1b[36m▶ Suite: Pitch/BPM UX + single-instance dialog\x1b[0m')
   }
 }
 
+console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate)\x1b[0m');
+
+{
+  const typesSrc = fs.readFileSync(path.resolve(__dirname, '../src/shared/types.ts'), 'utf8');
+  const settingsTypesSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/settings/settingsTypes.ts'),
+    'utf8'
+  );
+  const cssSrc = fs.readFileSync(path.resolve(__dirname, '../src/renderer/index.css'), 'utf8');
+  const appSrc = fs.readFileSync(path.resolve(__dirname, '../src/renderer/App.tsx'), 'utf8');
+  const storeSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+    'utf8'
+  );
+  const stageSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/StageWindow.tsx'),
+    'utf8'
+  );
+  const controlSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+    'utf8'
+  );
+
+  assert(typesSrc.includes("'studio-desk'"), 'AppTheme includes studio-desk');
+  assert(
+    settingsTypesSrc.includes("id: 'studio-desk'"),
+    'THEME_OPTIONS lists studio-desk'
+  );
+  assert(
+    cssSrc.includes(':root.studio-desk') && cssSrc.includes('#00D4F0'),
+    'studio-desk CSS tokens (cyan) present'
+  );
+  assert(appSrc.includes("'studio-desk'"), 'App.tsx classList removes studio-desk');
+  assert(storeSrc.includes("'studio-desk'"), 'karaokeStore applyAppTheme lists studio-desk');
+  assert(
+    (stageSrc.match(/'studio-desk'/g) || []).length >= 2,
+    'StageWindow classList sites include studio-desk'
+  );
+  assert(
+    controlSrc.includes("themeHost === 'studio-desk'") &&
+      controlSrc.includes('StudioDeskShell') &&
+      controlSrc.includes('PlayerDeckControls'),
+    'ControlWindow gates StudioDeskShell; classic PlayerDeckControls kept'
+  );
+  assert(
+    fs.existsSync(path.resolve(__dirname, '../src/renderer/components/StudioDeskShell.tsx')),
+    'StudioDeskShell.tsx exists'
+  );
+  assert(
+    fs.existsSync(
+      path.resolve(__dirname, '../src/renderer/components/StudioPlayerDeckControls.tsx')
+    ),
+    'StudioPlayerDeckControls.tsx exists'
+  );
+
+  for (const lang of ['it', 'en', 'es', 'fr']) {
+    const loc = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+    );
+    assert(loc.settings?.themeOptions?.['studio-desk'], `${lang}: themeOptions.studio-desk`);
+    assert(loc.studio?.showMidiMixer, `${lang}: studio.showMidiMixer`);
+    assert(loc.studio?.hideMidiMixer, `${lang}: studio.hideMidiMixer`);
+  }
+
+  assert(
+    storeSrc.includes("themeHost: 'dark-stage'"),
+    'Default themeHost remains dark-stage'
+  );
+}
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');

@@ -65,7 +65,7 @@ export const SettingsGeneralTab: React.FC<SettingsGeneralTabProps> = ({
                         >
                           {THEME_OPTIONS.map((th) => (
                             <option key={th.id} value={th.id}>
-                              {th.label}
+                              {t(`settings.themeOptions.${th.id}`, { defaultValue: th.label })}
                             </option>
                           ))}
                         </select>
@@ -80,7 +80,7 @@ export const SettingsGeneralTab: React.FC<SettingsGeneralTabProps> = ({
                         >
                           {THEME_OPTIONS.map((th) => (
                             <option key={th.id} value={th.id}>
-                              {th.label}
+                              {t(`settings.themeOptions.${th.id}`, { defaultValue: th.label })}
                             </option>
                           ))}
                         </select>

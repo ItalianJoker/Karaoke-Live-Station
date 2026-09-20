@@ -600,7 +600,7 @@ Activez/désactivez la collecte avec **Registre SIAE automatique** (`Registro SI
 
 ## 13. Thèmes et langues (i18n)
 
-### 13.1 Thèmes graphiques (9)
+### 13.1 Thèmes graphiques (10)
 
 Thèmes indépendants pour Régie (`themeHost`) et Scène (`themeStage`) :
 
@@ -613,6 +613,7 @@ Thèmes indépendants pour Régie (`themeHost`) et Scène (`themeStage`) :
 7. Royal Amethyst (Deep Purple)  
 8. High Contrast (Accessible)  
 9. Light Studio (Clean)  
+10. Studio Desk (Mise en page Régie) — **opt-in** : le sélectionner comme thème Régie active le shell Studio ; tout autre thème Régie restaure la mise en page classique.  
 
 ### 13.2 Langues
 

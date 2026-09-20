@@ -443,7 +443,8 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           'emerald-matrix',
           'royal-amethyst',
           'high-contrast',
-          'light'
+          'light',
+          'studio-desk'
         );
         root.classList.add(activeTheme || 'dark-stage');
       },

@@ -330,7 +330,19 @@
     "aiGpuBadgeHardwareOnly": "GPU matériel détecté : {{name}} — l’IA utilise quand même WASM (pas d’adaptateur WebGPU)",
     "dspEngineHiFiLabel": "Signalsmith Stretch (Hi-Fi)",
     "dspEngineSignalsmith": "Signalsmith Stretch (Hi-Fi défaut) — ±8 ST, pitch+speed",
-    "dspEngineSignalsmithBlurb": "Signalsmith Stretch (MIT) AudioWorklet. Recommandé ±8 ST (jusqu’à ±12). Tempo via élément média (preservesPitch). Bascule auto vers SoundTouch si le watchdog mute se déclenche — les plages pitch/speed passent alors à SoundTouch (±4 ST, 0,75–1,25×)."
+    "dspEngineSignalsmithBlurb": "Signalsmith Stretch (MIT) AudioWorklet. Recommandé ±8 ST (jusqu’à ±12). Tempo via élément média (preservesPitch). Bascule auto vers SoundTouch si le watchdog mute se déclenche — les plages pitch/speed passent alors à SoundTouch (±4 ST, 0,75–1,25×).",
+    "themeOptions": {
+      "dark-stage": "Dark Stage (Par défaut)",
+      "midnight-neon": "Midnight Neon (Cyberpunk)",
+      "club-gold": "Club Gold (VIP Lounge)",
+      "ocean-breeze": "Ocean Breeze (Deep Cyan)",
+      "sunset-crimson": "Sunset Crimson (Warm Red)",
+      "emerald-matrix": "Emerald Matrix (Live Green)",
+      "royal-amethyst": "Royal Amethyst (Deep Purple)",
+      "high-contrast": "High Contrast (Accessible)",
+      "light": "Light Studio (Clean)",
+      "studio-desk": "Studio Desk (Mise en page Régie)"
+    }
   },
   "history": {
     "title": "Historique de Lecture",
@@ -418,5 +430,20 @@
     "cancel": "Annuler",
     "close": "Fermer",
     "confirm": "Confirmer"
+  },
+  "studio": {
+    "navLibrary": "Bibliothèque",
+    "navSearch": "Recherche",
+    "navQueue": "File",
+    "navHistory": "Historique",
+    "navSingers": "Chanteurs",
+    "navDownloads": "Téléchargements",
+    "navQrGuest": "QR Guest",
+    "navShortcuts": "Raccourcis",
+    "navDsp": "DSP",
+    "showMidiMixer": "Afficher le mixeur MIDI",
+    "hideMidiMixer": "Masquer le mixeur MIDI",
+    "vocalShort": "Retirer voix guide",
+    "bgmShort": "BGM"
   }
 }

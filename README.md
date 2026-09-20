@@ -75,7 +75,7 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 - **Hot path / logging (v1.5.0)**: Dedup download SQL mirato (niente `getAllTracks` dump); Guest FTS/id; ZIP inflate async + yield FFT; prune `clsx`/`tailwind-merge`/`autoprefixer`/`postcss`; Logger strutturato con maschera secret.
 
 ### 🎨 9 Temi Grafici & Schermo Palco Ottimizzato Edge-to-Edge
-- **9 Combinazioni Cromatiche Complete**: Personalizzazione indipendente per Regia e Palco (*Dark Stage, Midnight Neon, Club Gold, Ocean Breeze, Sunset Crimson, Emerald Matrix, Royal Amethyst, High Contrast, Light Studio*).
+- **10 Combinazioni Cromatiche Complete**: Personalizzazione indipendente per Regia e Palco (*Dark Stage, Midnight Neon, Club Gold, Ocean Breeze, Sunset Crimson, Emerald Matrix, Royal Amethyst, High Contrast, Light Studio, **Studio Desk***). **Studio Desk** è opt-in: attiva il layout Regia Studio (logo+menu, player, MIDI on-demand); gli altri temi ripristinano la Regia classica.
 - **Video a Tutto Schermo (Edge-to-Edge al 100%)**: Lo Schermo Palco massimizza l'area visiva senza cornici o padding sprecato, adattando video 16:9, 4:3 e panoramici senza distorsioni.
 - **Titolo Brano Flottante a Scomparsa**: Titolo e artista appaiono fluttuanti in basso al centro per una durata configurabile nelle opzioni (da 2 a 30 secondi, default 8s) per poi dissolversi dolcemente, lasciando il video e il testo del karaoke privi di ostacoli visivi.
 - **Barra di Avanzamento a Basso Profilo**: Barra di avanzamento ultra-sottile integrata a filo sul bordo estremo inferiore.
@@ -415,7 +415,7 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 - **Hot paths / logging (v1.5.0)**: Targeted SQL download dedup (no `getAllTracks` dump); Guest FTS/id; async ZIP inflate + FFT yield; pruned `clsx`/`tailwind-merge`/`autoprefixer`/`postcss`; structured Logger with secret masking.
 
 ### 🎨 9 Color Themes & Edge-to-Edge Stage Screen
-- **9 Distinct Visual Themes**: Independent theme customization for both Control Console and Stage Screen (*Dark Stage, Midnight Neon, Club Gold, Ocean Breeze, Sunset Crimson, Emerald Matrix, Royal Amethyst, High Contrast, Light Studio*).
+- **10 Distinct Visual Themes**: Independent theme customization for both Control Console and Stage Screen (*Dark Stage, Midnight Neon, Club Gold, Ocean Breeze, Sunset Crimson, Emerald Matrix, Royal Amethyst, High Contrast, Light Studio, **Studio Desk***). **Studio Desk** is opt-in: enables the Studio Regia layout (logo+menu, player, on-demand MIDI); any other theme restores classic Regia.
 - **100% Edge-to-Edge Video Utilization**: Maximizes available display area on the Stage Screen with zero wasted padding or borders, supporting 16:9, 4:3, and ultrawide video ratios without aspect ratio distortion.
 - **Temporary Floating Song Title Banner**: Track title and artist float at the bottom center of the video for a user-configurable duration (2–30 seconds, 8s default) before smoothly fading out, ensuring singer lyrics remain completely unobstructed.
 - **Low-Profile Flush Progress Bar**: Ultra-thin progress indicator along the screen's bottom edge with subtle illumination that never hides subtitles.
@@ -764,7 +764,7 @@ Karaoke Live Station is powered by open-source libraries, open standards, and co
 | **fft.js** | Jens Nockert / contributors | MIT | [github.com/indutny/fft.js](https://github.com/indutny/fft.js) | Bluestein FFT for MDX STFT / iSTFT |
 | **Electron** | OpenJS Foundation & Electron Contributors | MIT | [electronjs.org](https://www.electronjs.org/) | Multi-window native desktop runtime (Control Desk & Stage Display) |
 | **React** / **react-dom** | Meta Platforms, Inc. | MIT | [react.dev](https://react.dev/) | Reactive, component-based UI layer for operator console and stage displays |
-| **Tailwind CSS** | Tailwind Labs, Inc. | MIT | [tailwindcss.com](https://tailwindcss.com/) | High-performance CSS framework powering the 9 visual themes |
+| **Tailwind CSS** | Tailwind Labs, Inc. | MIT | [tailwindcss.com](https://tailwindcss.com/) | High-performance CSS framework powering the 10 visual themes |
 | **Express** | OpenJS Foundation | MIT | [expressjs.com](https://expressjs.com/) | Embedded lightweight HTTP server powering the local LAN Guest Portal |
 | **Socket.IO** | Automattic & Socket.IO Contributors | MIT | [socket.io](https://socket.io/) | Real-time full-duplex WebSocket communication between guest mobiles and DJ desk |
 | **qrcode** | Ryan Day / contributors | MIT | [github.com/soldair/node-qrcode](https://github.com/soldair/node-qrcode) | QR encoding for Guest Portal URL |

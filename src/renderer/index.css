@@ -118,6 +118,24 @@
   --accent-glow: rgba(79, 70, 229, 0.25);
 }
 
+/* Studio Desk — charcoal + cyan/purple (opt-in Regia layout theme) */
+:root.studio-desk, html.studio-desk {
+  --bg-app: #0A0B10;
+  --bg-card: #12141A;
+  --bg-subtle: #181B22;
+  --border-color: #2A2E36;
+  --border-subtle: #1E2229;
+  --text-main: #FFFFFF;
+  --text-muted: #8E96A3;
+  --accent: #00D4F0;
+  --accent-hover: #00A8C4;
+  --accent-glow: rgba(0, 212, 240, 0.35);
+  --accent-purple: #C026F0;
+  --neon-lyric-fill: #FFFFFF;
+  --neon-lyric-stroke: #00B8E6;
+  --neon-lyric-glow: 0 0 12px rgba(0, 212, 240, 0.85), 0 0 28px rgba(0, 168, 196, 0.45);
+}
+
 /* Global Smooth Transitions */
 body,
 header,

@@ -600,7 +600,7 @@ Attiva/disattiva la raccolta con **Registro SIAE Automatico** nelle Impostazioni
 
 ## 13. Temi e lingue (i18n)
 
-### 13.1 Temi grafici (9)
+### 13.1 Temi grafici (10)
 
 Temi indipendenti per Regia (`themeHost`) e Palco (`themeStage`):
 
@@ -613,6 +613,7 @@ Temi indipendenti per Regia (`themeHost`) e Palco (`themeStage`):
 7. Royal Amethyst (Deep Purple)  
 8. High Contrast (Accessibile)  
 9. Light Studio (Clean)  
+10. Studio Desk (Layout Regia) — **opt-in**: selezionandolo come tema Regia attiva lo shell Studio; qualsiasi altro tema Regia ripristina il layout classico.  
 
 ### 13.2 Lingue
 

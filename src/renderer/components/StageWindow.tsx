@@ -149,7 +149,8 @@ export const StageWindow: React.FC = () => {
           'emerald-matrix',
           'royal-amethyst',
           'high-contrast',
-          'light'
+          'light',
+          'studio-desk'
         );
         root.classList.add(initial.settings.themeStage || 'dark-stage');
       }
@@ -179,7 +180,8 @@ export const StageWindow: React.FC = () => {
           'emerald-matrix',
           'royal-amethyst',
           'high-contrast',
-          'light'
+          'light',
+          'studio-desk'
         );
         root.classList.add(newSettings.themeStage || 'dark-stage');
       } else if (cmd.action === 'sync:queue') {

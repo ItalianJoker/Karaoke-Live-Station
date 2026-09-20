@@ -605,7 +605,7 @@ Enable/disable collection with **Automatic SIAE Register** (`Registro SIAE Autom
 
 ## 13. Themes and languages (i18n)
 
-### 13.1 Graphic themes (9)
+### 13.1 Graphic themes (10)
 
 Independent themes for Control (`themeHost`) and Stage (`themeStage`):
 
@@ -618,6 +618,7 @@ Independent themes for Control (`themeHost`) and Stage (`themeStage`):
 7. Royal Amethyst (Deep Purple)  
 8. High Contrast (Accessible)  
 9. Light Studio (Clean)  
+10. Studio Desk (Regia Layout) — **opt-in**: selecting it as Control theme enables the Studio Regia shell; any other Control theme restores the classic layout.  
 
 ### 13.2 Languages
 

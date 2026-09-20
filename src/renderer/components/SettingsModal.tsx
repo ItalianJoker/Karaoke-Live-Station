@@ -299,7 +299,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     'theme',
     'lingua',
     'language',
-    ...THEME_OPTIONS.map((th) => th.label)
+    ...THEME_OPTIONS.map((th) => th.label),
+    ...THEME_OPTIONS.map((th) => t(`settings.themeOptions.${th.id}`, { defaultValue: th.label }))
   );
   const matchFairQueue = matchesSearch(t('settings.fairQueue'), 'fair queue', 'coda');
   const matchGuestPortal = matchesSearch(
