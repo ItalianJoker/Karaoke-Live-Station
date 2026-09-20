@@ -11,6 +11,11 @@ export type TrackKeyBpmBadgesProps = {
   pitchOffset?: number;
   /** Live playback speed for effective BPM when ≠ 1. */
   speed?: number;
+  /**
+   * When true, also render an always-visible playback-speed chip (`1.00x`).
+   * Used on Stage title overlay for parity with Key/BPM (#74); library/queue stay Key+BPM only.
+   */
+  showSpeedRatio?: boolean;
   /** Visual density — list rows use `sm`, Regia/Stage can use `md`. */
   size?: 'sm' | 'md';
   /** Extra class on the outer flex wrapper. */
@@ -31,6 +36,7 @@ export const TrackKeyBpmBadges: React.FC<TrackKeyBpmBadgesProps> = ({
   initialBpm,
   pitchOffset = 0,
   speed = 1,
+  showSpeedRatio = false,
   size = 'sm',
   className = ''
 }) => {
@@ -39,11 +45,13 @@ export const TrackKeyBpmBadges: React.FC<TrackKeyBpmBadgesProps> = ({
   const keyLabel = formatKeyTransition(initialKey, pitchOffset);
   const bpmLabel = formatBpmTransition(initialBpm, speed);
   const bpmUnit = t('player.bpm');
+  const speedRatio = Number.isFinite(speed) ? speed : 1;
 
   const keyText = keyLabel ?? t('player.keyPlaceholder');
   const bpmText = bpmLabel
     ? `${bpmLabel} ${bpmUnit}`
     : t('player.bpmPlaceholder', { unit: bpmUnit });
+  const speedText = `${speedRatio.toFixed(2)}x`;
 
   const pad = size === 'md' ? 'px-2 py-0.5 text-[11px]' : 'px-1.5 py-0.5 text-[9px]';
   const baseChip =
@@ -71,6 +79,15 @@ export const TrackKeyBpmBadges: React.FC<TrackKeyBpmBadgesProps> = ({
       >
         {bpmText}
       </span>
+      {showSpeedRatio && (
+        <span
+          className={`${baseChip} bg-teal-950/50 text-teal-300/90 border-teal-800/50`}
+          title={t('player.speed')}
+          data-testid="track-speed-badge"
+        >
+          {speedText}
+        </span>
+      )}
     </span>
   );
 };

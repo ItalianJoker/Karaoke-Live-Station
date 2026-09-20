@@ -4243,9 +4243,10 @@ console.log('\n\x1b[36m▶ Suite: Pitch/BPM UX + single-instance dialog\x1b[0m')
   assert(
     stageSrc.includes('stage-key-label') &&
       stageSrc.includes('stage-bpm-label') &&
-      stageSrc.includes('TrackKeyBpmBadges') &&
+      stageSrc.includes('stagePitchBadgeText') &&
+      stageSrc.includes('stageSpeedBadgeText') &&
       stageSrc.includes('player.bpm'),
-    'Stage shows Key/BPM on pitch/speed badges and title overlay'
+    'Stage shows Key/BPM in parentheses pitch/speed badges'
   );
 
   assert(
@@ -4391,6 +4392,114 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     storeSrc.includes("themeHost: 'dark-stage'"),
     'Default themeHost remains dark-stage'
   );
+}
+
+// -------------------------------------------------------------
+// Suite: Stage external-display placement + speed label on Palco
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Stage live blank fix + speed on Stage\x1b[0m');
+
+{
+  const stageTargetPath = path.resolve(__dirname, '../src/shared/stageDisplayTarget.ts');
+  const mainSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+  const stageSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/StageWindow.tsx'),
+    'utf8'
+  );
+  const badgesSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/TrackKeyBpmBadges.tsx'),
+    'utf8'
+  );
+  const cssSrc = fs.readFileSync(path.resolve(__dirname, '../src/renderer/index.css'), 'utf8');
+
+  assert(fs.existsSync(stageTargetPath), 'stageDisplayTarget helper exists');
+  assert(
+    mainSrc.includes('resolveStagePlacement') &&
+      mainSrc.includes('placeAndRevealStageWindow') &&
+      mainSrc.includes("from 'electron'") &&
+      /screen/.test(mainSrc),
+    'Main places Stage via resolveStagePlacement + screen'
+  );
+  assert(
+    mainSrc.includes('stage-ready-handshake') &&
+      mainSrc.includes('ready-to-show-fallback') &&
+      mainSrc.includes('reopen-existing'),
+    'Stage reveal paths all re-place on audience display'
+  );
+  assert(
+    /stage-screen-container[\s\S]*var\(--bg-app,\s*#000000\)/.test(cssSrc),
+    'Stage container CSS has opaque --bg-app fallback'
+  );
+  assert(
+    stageSrc.includes("t('player.speed')") &&
+      stageSrc.includes('stage-speed-value') &&
+      stageSrc.includes('stageSpeedBadgeText') &&
+      stageSrc.includes('stagePitchBadgeText') &&
+      stageSrc.includes('stage-title-key-speed') &&
+      stageSrc.includes('showSpeedOnStage'),
+    'Stage shows parentheses Speed/Pitch badges + title overlay chips'
+  );
+  // Explicit parentheses form locks (Luca): `0 (D)` / `1.00x (103 BPM)`
+  assert(
+    stageSrc.includes('(${stageKeyInParens})') &&
+      stageSrc.includes('(${stageBpmInParens})') &&
+      stageSrc.includes('stagePitchBadgeText') &&
+      stageSrc.includes('stageSpeedBadgeText'),
+    'Stage pitch/speed use parentheses form around key and BPM'
+  );
+  assert(
+    badgesSrc.includes('showSpeedRatio') && badgesSrc.includes('track-speed-badge'),
+    'TrackKeyBpmBadges optional speed ratio chip retained for Regia/lists reuse'
+  );
+
+  for (const lang of ['it', 'en', 'es', 'fr']) {
+    const loc = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+    );
+    assert(typeof loc.player?.speed === 'string' && loc.player.speed.length > 0, `${lang}: player.speed`);
+  }
+
+  const { spawnSync } = require('child_process');
+  const probe = spawnSync(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      '--no-warnings',
+      '-e',
+      `
+      import { resolveStagePlacement } from ${JSON.stringify(stageTargetPath)};
+      const assert = (c, m) => { if (!c) { console.error('PROBE_FAIL', m); process.exit(2); } };
+      const dual = resolveStagePlacement(
+        [
+          { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
+          { id: 2, bounds: { x: 1920, y: 0, width: 1280, height: 720 } }
+        ],
+        1
+      );
+      assert(dual.usedExternalDisplay === true, 'dual → external');
+      assert(dual.displayId === 2, 'dual → display 2');
+      assert(dual.bounds.x === 1920 && dual.bounds.width === 1280, 'dual bounds');
+      const single = resolveStagePlacement(
+        [{ id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } }],
+        1
+      );
+      assert(single.usedExternalDisplay === false, 'single → primary');
+      assert(single.bounds.width === 1280 && single.bounds.height === 720, 'single windowed size');
+      assert(single.bounds.x === 320, 'single centered x');
+      const empty = resolveStagePlacement([], 0);
+      assert(empty.usedExternalDisplay === false && empty.bounds.width === 1280, 'empty fallback');
+      console.log('PROBE_OK');
+      `
+    ],
+    { encoding: 'utf8' }
+  );
+  assert(
+    probe.status === 0 && (probe.stdout || '').includes('PROBE_OK'),
+    'resolveStagePlacement dual/single/empty probe'
+  );
+  if (probe.status !== 0) {
+    console.error(probe.stderr || probe.stdout);
+  }
 }
 
 // Summary

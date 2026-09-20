@@ -9,13 +9,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- None yet.
+- **IT:** Badge velocità sul Palco in forma parentesi (`1.00x (103 BPM)`) + tonalità (`0 (D)`); chip coerenti sull’overlay titolo.
+- **EN:** Stage speed/pitch badges in parentheses form (`1.00x (103 BPM)`, `0 (D)`); matching title-overlay chips.
 
 ### Changed
-- None yet.
+- **IT/EN:** All’apertura/riapertura lo Stage viene posizionato sul monitor esterno (TV/proiettore) in fullscreen quando disponibile; con un solo display resta in finestra centrata (non copre la Regia).
+- **IT/EN:** Stage floating badges use parentheses Key/BPM form (Luca Stage formatting).
 
 ### Fixed
-- None yet.
+- **IT:** Palco / Live che lasciava il secondo monitor sul desktop — Stage non veniva mai spostato sul display non primario.
+- **EN:** Stage / Live leaving the second monitor on the OS desktop — Stage was never moved to a non-primary display.
+- **IT/EN:** `.stage-screen-container` ora ha fallback opaco `#000` se manca la classe tema.
 
 ### Breaking Changes
 - None yet.

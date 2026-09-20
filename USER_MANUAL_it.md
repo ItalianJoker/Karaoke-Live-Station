@@ -411,6 +411,8 @@ Lo Stage si apre nascosto (`show: false`) con sfondo nero. Prima di mostrarsi:
 2. Doppio `requestAnimationFrame`
 3. Segnala `signalStageReady()` al main process
 
+Il main process **posiziona lo Stage sul monitor esterno** (TV/proiettore) quando è disponibile e lo mette a schermo intero; con un solo display resta una finestra centrata così la Regia non viene coperta. Riapri Palco / `P` ripete il posizionamento.
+
 Così non compare flash di layout grezzo. Se chiudi lo Stage, **Riapri Palco** o tasto **`P`** lo ricrea e risincronizza. Chiusura della Regia chiude anche lo Stage.
 
 ### 7.2 Badge semitoni e `showPitchOnStage`
@@ -429,7 +431,9 @@ In **Impostazioni → Schermo Stage**, ogni messaggio overlay (Ora Canta, Prepar
 
 Impostazione **Mostra velocità di riproduzione sullo schermo del palco** (`showSpeedOnStage`, default tipicamente ON):
 
-- Mostra il badge velocità (es. **`1.00x`**, **`1.25x`**)
+- Mostra il badge in forma parentesi: **`1.00x (103 BPM)`** (moltiplicatore + BPM effettivo; placeholder `— BPM` se sconosciuto)
+- Il badge tonalità usa la stessa forma: **`0 (D)`** / **`+2 (D→E)`** (offset + chiave)
+- Anche sull’overlay titolo compaiono gli stessi chip
 - Descrizione UI: «Visualizza il badge della velocità di riproduzione (es. 1.00x, 1.25x) sullo schermo del palco per il cantante.»
 
 ### 7.3 Fullscreen e layout
