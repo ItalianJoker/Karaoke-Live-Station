@@ -9,23 +9,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- **IT:** Tema opt-in **Studio Desk** (`studio-desk`): layout Regia Studio (logo+menu, player, MIDI on-demand) e palette cyan/purple; i temi esistenti restano selezionabili e ripristinano la Regia classica. Default invariato (`dark-stage`).
-- **EN:** Opt-in **Studio Desk** theme (`studio-desk`): Studio Regia layout (logo+menu, player, on-demand MIDI) and cyan/purple palette; existing themes stay selectable and restore classic Regia. Default unchanged (`dark-stage`).
-- **IT:** Chip Key/BPM sempre visibili in Libreria, Coda, Regia e Palco (placeholder «—» se mancanti); etichetta **BPM** accanto al tempo; dialogo istanza singola «Software già in esecuzione» (+ EN/ES/FR).
-- **EN:** Always-visible Key/BPM chips in Library, Queue, Control, and Stage (“—” placeholder when unknown); **BPM** unit beside tempo; single-instance dialog “Software already running” (+ IT/ES/FR).
+- None yet.
 
 ### Changed
 - None yet.
 
 ### Fixed
-- **IT/EN:** Key/BPM non più nascosti da rendering condizionale / overflow sulle sole tracce analizzate.
+- None yet.
 
 ### Breaking Changes
 - None yet.
 
-## [1.5.0] — Performance hot-paths + deps prune + structured logging — 2026-09-20
+## [1.5.0] — Hot-paths + Studio Desk opt-in + Key/BPM UX — 2026-09-20
 
-New GitHub Release **v1.5.0** after PR **#72**. Builds on `v1.4.0` baseline. Does **not** touch tag `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`. Package bumps **1.4.0 → 1.5.0**.
+Overwrite of GitHub Release **v1.5.0** after PRs **#72** + **#74** + **#76** (same version; does **not** touch `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on `v1.4.0` baseline. Package stays **1.5.0**.
+
+### 🎛️ UI & Regia
+- **IT:** Tema opt-in **Studio Desk** (`studio-desk`): layout Regia Studio (logo+menu, player, MIDI on-demand) e palette cyan/purple; i temi esistenti restano selezionabili e ripristinano la Regia classica. Default invariato (`dark-stage`). (PR #76)
+- **EN:** Opt-in **Studio Desk** theme (`studio-desk`): Studio Regia layout (logo+menu, player, on-demand MIDI) and cyan/purple palette; existing themes stay selectable and restore classic Regia. Default unchanged (`dark-stage`). (PR #76)
+- **IT:** Chip Key/BPM sempre visibili in Libreria, Coda, Regia e Palco (placeholder «—» se mancanti); etichetta **BPM** accanto al tempo; dialogo istanza singola «Software già in esecuzione» (+ EN/ES/FR). (PR #74)
+- **EN:** Always-visible Key/BPM chips in Library, Queue, Control, and Stage (“—” placeholder when unknown); **BPM** unit beside tempo; single-instance dialog “Software already running” (+ IT/ES/FR). (PR #74)
+
+### Fixed
+- **IT/EN:** Key/BPM non più nascosti da rendering condizionale / overflow sulle sole tracce analizzate. (PR #74)
 
 ### ⚡ Performance & Concurrency
 - **IT:** Dedup download via SQL mirato (`findLocalMediaDedupCandidates`) al posto di `getAllTracks()`; Guest Portal su FTS/`searchTracks` + lookup id; inflate ZIP asincrono (`inflateRaw`); yield FFT durante analisi Key/BPM; `pendingById` Map e Set `missingTrackIds` in UI. (PR #72)

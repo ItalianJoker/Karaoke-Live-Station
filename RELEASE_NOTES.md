@@ -9,7 +9,7 @@
 <a name="v150-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.5.0
 
-Nuova release GitHub **v1.5.0** (tag nuovo; **non** tocca `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Parte dalla baseline **v1.4.0**. PR **#72**. Pacchetto **1.4.0 → 1.5.0**.
+Sovrascrittura release GitHub **v1.5.0** (stessa versione; **non** tocca `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Parte dalla baseline **v1.4.0**. PR **#72** + fold **#74** / **#76**. Pacchetto resta **1.5.0**.
 
 ## 📦 File di Installazione
 
@@ -22,6 +22,16 @@ Nuova release GitHub **v1.5.0** (tag nuovo; **non** tocca `v1.4.0` / `v1.3.0` / 
 | **macOS** | `Karaoke Live Station-1.5.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa versione
+
+### 🎛️ Tema Studio Desk opt-in (#76)
+- Nuovo tema **`studio-desk`**: layout Regia Studio (logo+menu, player, MIDI on-demand) e palette cyan/purple.
+- I temi esistenti restano selezionabili e ripristinano la Regia classica.
+- **Default invariato** (`dark-stage`) — attivazione solo da Impostazioni → Tema Grafico Regia.
+
+### 🔑 Key/BPM sempre visibili + istanza singola (#74)
+- Chip Key/BPM sempre presenti in Libreria, Coda, Regia e Palco (placeholder «—» se mancanti).
+- Etichetta **BPM** accanto al tempo.
+- Secondo avvio: dialogo OS «Software già in esecuzione» (+ EN/ES/FR) prima di uscire.
 
 ### ⚡ Hot path libreria / download / Guest (#72)
 - Dedup download via SQL mirato (`findLocalMediaDedupCandidates`) al posto di dump `getAllTracks()`.
@@ -53,7 +63,7 @@ Resta incluso: Signalsmith Hi-Fi DSP, ZIP CD+G + Key/BPM, AI WebGPU Hidden Rende
 <a name="v150-english"></a>
 # 🇬🇧 Release Notes — Version 1.5.0
 
-New GitHub release **v1.5.0** (new tag; does **not** touch `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on **v1.4.0** baseline. PR **#72**. Package **1.4.0 → 1.5.0**.
+Overwrite of GitHub release **v1.5.0** (same version; does **not** touch `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on **v1.4.0** baseline. PR **#72** + fold **#74** / **#76**. Package stays **1.5.0**.
 
 ## 📦 Installer Files
 
@@ -66,6 +76,16 @@ New GitHub release **v1.5.0** (new tag; does **not** touch `v1.4.0` / `v1.3.0` /
 | **macOS** | `Karaoke Live Station-1.5.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new
+
+### 🎛️ Studio Desk theme opt-in (#76)
+- New **`studio-desk`** theme: Studio Regia layout (logo+menu, player, on-demand MIDI) and cyan/purple palette.
+- Existing themes stay selectable and restore classic Regia.
+- **Default unchanged** (`dark-stage`) — enable only via Settings → Control Room Theme.
+
+### 🔑 Always-visible Key/BPM + single-instance (#74)
+- Key/BPM chips always shown in Library, Queue, Control, and Stage (“—” placeholder when unknown).
+- **BPM** unit beside tempo.
+- Second launch: OS dialog “Software already running” (+ IT/ES/FR) before quit.
 
 ### ⚡ Library / download / Guest hot paths (#72)
 - Download dedup via targeted SQL (`findLocalMediaDedupCandidates`) instead of `getAllTracks()` dumps.
