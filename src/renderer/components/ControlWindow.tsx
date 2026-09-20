@@ -352,6 +352,29 @@ export const ControlWindow: React.FC = () => {
     }
   };
 
+  /**
+   * Queue → Libreria Locale: switch right tab (classic) / leave History (Studio),
+   * then ask LibraryPanel to search/scroll/highlight the matching catalog row.
+   */
+  const handleRevealInLibrary = (track: {
+    id: string;
+    title: string;
+    artist: string;
+    source: 'local_library' | 'youtube' | 'midi';
+    localFilePath?: string;
+    uri?: string;
+  }) => {
+    setActiveRightTab('library');
+    useKaraokeStore.getState().requestRevealInLibrary({
+      trackId: track.id,
+      title: track.title,
+      artist: track.artist,
+      source: track.source,
+      localFilePath: track.localFilePath,
+      uri: track.uri
+    });
+  };
+
   // Initialize AudioGraphManager
   useEffect(() => {
     const manager = new AudioGraphManager();
@@ -930,6 +953,7 @@ export const ControlWindow: React.FC = () => {
         setEditingSingerItem(item);
         setEditingSingerText(item.assignedSingerName || '');
       }}
+      onRevealInLibrary={handleRevealInLibrary}
     />
   );
 
@@ -1909,37 +1933,17 @@ export const ControlWindow: React.FC = () => {
           {/* Tab 1: Queue (Fair Queue) */}
           {/* Tabs stay mounted so search/scroll/downloads persist across navigation */}
           <div className={activeRightTab === 'queue' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
-            <QueueList
-              isPlaying={playback.isPlaying}
-              enableFairQueue={Boolean(settings.enableFairQueue)}
-              queueFileDropActive={queueFileDropActive}
-              setQueueFileDropActive={setQueueFileDropActive}
-              onOsFileDrop={(files) => { void handleOsQueueFileDrop(files); }}
-              onPlayPause={() => { void handlePlayPause(); }}
-              onStop={handleStop}
-              onJumpToTrack={(index) => { void handleJumpToTrack(index); }}
-              onSaveToPermanentLibrary={handleSaveToPermanentLibrary}
-              savingTrackIds={savingTrackIds}
-              onEditSinger={(item) => {
-                setEditingSingerItem(item);
-                setEditingSingerText(item.assignedSingerName || '');
-              }}
-            />
+            {queuePanelNode}
           </div>
 
           {/* Tab 2: Library Panel — kept mounted so downloads/search persist */}
           <div className={activeRightTab === 'library' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
-            <LibraryPanel
-              onPlayCue={handlePlayCue}
-              onStopCue={handleStopCue}
-              activeCueUri={activeCueUri}
-              searchInputRef={searchInputRef}
-            />
+            {libraryPanelNode}
           </div>
 
           {/* Tab 3: Execution History & Royalty/SIAE Logging */}
           <div className={activeRightTab === 'history' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
-            <HistoryPanel />
+            {historyPanelNode}
           </div>
         </section>
       </main>

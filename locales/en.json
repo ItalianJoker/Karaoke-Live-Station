@@ -63,7 +63,8 @@
     "hintPlayOrDoubleClick": "Double-click or Play to start",
     "confirmRemove": "Remove this track from the queue?",
     "dropToImport": "Drop media files to import and add to the queue",
-    "importDropped": "Imported and queued {{count}} track(s)"
+    "importDropped": "Imported and queued {{count}} track(s)",
+    "revealInLibrary": "Show in Local Library"
   },
   "singers": {
     "title": "Singers Management",
@@ -118,6 +119,7 @@
     "saveToLibrary": "Save to Library",
     "savedSuccess": "Song saved to local library: {{title}}",
     "missingFile": "Media file not found on disk",
+    "notInCatalog": "Track not found in the Local Library",
     "addAsNone": "Add as: (None)",
     "previewVideo": "Video Preview",
     "previewTitle": "Video Preview & Version Check",

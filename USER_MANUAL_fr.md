@@ -211,6 +211,8 @@ Vous pouvez démarrer/mettre en pause avec le bouton Play de la première ligne,
 
 **Enregistrer dans la bibliothèque :** si le morceau vient du web ou de `queue_cache`, **Salva in Libreria** apparaît sur la ligne de file et dans l’en-tête du lecteur, pour le promouvoir dans le dossier permanent de bibliothèque.
 
+**Afficher dans la Bibliothèque Locale :** sur les lignes locales / MIDI / avec fichier en cache, le contrôle dossier bascule vers **Bibliothèque & Recherche → Locale**, filtre par titre et fait défiler/surligne la ligne catalogue pour identifier le bon fichier. Si le chemin manque sur le disque, la modale fichier manquant existante est réutilisée.
+
 ### 4.2 Volume perceptif
 
 Le curseur Volume Master utilise une courbe **quadratique psychoacoustique** :

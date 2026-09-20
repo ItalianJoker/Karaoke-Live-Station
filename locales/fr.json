@@ -63,7 +63,8 @@
     "hintPlayOrDoubleClick": "Double-clic ou Play pour démarrer",
     "confirmRemove": "Retirer ce titre de la file ?",
     "dropToImport": "Déposez des fichiers média pour les importer et les ajouter à la file",
-    "importDropped": "{{count}} morceau(x) importé(s) et mis en file"
+    "importDropped": "{{count}} morceau(x) importé(s) et mis en file",
+    "revealInLibrary": "Afficher dans la Bibliothèque Locale"
   },
   "singers": {
     "title": "Gestion des Chanteurs",
@@ -118,6 +119,7 @@
     "saveToLibrary": "Enregistrer dans la Bibliothèque",
     "savedSuccess": "Morceau enregistré dans la bibliothèque locale : {{title}}",
     "missingFile": "Fichier multimédia introuvable sur le disque",
+    "notInCatalog": "Morceau introuvable dans la Bibliothèque Locale",
     "addAsNone": "Ajouter sous : (Aucun)",
     "previewVideo": "Aperçu Vidéo",
     "previewTitle": "Aperçu et Contrôle de Version",

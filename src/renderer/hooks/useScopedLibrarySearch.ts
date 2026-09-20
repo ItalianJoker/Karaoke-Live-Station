@@ -105,6 +105,14 @@ export function useScopedLibrarySearch() {
     [patchScope]
   );
 
+  /** Always write the Local scope query — used by queue→library reveal while Web may be active. */
+  const setLocalQuery = useCallback(
+    (query: string) => {
+      patchScope('local', { query });
+    },
+    [patchScope]
+  );
+
   const setResults = useCallback(
     (results: KaraokeMediaTrack[] | ((prev: KaraokeMediaTrack[]) => KaraokeMediaTrack[])) => {
       const scope = searchModeRef.current;
@@ -212,6 +220,7 @@ export function useScopedLibrarySearch() {
     setSearchMode,
     query: active.query,
     setQuery,
+    setLocalQuery,
     results: active.results,
     setResults,
     localQuery: scopes.local.query,

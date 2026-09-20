@@ -11,6 +11,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ### Added
 - **IT:** Badge velocità sul Palco in forma parentesi (`1.00x (103 BPM)`) + tonalità (`0 (D)`); chip coerenti sull’overlay titolo.
 - **EN:** Stage speed/pitch badges in parentheses form (`1.00x (103 BPM)`, `0 (D)`); matching title-overlay chips.
+- **IT:** Pulsante **Mostra in Libreria Locale** su ogni riga della Coda: apre la scheda Libreria (modalità Locale), cerca/scorre ed evidenzia il brano corrispondente (id / percorso). File mancante → stessa modale esistente. Condiviso Regia classica + Studio Desk (`QueueList`).
+- **EN:** **Show in Local Library** control on each Queue row: opens Library (Local mode), searches/scrolls and highlights the matching track (id / path). Missing file → existing modal. Shared classic Regia + Studio Desk (`QueueList`).
 
 ### Changed
 - **IT/EN:** All’apertura/riapertura lo Stage viene posizionato sul monitor esterno (TV/proiettore) in fullscreen quando disponibile; con un solo display resta in finestra centrata (non copre la Regia).

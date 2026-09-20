@@ -4675,6 +4675,147 @@ console.log('\n\x1b[36m▶ Suite: Library refresh missing flags + DnD overlay te
   }
 }
 
+
+// -------------------------------------------------------------
+// Suite: Queue → Local Library reveal
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Queue → Local Library reveal\x1b[0m');
+
+{
+  const root = path.resolve(__dirname, '..');
+  const revealUtilSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/utils/libraryReveal.ts'),
+    'utf8'
+  );
+  const queueListSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/components/QueueList.tsx'),
+    'utf8'
+  );
+  const libraryPanelSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  const storeSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/store/karaokeStore.ts'),
+    'utf8'
+  );
+  const controlSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/components/ControlWindow.tsx'),
+    'utf8'
+  );
+  const scopedSearchSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/hooks/useScopedLibrarySearch.ts'),
+    'utf8'
+  );
+
+  assert(
+    revealUtilSrc.includes('canRevealTrackInLibrary') &&
+      revealUtilSrc.includes('findTrackRevealIndex') &&
+      revealUtilSrc.includes('buildLibraryRevealSearchSeed') &&
+      revealUtilSrc.includes('LibraryRevealRequest'),
+    'libraryReveal helpers export canReveal / findIndex / searchSeed / request type'
+  );
+  assert(
+    queueListSrc.includes('onRevealInLibrary') &&
+      queueListSrc.includes('canRevealTrackInLibrary') &&
+      queueListSrc.includes('data-testid="queue-reveal-in-library"') &&
+      queueListSrc.includes('FolderSearch') &&
+      queueListSrc.includes("t('queue.revealInLibrary"),
+    'QueueList wires reveal control with i18n + testid'
+  );
+  assert(
+    storeSrc.includes('libraryRevealRequest') &&
+      storeSrc.includes('requestRevealInLibrary') &&
+      storeSrc.includes('clearLibraryRevealRequest'),
+    'Store exposes volatile libraryRevealRequest API'
+  );
+  assert(
+    !/partialize:[\s\S]*libraryRevealRequest/.test(storeSrc),
+    'libraryRevealRequest is not partialize-persisted'
+  );
+  assert(
+    controlSrc.includes('handleRevealInLibrary') &&
+      controlSrc.includes('onRevealInLibrary={handleRevealInLibrary}') &&
+      controlSrc.includes('requestRevealInLibrary') &&
+      controlSrc.includes("setActiveRightTab('library')"),
+    'ControlWindow switches to library tab and requests reveal'
+  );
+  assert(
+    controlSrc.includes('{queuePanelNode}') && controlSrc.includes('{libraryPanelNode}'),
+    'Classic Regia reuses shared queue/library panel nodes (no QueueList drift)'
+  );
+  assert(
+    libraryPanelSrc.includes('libraryRevealRequest') &&
+      libraryPanelSrc.includes('findTrackRevealIndex') &&
+      libraryPanelSrc.includes('buildLibraryRevealSearchSeed') &&
+      libraryPanelSrc.includes('library-row-highlighted') &&
+      libraryPanelSrc.includes('showMissingFileModal') &&
+      libraryPanelSrc.includes("t('library.notInCatalog"),
+    'LibraryPanel consumes reveal request, highlights row, reuses missing-file modal'
+  );
+  assert(
+    scopedSearchSrc.includes('setLocalQuery'),
+    'useScopedLibrarySearch exposes setLocalQuery for reveal while Web tab may be active'
+  );
+
+  // Pure helper probes (transpile-free via Function from extracted source patterns)
+  const canReveal = (track) => {
+    if (track.source === 'local_library' || track.source === 'midi') return true;
+    return Boolean((track.localFilePath || '').trim());
+  };
+  const findIndex = (tracks, req) => {
+    if (!tracks.length || !req.trackId) return -1;
+    const byId = tracks.findIndex((t) => t.id === req.trackId);
+    if (byId >= 0) return byId;
+    const p = (req.localFilePath || '').trim();
+    if (!p) return -1;
+    return tracks.findIndex((t) => (t.localFilePath || '').trim() === p);
+  };
+  const seed = (req) => {
+    const title = (req.title || '').trim();
+    if (title) return title;
+    return (req.artist || '').trim();
+  };
+
+  assert(canReveal({ source: 'local_library' }) === true, 'local_library can reveal');
+  assert(canReveal({ source: 'midi' }) === true, 'midi can reveal');
+  assert(
+    canReveal({ source: 'youtube', localFilePath: '/tmp/a.mp4' }) === true,
+    'youtube with local path can reveal'
+  );
+  assert(
+    canReveal({ source: 'youtube' }) === false,
+    'pure youtube without path cannot reveal'
+  );
+  assert(
+    findIndex(
+      [
+        { id: 'a', localFilePath: '/x' },
+        { id: 'b', localFilePath: '/y' }
+      ],
+      { trackId: 'b' }
+    ) === 1,
+    'findRevealIndex by id'
+  );
+  assert(
+    findIndex([{ id: 'a', localFilePath: '/x' }], {
+      trackId: 'missing',
+      localFilePath: '/x'
+    }) === 0,
+    'findRevealIndex falls back to path'
+  );
+  assert(seed({ title: ' Hello ', artist: 'Art' }) === 'Hello', 'search seed prefers title');
+  assert(seed({ title: '  ', artist: ' Art ' }) === 'Art', 'search seed falls back to artist');
+
+  for (const lang of ['it', 'en', 'es', 'fr']) {
+    const loc = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+    );
+    assert(loc.queue?.revealInLibrary, `${lang}: queue.revealInLibrary`);
+    assert(loc.library?.notInCatalog, `${lang}: library.notInCatalog`);
+  }
+}
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');
