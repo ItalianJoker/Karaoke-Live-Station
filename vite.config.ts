@@ -41,7 +41,8 @@ export default defineConfig({
             emptyOutDir: false,
             rollupOptions: {
               output: {
-                entryFileNames: 'instrumentalAiWorker.js'
+                entryFileNames: 'instrumentalAiWorker.js',
+                banner: "if (typeof globalThis.location === 'undefined') { globalThis.location = new URL('file:///'); }\n"
               },
               external: [
                 'onnxruntime-web',

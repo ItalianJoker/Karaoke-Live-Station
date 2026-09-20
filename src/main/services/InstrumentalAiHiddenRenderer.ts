@@ -15,6 +15,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import { Logger } from './Logger';
 import {
   AI_GPU_RENDERER_CHANNELS,
@@ -49,6 +50,26 @@ function resolveGpuRendererScript(): string {
   throw new Error(
     `Instrumental AI GPU renderer script not found. Looked in: ${candidates.join(', ')}`
   );
+}
+
+function resolveOrtBundlePath(): string | null {
+  const candidates = [
+    path.join(app.getPath('userData'), 'ort', 'ort.all.bundle.min.mjs'),
+    path.join(app.getAppPath(), 'public', 'ort', 'ort.all.bundle.min.mjs'),
+    path.join(process.cwd(), 'public', 'ort', 'ort.all.bundle.min.mjs'),
+    path.join(app.getAppPath(), 'dist', 'ort', 'ort.all.bundle.min.mjs'),
+    path.join(process.cwd(), 'dist', 'ort', 'ort.all.bundle.min.mjs')
+  ];
+  try {
+    const resolved = require.resolve('onnxruntime-web/dist/ort.all.bundle.min.mjs');
+    if (resolved) candidates.unshift(resolved);
+  } catch {
+    /* ignore */
+  }
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return null;
 }
 
 /** Writable HTML loader outside asar (userData preferred, tmp fallback). */
@@ -233,7 +254,7 @@ export class InstrumentalAiHiddenRenderer {
             };
           }
           try {
-            const adapter = await gpu.requestAdapter();
+            const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
             if (!adapter) {
               return {
                 available: true,
@@ -327,6 +348,23 @@ export class InstrumentalAiHiddenRenderer {
   /** Lazily require the ORT GPU renderer entry into the hidden window. */
   private async ensureGpuScriptLoaded(win: BrowserWindow): Promise<void> {
     if (this.gpuScriptLoaded) return;
+    const bundleFile = resolveOrtBundlePath();
+    if (bundleFile) {
+      const bundleUrl = pathToFileURL(bundleFile).href;
+      this.logger?.info('InstrumentalAiHiddenRenderer', 'Pre-importing ORT WebGPU bundle in window context', { bundleUrl });
+      await win.webContents.executeJavaScript(
+        `(async () => {
+          try {
+            window.__ortWebGpu = await import(${JSON.stringify(bundleUrl)});
+            return true;
+          } catch (e) {
+            console.warn('[InstrumentalAiHiddenRenderer] Failed to pre-import ort bundle:', e);
+            return false;
+          }
+        })()`,
+        true
+      );
+    }
     const script = resolveGpuRendererScript();
     this.logger?.info('InstrumentalAiHiddenRenderer', 'Loading GPU renderer script', { script });
     await win.webContents.executeJavaScript(

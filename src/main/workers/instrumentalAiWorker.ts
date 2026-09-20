@@ -12,6 +12,33 @@
  * GPU path: when Settings enables AI GPU and the Hidden Renderer reports a WebGPU
  * adapter, main routes jobs to `instrumentalAiGpuRenderer` instead of this worker.
  */
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// Fix Node.js / utilityProcess environment for onnxruntime-web:
+// 1. Set location.origin = 'null' so ORT detects file:// as same-origin and skips cross-origin blob fetch.
+if (typeof globalThis.location === 'undefined') {
+  (globalThis as unknown as { location: URL }).location = new URL('file:///');
+}
+// 2. Polyfill fetch for file:// protocol in case ORT or child dependencies call fetch on file URLs.
+if (typeof globalThis.fetch === 'function') {
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async function (resource: RequestInfo | URL, init?: RequestInit) {
+    const urlStr =
+      typeof resource === 'string'
+        ? resource
+        : resource instanceof URL
+          ? resource.href
+          : (resource as Request)?.url || '';
+    if (urlStr.startsWith('file://')) {
+      const filePath = fileURLToPath(urlStr);
+      const data = await fs.promises.readFile(filePath);
+      return new Response(data);
+    }
+    return origFetch(resource, init);
+  };
+}
+
 import {
   runInstrumentalAiSeparate,
   type InstrumentalAiOutMessage,

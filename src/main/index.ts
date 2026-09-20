@@ -153,8 +153,9 @@ protocol.registerSchemesAsPrivileged([
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 // Best-effort WebGPU for Hidden Renderer AI (utilityProcess never gets navigator.gpu).
 app.commandLine.appendSwitch('enable-unsafe-webgpu');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
 if (process.platform === 'linux') {
-  app.commandLine.appendSwitch('enable-features', 'Vulkan');
+  app.commandLine.appendSwitch('enable-features', 'Vulkan,SharedArrayBuffer');
 }
 
 /**

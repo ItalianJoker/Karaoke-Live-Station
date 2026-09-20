@@ -100,6 +100,13 @@ export const AI_SEPARATION_ORT_SILENCE_TIMEOUT_MS = 45 * 60 * 1000;
  * before parentPort listeners bind (heavy ORT imports often take >>50ms).
  */
 export const AI_WORKER_READY_TIMEOUT_MS = 2 * 60 * 1000;
+/**
+ * Max time to wait for Hidden Renderer WebGPU model initialization before parent
+ * forcibly disposes the hung BrowserWindow and re-routes to utilityProcess WASM.
+ * Matches WEBGPU_SESSION_TIMEOUT_MS in renderer, but enforced from the Node.js parent
+ * in case the renderer thread is completely deadlocked by Chromium GPU / Dawn.
+ */
+export const AI_HIDDEN_RENDERER_MODEL_TIMEOUT_MS = 15_000;
 
 /**
  * Scale the hard timeout with track length so a ~3–5 min song on CPU is not
@@ -304,6 +311,7 @@ export async function separateInstrumentalWithAi(
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let readyTimer: ReturnType<typeof setTimeout> | null = null;
   let parentKeepAliveTimer: ReturnType<typeof setInterval> | null = null;
+  let hiddenRendererModelWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
   const hardTimeoutMs = computeAiSeparationTimeoutMs(options.durationSec);
   const startedAt = Date.now();
   let lastPhase: string | null = null;
@@ -348,7 +356,15 @@ export async function separateInstrumentalWithAi(
     }
   };
 
+  const clearHiddenRendererWatchdog = () => {
+    if (hiddenRendererModelWatchdogTimer) {
+      clearTimeout(hiddenRendererModelWatchdogTimer);
+      hiddenRendererModelWatchdogTimer = null;
+    }
+  };
+
   const clearTimers = () => {
+    clearHiddenRendererWatchdog();
     if (hardTimer) {
       clearTimeout(hardTimer);
       hardTimer = null;
@@ -444,6 +460,63 @@ export async function separateInstrumentalWithAi(
     };
 
     const onAbort = () => fail('Aborted', true, 'cancel');
+
+    const triggerUtilityWasmFallback = (reason: string, disposeHiddenWindow = false) => {
+      if (utilityFallbackStarted || settled) return;
+      utilityFallbackStarted = true;
+      lastOrtFallbackReason = reason;
+      lastOrtBackend = 'wasm';
+      lastProgressAt = Date.now();
+      lastProgressMessage = `WebGPU unavailable — switching to WASM CPU (${reason})`;
+      logger?.warn(
+        'InstrumentalAiSeparator',
+        'Hidden Renderer requested WASM re-route (utilityProcess)',
+        {
+          reason,
+          disposeHiddenWindow,
+          ortNumThreads: lastOrtNumThreads ?? options.aiCpuThreads ?? null,
+          elapsedMs: Date.now() - startedAt
+        }
+      );
+      onProgress?.({
+        phase: 'model',
+        progress: 0.05,
+        message: lastProgressMessage,
+        ortBackend: 'wasm',
+        ortFallbackReason: reason,
+        ortNumThreads: lastOrtNumThreads
+      });
+      // Detach Hidden Renderer job; keep outer promise open for utility re-run.
+      clearTimers();
+      signal?.removeEventListener('abort', onAbort);
+      kill();
+      if (disposeHiddenWindow) {
+        getInstrumentalAiHiddenRenderer(logger).dispose();
+      } else {
+        getInstrumentalAiHiddenRenderer(logger).clearJobHandler();
+      }
+      void separateInstrumentalWithAi(
+        {
+          ...options,
+          aiEnableGpu: false,
+          aiGpuSupported: false
+        },
+        logger
+      ).then(
+        () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        },
+        (err: unknown) => {
+          if (settled) return;
+          const message = err instanceof Error ? err.message : String(err);
+          const asAbort =
+            err instanceof Error && (err.name === 'AbortError' || message === 'Aborted');
+          fail(message, asAbort, asAbort ? 'cancel' : 'utility_fallback_error');
+        }
+      );
+    };
 
     const armIdleWatchdog = () => {
       if (idleTimer) clearTimeout(idleTimer);
@@ -544,6 +617,22 @@ export async function separateInstrumentalWithAi(
         demucsAdvanced: isDemucsInstrumentalMethod(method) ? demucsPayload : null
       });
       if (worker.kind === 'hidden-renderer') {
+        clearHiddenRendererWatchdog();
+        hiddenRendererModelWatchdogTimer = setTimeout(() => {
+          logger?.warn(
+            'InstrumentalAiSeparator',
+            `Hidden Renderer WebGPU model init watchdog timed out after ${Math.round(
+              AI_HIDDEN_RENDERER_MODEL_TIMEOUT_MS / 1000
+            )}s (Chromium/Dawn hang) — disposing Hidden Renderer and falling back to utilityProcess WASM`
+          );
+          triggerUtilityWasmFallback(
+            `WebGPU model init watchdog timed out after ${Math.round(
+              AI_HIDDEN_RENDERER_MODEL_TIMEOUT_MS / 1000
+            )}s`,
+            true
+          );
+        }, AI_HIDDEN_RENDERER_MODEL_TIMEOUT_MS);
+
         void getInstrumentalAiHiddenRenderer(logger).startSeparate(
           payload as InstrumentalAiSeparateRequest,
           { onMessage: onMsg }
@@ -579,60 +668,11 @@ export async function separateInstrumentalWithAi(
         worker.kind === 'hidden-renderer' &&
         (msg.requestId === undefined || msg.requestId === requestId)
       ) {
-        if (utilityFallbackStarted || settled) return;
-        utilityFallbackStarted = true;
+        clearHiddenRendererWatchdog();
         const reason =
           (typeof msg.reason === 'string' && msg.reason.trim()) ||
           'WebGPU unavailable in Hidden Renderer';
-        lastOrtFallbackReason = reason;
-        lastOrtBackend = 'wasm';
-        lastProgressAt = Date.now();
-        lastProgressMessage = `WebGPU unavailable — switching to WASM CPU (${reason})`;
-        logger?.warn(
-          'InstrumentalAiSeparator',
-          'Hidden Renderer requested WASM re-route (utilityProcess)',
-          {
-            reason,
-            ortNumThreads: lastOrtNumThreads ?? options.aiCpuThreads ?? null,
-            elapsedMs: Date.now() - startedAt
-          }
-        );
-        onProgress?.({
-          phase: 'model',
-          progress: 0.05,
-          message: lastProgressMessage,
-          ortBackend: 'wasm',
-          ortFallbackReason: reason,
-          ortNumThreads: lastOrtNumThreads
-        });
-        // Detach Hidden Renderer job; keep outer promise open for utility re-run.
-        clearTimers();
-        signal?.removeEventListener('abort', onAbort);
-        // clearJobHandler via kill() — do not destroy the window mid-probe cache;
-        // Control close / before-quit dispose the Hidden Renderer.
-        kill();
-        getInstrumentalAiHiddenRenderer(logger).clearJobHandler();
-        void separateInstrumentalWithAi(
-          {
-            ...options,
-            aiEnableGpu: false,
-            aiGpuSupported: false
-          },
-          logger
-        ).then(
-          () => {
-            if (settled) return;
-            settled = true;
-            resolve();
-          },
-          (err: unknown) => {
-            if (settled) return;
-            const message = err instanceof Error ? err.message : String(err);
-            const asAbort =
-              err instanceof Error && (err.name === 'AbortError' || message === 'Aborted');
-            fail(message, asAbort, asAbort ? 'cancel' : 'utility_fallback_error');
-          }
-        );
+        triggerUtilityWasmFallback(reason, false);
         return;
       }
 
@@ -659,6 +699,12 @@ export async function separateInstrumentalWithAi(
           lastOrtNumThreads = msg.ortNumThreads;
         }
         armIdleWatchdog();
+        if (
+          msg.phase === 'separate' ||
+          (typeof msg.progress === 'number' && msg.progress > 0.15 && msg.phase !== 'model')
+        ) {
+          clearHiddenRendererWatchdog();
+        }
         if (msg.requestId === 0) {
           logger?.debug('InstrumentalAiSeparator', 'AI worker ready ping', {
             workerKind: worker.kind,

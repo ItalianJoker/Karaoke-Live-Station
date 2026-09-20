@@ -24,7 +24,8 @@ export const ORT_WASM_ASSET_FILES: readonly string[] = [
   'ort-wasm-simd-threaded.asyncify.wasm',
   'ort-wasm-simd-threaded.asyncify.mjs',
   'ort-wasm-simd-threaded.jspi.wasm',
-  'ort-wasm-simd-threaded.jspi.mjs'
+  'ort-wasm-simd-threaded.jspi.mjs',
+  'ort.all.bundle.min.mjs'
 ];
 
 /** Sidecar manifest written next to seeded assets (version / source bookkeeping). */

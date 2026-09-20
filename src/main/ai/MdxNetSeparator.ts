@@ -26,6 +26,12 @@
 // `onnxruntime-web` (bare) resolves to ort.node.min.js under Electron nodeIntegration
 // and never registers the WebGPU EP. `/all` loads ort.all.min.js (WASM + WebGPU).
 import * as ort from 'onnxruntime-web/all';
+
+// Ensure location.origin = 'null' in Node.js / utilityProcess so onnxruntime-web
+// treats local file:// wasm assets as same-origin and avoids cross-origin blob fetch errors.
+if (typeof globalThis.location === 'undefined') {
+  (globalThis as unknown as { location: URL }).location = new URL('file:///');
+}
 import { hannWindow, realFftFrame, realIfftFrame, warmAudioFftForMdx } from './audioFft';
 import {
   MDX_KARA2,
@@ -217,6 +223,14 @@ export class MdxNetSeparator {
     }
   }
 
+  private getOrt(): typeof ort {
+    if (this.preferWebGpu && typeof globalThis !== 'undefined') {
+      const webgpuOrt = (globalThis as unknown as { __ortWebGpu?: typeof ort }).__ortWebGpu;
+      if (webgpuOrt) return webgpuOrt;
+    }
+    return ort;
+  }
+
   /** Apply ORT WASM paths (file:// or karaoke://). Required in main/utility workers. */
   private async configureOrt(
     wasmPaths?: OrtWasmPathConfig,
@@ -225,13 +239,15 @@ export class MdxNetSeparator {
     if (!wasmPaths) {
       throw new Error('ORT WASM paths required for instrumental AI separation');
     }
+    const currentOrt = this.getOrt();
     // Manual/core-count threads — capped to avoid OOM; never ≤0 / NaN.
     ort.env.wasm.numThreads = this.numThreads;
+    currentOrt.env.wasm.numThreads = this.numThreads;
     // Spec: SIMD on for multi-thread AI path. mdxEnableOrt still gates graph opts below.
-    ort.env.wasm.simd = true;
-    ort.env.wasm.proxy = false;
+    currentOrt.env.wasm.simd = true;
+    currentOrt.env.wasm.proxy = false;
     if (typeof wasmPaths === 'string') {
-      ort.env.wasm.wasmPaths = wasmPaths.endsWith('/') ? wasmPaths : `${wasmPaths}/`;
+      currentOrt.env.wasm.wasmPaths = wasmPaths.endsWith('/') ? wasmPaths : `${wasmPaths}/`;
       return;
     }
     const forWebGpu = opts?.forWebGpu ?? this.preferWebGpu;
@@ -239,14 +255,17 @@ export class MdxNetSeparator {
     // ort-wasm-simd-threaded.wasm bytes (breaks JSEP and can deadlock file:// SAB).
     if (forWebGpu) {
       const jsepWasm = wasmPaths.jsepWasm || wasmPaths.wasm;
-      const jsepMjs = wasmPaths.jsepMjs || wasmPaths.mjs;
-      ort.env.wasm.wasmPaths = {
-        wasm: jsepWasm,
-        mjs: jsepMjs
+      // Do NOT set mjs here! When mjs is omitted, ort.all.bundle.min.mjs uses its embedded JSEP module
+      // without triggering dynamic import(mjs) which crashes Blink under Node integration.
+      currentOrt.env.wasm.wasmPaths = {
+        wasm: jsepWasm
       };
+      currentOrt.env.webgpu.powerPreference = 'high-performance';
+      const webgpuThreads = 1;
+      currentOrt.env.wasm.numThreads = webgpuThreads;
       try {
         // Clear any prior utilityProcess embedding if this env was reused.
-        delete (ort.env.wasm as { wasmBinary?: ArrayBuffer }).wasmBinary;
+        delete (currentOrt.env.wasm as { wasmBinary?: ArrayBuffer }).wasmBinary;
       } catch {
         /* ignore */
       }
@@ -254,16 +273,16 @@ export class MdxNetSeparator {
     }
     if (wasmPaths.wasmBinary) {
       const bin = wasmPaths.wasmBinary;
-      ort.env.wasm.wasmBinary =
+      currentOrt.env.wasm.wasmBinary =
         bin instanceof ArrayBuffer
           ? bin
           : bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength);
       if (wasmPaths.mjs || wasmPaths.wasm) {
-        ort.env.wasm.wasmPaths = { mjs: wasmPaths.mjs, wasm: wasmPaths.wasm };
+        currentOrt.env.wasm.wasmPaths = { mjs: wasmPaths.mjs, wasm: wasmPaths.wasm };
       }
       return;
     }
-    ort.env.wasm.wasmPaths = {
+    currentOrt.env.wasm.wasmPaths = {
       wasm: wasmPaths.wasm,
       mjs: wasmPaths.mjs
     };
@@ -304,8 +323,9 @@ export class MdxNetSeparator {
       // Hidden Renderer must throw GpuFallbackRequestedError (no in-window WASM / SAB deadlock).
       if (this.preferWebGpu) {
         try {
+          const activeOrt = this.getOrt();
           this.session = await raceWithTimeout(
-            ort.InferenceSession.create(modelBuffer.slice(0), {
+            activeOrt.InferenceSession.create(modelBuffer.slice(0), {
               ...sessionOptionsBase,
               executionProviders: ['webgpu']
             }),
@@ -528,8 +548,8 @@ export class MdxNetSeparator {
     }
 
     onIntra?.(0.45);
-    await yieldToMainThread();
-    const tensor = new ort.Tensor('float32', input, [1, 4, DIM_F, dimT]);
+    const activeOrt = this.getOrt();
+    const tensor = new activeOrt.Tensor('float32', input, [1, 4, DIM_F, dimT]);
     const feeds: Record<string, ort.Tensor> = { [this.inputName]: tensor };
 
     // ORT WASM `session.run` can block for minutes with no await points — pulse

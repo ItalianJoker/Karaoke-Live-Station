@@ -13,6 +13,12 @@ import os from 'os';
 import { pathToFileURL } from 'url';
 // Bare `onnxruntime-web` → ort.node.min.js (no WebGPU). `/all` registers WebGPU + WASM.
 import * as ort from 'onnxruntime-web/all';
+
+// Ensure location.origin = 'null' in Node.js / utilityProcess so onnxruntime-web
+// treats local file:// wasm assets as same-origin and avoids cross-origin blob fetch errors.
+if (typeof globalThis.location === 'undefined') {
+  (globalThis as unknown as { location: URL }).location = new URL('file:///');
+}
 import {
   isAiVocalRemoverMethod,
   methodToModelId,
@@ -239,24 +245,39 @@ async function separateDemucs(
   const ortAssets = ortWasmConfigFromDir(ortDir);
   const totalCpus = Math.max(1, os.cpus()?.length || 1);
   const threads = resolveAiCpuThreads(demucsOpts?.aiCpuThreads, totalCpus);
-  ort.env.wasm.numThreads = threads;
-  ort.env.wasm.simd = true;
-  ort.env.wasm.proxy = false;
 
-  const applyOrtWasmCpu = () => {
-    ort.env.wasm.wasmBinary = ortAssets.wasmBinary.buffer.slice(
+  const getOrt = (forWebGpu: boolean): typeof ort => {
+    if (forWebGpu && typeof globalThis !== 'undefined') {
+      const webgpuOrt = (globalThis as unknown as { __ortWebGpu?: typeof ort }).__ortWebGpu;
+      if (webgpuOrt) return webgpuOrt;
+    }
+    return ort;
+  };
+
+  const applyOrtWasmCpu = (targetOrt: typeof ort = ort) => {
+    ort.env.wasm.numThreads = threads;
+    targetOrt.env.wasm.numThreads = threads;
+    targetOrt.env.wasm.simd = true;
+    targetOrt.env.wasm.proxy = false;
+    targetOrt.env.wasm.wasmBinary = ortAssets.wasmBinary.buffer.slice(
       ortAssets.wasmBinary.byteOffset,
       ortAssets.wasmBinary.byteOffset + ortAssets.wasmBinary.byteLength
     );
-    ort.env.wasm.wasmPaths = { mjs: ortAssets.mjs, wasm: ortAssets.wasm };
+    targetOrt.env.wasm.wasmPaths = { mjs: ortAssets.mjs, wasm: ortAssets.wasm };
   };
-  const applyOrtWasmJsep = () => {
+  const applyOrtWasmJsep = (targetOrt: typeof ort) => {
     try {
-      delete (ort.env.wasm as { wasmBinary?: ArrayBuffer }).wasmBinary;
+      delete (targetOrt.env.wasm as { wasmBinary?: ArrayBuffer }).wasmBinary;
     } catch {
       /* ignore */
     }
-    ort.env.wasm.wasmPaths = { mjs: ortAssets.jsepMjs, wasm: ortAssets.jsepWasm };
+    // Do NOT set mjs! When mjs is omitted, ort.all.bundle.min.mjs uses its embedded JSEP module
+    // without triggering dynamic import(mjs) which crashes Blink under Node integration.
+    targetOrt.env.wasm.wasmPaths = { wasm: ortAssets.jsepWasm };
+    targetOrt.env.webgpu.powerPreference = 'high-performance';
+    targetOrt.env.wasm.numThreads = 1;
+    targetOrt.env.wasm.simd = true;
+    targetOrt.env.wasm.proxy = false;
   };
 
   const wav = readPcmWavFile(inputWav);
@@ -281,11 +302,12 @@ async function separateDemucs(
     aiGpuSupported: demucsOpts?.aiGpuSupported,
     resolveProviders: resolveAiOrtExecutionProviders
   });
+  let activeOrt = getOrt(resolved.preferWebGpu);
   // WebGPU → JSEP paths only (no CPU wasmBinary). WASM → embed CPU binary.
   if (resolved.preferWebGpu) {
-    applyOrtWasmJsep();
+    applyOrtWasmJsep(activeOrt);
   } else {
-    applyOrtWasmCpu();
+    applyOrtWasmCpu(activeOrt);
   }
 
   let ortBackend: AiOrtBackend = 'wasm';
@@ -301,7 +323,7 @@ async function separateDemucs(
       executionProviders
     };
     const demucs = new DemucsProcessor({
-      ort,
+      ort: activeOrt,
       sessionOptions,
       demucsShifts: advanced.demucsShifts,
       demucsSegmentSize: advanced.demucsSegmentSize,
@@ -380,7 +402,8 @@ async function separateDemucs(
         throw new GpuFallbackRequestedError(ortFallbackReason);
       }
       ortBackend = 'wasm';
-      applyOrtWasmCpu();
+      activeOrt = getOrt(false);
+      applyOrtWasmCpu(activeOrt);
       post({
         type: 'progress',
         requestId,

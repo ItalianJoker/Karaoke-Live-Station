@@ -45,14 +45,18 @@ async function probeAdapter(): Promise<AiGpuRendererProbeResult> {
       globalThis as {
         navigator?: {
           gpu?: {
-            requestAdapter?: () => Promise<{
+            requestAdapter?: (options?: {
+              powerPreference?: string;
+            }) => Promise<{
               requestDevice?: () => Promise<{ destroy?: () => void }>;
             } | null>;
           };
         };
       }
     ).navigator?.gpu;
-    const adapter = gpu?.requestAdapter ? await gpu.requestAdapter() : null;
+    const adapter = gpu?.requestAdapter
+      ? await gpu.requestAdapter({ powerPreference: 'high-performance' })
+      : null;
     if (!adapter) {
       return {
         available: true,

@@ -91,7 +91,37 @@ export class BungeePitchShifterNode {
     this.underrunFallbackHandler = handler;
   }
 
+  /**
+   * Pre-registers the static Signalsmith Stretch AudioWorklet processor module.
+   * Loading from public/workers/signalsmith_processor.js bypasses dynamic Blob
+   * stringification of minified ${Module} inside AudioWorkletGlobalScope in Vite production builds.
+   */
+  public static async ensureWorkletModuleLoaded(audioCtx: AudioContext): Promise<boolean> {
+    const ctxWithFlag = audioCtx as AudioContext & { __signalsmithWorkletLoaded?: boolean };
+    if (ctxWithFlag.__signalsmithWorkletLoaded) return true;
+    try {
+      const scriptUrl = '/workers/signalsmith_processor.js';
+      const response = await fetch(scriptUrl).catch(() =>
+        fetch(new URL('workers/signalsmith_processor.js', window.location.href).href)
+      );
+      if (response.ok) {
+        const scriptText = await response.text();
+        const blob = new Blob([scriptText], { type: 'application/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
+        await audioCtx.audioWorklet.addModule(blobUrl);
+        URL.revokeObjectURL(blobUrl);
+        ctxWithFlag.__signalsmithWorkletLoaded = true;
+        return true;
+      }
+    } catch (err) {
+      console.warn('[BungeePitchShifterNode] Could not pre-load static signalsmith worklet module:', err);
+    }
+    return false;
+  }
+
   private async loadStretch(): Promise<void> {
+    await BungeePitchShifterNode.ensureWorkletModuleLoaded(this.audioCtx);
+
     // Upstream: Signalsmith Stretch — MIT (official npm Web Audio release).
     const stretchPromise = SignalsmithStretch(this.audioCtx, {
       numberOfInputs: 1,
