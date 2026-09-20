@@ -18,6 +18,14 @@ import { SiaeLogEntry } from '../../shared/types';
 import { textMatchesSearch } from '../../shared/textNormalize';
 export type { SiaeLogEntry };
 
+export interface HistoryPanelProps {
+  /**
+   * When true, drop outer card chrome (Studio column already provides the card).
+   * Classic Regia omits this — default bordered panel unchanged.
+   */
+  embedded?: boolean;
+}
+
 /**
  * HistoryPanel Component
  *
@@ -33,7 +41,7 @@ export type { SiaeLogEntry };
  * 4. Filtering & Search:
  *    - Allows real-time filtering of executed songs by title, artist, or performer name.
  */
-export const HistoryPanel: React.FC = () => {
+export const HistoryPanel: React.FC<HistoryPanelProps> = ({ embedded = false }) => {
   const { t } = useTranslation();
   const [logs, setLogs] = useState<SiaeLogEntry[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -158,19 +166,31 @@ export const HistoryPanel: React.FC = () => {
   };
 
   return (
-    <div className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 shadow-xl backdrop-blur-sm flex-1 min-h-0 flex flex-col overflow-hidden relative">
+    <div
+      className={
+        embedded
+          ? 'flex-1 min-h-0 flex flex-col overflow-hidden relative p-3'
+          : 'bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 shadow-xl backdrop-blur-sm flex-1 min-h-0 flex flex-col overflow-hidden relative'
+      }
+    >
       {/* Header bar */}
-      <div className="mb-3 shrink-0 flex items-center justify-between px-3.5 py-2 bg-slate-950/70 rounded-full border border-slate-800/80">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-          <History className="w-4 h-4 text-indigo-400" />
-          <span>{t('history.title')}</span>
-          <span className="text-[10px] bg-indigo-950/80 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">
+      <div
+        className={
+          embedded
+            ? 'mb-3 shrink-0 flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 bg-slate-950/70 rounded-2xl border border-slate-800/80'
+            : 'mb-3 shrink-0 flex items-center justify-between px-3.5 py-2 bg-slate-950/70 rounded-full border border-slate-800/80'
+        }
+      >
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-200 min-w-0">
+          <History className="w-4 h-4 text-indigo-400 shrink-0" />
+          <span className="truncate">{t('history.title')}</span>
+          <span className="text-[10px] bg-indigo-950/80 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30 shrink-0">
             {logs.length}
           </span>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-1.5">
+        <div className={`flex items-center gap-1.5 shrink-0 ${embedded ? 'flex-wrap justify-end' : ''}`}>
           <button
             type="button"
             onClick={loadLogs}
@@ -189,8 +209,14 @@ export const HistoryPanel: React.FC = () => {
             title={t('history.exportCsv')}
           >
             <FileDown className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">{t('history.exportCsv')}</span>
-            <span className="sm:hidden">SIAE</span>
+            {embedded ? (
+              <span>{t('history.exportCsv')}</span>
+            ) : (
+              <>
+                <span className="hidden sm:inline">{t('history.exportCsv')}</span>
+                <span className="sm:hidden">SIAE</span>
+              </>
+            )}
           </button>
 
           <button
@@ -201,8 +227,14 @@ export const HistoryPanel: React.FC = () => {
             title={t('history.clear')}
           >
             <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-            <span className="hidden sm:inline">{t('history.clear')}</span>
-            <span className="sm:hidden">Svuota</span>
+            {embedded ? (
+              <span>{t('history.clear')}</span>
+            ) : (
+              <>
+                <span className="hidden sm:inline">{t('history.clear')}</span>
+                <span className="sm:hidden">Svuota</span>
+              </>
+            )}
           </button>
         </div>
       </div>

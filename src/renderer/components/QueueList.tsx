@@ -32,6 +32,11 @@ export interface QueueListProps {
   onSaveToPermanentLibrary: (track: KaraokeMediaTrack) => void;
   savingTrackIds: Set<string>;
   onEditSinger: (item: QueueItem) => void;
+  /**
+   * When true, drop outer card chrome (Studio center column already provides the card).
+   * Classic Regia omits this — default bordered panel unchanged.
+   */
+  embedded?: boolean;
 }
 
 /**
@@ -54,7 +59,8 @@ export const QueueList: React.FC<QueueListProps> = ({
   onJumpToTrack,
   onSaveToPermanentLibrary,
   savingTrackIds,
-  onEditSinger
+  onEditSinger,
+  embedded = false
 }) => {
   const { t } = useTranslation();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -73,7 +79,11 @@ export const QueueList: React.FC<QueueListProps> = ({
 
   return (
     <div
-      className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 shadow-xl backdrop-blur-sm flex-1 min-h-0 flex flex-col overflow-hidden relative"
+      className={
+        embedded
+          ? 'flex-1 min-h-0 flex flex-col overflow-hidden relative'
+          : 'bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 shadow-xl backdrop-blur-sm flex-1 min-h-0 flex flex-col overflow-hidden relative'
+      }
       data-testid="queue-panel-drop-zone"
       onDragEnter={(e) => {
         if (!dataTransferHasFiles(e.dataTransfer)) return;

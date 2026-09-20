@@ -138,7 +138,12 @@ export const ControlWindow: React.FC = () => {
     if (!showDownloadsMenu) return;
     const onDoc = (ev: MouseEvent) => {
       const el = downloadsMenuRef.current;
-      if (el && !el.contains(ev.target as Node)) setShowDownloadsMenu(false);
+      const target = ev.target as Node;
+      // Studio Desk portals the downloads panel to document.body — ignore clicks inside it.
+      const studioPortal = document.querySelector('[data-testid="studio-downloads-menu"]');
+      if (el && el.contains(target)) return;
+      if (studioPortal && studioPortal.contains(target)) return;
+      setShowDownloadsMenu(false);
     };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -878,6 +883,8 @@ export const ControlWindow: React.FC = () => {
 
   /** Opt-in Studio Desk shell — classic Regia header/grid stays on all other themes. */
   const isStudioDesk = settings.themeHost === 'studio-desk';
+  /** Bumped by Studio «Ricerca» to force LibraryPanel onto Web/YouTube. */
+  const [studioWebSearchNonce, setStudioWebSearchNonce] = useState(0);
 
   const libraryPanelNode = (
     <LibraryPanel
@@ -885,6 +892,8 @@ export const ControlWindow: React.FC = () => {
       onStopCue={handleStopCue}
       activeCueUri={activeCueUri}
       searchInputRef={searchInputRef}
+      webSearchNonce={studioWebSearchNonce}
+      embedded
     />
   );
 
@@ -904,10 +913,11 @@ export const ControlWindow: React.FC = () => {
         setEditingSingerItem(item);
         setEditingSingerText(item.assignedSingerName || '');
       }}
+      embedded
     />
   );
 
-  const historyPanelNode = <HistoryPanel />;
+  const historyPanelNode = <HistoryPanel embedded />;
 
   const midiMixerNode = (
     <MidiChannelMixer onToggleMuteChannel={toggleMidiChannelMute} />
@@ -1283,33 +1293,15 @@ export const ControlWindow: React.FC = () => {
     </>
   );
 
-  const dspCompareBody = (
-    <>
-      <p className="leading-relaxed">{t('settings.dspEngineCompareBody')}</p>
-      <ul className="space-y-1.5 list-none pl-0 mt-2">
-        <li>
-          <span className="text-indigo-300 font-semibold">Signalsmith</span>
-          {' — '}
-          {t('settings.dspEngineSignalsmithBlurb')}
-        </li>
-        <li>
-          <span className="text-amber-300 font-semibold">SoundTouch</span>
-          {' — '}
-          {t('settings.dspEngineSoundTouchBlurb')}
-        </li>
-      </ul>
-      <p className="text-slate-500 leading-relaxed mt-2">{t('settings.dspEngineMidiNote')}</p>
-    </>
-  );
-
   return (
     <div className="h-screen max-h-screen app-control-container flex flex-col font-sans select-none overflow-hidden">
       {isStudioDesk ? (
         <StudioDeskShell
           activeRightTab={activeRightTab}
           setActiveRightTab={setActiveRightTab}
-          onFocusLibrarySearch={() => {
+          onOpenWebSearch={() => {
             setActiveRightTab('library');
+            setStudioWebSearchNonce((n) => n + 1);
             window.setTimeout(() => searchInputRef.current?.focus(), 0);
           }}
           pendingGuestCount={pendingRequests.length}
@@ -1318,14 +1310,13 @@ export const ControlWindow: React.FC = () => {
           onOpenSingers={() => setShowSingersModal(true)}
           onOpenShortcuts={() => setShowShortcutsModal(true)}
           onOpenSettings={() => setShowSettingsModal(true)}
+          stageOpen={stageOpen}
+          onReopenStage={() => window.karaokeApi?.reopenStageWindow()}
           downloadsSlot={downloadsMenuBody}
           showDownloadsMenu={showDownloadsMenu}
           setShowDownloadsMenu={setShowDownloadsMenu}
           downloadsMenuRef={downloadsMenuRef}
           downloadBadgeCount={Object.keys(headerDownloads).length}
-          showDspCompare={showDspCompare}
-          setShowDspCompare={setShowDspCompare}
-          dspCompareBody={dspCompareBody}
           nowPlaying={nowPlayingInner}
           playerDeck={
             <StudioPlayerDeckControls
@@ -1338,8 +1329,6 @@ export const ControlWindow: React.FC = () => {
               onStop={handleStop}
               onRestart={handleRestart}
               onNext={() => advanceToNextTrack()}
-              stageOpen={stageOpen}
-              onReopenStage={() => window.karaokeApi?.reopenStageWindow()}
             />
           }
           libraryColumn={libraryPanelNode}

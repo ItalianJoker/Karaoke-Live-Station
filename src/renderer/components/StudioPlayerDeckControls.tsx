@@ -30,16 +30,14 @@ export interface StudioPlayerDeckControlsProps {
   onStop: () => void;
   onRestart: () => void;
   onNext: () => void;
-  /** Stage open/reopen — first control in Studio deck (mockup §2.1). */
-  stageOpen: boolean;
-  onReopenStage: () => void;
 }
 
 /**
  * Studio Desk transport + DSP row (opt-in `studio-desk` theme only).
  *
- * Layout: Stage button → Play/Stop/Restart/Next/Vocal/BGM (same style) →
- * Velocità | Tonalità (ST suffix inside field) | Volume on one row.
+ * Layout: Velocità | Tonalità (ST suffix inside field) | Volume on one row,
+ * then Play/Stop/Restart/Next/Vocal/BGM (same style). Stage reopen lives in
+ * {@link StudioDeskShell} menu footer — not here.
  * Classic {@link PlayerDeckControls} stays unchanged for all other themes.
  */
 export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> = ({
@@ -49,9 +47,7 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
   onPlayPause,
   onStop,
   onRestart,
-  onNext,
-  stageOpen,
-  onReopenStage
+  onNext
 }) => {
   const { t } = useTranslation();
 
@@ -89,77 +85,6 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
 
   return (
     <div className="mt-3 space-y-3" data-testid="studio-player-deck">
-      <button
-        type="button"
-        onClick={onReopenStage}
-        className={`w-full py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-[0.99] ${
-          stageOpen
-            ? 'bg-[color:var(--accent)] text-[#0A0B10] border-[color:var(--accent)] shadow-[0_0_18px_var(--accent-glow)]'
-            : 'bg-[color:color-mix(in_srgb,var(--accent)_22%,transparent)] text-[color:var(--accent)] border-[color:var(--accent)] animate-pulse'
-        }`}
-        title={stageOpen ? t('app.stageWindow') : t('app.reopenStage')}
-        data-testid="studio-stage-reopen"
-      >
-        {stageOpen ? t('app.stageWindow') : t('app.reopenStage')}
-      </button>
-
-      <div className="flex flex-wrap items-center justify-center gap-1.5">
-        <button
-          type="button"
-          onClick={onPlayPause}
-          className={`${transportBtn} ${isPlaying ? transportActive : transportIdle}`}
-          title={(isPlaying ? t('player.pause') : t('player.play')) + ' (Spazio)'}
-        >
-          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-          <span>{isPlaying ? t('player.pause') : t('player.play')}</span>
-        </button>
-        <button
-          type="button"
-          onClick={onStop}
-          className={`${transportBtn} ${transportIdle}`}
-          title={t('player.stop') + ' (S)'}
-        >
-          <Square className="w-4 h-4" />
-          <span>{t('player.stop')}</span>
-        </button>
-        <button
-          type="button"
-          onClick={onRestart}
-          className={`${transportBtn} ${transportIdle}`}
-          title={t('player.restart') + ' (R)'}
-        >
-          <RotateCcw className="w-4 h-4" />
-          <span>{t('player.restart')}</span>
-        </button>
-        <button
-          type="button"
-          onClick={onNext}
-          className={`${transportBtn} ${transportIdle}`}
-          title={t('player.next') + ' (N)'}
-        >
-          <SkipForward className="w-4 h-4" />
-          <span>{t('player.next')}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setVocalRemover(!isVocalRemoverActive)}
-          className={`${transportBtn} ${isVocalRemoverActive ? transportActive : transportIdle}`}
-          title={t('player.vocalRemover') + ' (V)'}
-        >
-          <MicOff className="w-4 h-4" />
-          <span className="max-w-[5.5rem] truncate">{t('studio.vocalShort', t('player.vocalRemover'))}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setDucking(!isDuckingActive)}
-          className={`${transportBtn} ${isDuckingActive ? transportActive : transportIdle}`}
-          title={t('player.bgmDucking') + ' (D)'}
-        >
-          <Music2 className="w-4 h-4" />
-          <span>{t('studio.bgmShort', 'BGM')}</span>
-        </button>
-      </div>
-
       <div className="flex flex-wrap items-end gap-3 p-3 rounded-xl border border-[color:var(--border-color)] bg-[color:var(--bg-subtle)]">
         <div className="flex flex-col gap-1.5 min-w-[7rem]">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)]">
@@ -279,6 +204,63 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
             />
           </div>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-center gap-1.5">
+        <button
+          type="button"
+          onClick={onPlayPause}
+          className={`${transportBtn} ${isPlaying ? transportActive : transportIdle}`}
+          title={(isPlaying ? t('player.pause') : t('player.play')) + ' (Spazio)'}
+        >
+          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+          <span>{isPlaying ? t('player.pause') : t('player.play')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onStop}
+          className={`${transportBtn} ${transportIdle}`}
+          title={t('player.stop') + ' (S)'}
+        >
+          <Square className="w-4 h-4" />
+          <span>{t('player.stop')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onRestart}
+          className={`${transportBtn} ${transportIdle}`}
+          title={t('player.restart') + ' (R)'}
+        >
+          <RotateCcw className="w-4 h-4" />
+          <span>{t('player.restart')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onNext}
+          className={`${transportBtn} ${transportIdle}`}
+          title={t('player.next') + ' (N)'}
+        >
+          <SkipForward className="w-4 h-4" />
+          <span>{t('player.next')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setVocalRemover(!isVocalRemoverActive)}
+          className={`${transportBtn} ${isVocalRemoverActive ? transportActive : transportIdle}`}
+          title={t('player.vocalRemover') + ' (V)'}
+        >
+          <MicOff className="w-4 h-4" />
+          <span className="max-w-[5.5rem] truncate">{t('studio.vocalShort', t('player.vocalRemover'))}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setDucking(!isDuckingActive)}
+          className={`${transportBtn} ${isDuckingActive ? transportActive : transportIdle}`}
+          title={t('player.bgmDucking') + ' (D)'}
+        >
+          <Music2 className="w-4 h-4" />
+          <span>{t('studio.bgmShort', 'BGM')}</span>
+        </button>
       </div>
     </div>
   );

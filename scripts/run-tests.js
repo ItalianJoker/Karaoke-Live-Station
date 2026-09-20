@@ -4378,6 +4378,52 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     'StudioPlayerDeckControls.tsx exists'
   );
 
+  const studioShellSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/StudioDeskShell.tsx'),
+    'utf8'
+  );
+  const studioDeckSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/StudioPlayerDeckControls.tsx'),
+    'utf8'
+  );
+  // Studio UX polish (theme-only): menu IA + deck order + downloads portal.
+  assert(
+    !studioShellSrc.includes("id: 'queue'") && !studioShellSrc.includes("id: 'dsp'"),
+    'Studio menu omits Coda and DSP nav ids'
+  );
+  assert(
+    studioShellSrc.includes("data-testid=\"studio-stage-reopen\"") &&
+      studioShellSrc.includes('studio.navSettings'),
+    'Studio Stage reopen + short Settings label in menu footer'
+  );
+  assert(
+    studioShellSrc.includes('createPortal') &&
+      studioShellSrc.includes('studio-downloads-menu'),
+    'Studio Download submenu uses body portal (no overflow clip)'
+  );
+  assert(
+    studioShellSrc.includes('onOpenWebSearch'),
+    'Studio Ricerca wires onOpenWebSearch (Web/YouTube tab)'
+  );
+  assert(
+    !studioDeckSrc.includes('onReopenStage') && !studioDeckSrc.includes('stageOpen'),
+    'Studio deck no longer hosts Stage reopen'
+  );
+  assert(
+    studioDeckSrc.indexOf('player.speed') < studioDeckSrc.indexOf('player.play') ||
+      studioDeckSrc.indexOf('data-testid="regia-bpm-label"') <
+        studioDeckSrc.indexOf('onPlayPause'),
+    'Studio deck: pitch/speed/volume row before transport'
+  );
+  assert(
+    controlSrc.includes('webSearchNonce') || controlSrc.includes('studioWebSearchNonce'),
+    'ControlWindow bumps webSearchNonce for Studio Ricerca'
+  );
+  assert(
+    controlSrc.includes('PlayerDeckControls'),
+    'Classic PlayerDeckControls path retained'
+  );
+
   for (const lang of ['it', 'en', 'es', 'fr']) {
     const loc = JSON.parse(
       fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
@@ -4385,6 +4431,7 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     assert(loc.settings?.themeOptions?.['studio-desk'], `${lang}: themeOptions.studio-desk`);
     assert(loc.studio?.showMidiMixer, `${lang}: studio.showMidiMixer`);
     assert(loc.studio?.hideMidiMixer, `${lang}: studio.hideMidiMixer`);
+    assert(loc.studio?.navSettings, `${lang}: studio.navSettings short label`);
   }
 
   assert(

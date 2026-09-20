@@ -62,6 +62,16 @@ interface LibraryPanelProps {
   activeCueUri?: string;
   /** Optional ref for Ctrl+F focus from ControlWindow shortcuts */
   searchInputRef?: React.RefObject<HTMLInputElement>;
+  /**
+   * Studio Desk «Ricerca»: when this nonce increments, switch to Web/YouTube mode.
+   * Classic Regia never passes this — Locale|Web toggle stays operator-driven.
+   */
+  webSearchNonce?: number;
+  /**
+   * When true, drop outer card chrome (Studio column already provides the card).
+   * Classic Regia omits this — default bordered panel unchanged.
+   */
+  embedded?: boolean;
 }
 
 /**
@@ -83,7 +93,14 @@ interface LibraryPanelProps {
  *    - Drop media files onto the panel to catalog them (mp4/webm/mkv/avi, mp3+cdg, mid/kar)
  *      via library.importFiles; overlay only when dataTransfer.types includes Files.
  */
-export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCue, onStopCue: _onStopCue, activeCueUri: _activeCueUri, searchInputRef }) => {
+export const LibraryPanel: React.FC<LibraryPanelProps> = ({
+  onPlayCue: _onPlayCue,
+  onStopCue: _onStopCue,
+  activeCueUri: _activeCueUri,
+  searchInputRef,
+  webSearchNonce,
+  embedded = false
+}) => {
   const { t } = useTranslation();
   const {
     searchMode,
@@ -103,6 +120,13 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     localQuery,
     webQuery
   } = useScopedLibrarySearch();
+
+  // Studio Desk «Ricerca» menu: open directly on Web/YouTube (not Locale).
+  useEffect(() => {
+    if (webSearchNonce == null || webSearchNonce <= 0) return;
+    setSearchMode('web');
+  }, [webSearchNonce, setSearchMode]);
+
   const [isScanning, setIsScanning] = useState(false);
   /** OS file drag overlay — only when dataTransfer.types includes Files. */
   const [fileDropActive, setFileDropActive] = useState(false);
@@ -1073,7 +1097,11 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
 
   return (
     <div
-      className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 md:p-5 shadow-2xl backdrop-blur-xl flex flex-col h-full min-h-0 overflow-hidden relative"
+      className={
+        embedded
+          ? 'flex flex-col h-full min-h-0 overflow-hidden relative p-3'
+          : 'bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 md:p-5 shadow-2xl backdrop-blur-xl flex flex-col h-full min-h-0 overflow-hidden relative'
+      }
       data-testid="library-panel-drop-zone"
       onDragEnter={(e) => {
         if (!dataTransferHasFiles(e.dataTransfer)) return;
