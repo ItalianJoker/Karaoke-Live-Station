@@ -342,7 +342,8 @@
       "high-contrast": "High Contrast (Accessibile)",
       "light": "Light Studio (Clean)",
       "studio-desk": "Studio Desk (Layout Regia)"
-    }
+    },
+    "themeRestartNote": "Cambiando il tema Regia l'app si riavvia per applicare correttamente il layout."
   },
   "history": {
     "title": "Storico Esecuzioni",
@@ -445,6 +446,8 @@
     "showMidiMixer": "Mostra mixer MIDI",
     "hideMidiMixer": "Nascondi mixer MIDI",
     "vocalShort": "Rimuovi voce guida",
-    "bgmShort": "BGM"
+    "bgmShort": "BGM",
+    "midiMixerShortShow": "MIDI",
+    "midiMixerShortHide": "MIDI"
   }
 }

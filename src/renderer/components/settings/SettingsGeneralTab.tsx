@@ -60,7 +60,15 @@ export const SettingsGeneralTab: React.FC<SettingsGeneralTabProps> = ({
                         <label className="block text-slate-400 mb-1">{t('settings.theme')}</label>
                         <select
                           value={settings.themeHost}
-                          onChange={(e) => updateSettings({ themeHost: e.target.value as any })}
+                          onChange={(e) => {
+                            const next = e.target.value as typeof settings.themeHost;
+                            if (next === settings.themeHost) return;
+                            // Persist first, then clean relaunch so Studio ↔ classic shell swaps reliably.
+                            updateSettings({ themeHost: next });
+                            window.setTimeout(() => {
+                              void window.karaokeApi?.system?.relaunchApp?.();
+                            }, 300);
+                          }}
                           className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
                         >
                           {THEME_OPTIONS.map((th) => (
@@ -69,6 +77,12 @@ export const SettingsGeneralTab: React.FC<SettingsGeneralTabProps> = ({
                             </option>
                           ))}
                         </select>
+                        <p className="mt-1.5 text-[10px] text-slate-500 leading-snug">
+                          {t(
+                            'settings.themeRestartNote',
+                            'Changing the Control Room theme restarts the app so the layout applies cleanly.'
+                          )}
+                        </p>
                       </div>
 
                       <div>

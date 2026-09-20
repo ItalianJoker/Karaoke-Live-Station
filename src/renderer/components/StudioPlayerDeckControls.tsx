@@ -9,7 +9,8 @@ import {
   Volume2,
   VolumeX,
   MicOff,
-  Music2
+  Music2,
+  AudioLines
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import {
@@ -30,15 +31,18 @@ export interface StudioPlayerDeckControlsProps {
   onStop: () => void;
   onRestart: () => void;
   onNext: () => void;
+  /** When true, show MIDI mixer toggle beside transport (on-demand column). */
+  isMidiTrack?: boolean;
+  showMidiMixer?: boolean;
+  onToggleMidiMixer?: () => void;
 }
 
 /**
  * Studio Desk transport + DSP row (opt-in `studio-desk` theme only).
  *
- * Layout: Velocità | Tonalità (ST suffix inside field) | Volume on one row,
- * then Play/Stop/Restart/Next/Vocal/BGM (same style). Stage reopen lives in
- * {@link StudioDeskShell} menu footer — not here.
- * Classic {@link PlayerDeckControls} stays unchanged for all other themes.
+ * Layout: transport (+ MIDI toggle) on the LEFT; Velocità | Tonalità | Volume
+ * on the RIGHT (short volume bar). Stage reopen lives in {@link StudioDeskShell}
+ * menu footer. Classic {@link PlayerDeckControls} stays unchanged.
  */
 export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> = ({
   pitchRange,
@@ -47,7 +51,10 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
   onPlayPause,
   onStop,
   onRestart,
-  onNext
+  onNext,
+  isMidiTrack = false,
+  showMidiMixer = false,
+  onToggleMidiMixer
 }) => {
   const { t } = useTranslation();
 
@@ -77,16 +84,99 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
     : t('player.bpmPlaceholder', { unit: bpmUnit });
 
   const transportBtn =
-    'flex flex-col items-center gap-1 px-2.5 py-2 rounded-xl border text-[10px] font-semibold transition-all active:scale-95 min-w-[4.5rem]';
+    'flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl border text-[10px] font-semibold transition-all active:scale-95 min-w-[3.75rem]';
   const transportIdle =
     'bg-[color:var(--bg-subtle)] border-[color:var(--border-color)] text-[color:var(--text-muted)] hover:text-[color:var(--text-main)] hover:border-[color:var(--accent)]';
   const transportActive =
     'bg-[color:color-mix(in_srgb,var(--accent)_18%,transparent)] border-[color:var(--accent)] text-[color:var(--accent)]';
 
   return (
-    <div className="mt-3 space-y-3" data-testid="studio-player-deck">
-      <div className="flex flex-wrap items-end gap-3 p-3 rounded-xl border border-[color:var(--border-color)] bg-[color:var(--bg-subtle)]">
-        <div className="flex flex-col gap-1.5 min-w-[7rem]">
+    <div
+      className="mt-2 flex flex-wrap items-stretch gap-2"
+      data-testid="studio-player-deck"
+    >
+      {/* Transport LEFT of pitch/speed/volume — frees vertical space for the scaletta. */}
+      <div className="flex flex-wrap items-center content-center gap-1 shrink-0 max-w-full">
+        <button
+          type="button"
+          onClick={onPlayPause}
+          className={`${transportBtn} ${isPlaying ? transportActive : transportIdle}`}
+          title={(isPlaying ? t('player.pause') : t('player.play')) + ' (Spazio)'}
+        >
+          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+          <span>{isPlaying ? t('player.pause') : t('player.play')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onStop}
+          className={`${transportBtn} ${transportIdle}`}
+          title={t('player.stop') + ' (S)'}
+        >
+          <Square className="w-4 h-4" />
+          <span>{t('player.stop')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onRestart}
+          className={`${transportBtn} ${transportIdle}`}
+          title={t('player.restart') + ' (R)'}
+        >
+          <RotateCcw className="w-4 h-4" />
+          <span>{t('player.restart')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onNext}
+          className={`${transportBtn} ${transportIdle}`}
+          title={t('player.next') + ' (N)'}
+        >
+          <SkipForward className="w-4 h-4" />
+          <span>{t('player.next')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setVocalRemover(!isVocalRemoverActive)}
+          className={`${transportBtn} ${isVocalRemoverActive ? transportActive : transportIdle}`}
+          title={t('player.vocalRemover') + ' (V)'}
+        >
+          <MicOff className="w-4 h-4" />
+          <span className="max-w-[4.5rem] truncate">
+            {t('studio.vocalShort', t('player.vocalRemover'))}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setDucking(!isDuckingActive)}
+          className={`${transportBtn} ${isDuckingActive ? transportActive : transportIdle}`}
+          title={t('player.bgmDucking') + ' (D)'}
+        >
+          <Music2 className="w-4 h-4" />
+          <span>{t('studio.bgmShort', 'BGM')}</span>
+        </button>
+        {isMidiTrack && onToggleMidiMixer && (
+          <button
+            type="button"
+            onClick={onToggleMidiMixer}
+            className={`${transportBtn} ${showMidiMixer ? transportActive : transportIdle}`}
+            title={
+              showMidiMixer
+                ? t('studio.hideMidiMixer', 'Hide MIDI mixer')
+                : t('studio.showMidiMixer', 'Show MIDI mixer')
+            }
+            data-testid="studio-midi-mixer-toggle"
+          >
+            <AudioLines className="w-4 h-4" />
+            <span className="max-w-[4.5rem] truncate">
+              {showMidiMixer
+                ? t('studio.midiMixerShortHide', 'MIDI')
+                : t('studio.midiMixerShortShow', 'MIDI')}
+            </span>
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2 px-2.5 py-2 rounded-xl border border-[color:var(--border-color)] bg-[color:var(--bg-subtle)] flex-1 min-w-[14rem]">
+        <div className="flex flex-col gap-1 min-w-[6.5rem]">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)]">
             {t('player.speed')}
             <span
@@ -131,7 +221,7 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5 min-w-[8rem]">
+        <div className="flex flex-col gap-1 min-w-[7rem]">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)]">
             {t('player.pitch')}
             <span
@@ -174,15 +264,16 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5 flex-1 min-w-[8rem]">
+        {/* Short volume bar — recovered width goes to queue vertical space via shorter deck. */}
+        <div className="flex flex-col gap-1 w-[7.5rem] shrink-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)]">
             {t('player.volume')}
           </span>
-          <div className="flex items-center gap-2 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-2 py-1.5">
+          <div className="flex items-center gap-1.5 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--bg-card)] px-2 py-1.5">
             <button
               type="button"
               onClick={() => setPlaybackState({ isMuted: !isMuted })}
-              className="text-[color:var(--text-muted)] hover:text-[color:var(--text-main)]"
+              className="text-[color:var(--text-muted)] hover:text-[color:var(--text-main)] shrink-0"
               title={t('player.mute')}
             >
               {isMuted ? (
@@ -200,67 +291,10 @@ export const StudioPlayerDeckControls: React.FC<StudioPlayerDeckControlsProps> =
               onChange={(e) =>
                 setPlaybackState({ masterVolume: parseFloat(e.target.value), isMuted: false })
               }
-              className="flex-1 h-1.5 accent-[color:var(--accent)] cursor-pointer"
+              className="w-full h-1.5 accent-[color:var(--accent)] cursor-pointer"
             />
           </div>
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-center gap-1.5">
-        <button
-          type="button"
-          onClick={onPlayPause}
-          className={`${transportBtn} ${isPlaying ? transportActive : transportIdle}`}
-          title={(isPlaying ? t('player.pause') : t('player.play')) + ' (Spazio)'}
-        >
-          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-          <span>{isPlaying ? t('player.pause') : t('player.play')}</span>
-        </button>
-        <button
-          type="button"
-          onClick={onStop}
-          className={`${transportBtn} ${transportIdle}`}
-          title={t('player.stop') + ' (S)'}
-        >
-          <Square className="w-4 h-4" />
-          <span>{t('player.stop')}</span>
-        </button>
-        <button
-          type="button"
-          onClick={onRestart}
-          className={`${transportBtn} ${transportIdle}`}
-          title={t('player.restart') + ' (R)'}
-        >
-          <RotateCcw className="w-4 h-4" />
-          <span>{t('player.restart')}</span>
-        </button>
-        <button
-          type="button"
-          onClick={onNext}
-          className={`${transportBtn} ${transportIdle}`}
-          title={t('player.next') + ' (N)'}
-        >
-          <SkipForward className="w-4 h-4" />
-          <span>{t('player.next')}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setVocalRemover(!isVocalRemoverActive)}
-          className={`${transportBtn} ${isVocalRemoverActive ? transportActive : transportIdle}`}
-          title={t('player.vocalRemover') + ' (V)'}
-        >
-          <MicOff className="w-4 h-4" />
-          <span className="max-w-[5.5rem] truncate">{t('studio.vocalShort', t('player.vocalRemover'))}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setDucking(!isDuckingActive)}
-          className={`${transportBtn} ${isDuckingActive ? transportActive : transportIdle}`}
-          title={t('player.bgmDucking') + ' (D)'}
-        >
-          <Music2 className="w-4 h-4" />
-          <span>{t('studio.bgmShort', 'BGM')}</span>
-        </button>
       </div>
     </div>
   );

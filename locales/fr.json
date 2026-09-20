@@ -342,7 +342,8 @@
       "high-contrast": "High Contrast (Accessible)",
       "light": "Light Studio (Clean)",
       "studio-desk": "Studio Desk (Mise en page Régie)"
-    }
+    },
+    "themeRestartNote": "Changer le thème Régie redémarre l'application pour appliquer correctement la mise en page."
   },
   "history": {
     "title": "Historique de Lecture",
@@ -445,6 +446,8 @@
     "showMidiMixer": "Afficher le mixeur MIDI",
     "hideMidiMixer": "Masquer le mixeur MIDI",
     "vocalShort": "Retirer voix guide",
-    "bgmShort": "BGM"
+    "bgmShort": "BGM",
+    "midiMixerShortShow": "MIDI",
+    "midiMixerShortHide": "MIDI"
   }
 }

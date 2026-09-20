@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState } from 'react';
+import React, { useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -10,8 +10,7 @@ import {
   QrCode,
   HelpCircle,
   Settings,
-  Smartphone,
-  MonitorPlay,
+  Smartphone
 } from 'lucide-react';
 import appLogo from '../assets/logo.png';
 
@@ -32,8 +31,11 @@ export interface StudioDeskShellProps {
   activeRightTab: 'queue' | 'library' | 'history';
   setActiveRightTab: (tab: 'queue' | 'library' | 'history') => void;
   /**
-   * Studio «Ricerca»: open library on Web/YouTube and focus search
-   * (not Locale — operator intent is web search).
+   * Studio «Libreria»: open library on Locale (mirror Ricerca → Web).
+   */
+  onOpenLocalLibrary: () => void;
+  /**
+   * Studio «Ricerca»: open library on Web/YouTube and focus search.
    */
   onOpenWebSearch: () => void;
   pendingGuestCount: number;
@@ -42,7 +44,7 @@ export interface StudioDeskShellProps {
   onOpenSingers: () => void;
   onOpenShortcuts: () => void;
   onOpenSettings: () => void;
-  /** Stage open/reopen — menu footer (classic header parity), not player deck. */
+  /** Stage open/reopen — menu footer; classic Dark Stage status colors. */
   stageOpen: boolean;
   onReopenStage: () => void;
   /** Downloads popover content (wired in ControlWindow). */
@@ -53,13 +55,13 @@ export interface StudioDeskShellProps {
   downloadBadgeCount: number;
   /** Center now-playing card (video + scrub) — owned by ControlWindow for videoRef. */
   nowPlaying: React.ReactNode;
-  /** Studio deck controls under now-playing. */
+  /** Studio deck controls under now-playing (includes MIDI toggle when applicable). */
   playerDeck: React.ReactNode;
   libraryColumn: React.ReactNode;
   queueColumn: React.ReactNode;
   historyColumn: React.ReactNode;
-  /** True when current track is .mid/.kar — enables MIDI mixer toggle. */
-  isMidiTrack: boolean;
+  /** True when MIDI mixer column should be visible (owned by ControlWindow). */
+  showMidiColumn: boolean;
   midiColumn: React.ReactNode;
 }
 
@@ -72,6 +74,7 @@ export interface StudioDeskShellProps {
 export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
   activeRightTab,
   setActiveRightTab,
+  onOpenLocalLibrary,
   onOpenWebSearch,
   pendingGuestCount,
   onOpenGuestRequests,
@@ -91,11 +94,10 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
   libraryColumn,
   queueColumn,
   historyColumn,
-  isMidiTrack,
+  showMidiColumn,
   midiColumn
 }) => {
   const { t } = useTranslation();
-  const [showMidiMixer, setShowMidiMixer] = useState(false);
   /** Distinguishes Libreria vs Ricerca highlight while both target the library column. */
   const [libraryNavKind, setLibraryNavKind] = useState<'library' | 'search'>('library');
   const [downloadsMenuPos, setDownloadsMenuPos] = useState<{
@@ -103,11 +105,6 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
     left: number;
     width: number;
   } | null>(null);
-
-  // Hide MIDI column when leaving MIDI media (default: hidden).
-  useEffect(() => {
-    if (!isMidiTrack) setShowMidiMixer(false);
-  }, [isMidiTrack]);
 
   // Position Download submenu in a body portal so aside overflow cannot clip it.
   useLayoutEffect(() => {
@@ -123,7 +120,6 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
       const gap = 8;
       const vh = window.innerHeight;
       const vw = window.innerWidth;
-      // Prefer to the right of the nav item; fall back left / clamp to viewport.
       let left = rect.right + gap;
       if (left + menuWidth > vw - 8) {
         left = Math.max(8, rect.left - menuWidth - gap);
@@ -153,7 +149,7 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
     switch (id) {
       case 'library':
         setLibraryNavKind('library');
-        setActiveRightTab('library');
+        onOpenLocalLibrary();
         break;
       case 'search':
         setLibraryNavKind('search');
@@ -188,7 +184,6 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
     }
   };
 
-  /** Primary scrollable nav — no Coda (always under center player), no QR/Shortcuts (footer). */
   const menuItems: Array<{
     id: StudioNavId;
     label: string;
@@ -233,12 +228,8 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
     }
   ];
 
-  const footerNavClass = (active?: boolean) =>
-    `w-full flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left text-xs font-semibold transition-all ${
-      active ? navActive : navIdle
-    }`;
-
-  const showMidiColumn = isMidiTrack && showMidiMixer;
+  const footerNavClass =
+    'w-full flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left text-xs font-semibold transition-all border-transparent text-[color:var(--text-muted)] hover:text-[color:var(--text-main)] hover:bg-[color:var(--bg-subtle)]';
 
   const downloadsPortal =
     showDownloadsMenu &&
@@ -266,16 +257,15 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
       className="flex-1 min-h-0 p-3 grid gap-3 overflow-hidden"
       data-testid="studio-desk-shell"
       style={{
-        // Narrower menu + wider content column so History actions / library thumbs are not clipped.
         gridTemplateColumns: showMidiColumn
           ? 'minmax(10rem, 12rem) minmax(22rem, 28rem) minmax(0, 1fr) minmax(14rem, 18rem)'
           : 'minmax(10rem, 12rem) minmax(22rem, 28rem) minmax(0, 1fr)'
       }}
     >
-      {/* Col 1: logo + menu (no subtitle) */}
+      {/* Col 1: logo + menu */}
       <aside className="flex flex-col min-h-0 rounded-2xl border border-[color:var(--border-color)] bg-[color:var(--bg-card)] p-3 overflow-hidden">
-        {/* Logo: max size within the same horizontal inset as menu item padding (px-2.5). */}
-        <div className="px-2.5 mb-3 shrink-0 flex items-center justify-center">
+        {/* Slightly more gap under logo before Libreria / menu (Luca polish). */}
+        <div className="px-2.5 mb-5 shrink-0 flex items-center justify-center">
           <img
             src={appLogo}
             alt={t('app.title')}
@@ -317,16 +307,26 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
           })}
         </nav>
 
-        {/* Stage sits above the separator (classic footer-cluster parity); QR + Shortcuts + Settings below. */}
         <div className="pt-2 mt-2 shrink-0 space-y-1">
+          {/* Match classic Dark Stage header Stage pill: green active / red inactive + status dot. */}
           <button
             type="button"
             onClick={() => selectNav('stage')}
-            className={footerNavClass(!stageOpen)}
+            className={`w-full px-3 py-2 rounded-full text-xs font-semibold flex items-center justify-center gap-2 border shadow-sm transition-all duration-200 active:scale-95 ${
+              stageOpen
+                ? 'bg-emerald-950/40 border-emerald-800/70 text-emerald-400 hover:bg-emerald-900/50'
+                : 'bg-red-950/40 border-red-800/70 text-red-400 animate-pulse hover:bg-red-900/50'
+            }`}
             title={stageOpen ? t('app.stageWindow') : t('app.reopenStage')}
             data-testid="studio-stage-reopen"
           >
-            <MonitorPlay className="w-4 h-4 shrink-0" />
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                stageOpen
+                  ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50'
+                  : 'bg-red-400'
+              }`}
+            />
             <span className="truncate">
               {stageOpen ? t('app.stageWindow') : t('app.reopenStage')}
             </span>
@@ -336,7 +336,7 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
             <button
               type="button"
               onClick={() => selectNav('qr')}
-              className={footerNavClass()}
+              className={footerNavClass}
               title={t('studio.navQrGuest', 'QR Guest')}
             >
               <QrCode className="w-4 h-4 shrink-0" />
@@ -345,7 +345,7 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
             <button
               type="button"
               onClick={() => selectNav('shortcuts')}
-              className={footerNavClass()}
+              className={footerNavClass}
               title={t('studio.navShortcuts', t('shortcuts.title'))}
             >
               <HelpCircle className="w-4 h-4 shrink-0" />
@@ -356,7 +356,7 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
             <button
               type="button"
               onClick={() => selectNav('settings')}
-              className={footerNavClass()}
+              className={footerNavClass}
               title={t('studio.navSettings', 'Settings')}
             >
               <Settings className="w-4 h-4 shrink-0" />
@@ -368,8 +368,8 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
 
       {downloadsPortal}
 
-      {/* Col 2: library (default) or history — queue always under center player */}
-      <section className="flex flex-col min-h-0 rounded-2xl border border-[color:var(--border-color)] bg-[color:var(--bg-card)] overflow-hidden">
+      {/* Col 2: library / history — slight top pad relative to logo column */}
+      <section className="flex flex-col min-h-0 rounded-2xl border border-[color:var(--border-color)] bg-[color:var(--bg-card)] overflow-hidden pt-1">
         <div
           className={
             activeRightTab === 'history' ? 'hidden' : 'flex flex-col flex-1 min-h-0'
@@ -382,33 +382,19 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
         </div>
       </section>
 
-      {/* Col 3: now playing + deck + queue (queue gets remaining vertical space) */}
+      {/* Col 3: now playing + compact deck + queue (grows) */}
       <section className="flex flex-col min-h-0 gap-3 overflow-hidden">
         <div className="rounded-2xl border border-[color:var(--border-color)] bg-[color:var(--bg-card)] p-3.5 shadow-xl min-h-0 flex-1 flex flex-col overflow-hidden">
-          <div className="shrink-0 space-y-0">
+          <div className="shrink-0">
             {nowPlaying}
             {playerDeck}
-            {isMidiTrack && (
-              <button
-                type="button"
-                onClick={() => setShowMidiMixer((v) => !v)}
-                className="mt-3 w-full py-2 rounded-xl text-xs font-semibold border border-[color:var(--border-color)] text-[color:var(--text-muted)] hover:text-[color:var(--accent)] hover:border-[color:var(--accent)] transition-all"
-                data-testid="studio-midi-mixer-toggle"
-              >
-                {showMidiMixer
-                  ? t('studio.hideMidiMixer', 'Hide MIDI mixer')
-                  : t('studio.showMidiMixer', 'Show MIDI mixer')}
-              </button>
-            )}
           </div>
-          {/* No «Coda Cantanti» section title — QueueList keeps its own scaletta toolbar. */}
-          <div className="mt-3 flex-1 min-h-0 flex flex-col border-t border-[color:var(--border-subtle)] pt-3 overflow-hidden">
-            <div className="flex-1 min-h-0 overflow-hidden">{queueColumn}</div>
+          <div className="mt-2 flex-1 min-h-0 flex flex-col border-t border-[color:var(--border-subtle)] pt-2 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{queueColumn}</div>
           </div>
         </div>
       </section>
 
-      {/* Col 4: MIDI mixer on demand */}
       {showMidiColumn && (
         <aside
           className="flex flex-col min-h-0 rounded-2xl border border-[color:var(--border-color)] bg-[color:var(--bg-card)] overflow-hidden"

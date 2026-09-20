@@ -68,6 +68,11 @@ interface LibraryPanelProps {
    */
   webSearchNonce?: number;
   /**
+   * Studio Desk «Libreria»: when this nonce increments, switch to Locale mode
+   * (mirror of webSearchNonce for Ricerca → Web).
+   */
+  localSearchNonce?: number;
+  /**
    * When true, drop outer card chrome (Studio column already provides the card).
    * Classic Regia omits this — default bordered panel unchanged.
    */
@@ -99,6 +104,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
   activeCueUri: _activeCueUri,
   searchInputRef,
   webSearchNonce,
+  localSearchNonce,
   embedded = false
 }) => {
   const { t } = useTranslation();
@@ -126,6 +132,12 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
     if (webSearchNonce == null || webSearchNonce <= 0) return;
     setSearchMode('web');
   }, [webSearchNonce, setSearchMode]);
+
+  // Studio Desk «Libreria» menu: open directly on Locale (mirror of Ricerca → Web).
+  useEffect(() => {
+    if (localSearchNonce == null || localSearchNonce <= 0) return;
+    setSearchMode('local');
+  }, [localSearchNonce, setSearchMode]);
 
   const [isScanning, setIsScanning] = useState(false);
   /** OS file drag overlay — only when dataTransfer.types includes Files. */

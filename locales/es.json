@@ -342,7 +342,8 @@
       "high-contrast": "High Contrast (Accesible)",
       "light": "Light Studio (Clean)",
       "studio-desk": "Studio Desk (Diseño Regia)"
-    }
+    },
+    "themeRestartNote": "Al cambiar el tema de la sala de control, la app se reinicia para aplicar el diseño correctamente."
   },
   "history": {
     "title": "Historial de Reproducción",
@@ -445,6 +446,8 @@
     "showMidiMixer": "Mostrar mezclador MIDI",
     "hideMidiMixer": "Ocultar mezclador MIDI",
     "vocalShort": "Quitar voz guía",
-    "bgmShort": "BGM"
+    "bgmShort": "BGM",
+    "midiMixerShortShow": "MIDI",
+    "midiMixerShortHide": "MIDI"
   }
 }

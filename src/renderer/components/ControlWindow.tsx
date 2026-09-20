@@ -885,6 +885,14 @@ export const ControlWindow: React.FC = () => {
   const isStudioDesk = settings.themeHost === 'studio-desk';
   /** Bumped by Studio «Ricerca» to force LibraryPanel onto Web/YouTube. */
   const [studioWebSearchNonce, setStudioWebSearchNonce] = useState(0);
+  /** Bumped by Studio «Libreria» to force LibraryPanel onto Locale. */
+  const [studioLocalSearchNonce, setStudioLocalSearchNonce] = useState(0);
+  /** Studio MIDI mixer column visibility (toggle lives in transport row). */
+  const [showStudioMidiMixer, setShowStudioMidiMixer] = useState(false);
+
+  useEffect(() => {
+    if (!isMidiTrack) setShowStudioMidiMixer(false);
+  }, [isMidiTrack]);
 
   const libraryPanelNode = (
     <LibraryPanel
@@ -893,6 +901,7 @@ export const ControlWindow: React.FC = () => {
       activeCueUri={activeCueUri}
       searchInputRef={searchInputRef}
       webSearchNonce={studioWebSearchNonce}
+      localSearchNonce={studioLocalSearchNonce}
       embedded
     />
   );
@@ -920,7 +929,10 @@ export const ControlWindow: React.FC = () => {
   const historyPanelNode = <HistoryPanel embedded />;
 
   const midiMixerNode = (
-    <MidiChannelMixer onToggleMuteChannel={toggleMidiChannelMute} />
+    <MidiChannelMixer
+      onToggleMuteChannel={toggleMidiChannelMute}
+      studioColumn={isStudioDesk}
+    />
   );
 
   const scrubPercent =
@@ -971,7 +983,11 @@ export const ControlWindow: React.FC = () => {
         </div>
       </div>
 
-      <div className="w-full aspect-video max-h-[32vh] bg-black rounded-xl overflow-hidden relative flex items-center justify-center border border-slate-800 mx-auto">
+      <div
+        className={`w-full aspect-video bg-black rounded-xl overflow-hidden relative flex items-center justify-center border border-slate-800 mx-auto ${
+          isStudioDesk ? 'max-h-[28vh]' : 'max-h-[32vh]'
+        }`}
+      >
         <video
           ref={videoRef}
           className="w-full h-full object-contain"
@@ -1299,6 +1315,10 @@ export const ControlWindow: React.FC = () => {
         <StudioDeskShell
           activeRightTab={activeRightTab}
           setActiveRightTab={setActiveRightTab}
+          onOpenLocalLibrary={() => {
+            setActiveRightTab('library');
+            setStudioLocalSearchNonce((n) => n + 1);
+          }}
           onOpenWebSearch={() => {
             setActiveRightTab('library');
             setStudioWebSearchNonce((n) => n + 1);
@@ -1329,12 +1349,15 @@ export const ControlWindow: React.FC = () => {
               onStop={handleStop}
               onRestart={handleRestart}
               onNext={() => advanceToNextTrack()}
+              isMidiTrack={isMidiTrack}
+              showMidiMixer={showStudioMidiMixer}
+              onToggleMidiMixer={() => setShowStudioMidiMixer((v) => !v)}
             />
           }
           libraryColumn={libraryPanelNode}
           queueColumn={queuePanelNode}
           historyColumn={historyPanelNode}
-          isMidiTrack={isMidiTrack}
+          showMidiColumn={isMidiTrack && showStudioMidiMixer}
           midiColumn={midiMixerNode}
         />
       ) : (

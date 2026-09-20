@@ -342,7 +342,8 @@
       "high-contrast": "High Contrast (Accessible)",
       "light": "Light Studio (Clean)",
       "studio-desk": "Studio Desk (Regia Layout)"
-    }
+    },
+    "themeRestartNote": "Changing the Control Room theme restarts the app so the layout applies cleanly."
   },
   "history": {
     "title": "Playback History",
@@ -445,6 +446,8 @@
     "showMidiMixer": "Show MIDI mixer",
     "hideMidiMixer": "Hide MIDI mixer",
     "vocalShort": "Remove guide vocal",
-    "bgmShort": "BGM"
+    "bgmShort": "BGM",
+    "midiMixerShortShow": "MIDI",
+    "midiMixerShortHide": "MIDI"
   }
 }

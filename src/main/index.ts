@@ -906,6 +906,17 @@ class KaraokeMainProcess {
       return app.getVersion() || '1.5.0';
     });
 
+    /**
+     * Clean process restart after Control Room theme changes (Studio Desk ↔ classic shell).
+     * Relaunch before quit so Electron schedules a new instance on all platforms.
+     */
+    ipcMain.handle('system:relaunch-app', () => {
+      this.logger.info('MainProcess', 'Relaunch requested (theme / shell swap)');
+      app.relaunch();
+      app.quit();
+      return { success: true };
+    });
+
     ipcMain.handle('window:toggle-stage-fullscreen', () => {
       if (this.stageWindow && !this.stageWindow.isDestroyed()) {
         const isFull = this.stageWindow.isFullScreen();

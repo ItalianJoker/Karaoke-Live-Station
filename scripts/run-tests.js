@@ -4386,6 +4386,23 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     path.resolve(__dirname, '../src/renderer/components/StudioPlayerDeckControls.tsx'),
     'utf8'
   );
+  const preloadSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/preload/index.ts'),
+    'utf8'
+  );
+  const mainSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+  const settingsGeneralSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/settings/SettingsGeneralTab.tsx'),
+    'utf8'
+  );
+  const midiMixerSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/MidiChannelMixer.tsx'),
+    'utf8'
+  );
+  const queueListSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/QueueList.tsx'),
+    'utf8'
+  );
   // Studio UX polish (theme-only): menu IA + deck order + downloads portal.
   assert(
     !studioShellSrc.includes("id: 'queue'") && !studioShellSrc.includes("id: 'dsp'"),
@@ -4393,8 +4410,10 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
   );
   assert(
     studioShellSrc.includes("data-testid=\"studio-stage-reopen\"") &&
-      studioShellSrc.includes('studio.navSettings'),
-    'Studio Stage reopen + short Settings label in menu footer'
+      studioShellSrc.includes('studio.navSettings') &&
+      studioShellSrc.includes('bg-emerald-950/40') &&
+      studioShellSrc.includes('bg-red-950/40'),
+    'Studio Stage reopen uses classic green/red status pill'
   );
   assert(
     studioShellSrc.includes('createPortal') &&
@@ -4402,26 +4421,58 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     'Studio Download submenu uses body portal (no overflow clip)'
   );
   assert(
-    studioShellSrc.includes('onOpenWebSearch'),
-    'Studio Ricerca wires onOpenWebSearch (Web/YouTube tab)'
+    studioShellSrc.includes('onOpenWebSearch') &&
+      studioShellSrc.includes('onOpenLocalLibrary'),
+    'Studio Libreria→Locale and Ricerca→Web wired'
+  );
+  assert(
+    !studioShellSrc.includes('studio-midi-mixer-toggle'),
+    'Studio shell no longer hosts separate full-width MIDI toggle'
   );
   assert(
     !studioDeckSrc.includes('onReopenStage') && !studioDeckSrc.includes('stageOpen'),
     'Studio deck no longer hosts Stage reopen'
   );
   assert(
-    studioDeckSrc.indexOf('player.speed') < studioDeckSrc.indexOf('player.play') ||
-      studioDeckSrc.indexOf('data-testid="regia-bpm-label"') <
-        studioDeckSrc.indexOf('onPlayPause'),
-    'Studio deck: pitch/speed/volume row before transport'
+    studioDeckSrc.includes('studio-midi-mixer-toggle') &&
+      studioDeckSrc.includes('isMidiTrack'),
+    'Studio deck hosts MIDI mixer toggle in transport row'
+  );
+  assert(
+    studioDeckSrc.indexOf('onPlayPause') < studioDeckSrc.indexOf('player.speed') ||
+      studioDeckSrc.indexOf('studio-player-deck') < studioDeckSrc.indexOf('regia-bpm-label'),
+    'Studio deck: transport left of pitch/speed/volume'
   );
   assert(
     controlSrc.includes('webSearchNonce') || controlSrc.includes('studioWebSearchNonce'),
     'ControlWindow bumps webSearchNonce for Studio Ricerca'
   );
   assert(
+    controlSrc.includes('localSearchNonce') || controlSrc.includes('studioLocalSearchNonce'),
+    'ControlWindow bumps localSearchNonce for Studio Libreria'
+  );
+  assert(
     controlSrc.includes('PlayerDeckControls'),
     'Classic PlayerDeckControls path retained'
+  );
+  assert(
+    preloadSrc.includes('relaunchApp') && mainSrc.includes('system:relaunch-app'),
+    'Theme change relaunch IPC (system:relaunch-app) present'
+  );
+  assert(
+    settingsGeneralSrc.includes('relaunchApp') &&
+      settingsGeneralSrc.includes('themeRestartNote'),
+    'Settings General relaunches on themeHost change'
+  );
+  assert(
+    midiMixerSrc.includes('studioColumn') &&
+      midiMixerSrc.includes('midi-mixer-studio-column'),
+    'MidiChannelMixer studioColumn lays out SoundFont under header'
+  );
+  assert(
+    queueListSrc.includes('studio-queue-scroll') &&
+      queueListSrc.includes('queue-scroll-region'),
+    'QueueList exposes Studio scrollbar region'
   );
 
   for (const lang of ['it', 'en', 'es', 'fr']) {
@@ -4432,6 +4483,7 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     assert(loc.studio?.showMidiMixer, `${lang}: studio.showMidiMixer`);
     assert(loc.studio?.hideMidiMixer, `${lang}: studio.hideMidiMixer`);
     assert(loc.studio?.navSettings, `${lang}: studio.navSettings short label`);
+    assert(loc.settings?.themeRestartNote, `${lang}: settings.themeRestartNote`);
   }
 
   assert(

@@ -12,8 +12,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - None yet.
 
 ### Changed
-- **IT:** Tema **Studio Desk** — polish UX solo layout Studio: colonna Libreria/Storico più larga, label «Impostazioni» corta, logo più grande, menu senza Coda/DSP, Stage sopra il separator (QR+Scorciatoie sotto), submenu Download in portal, Ricerca → tab Web, più spazio coda, Velo/Ton/Vol sopra il transport. Regia classica invariata. (PR #77)
-- **EN:** **Studio Desk** theme — Studio-layout-only UX polish: wider library/history column, short Settings label, larger logo, menu without Queue/DSP, Stage above footer separator (QR+Shortcuts below), Download submenu via portal, Search → Web tab, more queue space, Speed/Pitch/Volume above transport. Classic Regia unchanged. (PR #77)
+- **IT:** Tema **Studio Desk** — polish UX (#77): colonna Libreria/Storico larga, «Impostazioni» corta, logo + gap, menu senza Coda/DSP, Stage pill verde/rosso (come Dark Stage), QR+Scorciatoie in footer, Download portal, Libreria→Locale / Ricerca→Web, transport a sinistra di Velo|Ton|Vol (volume corto), MIDI nel transport, SoundFont su riga propria, scrollbar coda, **riavvio app al cambio tema Regia**. Regia classica invariata. (PR #77)
+- **EN:** **Studio Desk** theme UX polish (#77): wider library/history column, short Settings label, logo + gap, menu without Queue/DSP, Stage pill green/red (Dark Stage parity), QR+Shortcuts in footer, Download portal, Library→Locale / Search→Web, transport left of Speed|Pitch|Volume (short volume), MIDI in transport, SoundFont on its own line, queue scrollbar, **app relaunch on Control Room theme change**. Classic Regia unchanged. (PR #77)
 
 ### Fixed
 - None yet.

@@ -162,8 +162,15 @@ export const QueueList: React.FC<QueueListProps> = ({
         </div>
       </div>
 
-      {/* Fair Queue Sorted List */}
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1 flex flex-col">
+      {/* Fair Queue Sorted List — always show scrollbar track in Studio (embedded) */}
+      <div
+        className={`flex-1 min-h-0 space-y-2 pr-1 flex flex-col ${
+          embedded
+            ? 'overflow-y-scroll studio-queue-scroll'
+            : 'overflow-y-auto'
+        }`}
+        data-testid="queue-scroll-region"
+      >
         {queue.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-500 text-xs italic leading-relaxed">
             <Music className="w-8 h-8 opacity-20 mb-2" />
