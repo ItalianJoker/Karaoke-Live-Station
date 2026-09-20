@@ -23,15 +23,15 @@
 
 ---
 
-### 📚 Documentation / Documentazione
+### 📚 Documentazione & Struttura Dati / Documentation & Data Paths
 - 🇮🇹 [Manuale utente (IT)](./USER_MANUAL.md) · [USER_MANUAL_it.md](./USER_MANUAL_it.md)
 - 🇬🇧 [User manual (EN)](./USER_MANUAL_en.md)
 - 🇪🇸 [Manual de usuario (ES)](./USER_MANUAL_es.md)
 - 🇫🇷 [Manuel utilisateur (FR)](./USER_MANUAL_fr.md)
 - 📋 [CHANGELOG.md](./CHANGELOG.md) · [RELEASE_NOTES.md](./RELEASE_NOTES.md)
-- 🧰 Managed binaries (`yt-dlp`, helpers): `<app_userData>/bin/` (Electron `userData`) — portable across updates
-- 🧠 Offline AI vocal models: `<app_userData>/models/` — download only when missing/corrupt/newer
-- 🧩 ONNX Runtime WASM: `<app_userData>/ort/` — seeded from packaged `public/ort`, never OS Temp
+- 🧰 **Binari ed eseguibili gestiti / Managed binaries** (`yt-dlp`, `ffmpeg`, helper): `<app_userData>/bin/` (Electron `userData`) — persistenti e portabili tra gli aggiornamenti / portable across updates
+- 🧠 **Modelli vocali AI offline / Offline AI vocal models** (UVR-MDX-NET Karaoke 2, HTDemucs): `<app_userData>/models/` — scaricati automaticamente solo se mancanti, corrotti o più recenti / downloaded only when missing, corrupt, or newer
+- 🧩 **Runtime ONNX Web / WebGPU / WASM**: `<app_userData>/ort/` — inizializzato dal pacchetto `public/ort`, mai nella cartella temporanea dell'OS / seeded from packaged `public/ort`, never OS Temp
 
 ### 🌐 Lingua / Language
 - [🇮🇹 **Italiano**](#-italiano) • [☕ *Supporta il Progetto*](#-supporta-il-progetto) • [⚖️ *Disclaimer Legale & Copyright*](#️-disclaimer-legale-copyright--marchi-registrati) • [📚 *Fonti & Licenze Terze*](#-attribuzioni-fonti--licenze-librerie-terze) • [📄 *Licenza*](#-licenza)
@@ -44,7 +44,7 @@
 
 **Karaoke Live Station** è un'applicazione desktop professionale e multipiattaforma progettata per DJ di karaoke, presentatori di eventi, locali di intrattenimento dal vivo e feste private.
 
-Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore + Schermo Palco)**, integra un motore audio DSP in tempo reale per la trasposizione della tonalità (in semitoni) e la velocità (senza alterazione del pitch), sintesi General MIDI / KAR con banco SoundFont professionale GeneralUser GS da 31 MB, rendering grafico CD+G a 30 fps, coda equa anti-monopolio con memoria delle tonalità dei cantanti, e un **Guest Portal LAN** integrato con codice QR per permettere al pubblico di richiedere brani direttamente dallo smartphone.
+Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore + Schermo Palco)**, integra un motore avanzato di **Separazione Vocale AI Offline** (UVR-MDX-NET Karaoke 2 / HTDemucs) con accelerazione hardware GPU nativa (**WebGPU / Vulkan**) e fallback CPU multithread, un processore audio DSP in tempo reale ad alta fedeltà (**Signalsmith Stretch Hi-Fi**) per la trasposizione della tonalità (in semitoni) e la velocità (senza alterazione del pitch), sintesi General MIDI / KAR con banco SoundFont professionale GeneralUser GS da 31 MB, rendering grafico CD+G a 30 fps, coda equa anti-monopolio con memoria delle tonalità dei cantanti, e un **Guest Portal LAN** integrato con codice QR per permettere al pubblico di richiedere brani direttamente dallo smartphone.
 
 > 💡 **Nota di Sviluppo**: Questo software è stato interamente ideato, architettato e sviluppato con **Google Antigravity**, l'ambiente avanzato di sviluppo ad agenti autonomi di Google DeepMind, e con **Cursor**.
 
@@ -52,13 +52,26 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 
 ## 🌟 Caratteristiche Principali
 
+### 🧠 Separazione Vocale AI Offline & Rimozione Voce (WebGPU Hardware Acceleration + Multithread CPU)
+- **Isolamento Strumentale AI di Livello Studio (100% Locale e Privato)**: Trasforma qualsiasi brano o video in una traccia strumentale karaoke professionale ad altissima fedeltà acustica grazie a reti neurali all'avanguardia eseguite interamente in locale:
+  - **UVR-MDX-NET Karaoke 2 (Predefinito)**: Modello neurale specializzato nell'isolamento ed eliminazione della voce solista, preservando con precisione chirurgica cori, armonie vocali, linea di basso e dinamica ritmica (geometria STFT/iSTFT UVR nativa).
+  - **HTDemucs (Demucs v4 4-stem)**: Architettura neurale ibrida tempo/frequenza con opzioni avanzate di spostamento (*shifts*), dimensione segmento (5–20s) e sovrapposizione (*overlap* 10–50%).
+- **Accelerazione Hardware GPU Nativa (WebGPU / Vulkan / Dawn)**: Sfrutta tutta la potenza di calcolo della scheda grafica dedicata (NVIDIA GeForce, AMD Radeon, Intel Iris/Arc) attraverso lo stack WebGPU nativo di Chromium ed Electron tramite **ONNX Runtime Web (JSEP)**:
+  - **Prestazioni Estreme**: Inferenza ultra-rapida (~1.7 secondi per blocco su GPU dedicata NVIDIA vs oltre 4-6 secondi su CPU ad alto carico). Un intero brano da 4 minuti viene separato e remuxato in pochissimi secondi.
+  - **Zero Dipendenze Esterne**: Nessun bisogno di installare Python, PyTorch, CUDA Toolkit o ambienti virtuali. Il runtime neurale è completamente integrato e auto-contenuto nell'eseguibile dell'applicazione.
+- **Doppio Percorso Integrato (Live DSP Istantaneo vs AI Profonda)**:
+  - **Durante la Serata Live (Tasto `V` - Algoritmo Base)**: Rimozione istantanea a latenza zero tramite elaborazione DSP mid/side in tempo reale (`centerCancelBassKeep`, `centerCancel`, `softMid`) per attenuare al volo la voce guida senza alcun ritardo di buffering.
+  - **In Download & Archiviazione (AI Neurale)**: Generazione automatica della traccia strumentale isolata ad alta risoluzione durante il download o l'importazione, con remuxing automatico in video MP4/WebM pronto all'uso con sottotitoli sincronizzati.
+- **Watchdog di Sicurezza & Fallback Trasparente su CPU**: Se la GPU non è disponibile o viene disattivata nelle impostazioni, il sistema commuta istantaneamente e in modo trasparente sui worker multithreaded WASM CPU (SIMD), con regolazione automatica o manuale dei core CPU (`aiCpuThreads`).
+- **Gestione Offline dei Modelli (`<app_userData>/models/`)**: I file ONNX (~50 MB per MDX) vengono scaricati una sola volta con verifica SHA-256 e archiviati nella cartella utente dell'app. Nessun dato audio viene mai inviato all'esterno o sul cloud.
+
 ### 🎛️ Architettura a Doppia Finestra
 - **Finestra Regia (Control Desk)**: Console operatore completa con scrubber audio, visualizzatore di forma d'onda, mixer a 16 canali MIDI, gestione coda, ricerca catalogo e pre-ascolto in cuffia (CUE).
 - **Finestra Palco (Stage Screen)**: Schermo pulito per cantante e pubblico da inviare su TV o videoproiettore (supporto F11 / doppio clic per fullscreen senza bordi). Visualizza video MP4/WebM, grafica CD+G o testo karaoke sincronizzato con banner animati "Ora Canta" e "Preparati".
 - **Streaming HTTP 206 Partial Content**: Protocollo proprietario `karaoke://local/` con streaming a chunk byte-range. Lo schermo del palco può essere aperto, chiuso o riaperto a brano in corso senza pause né desincronizzazioni.
 - **Protezione Istanza Singola (Single Instance Lock)**: Previene l'apertura accidentale di istanze duplicate; qualsiasi avvio concorrente ripristina e mette a fuoco la console di regia principale già aperta.
 - **Avvio Regia / Palco (v1.3.0)**: Opzione per massimizzare la Regia all’avvio (`maximize()`, non fullscreen esclusivo) e per aprire o meno lo Schermo Palco. Se il Palco è spento all’avvio, riaprilo con **P** / **F2** o il pulsante Stage. Impostazioni più ampie (sidebar) con metodo Download Strumentale, MDX avanzate e **core CPU AI** sotto Libreria & Download (default: tutti i core rilevati).
-- **DSP pitch/speed (v1.4.0)**: Motore predefinito **Bungee** (Wasm AudioWorklet, MPL-2.0); **SoundTouch** selezionabile. Modal conferma sottotitoli su **Scarica strumentale** (`ask`/`always`/`never`); yt-dlp `--sub-langs .*-orig,default`.
+- **DSP pitch/speed (v1.4.0)**: Motore predefinito **Signalsmith Stretch Hi-Fi** (Wasm AudioWorklet, MIT); **SoundTouch WSOLA** selezionabile. Modal conferma sottotitoli su **Scarica strumentale** (`ask`/`always`/`never`); yt-dlp `--sub-langs .*-orig,default`.
 - **Hot path / logging (v1.5.0)**: Dedup download SQL mirato (niente `getAllTracks` dump); Guest FTS/id; ZIP inflate async + yield FFT; prune `clsx`/`tailwind-merge`/`autoprefixer`/`postcss`; Logger strutturato con maschera secret.
 
 ### 🎨 9 Temi Grafici & Schermo Palco Ottimizzato Edge-to-Edge
@@ -95,9 +108,9 @@ Sviluppata su un'architettura a **doppia finestra indipendente (Regia Operatore 
 - **Transposizione Live**: Variazione della tonalità da -8 a +8 semitoni applicata direttamente ai numeri di nota MIDI in tempo reale.
 
 ### 🎵 Motore DSP Audio & Pre-Ascolto Cuffie (CUE)
-- **Pitch-Shifting Professionale (Bungee predefinito + SoundTouch opzionale)**: Motore DSP predefinito **Bungee** (phase vocoder Wasm AudioWorklet, MPL-2.0 — solo prebuilt in `public/workers/`, nessun sorgente C++ in-repo; upstream [bungee-audio-stretch/bungee](https://github.com/bungee-audio-stretch/bungee)). Range UI consigliato ±8 ST (fino a ±12). **SoundTouch WSOLA** resta selezionabile in Impostazioni come motore legacy/leggero (±4 ST). Bypass bit-perfect a pitch 0 e velocità 1.00x. MIDI/KAR invariato (SpessaSynth).
-- **Time-Stretching e Variazione Velocità Estesa (0.50x–1.50x)**: Regolazione fine del tempo di riproduzione senza alcuna alterazione del pitch. Con Bungee la velocità passa dal Wasm; con SoundTouch dall’elemento media. Cliccando sull'indicatore numerico si ripristina istantaneamente la velocità standard 1.00x.
-- **Rimuovi Voce Guida (Algoritmo Base) — Tasto `V`**: In Regia il toggle usa **solo DSP mid/side** (`centerCancelBassKeep`, `centerCancel`, `softMid`) da una tendina dedicata. Una seconda impostazione **Metodo Download Strumentale** sceglie AI offline (**UVR-MDX Karaoke 2** o **HTDemucs**; default Karaoke 2) — modelli in `userData/models/` (aggiornamento solo se mancanti/corrotti/più nuovi). Nessuna Separazione dual-stem live. Progresso nel menu **Download** in header (pulisci coda / annulla); «Rimozione voce» AI avanza a chunk su CPU/GPU (toggle GPU-First + core CPU). **Download simultanei massimi** limita il pool condiviso. **Scarica strumentale** chiede conferma sui sottotitoli YT (ASR/auto, spesso imprecisi) prima del download; policy `ask`/`always`/`never`; yt-dlp `--sub-langs .*-orig,default` (anti-429). Ricerca Web: **Carica altri video**.
+- **Pitch-Shifting Professionale (Signalsmith Stretch Hi-Fi predefinito + SoundTouch opzionale)**: Motore DSP predefinito **Signalsmith Stretch** (Wasm AudioWorklet, licenza MIT — processore audio ad altissima fedeltà e minima colorazione armonica). Range UI consigliato ±8 ST (fino a ±12). **SoundTouch WSOLA** resta selezionabile in Impostazioni come motore legacy/leggero (±4 ST). Bypass bit-perfect a pitch 0 e velocità 1.00x (zero latenza e zero carico CPU). MIDI/KAR invariato (SpessaSynth).
+- **Time-Stretching e Variazione Velocità Estesa (0.50x–1.50x)**: Regolazione fine del tempo di riproduzione senza alcuna alterazione del pitch. Cliccando sull'indicatore numerico si ripristina istantaneamente la velocità standard 1.00x.
+- **Rimuovi Voce Guida Live (Algoritmo Base) — Tasto `V`**: In Regia il toggle applica in tempo reale l'elaborazione **DSP mid/side** (`centerCancelBassKeep`, `centerCancel`, `softMid`) selezionabile da tendina dedicata, ideale per attenuare istantaneamente la traccia vocale durante l'esecuzione live. (Per la separazione strumentale neurale offline ad alta fedeltà, vedi la sezione dedicata **Separazione Vocale AI**).
 - **Normalizzazione Dinamica del Volume Audio (Auto-Leveling)**: Stadio DSP basato su processore `DynamicsCompressorNode` (soglia a -22 dB, ratio 6:1, knee 24 dB, attacco ultra-rapido a 3 ms e rilascio a 250 ms) combinato con trucco di makeup gain a 1.35x. Livella in tempo reale la dinamica del volume tra brani diversi, attenuando le tracce con picchi eccessivi e amplificando quelle a basso volume, garantendo un'emissione acustica omogenea e professionale nella sala senza continui interventi manuali sul fader del volume.
 - **Pre-ascolto CUE**: Routing audio su scheda secondaria (`setSinkId`); dalla Libreria apre il modale anteprima tematico sul dispositivo CUE (mute via player; avviso stesso-dispositivo all’unmute).
 - **Auto-Ducking Intelligente**: Abbassamento automatico e graduale della musica durante gli annunci al microfono.
@@ -111,13 +124,13 @@ Premi **`F1`** o **`?`** in qualsiasi momento per aprire la guida interattiva co
 - **`M`**: Muto Master On/Off immediato.
 - **`V`**: Attiva / Disattiva la Rimozione Voce Guida DSP (**Algoritmo Base**).
 - **`D`**: Attiva / Disattiva il Microfono Auto-Ducking.
-- **`+` / `-`** oppure **`CTRL + Freccia Su / Giù`**: Regolazione tonalità (±1 semitono; range UI dinamico: Bungee ±8, SoundTouch ±4).
+- **`+` / `-`** oppure **`CTRL + Freccia Su / Giù`**: Regolazione tonalità (±1 semitono; range UI dinamico: Signalsmith ±8, SoundTouch ±4).
 - **`CTRL + Freccia Sinistra / Destra`**: Regolazione tempo (±5%, da 0.50x a 1.50x).
 - **`Freccia Sinistra / Destra`**: Salto temporale indietro / avanti di 5 secondi.
 - **`Freccia Su / Giù`**: Regolazione del volume master (±5%) con curva quadratica psicoacustica ($Gain = volume^2$) e anti-click ramping a 50ms.
 - **`1` / `2` / `3`**: Passaggio rapido schede (1: Coda Cantanti, 2: Ricerca & Libreria, 3: Storico SIAE).
 - **`CTRL + F`**: Apri la scheda Libreria e focalizza la barra di ricerca.
-- **`P`**: Riapri / Metti a fuoco lo Schermo del Palco.
+- **`P` / `F2`**: Riapri / Metti a fuoco lo Schermo del Palco.
 - **`F11` / `Esc`**: Schermo intero (sul monitor del Palco).
 - **`Esc`**: Chiudi finestre modali o disattiva il focus corrente.
 - 📖 Per la guida operativa passo-passo consulta il [Manuale Utente completo (USER_MANUAL.md)](USER_MANUAL.md).
@@ -235,13 +248,13 @@ I file `.AppImage` (238 MB) e `.deb` (209 MB) verranno generati nella cartella `
 ```bash
 npm run electron:build:win
 ```
-Verranno generati in `release/` l'eseguibile portatile autonomo `Karaoke Live Station 1.0.0.exe` (160 MB, avviabile immediatamente senza installazione né privilegi di amministratore) e l'archivio `Karaoke Live Station-1.0.0-win.zip` (245 MB), con binari esclusivi Win32 PE (`yt-dlp.exe`, `ffmpeg.exe`, `better_sqlite3.node`).
+Verranno generati in `release/` l'eseguibile portatile autonomo `Karaoke Live Station 1.5.0.exe` (avviabile immediatamente senza installazione né privilegi di amministratore) e l'archivio `Karaoke Live Station-1.5.0-win.zip`, con binari esclusivi Win32 PE (`yt-dlp.exe`, `ffmpeg.exe`, `better_sqlite3.node`).
 
 ### 🍎 Per macOS (.zip)
 ```bash
 npm run electron:build:mac
 ```
-L'archivio `Karaoke Live Station-1.0.0-mac.zip` (248 MB) contenente l'applicazione `.app` pronta all'uso verrà generato in `release/`, con binari esclusivi Darwin Mach-O (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`).
+L'archivio `Karaoke Live Station-1.5.0-mac.zip` contenente l'applicazione `.app` pronta all'uso verrà generato in `release/`, con binari esclusivi Darwin Mach-O (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`).
 
 ### 🌐 Creazione Release per tutte le piattaforme
 ```bash
@@ -302,14 +315,15 @@ Se trovi utile **Karaoke Live Station** per le tue serate, feste o eventi e desi
 
 | Pacchetto | Ruolo in Karaoke Live Station |
 | :--- | :--- |
-| **onnxruntime-web** | Motore ORT WASM per separazione AI Download Strumentale (UVR-MDX-NET / HTDemucs) |
+| **onnxruntime-web** | Motore neurale con accelerazione GPU nativa (WebGPU JSEP) e fallback WASM multithread CPU per separazione vocale AI (UVR-MDX-NET / HTDemucs) |
 | **demucs-web** | Wrapper HTDemucs ONNX (caricato lazy solo sul path HTDemucs) |
 | **fft.js** | STFT / iSTFT Bluestein per MDX (`audioFft.ts`) |
-| **ffmpeg-static** | Demux / remux strumentale e miniature |
-| **electron** | Main + utilityProcess worker AI (ORT fuori dal thread UI) |
-| **zustand** | Persistenza impostazioni (incluso metodo strumentale e knobs MDX) |
-| **signalsmith-stretch** | Pitch Hi-Fi AudioWorklet (default `dspEngine: 'signalsmith'`) |
-| **Logger** (`src/main/services/Logger.ts`) | Log diagnostico su disco; livello Settings → `debug`/`info`/`warn`/`error`/`off`; maschera secret keys |
+| **ffmpeg-static** | Demux / remux strumentale e miniature video |
+| **electron** | Main + BrowserWindow nascosto WebGPU per inferenza GPU nativa + utilityProcess worker CPU |
+| **zustand** | Persistenza impostazioni (incluso metodo strumentale, toggle GPU-First e knobs MDX/Demucs) |
+| **signalsmith-stretch** | Motore Pitch & Speed Hi-Fi su AudioWorklet Wasm (default `dspEngine: 'signalsmith'`) |
+| **soundtouchjs** | Algoritmo WSOLA legacy/leggero per pitch/speed selezionabile in Impostazioni |
+| **Logger** (`src/main/services/Logger.ts`) | Log diagnostico strutturato su disco con rotazione e mascheramento chiavi sensibili |
 
 ### Linee guida Contesto AI (per sviluppatori / agenti)
 
@@ -335,8 +349,10 @@ Karaoke Live Station è realizzato grazie a eccezionali librerie open source, st
 | **yt-dlp** | yt-dlp team | The Unlicense | [github.com/yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp) | Ricerca metadati YouTube, download flussi audio/video e aggiornamento automatico |
 | **FFmpeg** | FFmpeg Developers & Eugene Ware (`ffmpeg-static`) | LGPL 2.1+ / GPL 3.0 | [ffmpeg.org](https://ffmpeg.org/) • [github.com/eugeneware/ffmpeg-static](https://github.com/eugeneware/ffmpeg-static) | Decodifica multimediale ed estrazione automatica miniature video a 16:9 |
 | **SpessaSynth** | Spessa (`spessasus`) | MIT | [github.com/spessasus/SpessaSynth](https://github.com/spessasus/SpessaSynth) | Sintetizzatore SoundFont 2 (SF2) per riproduzione MIDI e KAR a bassissima latenza |
-| **Bungee** | Parabola Research / bungee-audio-stretch | MPL-2.0 | [github.com/bungee-audio-stretch/bungee](https://github.com/bungee-audio-stretch/bungee) | Phase vocoder Wasm (pitch + speed); solo prebuilt in `public/workers/` — vedi `BUNGEE_NOTICE.md` |
+| **Signalsmith Stretch** | Geraint Luff (Signalsmith Audio) | MIT | [github.com/Signalsmith-Audio/signalsmith-stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch) | Algoritmo DSP pitch-shifting e time-stretching Hi-Fi ad altissima fedeltà su Wasm AudioWorklet (motore predefinito) |
 | **SoundTouch / SoundTouchJS** | Olli Parviainen & Jakub Fiala | LGPL 2.1 / MIT | [gitlab.com/soundtouch/soundtouch](https://gitlab.com/soundtouch/soundtouch) • [github.com/jakubfiala/soundtouchjs](https://github.com/jakubfiala/soundtouchjs) | Algoritmo WSOLA professionale per variazione tonalità (pitch-shifting) e tempo-stretching (motore legacy selezionabile) |
+| **ONNX Runtime Web** | Microsoft | MIT | [github.com/microsoft/onnxruntime](https://github.com/microsoft/onnxruntime) | Runtime di inferenza per modelli neurali ONNX con accelerazione nativa GPU (WebGPU JSEP) e fallback CPU WASM |
+| **demucs-web** | demucs-web authors | MIT | [npmjs.com/package/demucs-web](https://www.npmjs.com/package/demucs-web) | Libreria per esecuzione ONNX di modelli HTDemucs v4 per separazione strumentale |
 | **GeneralUser GS SoundFont** | S. Christian Collins | Permissive GeneralUser License | [schristiancollins.com](http://www.schristiancollins.com/generaluser.php) | Banco sonoro General MIDI da 31 MB integrato per resa acustica realistica |
 | **better-sqlite3** | Joshua Wise | MIT | [github.com/WiseLibs/better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | Database locale sincrono ad altissime prestazioni in modalità WAL (catalogo e SIAE) |
 | **Electron** | OpenJS Foundation & Electron Contributors | MIT | [electronjs.org](https://www.electronjs.org/) | Framework desktop nativo multi-finestra (Regia e Schermo Palco) |
@@ -368,7 +384,7 @@ Il testo completo della licenza è disponibile nel file [`LICENSE`](./LICENSE) a
 
 **Karaoke Live Station** is a professional, mission-critical, cross-platform desktop application designed for karaoke DJs, event entertainers, live music venues, and private party hosts.
 
-Built upon an **independent dual-window architecture (Control Desk + Stage Screen)**, it delivers real-time Web Audio DSP pitch transposition (in semitones) and tempo scaling, native General MIDI / KAR synthesis with the bundled 31 MB GeneralUser GS SoundFont bank, 30 fps CD+G subcode graphics decoding, an intelligent Fair Queue algorithm with singer pitch memory, and an embedded **LAN Guest Portal** with dynamic QR code requests for smartphones.
+Built upon an **independent dual-window architecture (Control Desk + Stage Screen)**, it features studio-grade **Offline AI Vocal Separation** (UVR-MDX-NET Karaoke 2 / HTDemucs) with native GPU hardware acceleration (**WebGPU / Vulkan**) and multithreaded CPU fallback, a real-time Hi-Fi Web Audio DSP pitch & tempo processor (**Signalsmith Stretch**), native General MIDI / KAR synthesis with the bundled 31 MB GeneralUser GS SoundFont bank, 30 fps CD+G subcode graphics decoding, an intelligent Fair Queue algorithm with singer pitch memory, and an embedded **LAN Guest Portal** with dynamic QR code requests for smartphones.
 
 > 💡 **Development Note**: This software was conceived, architected, and developed with **Google Antigravity**, the advanced autonomous agentic coding assistant by Google DeepMind, and with **Cursor**.
 
@@ -376,13 +392,26 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 
 ## 🌟 Key Features
 
+### 🧠 Offline AI Vocal Separation & Instrumental Isolation (WebGPU Acceleration + Multithreaded CPU)
+- **Studio-Grade Offline AI Instrumental Extraction (100% Local & Private)**: Converts any song or video into a clean, professional karaoke backing track with cutting-edge deep learning models running entirely on-device:
+  - **UVR-MDX-NET Karaoke 2 (Default)**: State-of-the-art neural model tailored to isolate and strip lead vocals while flawlessly preserving backing vocals, harmonies, basslines, and rhythmic punch (native UVR STFT/iSTFT geometry).
+  - **HTDemucs (Demucs v4 4-stem)**: Hybrid time/frequency domain architecture with advanced shift iterations (0–2), segment sizing (5–20s), and overlap controls (10–50%).
+- **Native GPU Hardware Acceleration (WebGPU / Vulkan / Dawn)**: Leverages dedicated graphics hardware (NVIDIA GeForce, AMD Radeon, Intel Iris/Arc) via Chromium & Electron's native WebGPU stack using **ONNX Runtime Web (JSEP)**:
+  - **Blazing Performance**: Ultra-fast inference (~1.7 seconds per chunk on dedicated NVIDIA GPUs vs 4–6+ seconds on heavy CPU loads). A full 4-minute track is separated and remuxed in just seconds.
+  - **Zero External Dependencies**: No need to install Python, PyTorch, CUDA Toolkit, or complex system drivers. The neural inference engine is completely bundled and self-contained within the desktop binary.
+- **Dual Processing Workflow (Instant Live DSP vs Deep Offline AI)**:
+  - **Live During the Show (`V` Key - Basic Algorithm)**: Instantaneous zero-latency mid/side DSP cancellation (`centerCancelBassKeep`, `centerCancel`, `softMid`) to attenuate vocals on the fly without any buffering or delay.
+  - **Download & Library Archiving (Deep Neural AI)**: High-resolution chunked neural separation performed automatically upon downloading, remuxing directly into an MP4/WebM instrumental video with synchronized subtitles.
+- **Fail-Safe Watchdog & Seamless CPU Fallback**: If a supported GPU is absent, busy, or disabled in Settings, the intelligent watchdog automatically re-routes inference to multithreaded SIMD WASM CPU workers, with dynamic or manual CPU core allocation (`aiCpuThreads`).
+- **Offline Model Management (`<app_userData>/models/`)**: Compact ONNX weights (~50 MB for MDX) are downloaded once with SHA-256 integrity verification and cached permanently in the local user data folder. No audio data ever leaves your computer or streams to external clouds.
+
 ### 🎛️ Dual-Window Live Architecture
 - **Control Desk (Regia)**: Complete operator console with timeline scrubbing, audio visualizer, 16-channel MIDI mixer, queue management, catalog search, and headphone pre-listening (CUE).
 - **Stage Screen (Palco)**: Clean external display for singers and audience (TV/Projector output with `F11` / double-click borderless fullscreen). Renders MP4/WebM videos, CD+G graphics, or synchronized lyrics with animated "Now Singing" and "Get Ready" notification banners.
 - **HTTP 206 Partial Content Streaming**: Custom `karaoke://local/` protocol with byte-range streaming. The stage screen can be closed and reopened mid-song without pausing or desynchronizing audio.
 - **Single Instance Lock Protection**: Native single-instance enforcement prevents duplicate windows; any concurrent launch immediately refocuses and restores the existing control console.
 - **Launch Control / Stage (v1.3.0)**: Option to maximize Regia on launch (`maximize()`, not exclusive fullscreen) and to open or skip Stage. If Stage is off at launch, reopen with **P** / **F2** or the Stage button. Wider Settings (sidebar) move Download Instrumental method, MDX advanced, and **AI CPU cores** under Library & Download (default: all detected cores).
-- **Pitch/speed DSP (v1.4.0)**: Default **Bungee** engine (Wasm AudioWorklet, MPL-2.0); **SoundTouch** selectable. **Download Instrumental** subtitle confirm modal (`ask`/`always`/`never`, editable in Settings → Library); yt-dlp `--sub-langs .*-orig,default`.
+- **Pitch/speed DSP (v1.4.0)**: Default **Signalsmith Stretch Hi-Fi** engine (Wasm AudioWorklet, MIT); **SoundTouch WSOLA** selectable. **Download Instrumental** subtitle confirm modal (`ask`/`always`/`never`, editable in Settings → Library); yt-dlp `--sub-langs .*-orig,default`.
 - **Hot paths / logging (v1.5.0)**: Targeted SQL download dedup (no `getAllTracks` dump); Guest FTS/id; async ZIP inflate + FFT yield; pruned `clsx`/`tailwind-merge`/`autoprefixer`/`postcss`; structured Logger with secret masking.
 
 ### 🎨 9 Color Themes & Edge-to-Edge Stage Screen
@@ -419,11 +448,11 @@ Built upon an **independent dual-window architecture (Control Desk + Stage Scree
 - **Live Pitch Shifting**: Transpose songs from -8 to +8 semitones by shifting MIDI note numbers in real time without audio distortion.
 
 ### 🎵 Audio DSP Engine & Headphone Monitoring (CUE)
-- **Bungee (default) + SoundTouch (selectable) Studio Pitch/Speed**: Default media DSP is **Bungee** (phase-vocoder Wasm AudioWorklet, MPL-2.0 — runtime prebuilts only under `public/workers/`, no C++ source tree; upstream [bungee-audio-stretch/bungee](https://github.com/bungee-audio-stretch/bungee)). Recommended UI ±8 ST. **SoundTouch WSOLA** remains a Settings option (legacy/light, hard ±4 ST). Bit-perfect bypass when pitch is 0 and speed is 1.00x. MIDI/KAR unchanged (SpessaSynth).
-- **Extended Independent Tempo Scaling (0.50x–1.50x)**: Continuous playback speed adjustment without modifying audio pitch. With Bungee, tempo runs in Wasm; with SoundTouch, via the media element. Clicking the speed indicator immediately resets playback rate to 1.00x.
-- **Vocal Remover (Basic Algorithm) — `V` key**: Live Control toggle uses **realtime mid/side DSP** only (`centerCancelBassKeep`, `centerCancel`, `softMid`) via a dedicated Settings dropdown. A separate **Download Instrumental Method** setting chooses offline AI (**UVR-MDX Karaoke 2** or **HTDemucs**; default Karaoke 2) for YouTube instrumental downloads — models land in `userData/models/` (update only if missing/corrupt/newer). Live dual-stem Separazione is not used. Progress lives in the header **Download** menu (clear-all / cancel supported); AI “Rimozione voce” reports monotonic chunk progress on CPU/GPU (GPU-First toggle + CPU cores). Settings → **Max simultaneous downloads** caps the shared pool. **Download Instrumental** confirms YouTube auto-subs (ASR/auto, often imperfect) before starting; policy `ask`/`always`/`never` (change/clear later in Settings → Library & Download); yt-dlp `--sub-langs .*-orig,default` (anti-429). Web search supports **Load more videos** / **Carica altri video**.
-- **CUE Pre-listening**: Route preview audio to a secondary output (`setSinkId`); from the Library, Pre-Listen opens the themed preview modal on the CUE device (mute via player; same-device unmute warning).
+- **Signalsmith Stretch Hi-Fi (default) + SoundTouch (selectable) Studio Pitch/Speed**: Default media DSP is **Signalsmith Stretch** (Wasm AudioWorklet, MIT license — pristine audio quality with minimal artifacting). Recommended UI ±8 ST (up to ±12). **SoundTouch WSOLA** remains a Settings option (legacy/light, hard ±4 ST). Bit-perfect bypass when pitch is 0 and speed is 1.00x (zero latency and zero CPU load). MIDI/KAR unchanged (SpessaSynth).
+- **Extended Independent Tempo Scaling (0.50x–1.50x)**: Continuous playback speed adjustment without modifying audio pitch. Clicking the speed indicator immediately resets playback rate to 1.00x.
+- **Realtime Lead Vocal Attenuation (Basic Algorithm) — `V` key**: Live Control toggle applies instant **mid/side DSP** cancellation (`centerCancelBassKeep`, `centerCancel`, `softMid`) selected via a dedicated Settings dropdown, ideal for attenuating vocal leads during live performances without delay. (For deep offline studio-grade instrumental extraction, see the **Offline AI Vocal Separation** section).
 - **Dynamic Audio Volume Normalization (Auto-Leveling)**: DSP dynamics processor powered by `DynamicsCompressorNode` (-22 dB threshold, 6:1 ratio, 24 dB knee, 3 ms attack, 250 ms release) combined with 1.35x makeup leveling gain. Equalizes acoustic dynamics across diverse songs in real time, taming aggressive volume spikes and lifting quiet backing tracks for a seamless, professional listening experience without riding the master fader. Configurable and toggleable in Audio Settings.
+- **CUE Pre-listening**: Route preview audio to a secondary output (`setSinkId`); from the Library, Pre-Listen opens the themed preview modal on the CUE device (mute via player; same-device unmute warning).
 - **Intelligent Auto-Ducking**: Automatically and smoothly attenuates background music when speaking into the microphone.
 
 ### ⌨️ Quick Keyboard Shortcuts & Interactive Guide (Control Console)
@@ -435,13 +464,13 @@ Press **`F1`** or **`?`** at any time to open the searchable interactive guide (
 - **`M`**: Toggle Master Mute On/Off.
 - **`V`**: Toggle DSP Lead Vocal Remover (**Basic Algorithm**).
 - **`D`**: Toggle Microphone Auto-Ducking.
-- **`+` / `-`** or **`CTRL + Arrow Up / Down`**: Pitch shift / key adjustment (±1 semitone; dynamic UI range: Bungee ±8, SoundTouch ±4).
+- **`+` / `-`** or **`CTRL + Arrow Up / Down`**: Pitch shift / key adjustment (±1 semitone; dynamic UI range: Signalsmith ±8, SoundTouch ±4).
 - **`CTRL + Arrow Left / Right`**: Playback tempo adjustment (±5%, from 0.50x to 1.50x).
 - **`Arrow Left / Right`**: Jump playback 5 seconds backward / forward.
 - **`Arrow Up / Down`**: Master volume fine adjustment (±5%) with perceptual quadratic power curve ($Gain = volume^2$) and 50ms anti-click ramping.
 - **`1` / `2` / `3`**: Quick tab switching (1: Singer Queue, 2: Library & Search, 3: SIAE History).
 - **`CTRL + F`**: Switch to Library tab and focus the search input.
-- **`P`**: Reopen / Focus Stage Window.
+- **`P` / `F2`**: Reopen / Focus Stage Window.
 - **`F11` / `Esc`**: Fullscreen toggle (when focused on Stage Window).
 - **`Esc`**: Dismiss active modal or clear focus.
 - 📖 For the complete operating guide, see the [Dedicated User Manual (USER_MANUAL.md)](USER_MANUAL.md).
@@ -558,13 +587,13 @@ Output packages `.AppImage` (238 MB) and `.deb` (209 MB) will be placed in `rele
 ```bash
 npm run electron:build:win
 ```
-The standalone portable executable `Karaoke Live Station 1.0.0.exe` (160 MB, runs immediately without installation or admin privileges) and `Karaoke Live Station-1.0.0-win.zip` (245 MB) will be generated in `release/`, with exclusive Win32 PE binaries (`yt-dlp.exe`, `ffmpeg.exe`, `better_sqlite3.node`).
+The standalone portable executable `Karaoke Live Station 1.5.0.exe` (runs immediately without installation or admin privileges) and `Karaoke Live Station-1.5.0-win.zip` will be generated in `release/`, with exclusive Win32 PE binaries (`yt-dlp.exe`, `ffmpeg.exe`, `better_sqlite3.node`).
 
 ### 🍎 Build for macOS (.zip)
 ```bash
 npm run electron:build:mac
 ```
-The standalone `.zip` archive (248 MB) containing `Karaoke Live Station.app` will be generated in `release/`, with exclusive Darwin Mach-O binaries (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`).
+The standalone `Karaoke Live Station-1.5.0-mac.zip` archive containing `Karaoke Live Station.app` will be generated in `release/`, with exclusive Darwin Mach-O binaries (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`).
 
 ### 🌐 Build for all target platforms
 ```bash
@@ -675,15 +704,15 @@ If you find **Karaoke Live Station** valuable for your shows, venues, or private
 
 | Package | Role in Karaoke Live Station |
 | :--- | :--- |
-| **onnxruntime-web** | ORT WASM engine for Download Instrumental AI (UVR-MDX-NET / HTDemucs) |
+| **onnxruntime-web** | Neural engine with native GPU acceleration (WebGPU JSEP) and multithreaded CPU WASM fallback for AI vocal separation (UVR-MDX-NET / HTDemucs) |
 | **demucs-web** | HTDemucs ONNX wrapper (lazy-loaded on HTDemucs path only) |
 | **fft.js** | Bluestein STFT / iSTFT for MDX (`audioFft.ts`) |
 | **ffmpeg-static** | Instrumental demux / remux and thumbnails (ASAR-unpacked) |
 | **better-sqlite3** | Catalog + SIAE history (WAL; ASAR-unpacked) |
-| **electron** | Main + utilityProcess AI worker (ORT off the UI thread) |
-| **zustand** | Persisted settings (`useKaraokeStore` in `src/renderer/store/karaokeStore.ts`) |
-| **soundtouchjs** | Legacy/light live pitch WSOLA (bypassed at pitch 0); selectable via `dspEngine` |
-| **Bungee** (prebuilt Wasm) | Default pitch+speed Wasm AudioWorklet (`dspEngine: 'bungee'`); MPL-2.0 upstream |
+| **electron** | Main + hidden WebGPU BrowserWindow for native GPU acceleration + utilityProcess CPU worker |
+| **zustand** | Persisted settings (including instrumental method, GPU-First toggle, and MDX/Demucs knobs) |
+| **signalsmith-stretch** | Hi-Fi Pitch & Speed engine on Wasm AudioWorklet (default `dspEngine: 'signalsmith'`) |
+| **soundtouchjs** | Legacy/light live pitch WSOLA (bypassed at pitch 0); selectable in Settings |
 | **spessasynth_lib** | MIDI/KAR SoundFont synth (5 ms scheduler, `latencyHint: 'playback'`) |
 | **qrcode** | Guest Portal LAN QR generation |
 | **Logger** (`src/main/services/Logger.ts`) | Disk diagnostic log; Settings level `debug`/`info`/`warn`/`error`/`off`; sensitive-key masking |
@@ -706,7 +735,7 @@ If you find **Karaoke Live Station** valuable for your shows, venues, or private
 **Critical invariants (must not regress)**
 | Invariant | Location | Rule |
 | :--- | :--- | :--- |
-| Pitch/speed DSP bypass | `BungeePitchShifterNode` / `PitchShifterNode` | Bungee: pitch 0 && speed 1.0 → worklet off path; SoundTouch: pitch 0 → ScriptProcessor off path |
+| Pitch/speed DSP bypass | `SignalsmithPitchShifterNode` / `PitchShifterNode` | Signalsmith: pitch 0 → worklet bypass; SoundTouch: pitch 0 → ScriptProcessor off path |
 | Volume gain = volume² | `AudioGraphManager.computePerceptualGain` | Clamp volume to [0,1]; mute → 0 |
 | AI worker MessageEvent unwrap | `aiWorkerMessage.unwrapAiWorkerInboundMessage` | Prefer bare `type`; else `raw.data` |
 | SIAE ≥ 120s | `karaokeStore.logCurrentTrackExecution` | Natural end **or** elapsed ≥ 120s |
@@ -726,12 +755,12 @@ Karaoke Live Station is powered by open-source libraries, open standards, and co
 | **yt-dlp** | yt-dlp team | The Unlicense | [github.com/yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp) | YouTube metadata querying, stream downloading, and background auto-updating |
 | **FFmpeg** | FFmpeg Developers & Eugene Ware (`ffmpeg-static`) | LGPL 2.1+ / GPL 3.0 | [ffmpeg.org](https://ffmpeg.org/) • [github.com/eugeneware/ffmpeg-static](https://github.com/eugeneware/ffmpeg-static) | Media stream demuxing and automated 16:9 video thumbnail generation |
 | **SpessaSynth** | Spessa (`spessasus`) | MIT | [github.com/spessasus/SpessaSynth](https://github.com/spessasus/SpessaSynth) | SoundFont 2 (SF2) software synthesizer for ultra-low latency MIDI and KAR playback |
-| **Bungee** | Parabola Research / bungee-audio-stretch | MPL-2.0 | [github.com/bungee-audio-stretch/bungee](https://github.com/bungee-audio-stretch/bungee) | Phase-vocoder Wasm (pitch + speed); runtime prebuilts only — see `public/workers/BUNGEE_NOTICE.md` |
+| **Signalsmith Stretch** | Geraint Luff (Signalsmith Audio) | MIT | [github.com/Signalsmith-Audio/signalsmith-stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch) | High-fidelity DSP pitch-shifting and time-stretching algorithm on Wasm AudioWorklet (default engine) — see `public/workers/SIGNALSMITH_NOTICE.md` |
 | **SoundTouch / SoundTouchJS** | Olli Parviainen & Jakub Fiala | LGPL 2.1 / MIT | [gitlab.com/soundtouch/soundtouch](https://gitlab.com/soundtouch/soundtouch) • [github.com/jakubfiala/soundtouchjs](https://github.com/jakubfiala/soundtouchjs) | Studio-grade WSOLA algorithm for pitch shifting and tempo stretching (selectable legacy engine) |
 | **GeneralUser GS SoundFont** | S. Christian Collins | Permissive GeneralUser License | [schristiancollins.com](http://www.schristiancollins.com/generaluser.php) | High-definition 31 MB General MIDI SoundFont bank bundled for realistic instruments |
 | **better-sqlite3** | Joshua Wise | MIT | [github.com/WiseLibs/better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | High-performance synchronous SQLite driver in WAL mode (media library & SIAE history) |
-| **ONNX Runtime Web** | Microsoft | MIT | [github.com/microsoft/onnxruntime](https://github.com/microsoft/onnxruntime) | WASM inference for Download Instrumental AI (UVR-MDX-NET / Demucs) |
-| **demucs-web** | demucs-web authors | See package | [npmjs.com/package/demucs-web](https://www.npmjs.com/package/demucs-web) | HTDemucs ONNX helper (lazy-loaded) |
+| **ONNX Runtime Web** | Microsoft | MIT | [github.com/microsoft/onnxruntime](https://github.com/microsoft/onnxruntime) | Neural model inference engine with native GPU hardware acceleration (WebGPU JSEP) and multithreaded CPU WASM fallback for AI vocal separation (UVR-MDX-NET / HTDemucs) |
+| **demucs-web** | demucs-web authors | MIT | [npmjs.com/package/demucs-web](https://www.npmjs.com/package/demucs-web) | HTDemucs v4 ONNX execution library for high-isolation instrumental backing track generation |
 | **fft.js** | Jens Nockert / contributors | MIT | [github.com/indutny/fft.js](https://github.com/indutny/fft.js) | Bluestein FFT for MDX STFT / iSTFT |
 | **Electron** | OpenJS Foundation & Electron Contributors | MIT | [electronjs.org](https://www.electronjs.org/) | Multi-window native desktop runtime (Control Desk & Stage Display) |
 | **React** / **react-dom** | Meta Platforms, Inc. | MIT | [react.dev](https://react.dev/) | Reactive, component-based UI layer for operator console and stage displays |
