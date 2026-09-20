@@ -142,6 +142,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
     setSearchMode,
     query,
     setQuery,
+    setLocalQuery,
     results: searchResults,
     setLocalResults,
     setWebResults,
@@ -900,6 +901,17 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
     }
   };
 
+  const displayedTracks =
+    searchMode === 'local'
+      ? localQuery.trim()
+        ? searchResults
+        : localTracks
+      : searchResults;
+
+  // Windowed rendering for 16k+ local catalogs — only mount visible rows
+  const [listScrollTop, setListScrollTop] = useState(0);
+  const [listViewportH, setListViewportH] = useState(480);
+
   /**
    * Pick up queue→library reveal requests: switch to Locale, seed Local search,
    * optionally run searchTracks immediately (bypass debounce), and reuse missing-file handling.
@@ -1019,17 +1031,6 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
     };
   }, []);
 
-
-  const displayedTracks =
-    searchMode === 'local'
-      ? localQuery.trim()
-        ? searchResults
-        : localTracks
-      : searchResults;
-
-  // Windowed rendering for 16k+ local catalogs — only mount visible rows
-  const [listScrollTop, setListScrollTop] = useState(0);
-  const [listViewportH, setListViewportH] = useState(480);
   React.useEffect(() => {
     const el = resultsListRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
