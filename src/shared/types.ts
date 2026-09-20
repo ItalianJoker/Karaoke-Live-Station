@@ -182,8 +182,8 @@ export interface AppSettings {
   enableAudioNormalization?: boolean;
   /**
    * Media pitch/speed DSP engine.
-   * `soundtouch` (default) = reliable WSOLA ScriptProcessor;
-   * `bungee` = Wasm phase-vocoder AudioWorklet (optional; auto-falls back on mute).
+   * `bungee` (default) = Signalsmith Stretch Hi-Fi AudioWorklet (settings id kept);
+   * `soundtouch` = emergency/light WSOLA ScriptProcessor.
    * MIDI/KAR never uses this — SpessaSynth note transpose only.
    */
   dspEngine: DspPitchEngine;

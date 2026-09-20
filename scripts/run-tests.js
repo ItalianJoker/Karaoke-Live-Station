@@ -3263,14 +3263,14 @@ function isDspNeutralBypassTest(pitch, speed) {
 }
 
 assert(
-  dspPitchShared.includes("return 'soundtouch'") &&
-    dspPitchShared.includes("Unknown / missing → `'soundtouch'`"),
-  'coerceDspPitchEngine defaults to soundtouch'
+  dspPitchShared.includes("return 'bungee'") &&
+    dspPitchShared.includes("Unknown / missing → `'bungee'`"),
+  'coerceDspPitchEngine defaults to bungee (Hi-Fi Signalsmith)'
 );
 
 assert(
-  /dspEngine:\s*'soundtouch'/.test(storeDspSrc),
-  'Default settings.dspEngine === soundtouch'
+  /dspEngine:\s*'bungee'/.test(storeDspSrc),
+  'Default settings.dspEngine === bungee (Hi-Fi)'
 );
 assert(
   dspPitchShared.includes("export type DspPitchEngine = 'bungee' | 'soundtouch'") &&
@@ -3283,14 +3283,14 @@ assert(
     dspPitchShared.includes('BUNGEE_SPEED_ABSOLUTE_MAX = 2.0') &&
     dspPitchShared.includes('getSpeedRangeForEngine') &&
     dspPitchShared.includes('clampSpeedForEngine'),
-  'Shared pitch + speed ranges: Bungee UI ±8 / 0.50–1.50, SoundTouch ±4 / 0.75–1.25'
+  'Shared pitch + speed ranges: Hi-Fi UI ±8 / 0.50–1.50, SoundTouch ±4 / 0.75–1.25'
 );
 assert(
   clampPitchForEngineTest(9, 'bungee') === 8 &&
     clampPitchForEngineTest(-9, 'bungee') === -8 &&
     clampPitchForEngineTest(5, 'soundtouch') === 4 &&
     clampPitchForEngineTest(-5, 'soundtouch') === -4,
-  'Semitone clamp per engine (Bungee ±8, SoundTouch ±4)'
+  'Semitone clamp per engine (Hi-Fi ±8, SoundTouch ±4)'
 );
 assert(
   clampSpeedForEngineTest(0.4, 'bungee') === 0.5 &&
@@ -3298,28 +3298,28 @@ assert(
     clampSpeedForEngineTest(0.6, 'soundtouch') === 0.75 &&
     clampSpeedForEngineTest(1.4, 'soundtouch') === 1.25 &&
     clampSpeedForEngineTest(1.111, 'bungee') === 1.11,
-  'Speed clamp per engine (Bungee 0.50–1.50, SoundTouch 0.75–1.25, round 0.01)'
+  'Speed clamp per engine (Hi-Fi 0.50–1.50, SoundTouch 0.75–1.25, round 0.01)'
 );
 assert(
   clampSpeedForEngineTest(0.6, 'soundtouch') === 0.75,
-  'Engine switch Bungee→SoundTouch re-clips 0.60 → 0.75'
+  'Engine switch Hi-Fi→SoundTouch re-clips 0.60 → 0.75'
 );
 assert(
   isDspNeutralBypassTest(0, 1.0) === true &&
     isDspNeutralBypassTest(1, 1.0) === false &&
     isDspNeutralBypassTest(0, 1.05) === false &&
     isDspNeutralBypassTest(0, 0.75) === false,
-  'Bypass when pitch 0 & speed 1.0 only (speed≠1 also exits bypass)'
+  'Shared isDspNeutralBypass: pitch 0 & speed 1.0 only'
 );
 assert(
-  bungeeNodeSrc.includes('isDspNeutralBypass') &&
+  bungeeNodeSrc.includes('signalsmith-stretch') &&
+    bungeeNodeSrc.includes('SignalsmithStretch') &&
     bungeeNodeSrc.includes('applyBypassRouting') &&
-    bungeeNodeSrc.includes('bungee-audio-stretch/bungee') &&
-    bungeeNodeSrc.includes('MPL-2.0') &&
-    bungeeNodeSrc.includes('waitForWasmReady') &&
-    bungeeNodeSrc.includes('initialized') &&
-    bungeeNodeSrc.includes('BUNGEE_INIT_TIMEOUT_MS'),
-  'BungeePitchShifterNode: true bypass + wait for Wasm initialized + MPL attribution'
+    bungeeNodeSrc.includes('semitones !== 0') &&
+    bungeeNodeSrc.includes('setUnderrunFallbackHandler') &&
+    bungeeNodeSrc.includes('WATCHDOG_SILENT_POLLS') &&
+    bungeeNodeSrc.includes('HIFI_INIT_TIMEOUT_MS'),
+  'BungeePitchShifterNode: Signalsmith Stretch Hi-Fi + pitch-0 bypass + mute watchdog'
 );
 assert(
   pitchShifterSrc.includes('SOUNDTOUCH_PITCH_MIN') &&
@@ -3332,13 +3332,12 @@ assert(
     audioGraphDspSrc.includes('BungeePitchShifterNode') &&
     audioGraphDspSrc.includes('falling back to SoundTouch') &&
     audioGraphDspSrc.includes('PitchShifterNode') &&
-    audioGraphDspSrc.includes('Bungee DSP wired') &&
+    audioGraphDspSrc.includes('Signalsmith Hi-Fi wired') &&
     audioGraphDspSrc.includes('Pitch offset applied') &&
     audioGraphDspSrc.includes('dspEnsurePromise') &&
     audioGraphDspSrc.includes('applyMediaElementRateForActiveEngine') &&
-    /activeDspEngine === 'bungee'[\s\S]*?playbackRate = 1\.0/.test(audioGraphDspSrc) &&
-    audioGraphDspSrc.includes('Bungee owns tempo'),
-  'AudioGraphManager: Bungee wire re-applies pitch/speed + element rate 1.0 + SoundTouch fallback'
+    audioGraphDspSrc.includes('Signalsmith Hi-Fi mute watchdog'),
+  'AudioGraphManager: Signalsmith Hi-Fi wire + media rate + SoundTouch emergency fallback'
 );
 {
   const controlDspSrc = fs.readFileSync(
@@ -3347,14 +3346,14 @@ assert(
   );
   const controlUiDspSrc = readControlUiSource();
   assert(
-    controlDspSrc.includes("engine === 'soundtouch' ? playback.playbackSpeed : 1.0") &&
-      controlDspSrc.includes('Bungee owns tempo') &&
+    controlDspSrc.includes('playback.playbackSpeed') &&
+      controlDspSrc.includes('preservesPitch') &&
       controlDspSrc.includes('getSpeedRangeForEngine') &&
       controlUiDspSrc.includes('speedRange.min') &&
       controlUiDspSrc.includes('speedRange.max') &&
       controlUiDspSrc.includes('setPlaybackSpeed(1.0)') &&
       controlUiDspSrc.includes('clampSpeedForEngine'),
-    'Control UI: Bungee element rate 1.0 + dynamic speed range + reset 1.00x'
+    'Control UI: media rate = playbackSpeed + preservesPitch + dynamic speed range'
   );
 }
 assert(
@@ -3366,54 +3365,33 @@ assert(
 assert(
   settingsDspSrc.includes("value=\"bungee\"") &&
     settingsDspSrc.includes("value=\"soundtouch\"") &&
-    settingsDspSrc.includes('dspEngine'),
-  'SettingsModal exposes Bungee / SoundTouch engine select'
+    settingsDspSrc.includes('dspEngine') &&
+    settingsDspSrc.includes('dspEngineHiFiLabel'),
+  'SettingsModal exposes Hi-Fi (bungee id) / SoundTouch engine select'
 );
 assert(
-  fs.existsSync(path.resolve(__dirname, '../public/workers/bungee_processor.js')) &&
-    fs.existsSync(path.resolve(__dirname, '../public/workers/bungee.wasm')) &&
-    fs.existsSync(path.resolve(__dirname, '../public/workers/BUNGEE_NOTICE.md')),
-  'Prebuilt Bungee Wasm assets + NOTICE present (no C++ tree)'
+  fs.existsSync(path.resolve(__dirname, '../public/workers/SIGNALSMITH_NOTICE.md')) &&
+    !fs.existsSync(path.resolve(__dirname, '../public/workers/bungee_processor.js')) &&
+    !fs.existsSync(path.resolve(__dirname, '../public/workers/bungee.wasm')),
+  'Signalsmith NOTICE present; broken Bungee Wasm assets removed'
 );
 {
-  const bungeeProc = fs.readFileSync(
-    path.resolve(__dirname, '../public/workers/bungee_processor.js')
+  const pkgJson = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
   );
   assert(
-    !bungeeProc.includes('export default createBungeeModule') &&
-      bungeeProc.includes('AudioWorkletGlobalScope') &&
-      bungeeProc.includes("registerProcessor('bungee-processor'"),
-    'bungee_processor.js: no ESM export default; AudioWorkletGlobalScope worker detect; registerProcessor present'
+    !!pkgJson.dependencies?.['signalsmith-stretch'],
+    'package.json depends on signalsmith-stretch'
   );
   assert(
-    bungeeProc.includes('Module["_malloc"]=_malloc') &&
-      bungeeProc.includes('Module["_free"]=_free') &&
-      bungeeProc.includes('Module["HEAPF32"]=HEAPF32'),
-    'bungee_processor.js: Module exposes _malloc/_free/HEAPF32 for AudioWorklet'
-  );
-  assert(
-    bungeeProc.includes('WASM_MAX_FRAMES = 8192') &&
-      bungeeProc.includes('fifoPushInterleaved') &&
-      bungeeProc.includes('fifoClear') &&
-      bungeeProc.includes('fifoPop') &&
-      bungeeProc.includes('Math.min(outputFrames, frameCount)') &&
-      bungeeProc.includes('writtenFrames') &&
-      bungeeProc.includes('bungee-underrun-fallback') &&
-      bungeeProc.includes('silentQuanta') &&
-      !bungeeProc.includes('safeFrames = Math.min(outputFrames, 8192)'),
-    'bungee_processor.js: 8192 Wasm buffers + FIFO clamp to written frames + anti-mute watchdog'
-  );
-  assert(
-    bungeeNodeSrc.includes("this.send('reset')") &&
-      bungeeNodeSrc.includes('Flush worklet FIFO') &&
-      bungeeNodeSrc.includes('bungee-underrun-fallback') &&
+    bungeeNodeSrc.includes("this.send('reset')") === false &&
       bungeeNodeSrc.includes('setUnderrunFallbackHandler'),
-    'BungeePitchShifterNode: reset/FIFO flush + underrun fallback handler'
+    'Hi-Fi node uses Signalsmith schedule API (no legacy bungee port messages)'
   );
   assert(
-    audioGraphDspSrc.includes('Bungee underrun/mute detected') &&
+    audioGraphDspSrc.includes('Signalsmith Hi-Fi mute watchdog') &&
       audioGraphDspSrc.includes("preferredDspEngine = 'soundtouch'"),
-    'AudioGraphManager: Bungee underrun switches to SoundTouch'
+    'AudioGraphManager: Hi-Fi mute watchdog switches to SoundTouch'
   );
 }
 assert(
@@ -3426,97 +3404,37 @@ assert(
     itLocale.settings?.dspEngine &&
     esLocale.settings?.dspEngine &&
     frLocale.settings?.dspEngine &&
-    String(enLocale.settings.dspEngineSoundTouch || '').toLowerCase().includes('default') &&
-    String(itLocale.settings.dspEngineSoundTouch || '').toLowerCase().includes('predefinito') &&
-    String(esLocale.settings.dspEngineSoundTouch || '').toLowerCase().includes('predeterminado') &&
-    String(frLocale.settings.dspEngineSoundTouch || '').toLowerCase().includes('défaut'),
-  'i18n DSP engine keys present; SoundTouch labeled as default in en/it/es/fr'
+    String(enLocale.settings.dspEngineBungee || '').toLowerCase().includes('signalsmith') &&
+    String(enLocale.settings.dspEngineSoundTouch || '').toLowerCase().includes('emergency') &&
+    enLocale.settings?.dspEngineHiFiLabel &&
+    itLocale.settings?.dspEngineHiFiLabel &&
+    esLocale.settings?.dspEngineHiFiLabel &&
+    frLocale.settings?.dspEngineHiFiLabel,
+  'i18n DSP engine keys: Signalsmith Hi-Fi default + SoundTouch emergency in en/it/es/fr'
 );
 
 // -------------------------------------------------------------
-// Suite: Bungee FIFO written-frame clamp (no silence injection) + silence watchdog
+// Suite: Signalsmith pitch lab (-1..-4 ST, 500+ blocks, no mute)
 // -------------------------------------------------------------
-console.log('\n\x1b[36m▶ Suite: Bungee pitch silence clamp (-1/-2 ST)\x1b[0m');
+console.log('\n\x1b[36m▶ Suite: Signalsmith pitch lab (-1..-4 ST)\x1b[0m');
 
 {
-  /**
-   * Simulates the worklet FIFO push rule: inflated outputFrames must not push
-   * unread heap zeros. Also checks pure-silence detection for -1/-2 ST collapse.
-   */
-  function clampWrittenFrames(outputFrames, frameCount) {
-    return Math.min(outputFrames, frameCount);
-  }
-
-  function fifoPushFromHeap(heapInterleaved, frames) {
-    const out = [];
-    for (let i = 0; i < frames; i++) {
-      out.push(heapInterleaved[i * 2], heapInterleaved[i * 2 + 1]);
-    }
-    return out;
-  }
-
-  function maxAbs(samples) {
-    let m = 0;
-    for (const s of samples) {
-      const a = Math.abs(s);
-      if (a > m) m = a;
-    }
-    return m;
-  }
-
-  function simulateNegativePitchPush(semitones) {
-    const frameCount = 128;
-    // Inflated return (as observed for -1/-2 ST) while only frameCount samples written.
-    const claimedFrames = semitones === -1 ? 542 : 575;
-    const heap = new Float32Array(claimedFrames * 2);
-    // Only the first frameCount stereo frames contain signal; rest stay 0.
-    for (let i = 0; i < frameCount; i++) {
-      heap[i * 2] = 0.25;
-      heap[i * 2 + 1] = -0.2;
-    }
-    const written = clampWrittenFrames(claimedFrames, frameCount);
-    const pushed = fifoPushFromHeap(heap, written);
-    const badPushed = fifoPushFromHeap(heap, Math.min(claimedFrames, 8192));
-    return { written, pushed, badPushed, claimedFrames, frameCount };
-  }
-
-  for (const st of [-1, -2]) {
-    const sim = simulateNegativePitchPush(st);
-    assert(
-      sim.written === sim.frameCount,
-      `pitch ${st} ST: writtenFrames clamped to frameCount (${sim.frameCount})`
-    );
-    assert(
-      maxAbs(sim.pushed) > 0.1,
-      `pitch ${st} ST: clamped FIFO push retains audible samples`
-    );
-    // Unclamped (pre-fix) would be ~76% zeros → near-mute energy dilution.
-    const zeroRatio =
-      sim.badPushed.filter((s) => s === 0).length / Math.max(1, sim.badPushed.length);
-    assert(
-      zeroRatio > 0.7,
-      `pitch ${st} ST: unclamped push would inject mostly silence (got ${(zeroRatio * 100).toFixed(1)}%)`
-    );
-    const goodZeroRatio =
-      sim.pushed.filter((s) => s === 0).length / Math.max(1, sim.pushed.length);
-    assert(
-      goodZeroRatio < 0.01,
-      `pitch ${st} ST: clamped push has negligible pure zeros`
-    );
-  }
-
-  // Watchdog: >4 silent quanta with live input triggers fallback message type.
+  const labScript = path.resolve(__dirname, 'lab-signalsmith-pitch.js');
+  assert(fs.existsSync(labScript), 'scripts/lab-signalsmith-pitch.js exists');
+  const { spawnSync } = require('child_process');
+  const labRun = spawnSync(process.execPath, [labScript], {
+    encoding: 'utf8',
+    cwd: path.resolve(__dirname, '..'),
+    timeout: 60000
+  });
   assert(
-    fs
-      .readFileSync(path.resolve(__dirname, '../public/workers/bungee_processor.js'))
-      .includes('silentQuanta > 4') &&
-      fs
-        .readFileSync(path.resolve(__dirname, '../public/workers/bungee_processor.js'))
-        .includes('bungee-underrun-fallback'),
-    'Bungee anti-mute: silentQuanta > 4 posts bungee-underrun-fallback'
+    labRun.status === 0 &&
+      (labRun.stdout || '').includes('lab-signalsmith-pitch: all checks passed'),
+    'Signalsmith lab: 520 blocks at -1..-4 ST, maxAmp never 0 after warm-up',
+    (labRun.stderr || labRun.stdout || `exit ${labRun.status}`).slice(0, 800)
   );
 
-  // AI conversion must not hang forever: hard timeout still bounded.
+  // AI conversion must not hang forever: hard timeout still bounded + Part 1 intact.
   const sepTimeoutSrc = fs.readFileSync(
     path.resolve(__dirname, '../src/main/services/InstrumentalAiSeparator.ts'),
     'utf8'

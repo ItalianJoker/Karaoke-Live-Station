@@ -162,7 +162,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   maxSimultaneousDownloads: 2,
   enableAutoDuckingBGM: false,
   enableAudioNormalization: true,
-  dspEngine: 'soundtouch',
+  dspEngine: 'bungee',
   enableGuestPortal: true,
   enableSiaeReporting: true,
   autoArchiveWebTracks: true,

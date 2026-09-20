@@ -63,20 +63,20 @@ const bungeeSrc = fs.readFileSync(
   'utf8'
 );
 assert(
-  bungeeSrc.includes('isDspNeutralBypass') &&
+  bungeeSrc.includes('signalsmith-stretch') &&
+    bungeeSrc.includes('SignalsmithStretch') &&
     bungeeSrc.includes('applyBypassRouting') &&
-    bungeeSrc.includes('bungee-audio-stretch/bungee') &&
-    bungeeSrc.includes('MPL-2.0') &&
-    bungeeSrc.includes('waitForWasmReady'),
-  'BungeePitchShifterNode: neutral bypass + wait Wasm ready + MPL-2.0'
+    bungeeSrc.includes('semitones !== 0') &&
+    bungeeSrc.includes('setUnderrunFallbackHandler'),
+  'BungeePitchShifterNode: Signalsmith Stretch Hi-Fi + pitch-0 bypass + mute watchdog'
 );
 assert(
   audioSrc.includes('falling back to SoundTouch') &&
     audioSrc.includes('setDspEngine') &&
     audioSrc.includes('PitchShifterNode') &&
     audioSrc.includes('applyMediaElementRateForActiveEngine') &&
-    audioSrc.includes('playbackRate = 1.0'),
-  'AudioGraphManager keeps SoundTouch path + Bungee element rate 1.0 + silent fallback'
+    audioSrc.includes('Signalsmith Hi-Fi mute watchdog'),
+  'AudioGraphManager keeps SoundTouch emergency path + Signalsmith Hi-Fi + mute watchdog'
 );
 
 // 2) volume gain = volume² clamped [0,1]
