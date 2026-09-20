@@ -1114,7 +1114,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
           </span>
         </div>
       )}
-      {/* Search Header & Mode Toggle */}
+      {/* Search Header & Mode Toggle — Locale + Web only (no MIDI library mode; mixer is on Studio deck) */}
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-full border border-slate-800/80 text-xs font-semibold shadow-inner">
           <button

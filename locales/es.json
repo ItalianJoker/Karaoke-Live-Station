@@ -16,11 +16,16 @@
     "railSingers": "Cantantes",
     "railDownloads": "Descargas",
     "railHelp": "Ayuda",
+    "railShortcuts": "Atajos",
+    "railGuestQr": "QR Guest",
     "railDsp": "DSP",
     "railSettings": "Ajustes",
     "guestQrTitle": "QR Portal Guest",
     "guestQrLoading": "Abrir QR…",
-    "showGuestQr": "Mostrar código QR del Portal Guest"
+    "showGuestQr": "Mostrar código QR del Portal Guest",
+    "deckTabsAria": "Modos del Studio deck",
+    "deckTabControls": "Controles",
+    "deckTabMidi": "Mezclador MIDI"
   },
   "player": {
     "play": "Reproducir",

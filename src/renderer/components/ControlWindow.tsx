@@ -22,7 +22,6 @@ import {
   HelpCircle,
   Info,
   AudioLines,
-  Monitor,
   ListMusic
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
@@ -33,7 +32,6 @@ import {
   coerceDspPitchEngine
 } from '../../shared/dspPitch';
 
-import { MidiChannelMixer } from './MidiChannelMixer';
 import { LibraryPanel } from './LibraryPanel';
 import { HistoryPanel } from './HistoryPanel';
 import { SettingsModal } from './SettingsModal';
@@ -72,14 +70,14 @@ function logControl(level: 'debug' | 'info' | 'warn' | 'error', message: string,
  *
  * This is the primary mission-control window used by the karaoke operator/DJ.
  * Key responsibilities:
- * Shell layout (Regia column swap):
- *   1. Brand/QR column (logo + Guest Portal QR; no title-bar header, no stage message).
- *   2. Work panels (Queue / Library / History — former right column, now first content zone).
- *   3. Now Playing + PlayerDeckControls (former left column — transport, Key/BPM, vocal/BGM).
- *   4. Icon rail (nav + Download + Settings + Stage reopen — former header actions).
+ * Shell layout (Regia column swap + Luca corrections):
+ *   1. Brand column — logo only (no header, no inline QR, no anteprima, no messaggio stage).
+ *   2. Work panels (Queue / Library / History).
+ *   3. Now Playing + Studio deck (Stage reopen first; transport; vocal/BGM; MIDI mixer tab).
+ *   4. Icon rail — nav + Guest QR popup + Download + Shortcuts + Settings (no Stage).
  *
- * Audio/video, Stage sync, fair queue, scrubbing, CUE, and SIAE history behavior are unchanged;
- * only chrome placement moves. No waveform / Loop / Previous transport controls.
+ * Pitch/speed stay −/+/click-reset (no sliders). No waveform / Loop / Previous.
+ * Library modes remain Locale + Web only (no MIDI library mode — mixer is on the deck).
  */
 export const ControlWindow: React.FC = () => {
   const { t } = useTranslation();
@@ -869,11 +867,11 @@ export const ControlWindow: React.FC = () => {
     <div className="h-screen max-h-screen app-control-container flex flex-col font-sans select-none overflow-hidden">
       {/*
         Regia shell after column swap (Safety-First layout only):
-        [Brand + QR + work panels] | [Now Playing + deck] | [Icon rail]
-        Header title-bar chrome removed; Download lives on the rail.
+        [Brand logo + panels] | [Now Playing + Studio deck] | [Icon rail]
+        Header removed; QR + Shortcuts via rail popups; Stage reopen on Studio deck.
       */}
       <main className="flex-1 min-h-0 p-3 md:p-3.5 flex gap-3 md:gap-3.5 overflow-hidden">
-        {/* FIRST column (former right / right-stack intent): logo + QR, no anteprima, no messaggio stage */}
+        {/* FIRST column: logo (no header / no inline QR / no anteprima / no messaggio stage) */}
         <section
           className="w-[min(100%,20rem)] sm:w-[22rem] lg:w-[24rem] xl:w-[26rem] shrink-0 flex flex-col h-full min-h-0 overflow-hidden gap-3"
           data-testid="regia-brand-column"
@@ -891,50 +889,19 @@ export const ControlWindow: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-slate-950/70 border border-slate-800">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
-                <QrCode className="w-3.5 h-3.5" />
-                {t('regia.guestQrTitle')}
-              </span>
-              {portalInfo.qrCode ? (
-                <button
-                  type="button"
-                  onClick={() => setShowPortalQrModal(true)}
-                  className="bg-white p-2 rounded-xl shadow-md border border-white/20 hover:scale-[1.02] transition-transform active:scale-95"
-                  title={t('regia.showGuestQr')}
-                >
-                  <img
-                    src={portalInfo.qrCode}
-                    alt={t('regia.guestQrTitle')}
-                    className="w-36 h-36 object-contain"
-                    data-testid="regia-inline-qr"
-                  />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowPortalQrModal(true)}
-                  className="w-36 h-36 rounded-xl bg-slate-900 border border-slate-800 flex flex-col items-center justify-center gap-2 text-[11px] text-slate-500 hover:border-indigo-500/40 hover:text-slate-300 transition-colors"
-                  title={t('regia.showGuestQr')}
-                >
-                  <QrCode className="w-8 h-8 opacity-40" />
-                  {t('regia.guestQrLoading')}
-                </button>
+            <button
+              type="button"
+              onClick={() => setShowGuestModal(true)}
+              className="relative w-full px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95"
+            >
+              <Smartphone className="w-4 h-4 text-indigo-400" />
+              {t('guestRequests.badge')}
+              {pendingRequests.length > 0 && (
+                <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-bounce shadow-sm">
+                  {pendingRequests.length}
+                </span>
               )}
-              <button
-                type="button"
-                onClick={() => setShowGuestModal(true)}
-                className="relative w-full px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95"
-              >
-                <Smartphone className="w-4 h-4 text-indigo-400" />
-                {t('guestRequests.badge')}
-                {pendingRequests.length > 0 && (
-                  <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-bounce shadow-sm">
-                    {pendingRequests.length}
-                  </span>
-                )}
-              </button>
-            </div>
+            </button>
           </div>
 
           {/* Work panels (Queue / Library / History) — stay mounted for Zero Regression */}
@@ -1144,15 +1111,15 @@ export const ControlWindow: React.FC = () => {
               onStop={handleStop}
               onRestart={handleRestart}
               onNext={() => advanceToNextTrack()}
+              stageOpen={stageOpen}
+              onReopenStage={() => window.karaokeApi?.reopenStageWindow()}
+              isMidiTrack={isMidiTrack}
+              onToggleMuteChannel={toggleMidiChannelMute}
             />
           </div>
-
-          {isMidiTrack && (
-            <MidiChannelMixer onToggleMuteChannel={toggleMidiChannelMute} />
-          )}
         </section>
 
-        {/* LAST column: icon rail (nav + Download — former header / mockup first rail) */}
+        {/* LAST column: icon rail (QR + Download + Shortcuts — Stage lives on Studio deck) */}
         <nav
           className="w-[4.25rem] shrink-0 flex flex-col h-full min-h-0 bg-slate-900/90 border border-slate-800 rounded-2xl py-2 px-1 gap-0.5 overflow-y-auto shadow-lg"
           data-testid="regia-icon-rail"
@@ -1213,18 +1180,13 @@ export const ControlWindow: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => window.karaokeApi?.reopenStageWindow()}
-            className={`flex flex-col items-center gap-0.5 w-full px-1 py-2 rounded-lg text-[9px] font-semibold transition-all active:scale-95 ${
-              stageOpen
-                ? 'text-emerald-400 hover:bg-emerald-950/40'
-                : 'text-red-400 animate-pulse hover:bg-red-950/40'
-            }`}
-            title={stageOpen ? t('app.stageWindow') : t('app.reopenStage')}
+            onClick={() => setShowPortalQrModal(true)}
+            className="flex flex-col items-center gap-0.5 w-full px-1 py-2 rounded-lg text-[9px] font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 transition-all active:scale-95"
+            title={t('regia.showGuestQr')}
+            data-testid="regia-rail-guest-qr"
           >
-            <Monitor className="w-4 h-4 shrink-0" />
-            <span className="leading-tight text-center line-clamp-2">
-              {stageOpen ? t('regia.railStage') : t('app.reopenStage')}
-            </span>
+            <QrCode className="w-4 h-4 text-indigo-400 shrink-0" />
+            <span className="leading-tight text-center line-clamp-2">{t('regia.railGuestQr')}</span>
           </button>
 
           <button
@@ -1428,9 +1390,10 @@ export const ControlWindow: React.FC = () => {
               onClick={() => setShowShortcutsModal(true)}
               className="flex flex-col items-center gap-0.5 w-full px-1 py-2 rounded-lg text-[9px] font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 transition-all active:scale-95"
               title={t('shortcuts.title', 'Scorciatoie da Tastiera') + ' (F1 / ?)'}
+              data-testid="regia-rail-shortcuts"
             >
               <HelpCircle className="w-4 h-4 text-indigo-400 shrink-0" />
-              <span className="leading-tight text-center line-clamp-2">{t('regia.railHelp')}</span>
+              <span className="leading-tight text-center line-clamp-2">{t('regia.railShortcuts')}</span>
             </button>
           </div>
 
