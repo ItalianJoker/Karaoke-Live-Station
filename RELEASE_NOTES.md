@@ -9,7 +9,7 @@
 <a name="v140-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.4.0
 
-Sovrascrittura GitHub **v1.4.0** (stesso tag; **non** tocca `v1.3.0` / `v1.2.0` / `v1.1.0`). Parte dalla baseline **v1.3.0**. PRs **#52**–**#66**. Pacchetto resta **1.4.0** (nessuna v1.5.0).
+Sovrascrittura GitHub **v1.4.0** (stesso tag; **non** tocca `v1.3.0` / `v1.2.0` / `v1.1.0`). Parte dalla baseline **v1.3.0**. PRs **#52**–**#68**. Pacchetto resta **1.4.0** (nessuna v1.5.0).
 
 ## 📦 File di Installazione
 
@@ -43,12 +43,13 @@ Sovrascrittura GitHub **v1.4.0** (stesso tag; **non** tocca `v1.3.0` / `v1.2.0` 
 - Scan/import `.zip` con MP3/WAV+`.cdg`; estrazione on-demand in `temp/zip_cache`; cleanup a dequeue/uscita.
 - Analisi async `initialKey` / `initialBpm`; pillole Pitch/Speed in Regia con etichetta `base→risultato` / BPM accanto a ± (handler invariati).
 
-### 🎛️ AI strumentale — GPU-First (#55) + telemetria (#59/#60) + Hidden Renderer (#63) + `/all` (#66)
+### 🎛️ AI strumentale — GPU-First (#55) + telemetria (#59/#60) + Hidden Renderer (#63) + `/all` (#66) + quit/watchdog (#68)
 - Toggle **AI GPU** (default on) + badge live; probe `system:get-gpu-status`.
 - **#59:** card GPU (toggle + badge) e card CPU sorella (core + `mdxEnableOrt` MDX-only).
 - **#60:** badge verde solo se il worker AI può davvero ospitare WebGPU; altrimenti ambra WASM (GPU hardware solo come nota). Telemetria `ortBackend` / `ortFallbackReason`; WebGPU-only poi WASM.
 - **#63:** ORT WebGPU in **Hidden BrowserWindow** quando GPU on + `requestAdapter()` OK (`workerKind=hidden-renderer`); altrimenti `utilityProcess` WASM + core CPU.
 - **#66:** import `onnxruntime-web/all` (registra EP WebGPU in Electron); Hidden Renderer **non** fa WASM multithread in-process dopo fallimento WebGPU — posta `gpu-fallback-requested` e main re-instrada a **utilityProcess** (niente deadlock SAB).
+- **#68:** chiusura Regia → dispose Hidden Renderer + `app.quit()` (niente orfani GPU/guestServer); probe `requestDevice` (5s); watchdog 15s su `InferenceSession.create` WebGPU → WASM; WebGPU solo JSEP `wasmPaths` (mai `wasmBinary` CPU).
 - Metodo Download Strumentale solo **UVR-MDX Karaoke 2** / **HTDemucs** (DSP e Roformer rimossi dalla tendina download; live `V` resta DSP).
 - Pannello avanzato HTDemucs (shifts / segmento / overlap); MDX avanzato invariato.
 - Etichette live: **Algoritmo Base** (ex Sperimentale).
@@ -72,7 +73,7 @@ Resta incluso: massimizza Regia all’avvio, Schermo Palco on/off, core CPU AI s
 <a name="v140-english"></a>
 # 🇬🇧 Release Notes — Version 1.4.0
 
-Overwrite of GitHub release **v1.4.0** (same tag; does **not** touch `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on **v1.3.0** baseline. PRs **#52**–**#66**. Package stays **1.4.0** (no v1.5.0).
+Overwrite of GitHub release **v1.4.0** (same tag; does **not** touch `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on **v1.3.0** baseline. PRs **#52**–**#68**. Package stays **1.4.0** (no v1.5.0).
 
 ## 📦 Installer Files
 
@@ -106,12 +107,13 @@ Overwrite of GitHub release **v1.4.0** (same tag; does **not** touch `v1.3.0` / 
 - Scan/import `.zip` with MP3/WAV+`.cdg`; on-demand extract under `temp/zip_cache`; cleanup on dequeue/quit.
 - Async `initialKey` / `initialBpm`; Control Pitch/Speed pills show `base→result` / BPM beside ± (handlers unchanged).
 
-### 🎛️ Instrumental AI — GPU-First (#55) + telemetry (#59/#60) + Hidden Renderer (#63) + `/all` (#66)
+### 🎛️ Instrumental AI — GPU-First (#55) + telemetry (#59/#60) + Hidden Renderer (#63) + `/all` (#66) + quit/watchdog (#68)
 - **AI GPU** toggle (default on) + live badge; `system:get-gpu-status` probe.
 - **#59:** GPU card (toggle + badge) and sibling CPU card (cores + MDX-only `mdxEnableOrt`).
 - **#60:** green badge only when the AI worker can actually host WebGPU; otherwise amber WASM (hardware GPU as note only). `ortBackend` / `ortFallbackReason` telemetry; WebGPU-only then WASM.
 - **#63:** ORT WebGPU in a **Hidden BrowserWindow** when GPU on + `requestAdapter()` OK (`workerKind=hidden-renderer`); else `utilityProcess` WASM + CPU cores.
 - **#66:** import `onnxruntime-web/all` (registers WebGPU EP in Electron); Hidden Renderer **never** runs in-process multithreaded WASM after WebGPU failure — posts `gpu-fallback-requested` and main re-routes to **utilityProcess** (no SAB deadlock).
+- **#68:** closing Control → dispose Hidden Renderer + `app.quit()` (no orphan GPU/guestServer); `requestDevice` probe (5s); 15s WebGPU `InferenceSession.create` watchdog → WASM; WebGPU JSEP `wasmPaths` only (never CPU `wasmBinary`).
 - Download Instrumental methods: **UVR-MDX Karaoke 2** / **HTDemucs** only (DSP and Roformer removed from download Settings; live `V` stays DSP).
 - HTDemucs advanced panel (shifts / segment / overlap); MDX advanced unchanged.
 - Live labels: **Basic Algorithm** (was Experimental).
