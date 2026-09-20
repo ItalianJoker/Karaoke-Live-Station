@@ -4379,6 +4379,175 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     'StudioPlayerDeckControls.tsx exists'
   );
 
+  const studioShellSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/StudioDeskShell.tsx'),
+    'utf8'
+  );
+  const studioDeckSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/StudioPlayerDeckControls.tsx'),
+    'utf8'
+  );
+  const preloadSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/preload/index.ts'),
+    'utf8'
+  );
+  const mainSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+  const settingsGeneralSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/settings/SettingsGeneralTab.tsx'),
+    'utf8'
+  );
+  const midiMixerSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/MidiChannelMixer.tsx'),
+    'utf8'
+  );
+  const audioGraphSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
+    'utf8'
+  );
+  const queueListSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/QueueList.tsx'),
+    'utf8'
+  );
+  // Studio UX polish (theme-only): menu IA + deck order + downloads portal.
+  assert(
+    !studioShellSrc.includes("id: 'queue'") && !studioShellSrc.includes("id: 'dsp'"),
+    'Studio menu omits Coda and DSP nav ids'
+  );
+  assert(
+    studioShellSrc.includes("data-testid=\"studio-stage-reopen\"") &&
+      studioShellSrc.includes('studio.navSettings') &&
+      studioShellSrc.includes('bg-emerald-950/40') &&
+      studioShellSrc.includes('bg-red-950/40'),
+    'Studio Stage reopen uses classic green/red status pill'
+  );
+  assert(
+    studioShellSrc.includes('createPortal') &&
+      studioShellSrc.includes('studio-downloads-menu'),
+    'Studio Download submenu uses body portal (no overflow clip)'
+  );
+  assert(
+    studioShellSrc.includes('onOpenWebSearch') &&
+      studioShellSrc.includes('onOpenLocalLibrary'),
+    'Studio Libreria→Locale and Ricerca→Web wired'
+  );
+  assert(
+    !studioShellSrc.includes('studio-midi-mixer-toggle'),
+    'Studio shell no longer hosts separate full-width MIDI toggle'
+  );
+  assert(
+    !studioDeckSrc.includes('onReopenStage') && !studioDeckSrc.includes('stageOpen'),
+    'Studio deck no longer hosts Stage reopen'
+  );
+  assert(
+    studioDeckSrc.includes('studio-midi-mixer-toggle') &&
+      studioDeckSrc.includes('disabled={!midiEnabled}') &&
+      studioDeckSrc.includes('MIDI/KAR'),
+    'Studio deck always shows MIDI toggle (disabled when not MIDI/KAR)'
+  );
+  assert(
+    studioDeckSrc.includes('flex items-center gap-1.5') &&
+      studioDeckSrc.indexOf('player.speed') > studioDeckSrc.indexOf('onPlayPause'),
+    'Studio deck: inline speed/pitch/volume labels beside controls'
+  );
+  assert(
+    studioDeckSrc.includes('gap-x-3') &&
+      studioDeckSrc.includes('studio-dsp-panel') &&
+      studioDeckSrc.includes('studio-volume-row') &&
+      studioDeckSrc.includes('studio-volume-slider') &&
+      studioDeckSrc.includes('grid-cols-[auto_auto_minmax(7rem,1fr)]') &&
+      studioDeckSrc.includes('flex-nowrap') &&
+      !studioDeckSrc.includes('w-[9.5rem]') &&
+      !studioDeckSrc.includes('flex-col gap-y-1.5'),
+    'Studio deck: single-row DSP grid; volume fills remainder (no wrap)'
+  );
+  assert(
+    controlSrc.includes('setShowStudioMidiMixer(true)') &&
+      controlSrc.includes('studioMidiTrackKey') &&
+      controlSrc.includes('playback.isPlaying'),
+    'Studio: MIDI mixer opens by default when MIDI/KAR starts playing'
+  );
+  const libraryPanelSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  assert(
+    libraryPanelSrc.includes('estimateStudioLibraryRowStride') &&
+      libraryPanelSrc.includes('library-row-actions') &&
+      libraryPanelSrc.includes('data-studio-library-row') &&
+      libraryPanelSrc.includes('mt-3') &&
+      libraryPanelSrc.includes('py-3') &&
+      libraryPanelSrc.includes('items-center') &&
+      libraryPanelSrc.includes('computeVirtualWindowVariable') &&
+      !libraryPanelSrc.includes('minHeight:') &&
+      libraryPanelSrc.includes('overflow-visible'),
+    'Studio library rows: equal py-3 insets, actions under title, content-sized'
+  );
+  const virtSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/utils/listVirtualization.ts'),
+    'utf8'
+  );
+  assert(
+    virtSrc.includes('computeVirtualWindowVariable'),
+    'Variable-height virtual window helper for Studio library cards'
+  );
+  assert(
+    controlSrc.includes("isStudioDesk ? 'max-h-[40vh]'") ||
+      controlSrc.includes('max-h-[40vh]'),
+    'Studio now-playing video enlarged (max-h 40vh)'
+  );
+  assert(
+    controlSrc.includes('{!isStudioDesk && (') &&
+      controlSrc.includes("t('player.nowPlaying')"),
+    'Studio omits In Riproduzione header; classic keeps it'
+  );
+  assert(
+    studioShellSrc.includes('mt-3.5') && studioShellSrc.includes('studio-stage-reopen'),
+    'Studio Stage button has extra gap before footer separator'
+  );
+  assert(
+    studioDeckSrc.indexOf('onPlayPause') < studioDeckSrc.indexOf('player.speed') ||
+      studioDeckSrc.indexOf('studio-player-deck') < studioDeckSrc.indexOf('regia-bpm-label'),
+    'Studio deck: transport left of pitch/speed/volume'
+  );
+  assert(
+    controlSrc.includes('webSearchNonce') || controlSrc.includes('studioWebSearchNonce'),
+    'ControlWindow bumps webSearchNonce for Studio Ricerca'
+  );
+  assert(
+    controlSrc.includes('localSearchNonce') || controlSrc.includes('studioLocalSearchNonce'),
+    'ControlWindow bumps localSearchNonce for Studio Libreria'
+  );
+  assert(
+    controlSrc.includes('PlayerDeckControls'),
+    'Classic PlayerDeckControls path retained'
+  );
+  assert(
+    preloadSrc.includes('relaunchApp') && mainSrc.includes('system:relaunch-app'),
+    'Theme change relaunch IPC (system:relaunch-app) present'
+  );
+  assert(
+    settingsGeneralSrc.includes('relaunchApp') &&
+      settingsGeneralSrc.includes('themeRestartNote'),
+    'Settings General relaunches on themeHost change'
+  );
+  assert(
+    midiMixerSrc.includes('studioColumn') &&
+      midiMixerSrc.includes('midi-mixer-studio-column'),
+    'MidiChannelMixer studioColumn lays out SoundFont under header'
+  );
+  assert(
+    midiMixerSrc.includes('getChannelActivity') &&
+      midiMixerSrc.includes('midi-channel-activity-') &&
+      audioGraphSrc.includes('getMidiChannelLevels') &&
+      audioGraphSrc.includes('bumpMidiChannelActivity'),
+    'Studio MIDI mixer shows per-channel note-on activity meters'
+  );
+  assert(
+    queueListSrc.includes('studio-queue-scroll') &&
+      queueListSrc.includes('queue-scroll-region'),
+    'QueueList exposes Studio scrollbar region'
+  );
+
   for (const lang of ['it', 'en', 'es', 'fr']) {
     const loc = JSON.parse(
       fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
@@ -4386,12 +4555,35 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     assert(loc.settings?.themeOptions?.['studio-desk'], `${lang}: themeOptions.studio-desk`);
     assert(loc.studio?.showMidiMixer, `${lang}: studio.showMidiMixer`);
     assert(loc.studio?.hideMidiMixer, `${lang}: studio.hideMidiMixer`);
+    assert(loc.studio?.navSettings, `${lang}: studio.navSettings short label`);
+    assert(loc.settings?.themeRestartNote, `${lang}: settings.themeRestartNote`);
+    assert(loc.midi?.channelActivity, `${lang}: midi.channelActivity`);
   }
 
   assert(
-    storeSrc.includes("themeHost: 'dark-stage'"),
-    'Default themeHost remains dark-stage'
+    storeSrc.includes("themeHost: 'studio-desk'"),
+    'Default themeHost is studio-desk'
   );
+  assert(
+    settingsTypesSrc.indexOf("id: 'studio-desk'") <
+      settingsTypesSrc.indexOf("id: 'dark-stage'"),
+    'THEME_OPTIONS lists studio-desk first'
+  );
+  for (const lang of ['it', 'en', 'es', 'fr']) {
+    const loc = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+    );
+    const opts = loc.settings?.themeOptions || {};
+    const keys = Object.keys(opts);
+    assert(keys[0] === 'studio-desk', `${lang}: studio-desk first in themeOptions`);
+    for (const [id, label] of Object.entries(opts)) {
+      if (id === 'studio-desk') continue;
+      assert(
+        typeof label === 'string' && label.includes('Legacy'),
+        `${lang}: themeOptions.${id} display name includes Legacy`
+      );
+    }
+  }
 }
 
 // -------------------------------------------------------------

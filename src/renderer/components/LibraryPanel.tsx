@@ -30,16 +30,7 @@ import { useKaraokeStore } from '../store/karaokeStore';
 import { useScopedLibrarySearch } from '../hooks/useScopedLibrarySearch';
 import { VideoPreviewModal, extractVersionTags } from './VideoPreviewModal';
 import { InstrumentalSubtitlesModal } from './InstrumentalSubtitlesModal';
-import {
-  dataTransferHasFiles,
-  dispatchOsFileDragEnd,
-  OS_FILE_DRAG_END_EVENT,
-  resolveDroppedAbsolutePaths
-} from '../utils/fsDragDrop';
-import {
-  createMissingTrackResolver,
-  reconcileMissingTrackFlags
-} from '../utils/reconcileMissingTracks';
+import { dataTransferHasFiles, resolveDroppedAbsolutePaths, dispatchOsFileDragEnd, OS_FILE_DRAG_END_EVENT } from '../utils/fsDragDrop';
 import {
   checkTrackLocalFileExists,
   trackNeedsLocalFileCheck
@@ -49,7 +40,11 @@ import {
   findTrackRevealIndex,
   type LibraryRevealRequest
 } from '../utils/libraryReveal';
-import { computeVirtualWindow } from '../utils/listVirtualization';
+import {
+  createMissingTrackResolver,
+  reconcileMissingTrackFlags
+} from '../utils/reconcileMissingTracks';
+import { computeVirtualWindow, computeVirtualWindowVariable } from '../utils/listVirtualization';
 import { TrackKeyBpmBadges } from './TrackKeyBpmBadges';
 
 function logLibrary(level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown): void {
@@ -62,6 +57,26 @@ function logLibrary(level: 'debug' | 'info' | 'warn' | 'error', message: string,
 
 /** Approx row height incl. vertical gap — keep in sync with list row padding. */
 const LIBRARY_ROW_HEIGHT = 96;
+/** Bottom margin between Studio library cards (px). */
+const STUDIO_LIBRARY_ROW_GAP = 8;
+
+/**
+ * Studio Desk card stride for virtualization only (scroll math).
+ * Visual cards are content-sized with equal `py-3` — do NOT set minHeight from this.
+ */
+function estimateStudioLibraryRowStride(track: KaraokeMediaTrack): number {
+  const tags = extractVersionTags(track);
+  // py-3×2=24; title 1–2 lines; meta (+ wrap); tags; mt-3; actions; gap
+  let content = 24;
+  const titleLines = 1 + Math.min(1, Math.floor(Math.max(0, track.title.length - 40) / 36));
+  content += 18 * titleLines;
+  content += 20; // artist
+  content += 22; // chips (may wrap)
+  if (tags.length > 0) content += 20;
+  content += 12; // mt-3 before actions
+  content += 40; // action row
+  return Math.max(148, content) + STUDIO_LIBRARY_ROW_GAP;
+}
 
 /** Intent to enqueue only after YouTube download + auto-archive succeed. */
 type PendingArchiveEnqueue = {
@@ -76,6 +91,21 @@ interface LibraryPanelProps {
   activeCueUri?: string;
   /** Optional ref for Ctrl+F focus from ControlWindow shortcuts */
   searchInputRef?: React.RefObject<HTMLInputElement>;
+  /**
+   * Studio Desk «Ricerca»: when this nonce increments, switch to Web/YouTube mode.
+   * Classic Regia never passes this — Locale|Web toggle stays operator-driven.
+   */
+  webSearchNonce?: number;
+  /**
+   * Studio Desk «Libreria»: when this nonce increments, switch to Locale mode
+   * (mirror of webSearchNonce for Ricerca → Web).
+   */
+  localSearchNonce?: number;
+  /**
+   * When true, drop outer card chrome (Studio column already provides the card).
+   * Classic Regia omits this — default bordered panel unchanged.
+   */
+  embedded?: boolean;
 }
 
 /**
@@ -97,7 +127,15 @@ interface LibraryPanelProps {
  *    - Drop media files onto the panel to catalog them (mp4/webm/mkv/avi, mp3+cdg, mid/kar)
  *      via library.importFiles; overlay only when dataTransfer.types includes Files.
  */
-export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCue, onStopCue: _onStopCue, activeCueUri: _activeCueUri, searchInputRef }) => {
+export const LibraryPanel: React.FC<LibraryPanelProps> = ({
+  onPlayCue: _onPlayCue,
+  onStopCue: _onStopCue,
+  activeCueUri: _activeCueUri,
+  searchInputRef,
+  webSearchNonce,
+  localSearchNonce,
+  embedded = false
+}) => {
   const { t } = useTranslation();
   const {
     searchMode,
@@ -118,6 +156,19 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     localQuery,
     webQuery
   } = useScopedLibrarySearch();
+
+  // Studio Desk «Ricerca» menu: open directly on Web/YouTube (not Locale).
+  useEffect(() => {
+    if (webSearchNonce == null || webSearchNonce <= 0) return;
+    setSearchMode('web');
+  }, [webSearchNonce, setSearchMode]);
+
+  // Studio Desk «Libreria» menu: open directly on Locale (mirror of Ricerca → Web).
+  useEffect(() => {
+    if (localSearchNonce == null || localSearchNonce <= 0) return;
+    setSearchMode('local');
+  }, [localSearchNonce, setSearchMode]);
+
   const [isScanning, setIsScanning] = useState(false);
   /** OS file drag overlay — only when dataTransfer.types includes Files. */
   const [fileDropActive, setFileDropActive] = useState(false);
@@ -172,6 +223,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   const [pendingReveal, setPendingReveal] = useState<LibraryRevealRequest | null>(null);
   const [highlightedTrackId, setHighlightedTrackId] = useState<string | null>(null);
   const highlightClearTimerRef = useRef<number | null>(null);
+  const revealGenRef = useRef(0);
 
   const settings = useKaraokeStore((state) => state.settings);
   const updateSettings = useKaraokeStore((state) => state.updateSettings);
@@ -650,10 +702,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     };
   }, [localQuery, localTracks, searchMode, setLocalResults]);
 
-  /**
-   * After Aggiorna Libreria / rescan: re-probe sticky missing flags and clear
-   * false positives when files are back on disk (USB remount, moved file returned).
-   */
+
   const reconcileMissingAfterRefresh = async (seedTracks: KaraokeMediaTrack[]) => {
     const ids = useKaraokeStore.getState().missingTrackIds;
     if (!ids.length) return;
@@ -752,9 +801,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       showToast(t('library.importFailed'), 'error');
     } finally {
       setIsImportingDrop(false);
-      fileDropDepthRef.current = 0;
       setFileDropActive(false);
-      dispatchOsFileDragEnd();
     }
   };
 
@@ -864,7 +911,6 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   // Windowed rendering for 16k+ local catalogs — only mount visible rows
   const [listScrollTop, setListScrollTop] = useState(0);
   const [listViewportH, setListViewportH] = useState(480);
-  const revealGenRef = useRef(0);
 
   /**
    * Pick up queue→library reveal requests: switch to Locale, seed Local search,
@@ -995,13 +1041,26 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     return () => ro.disconnect();
   }, [resultsListRef, displayedTracks.length, searchMode]);
 
-  const virtWindow = computeVirtualWindow(
-    listScrollTop,
-    listViewportH,
-    displayedTracks.length,
-    LIBRARY_ROW_HEIGHT,
-    8
-  );
+  const libraryRowHeight = LIBRARY_ROW_HEIGHT;
+  const studioRowStrides = useMemo(() => {
+    if (!embedded) return null;
+    return displayedTracks.map((t) => estimateStudioLibraryRowStride(t));
+  }, [embedded, displayedTracks]);
+
+  const virtWindow = embedded && studioRowStrides
+    ? computeVirtualWindowVariable(
+        listScrollTop,
+        listViewportH,
+        studioRowStrides,
+        8
+      )
+    : computeVirtualWindow(
+        listScrollTop,
+        listViewportH,
+        displayedTracks.length,
+        libraryRowHeight,
+        8
+      );
   const virtualizedTracks = displayedTracks.slice(virtWindow.startIndex, virtWindow.endIndex);
 
   const handleListScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
@@ -1014,7 +1073,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       !localQuery.trim() &&
       localHasMore &&
       !localLoadingMore &&
-      el.scrollHeight - el.scrollTop - el.clientHeight < LIBRARY_ROW_HEIGHT * 12
+      el.scrollHeight - el.scrollTop - el.clientHeight < libraryRowHeight * 12
     ) {
       void loadMoreLocalTracks();
     }
@@ -1252,7 +1311,11 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
 
   return (
     <div
-      className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 md:p-5 shadow-2xl backdrop-blur-xl flex flex-col h-full min-h-0 overflow-hidden relative"
+      className={
+        embedded
+          ? 'flex flex-col h-full min-h-0 overflow-hidden relative p-3'
+          : 'bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 md:p-5 shadow-2xl backdrop-blur-xl flex flex-col h-full min-h-0 overflow-hidden relative'
+      }
       data-testid="library-panel-drop-zone"
       onDragEnter={(e) => {
         if (!dataTransferHasFiles(e.dataTransfer)) return;
@@ -1424,151 +1487,59 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
             const isMissing = missingTrackIdSet.has(track.id);
             const isRevealHighlight = highlightedTrackId === track.id;
 
-            return (
+            const trackActions = (
               <div
-                key={track.id}
-                style={{ height: LIBRARY_ROW_HEIGHT - 8, marginBottom: 8 }}
-                className={`p-2.5 sm:p-3 border rounded-2xl flex items-center justify-between gap-3 transition-all group/item box-border overflow-hidden ${
-                  isRevealHighlight
-                    ? 'bg-indigo-950/50 border-indigo-400/80 ring-2 ring-indigo-400/60'
-                    : isMissing
-                      ? 'bg-rose-950/40 border-rose-500/70 hover:bg-rose-950/55'
-                      : 'bg-slate-950/40 hover:bg-slate-950/80 border-slate-800/60 hover:border-slate-700/80'
+                className={`flex items-center gap-1.5 sm:gap-2 flex-wrap ${
+                  embedded ? 'mt-3 shrink-0' : 'shrink-0'
                 }`}
-                data-missing-file={isMissing ? 'true' : undefined}
-                data-library-reveal-highlight={isRevealHighlight ? 'true' : undefined}
-                data-testid={isRevealHighlight ? 'library-row-highlighted' : undefined}
+                data-testid={embedded ? 'library-row-actions' : undefined}
               >
-                <div className="flex items-center gap-3 overflow-hidden min-w-0">
-                  {/* 16:9 Video / Media Preview Thumbnail */}
-                  <div
-                    onClick={() => setPreviewTrack(track)}
-                    className={`w-20 sm:w-24 aspect-video rounded-xl bg-slate-950 overflow-hidden relative group/thumb shrink-0 cursor-pointer shadow-sm transition-all flex items-center justify-center ${
-                      isMissing
-                        ? 'border border-rose-500/70'
-                        : 'border border-slate-800/80 hover:border-indigo-500/80'
-                    }`}
-                    title={t('library.previewVideo')}
-                  >
-                    {track.thumbnailUrl ? (
-                      <img
-                        src={track.thumbnailUrl}
-                        alt={track.title}
-                        className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-200"
-                        loading="lazy"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLElement).style.display = 'none';
-                        }}
-                      />
-                    ) : track.source === 'midi' ? (
-                      <div className="w-full h-full bg-gradient-to-br from-indigo-950 to-slate-900 flex flex-col items-center justify-center text-indigo-400">
-                        <Music className="w-4 h-4 mb-0.5" />
-                        <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-indigo-300">MIDI</span>
-                      </div>
-                    ) : (
-                      <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center text-slate-500">
-                        <Film className="w-4 h-4 mb-0.5" />
-                        <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-slate-400">VIDEO</span>
-                      </div>
-                    )}
+                {/* Video Preview Button */}
+                <button
+                  type="button"
+                  onClick={() => setPreviewTrack(track)}
+                  className="p-2 bg-slate-800/80 hover:bg-slate-700 text-indigo-300 hover:text-white border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
+                  title={t('library.previewVideo')}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                </button>
 
-                    {/* Hover Play/Preview Overlay */}
-                    <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
-                      <div className="p-1.5 rounded-full bg-indigo-600/90 text-white shadow-md">
-                        <Play className="w-3 h-3 fill-white ml-0.5" />
-                      </div>
-                    </div>
-                  </div>
+                {/* Pre-Ascolto — opens themed preview modal only (CUE routing inside modal) */}
+                <button
+                  type="button"
+                  onClick={() => setPreviewTrack(track)}
+                  className="p-2 bg-slate-800/80 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
+                  title={t('player.cue')}
+                >
+                  <Headphones className="w-3.5 h-3.5" />
+                </button>
 
-                  {/* Track Metadata & Version Chips */}
-                  <div className="truncate min-w-0">
-                    <div
-                      onClick={() => setPreviewTrack(track)}
-                      className={`font-semibold text-xs transition-colors truncate cursor-pointer flex items-center gap-1.5 ${
-                        isMissing ? 'text-rose-200 hover:text-rose-100' : 'text-slate-200 hover:text-indigo-300'
-                      }`}
-                      title={track.title}
+                {track.source === 'youtube' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleStartDownload(track)}
+                      className="p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
+                      title={t('library.download')}
                     >
-                      <span className="truncate">{track.title}</span>
-                      {isMissing && (
-                        <span
-                          className="inline-flex items-center gap-0.5 text-rose-400 shrink-0"
-                          title={t('errors.missingFileTooltip')}
-                        >
-                          <FileX className="w-3.5 h-3.5" />
-                          <AlertCircle className="w-3 h-3 opacity-80" />
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-1.5 mt-0.5 min-w-0">
-                      <span className="truncate min-w-0 max-w-full">{track.artist}</span>
-                      <TrackKeyBpmBadges
-                        initialKey={track.initialKey}
-                        initialBpm={track.initialBpm}
-                      />
-                      <span className="text-slate-600">•</span>
-                      <span className="uppercase text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-slate-800/80 text-indigo-300 border border-slate-700/50 shrink-0">
-                        {track.source === 'local_library' ? 'locale' : track.source}
-                      </span>
-                      {versionTags.map((vTag) => (
-                        <span
-                          key={vTag}
-                          className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full bg-cyan-950/70 text-cyan-300 border border-cyan-800/60 shadow-sm shrink-0"
-                        >
-                          {vTag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                  {/* Video Preview Button */}
-                  <button
-                    type="button"
-                    onClick={() => setPreviewTrack(track)}
-                    className="p-2 bg-slate-800/80 hover:bg-slate-700 text-indigo-300 hover:text-white border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
-                    title={t('library.previewVideo')}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                  </button>
-
-                  {/* Pre-Ascolto — opens themed preview modal only (CUE routing inside modal) */}
-                  <button
-                    type="button"
-                    onClick={() => setPreviewTrack(track)}
-                    className="p-2 bg-slate-800/80 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
-                    title={t('player.cue')}
-                  >
-                    <Headphones className="w-3.5 h-3.5" />
-                  </button>
-
-                  {track.source === 'youtube' && (
-                    <>
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                    {isInstrumentalDownloadEligibleTitle(track.title) && (
                       <button
                         type="button"
-                        onClick={() => handleStartDownload(track)}
-                        className="p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
-                        title={t('library.download')}
+                        onClick={() => handleInstrumentalDownloadClick(track)}
+                        className="p-2 bg-slate-800/80 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
+                        title={t('library.downloadInstrumental')}
+                        data-testid="download-instrumental-btn"
                       >
-                        <Download className="w-3.5 h-3.5" />
+                        <Music className="w-3.5 h-3.5" />
                       </button>
-                      {isInstrumentalDownloadEligibleTitle(track.title) && (
-                        <button
-                          type="button"
-                          onClick={() => handleInstrumentalDownloadClick(track)}
-                          className="p-2 bg-slate-800/80 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border border-slate-700/80 rounded-full text-xs flex items-center gap-1 transition-all"
-                          title={t('library.downloadInstrumental')}
-                          data-testid="download-instrumental-btn"
-                        >
-                          <Music className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </>
-                  )}
+                    )}
+                  </>
+                )}
 
-
-                  {(track.source === 'local_library' || track.source === 'midi') && track.localFilePath && (
+                {(track.source === 'local_library' || track.source === 'midi') &&
+                  track.localFilePath && (
                     <button
                       type="button"
                       onClick={() => setTrackPendingDelete(track)}
@@ -1579,35 +1550,174 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      // Pre-check before opening singer modal — same gate as executeAddToQueue
-                      if (trackNeedsLocalFileCheck(track)) {
-                        const check = await checkTrackLocalFileExists(track);
-                        if (!check.exists) {
-                          markTrackMissing(track.id);
-                          showMissingFileModal({
-                            filePath: check.path,
-                            trackTitle: track.title,
-                            trackArtist: track.artist,
-                            trackId: track.id,
-                            context: 'library'
-                          });
-                          return;
-                        }
-                        clearTrackMissing(track.id);
+                <button
+                  type="button"
+                  onClick={async () => {
+                    // Pre-check before opening singer modal — same gate as executeAddToQueue
+                    if (trackNeedsLocalFileCheck(track)) {
+                      const check = await checkTrackLocalFileExists(track);
+                      if (!check.exists) {
+                        markTrackMissing(track.id);
+                        showMissingFileModal({
+                          filePath: check.path,
+                          trackTitle: track.title,
+                          trackArtist: track.artist,
+                          trackId: track.id,
+                          context: 'library'
+                        });
+                        return;
                       }
-                      useKaraokeStore.getState().loadSingersFromDb();
-                      setModalSingerInput('');
-                      setPlacementMode('auto');
-                      setPendingTrackForQueue(track);
+                      clearTrackMissing(track.id);
+                    }
+                    useKaraokeStore.getState().loadSingersFromDb();
+                    setModalSingerInput('');
+                    setPlacementMode('auto');
+                    setPendingTrackForQueue(track);
+                  }}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/25 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" /> {t('queue.addToQueue')}
+                </button>
+              </div>
+            );
+
+            const thumb = (
+              <div
+                onClick={() => setPreviewTrack(track)}
+                className={`w-20 sm:w-24 aspect-video rounded-xl bg-slate-950 overflow-hidden relative group/thumb shrink-0 cursor-pointer shadow-sm transition-all flex items-center justify-center ${
+                  isMissing
+                    ? 'border border-rose-500/70'
+                    : 'border border-slate-800/80 hover:border-indigo-500/80'
+                }`}
+                title={t('library.previewVideo')}
+              >
+                {track.thumbnailUrl ? (
+                  <img
+                    src={track.thumbnailUrl}
+                    alt={track.title}
+                    className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-200"
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = 'none';
                     }}
-                    className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/25 transition-all"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> {t('queue.addToQueue')}
-                  </button>
+                  />
+                ) : track.source === 'midi' ? (
+                  <div className="w-full h-full bg-gradient-to-br from-indigo-950 to-slate-900 flex flex-col items-center justify-center text-indigo-400">
+                    <Music className="w-4 h-4 mb-0.5" />
+                    <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-indigo-300">
+                      MIDI
+                    </span>
+                  </div>
+                ) : (
+                  <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center text-slate-500">
+                    <Film className="w-4 h-4 mb-0.5" />
+                    <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                      VIDEO
+                    </span>
+                  </div>
+                )}
+
+                <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
+                  <div className="p-1.5 rounded-full bg-indigo-600/90 text-white shadow-md">
+                    <Play className="w-3 h-3 fill-white ml-0.5" />
+                  </div>
                 </div>
+              </div>
+            );
+
+            const trackMeta = (
+              <>
+                <div
+                  onClick={() => setPreviewTrack(track)}
+                  className={`font-semibold text-xs transition-colors cursor-pointer flex items-start gap-1.5 min-w-0 w-full ${
+                    embedded ? 'whitespace-normal break-words' : 'truncate'
+                  } ${
+                    isMissing
+                      ? 'text-rose-200 hover:text-rose-100'
+                      : 'text-slate-200 hover:text-indigo-300'
+                  }`}
+                  title={track.title}
+                >
+                  <span className={embedded ? 'min-w-0 flex-1' : 'truncate'}>{track.title}</span>
+                  {isMissing && (
+                    <span
+                      className="inline-flex items-center gap-0.5 text-rose-400 shrink-0"
+                      title={t('errors.missingFileTooltip')}
+                    >
+                      <FileX className="w-3.5 h-3.5" />
+                      <AlertCircle className="w-3 h-3 opacity-80" />
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-1.5 mt-0.5 min-w-0">
+                  <span className="truncate min-w-0 max-w-full">{track.artist}</span>
+                  <TrackKeyBpmBadges
+                    initialKey={track.initialKey}
+                    initialBpm={track.initialBpm}
+                  />
+                  <span className="text-slate-600">•</span>
+                  <span className="uppercase text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-slate-800/80 text-indigo-300 border border-slate-700/50 shrink-0">
+                    {track.source === 'local_library' ? 'locale' : track.source}
+                  </span>
+                  {versionTags.map((vTag) => (
+                    <span
+                      key={vTag}
+                      className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full bg-cyan-950/70 text-cyan-300 border border-cyan-800/60 shadow-sm shrink-0"
+                    >
+                      {vTag}
+                    </span>
+                  ))}
+                </div>
+              </>
+            );
+
+            return (
+              <div
+                key={track.id}
+                style={
+                  embedded
+                    ? {
+                        // Content-sized: equal py-* keeps top inset == bottom inset
+                        // (no minHeight — that left extra gap under 1-line titles).
+                        marginBottom: STUDIO_LIBRARY_ROW_GAP
+                      }
+                    : { height: LIBRARY_ROW_HEIGHT - 8, marginBottom: 8 }
+                }
+                className={`border rounded-2xl flex gap-3 transition-all group/item box-border ${
+                  embedded
+                    ? // Equal py-3; items-center keeps inset above title == below actions
+                      // when the thumb is taller than a 1-line content column.
+                      'items-center overflow-visible py-3 px-2.5 sm:px-3'
+                    : 'p-2.5 sm:p-3 items-center justify-between overflow-hidden'
+                } ${
+                  isRevealHighlight
+                    ? 'bg-indigo-950/50 border-indigo-400/80 ring-2 ring-indigo-400/60'
+                    : isMissing
+                      ? 'bg-rose-950/40 border-rose-500/70 hover:bg-rose-950/55'
+                      : 'bg-slate-950/40 hover:bg-slate-950/80 border-slate-800/60 hover:border-slate-700/80'
+                }`}
+                data-missing-file={isMissing ? 'true' : undefined}
+                data-library-reveal-highlight={isRevealHighlight ? 'true' : undefined}
+                data-testid={isRevealHighlight ? 'library-row-highlighted' : undefined}
+                data-studio-library-row={embedded ? 'true' : undefined}
+              >
+                {embedded ? (
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {thumb}
+                    <div className="min-w-0 flex-1 flex flex-col justify-center">
+                      {trackMeta}
+                      {trackActions}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3 overflow-hidden min-w-0">
+                      {thumb}
+                      <div className="truncate min-w-0">{trackMeta}</div>
+                    </div>
+                    {trackActions}
+                  </>
+                )}
               </div>
             );
           })}

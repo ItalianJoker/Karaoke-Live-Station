@@ -15,6 +15,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - **EN:** **Show in Local Library** control on each Queue row: opens Library (Local mode), searches/scrolls and highlights the matching track (id / path). Missing file → existing modal. Shared classic Regia + Studio Desk (`QueueList`).
 
 ### Changed
+- **IT:** Tema **Studio Desk** — polish UX (#77) + **default Regia** `studio-desk` (primo in picker; altri temi etichettati « (Legacy)»); meter MIDI note-on; card libreria `py-3`. Id temi invariati. Persistenza: chi ha già un altro `themeHost` lo conserva. (PR #77)
+- **EN:** **Studio Desk** theme UX polish (#77) + **default Control Room** `studio-desk` (first in picker; other themes labeled « (Legacy)»); MIDI note-on meters; library card `py-3`. Theme ids unchanged. Persistence: existing saved `themeHost` kept. (PR #77)
 - **IT/EN:** All’apertura/riapertura lo Stage viene posizionato sul monitor esterno (TV/proiettore) in fullscreen quando disponibile; con un solo display resta in finestra centrata (non copre la Regia).
 - **IT/EN:** Stage floating badges use parentheses Key/BPM form (Luca Stage formatting).
 

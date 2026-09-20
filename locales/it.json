@@ -36,7 +36,8 @@
     "bassTrack": "Basso (Ch 2)",
     "drumsTrack": "Batteria (Ch 10)",
     "soundfontLoaded": "SoundFont: {{path}}",
-    "noSoundfontSelected": "Nessun SoundFont (.sf2) configurato"
+    "noSoundfontSelected": "Nessun SoundFont (.sf2) configurato",
+    "channelActivity": "Attività canale {{num}}"
   },
   "queue": {
     "title": "Coda Cantanti",
@@ -334,17 +335,18 @@
     "dspEngineSignalsmith": "Signalsmith Stretch (Hi-Fi predefinito) — ±8 ST, pitch+speed",
     "dspEngineSignalsmithBlurb": "Signalsmith Stretch (MIT) AudioWorklet. Consigliato ±8 ST (fino a ±12). Tempo via elemento media (preservesPitch). Fallback automatico a SoundTouch se scatta il watchdog di mute — i limiti pitch/speed passano a SoundTouch (±4 ST, 0.75–1.25×).",
     "themeOptions": {
-      "dark-stage": "Dark Stage (Predefinito)",
-      "midnight-neon": "Midnight Neon (Cyberpunk)",
-      "club-gold": "Club Gold (VIP Lounge)",
-      "ocean-breeze": "Ocean Breeze (Deep Cyan)",
-      "sunset-crimson": "Sunset Crimson (Warm Red)",
-      "emerald-matrix": "Emerald Matrix (Live Green)",
-      "royal-amethyst": "Royal Amethyst (Deep Purple)",
-      "high-contrast": "High Contrast (Accessibile)",
-      "light": "Light Studio (Clean)",
-      "studio-desk": "Studio Desk (Layout Regia)"
-    }
+      "studio-desk": "Studio Desk (Layout Regia)",
+      "dark-stage": "Dark Stage (Legacy)",
+      "midnight-neon": "Midnight Neon (Cyberpunk) (Legacy)",
+      "club-gold": "Club Gold (VIP Lounge) (Legacy)",
+      "ocean-breeze": "Ocean Breeze (Deep Cyan) (Legacy)",
+      "sunset-crimson": "Sunset Crimson (Warm Red) (Legacy)",
+      "emerald-matrix": "Emerald Matrix (Live Green) (Legacy)",
+      "royal-amethyst": "Royal Amethyst (Deep Purple) (Legacy)",
+      "high-contrast": "High Contrast (Accessibile) (Legacy)",
+      "light": "Light Studio (Clean) (Legacy)"
+    },
+    "themeRestartNote": "Cambiando il tema Regia l'app si riavvia per applicare correttamente il layout."
   },
   "history": {
     "title": "Storico Esecuzioni",
@@ -442,10 +444,14 @@
     "navDownloads": "Download",
     "navQrGuest": "QR Guest",
     "navShortcuts": "Scorciatoie",
+    "navSettings": "Impostazioni",
     "navDsp": "DSP",
     "showMidiMixer": "Mostra mixer MIDI",
     "hideMidiMixer": "Nascondi mixer MIDI",
     "vocalShort": "Rimuovi voce guida",
-    "bgmShort": "BGM"
+    "bgmShort": "BGM",
+    "midiMixerShortShow": "MIDI",
+    "midiMixerShortHide": "MIDI",
+    "midiMixerDisabled": "Mixer MIDI (solo tracce MIDI/KAR)"
   }
 }

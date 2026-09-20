@@ -120,6 +120,13 @@ export class AudioGraphManager {
   private fallbackIntervalId: number | null = null;
   private activeMidiNotes: Map<number, number> = new Map();
   private activeVoices: ActiveMidiVoice[] = [];
+  /**
+   * Per-channel live activity (0–1) from note-on velocity + decay.
+   * SpessaSynth has no true VU API — this is scheduler note activity, not waveform RMS.
+   */
+  private midiChannelLevels: Float32Array = new Float32Array(16);
+  /** Scratch copy returned by {@link getMidiChannelLevels} (avoid allocating every poll). */
+  private midiChannelLevelsOut: Float32Array = new Float32Array(16);
   /** Pending note-release timers — cleared on dispose so they cannot mutate a torn-down graph. */
   private voiceReleaseTimeouts: ReturnType<typeof setTimeout>[] = [];
   private soundFontBuffer: ArrayBuffer | null = null;
@@ -1118,6 +1125,8 @@ export class AudioGraphManager {
         } catch {
           // Ignore controller errors
         }
+        // Muted channels show no activity in the Studio mixer meters.
+        this.midiChannelLevels[ch] = 0;
       }
     }
 
@@ -1131,6 +1140,36 @@ export class AudioGraphManager {
         }
       }
       this.activeVoices = this.activeVoices.filter((v) => !this.mutedChannels.has(v.channel));
+    }
+  }
+
+  /**
+   * Snapshot of per-channel MIDI activity levels (0–1) for Studio Desk meters.
+   * Derived from note-on velocity peaks with exponential decay on the 5 ms scheduler —
+   * not a true audio VU (SpessaSynth exposes no per-channel output meter).
+   */
+  public getMidiChannelLevels(): Float32Array {
+    this.midiChannelLevelsOut.set(this.midiChannelLevels);
+    return this.midiChannelLevelsOut;
+  }
+
+  private bumpMidiChannelActivity(channel: number, velocity: number): void {
+    if (channel < 0 || channel > 15) return;
+    const peak = Math.max(0, Math.min(1, velocity / 127));
+    if (peak > this.midiChannelLevels[channel]) {
+      this.midiChannelLevels[channel] = peak;
+    }
+  }
+
+  private decayMidiChannelLevels(): void {
+    // ~5 ms tick → ~85 ms half-life feels responsive for a compact activity bar.
+    for (let i = 0; i < 16; i++) {
+      const v = this.midiChannelLevels[i];
+      if (v < 0.02) {
+        this.midiChannelLevels[i] = 0;
+      } else {
+        this.midiChannelLevels[i] = v * 0.88;
+      }
     }
   }
 
@@ -1150,6 +1189,16 @@ export class AudioGraphManager {
       this.executeMidiEvent(ev);
       this.midiEventIndex++;
     }
+
+    // Decay channel activity meters after note processing (Studio Desk VU).
+    // Hold a floor while notes are still active so sustained parts stay visible.
+    for (const key of this.activeMidiNotes.keys()) {
+      const ch = key >> 8;
+      if (ch >= 0 && ch < 16 && !this.mutedChannels.has(ch)) {
+        this.midiChannelLevels[ch] = Math.max(this.midiChannelLevels[ch], 0.4);
+      }
+    }
+    this.decayMidiChannelLevels();
 
     // 2. Process Synchronized Lyrics
     if (this.onLyricCallback && this.midiSong.lyrics.length > 0) {
@@ -1198,6 +1247,7 @@ export class AudioGraphManager {
           // Skip noteOn if channel is muted
           if (this.mutedChannels.has(event.channel)) return;
           this.activeMidiNotes.set((event.channel << 8) | note, effectiveNote);
+          this.bumpMidiChannelActivity(event.channel, event.velocity);
           this.workletSynth.noteOn(event.channel, effectiveNote, event.velocity);
         } else if (event.type === 'noteOff' && event.note !== undefined) {
           const soundedNote = this.activeMidiNotes.get((event.channel << 8) | note);
@@ -1221,6 +1271,7 @@ export class AudioGraphManager {
     const now = this.audioCtx.currentTime;
     if (event.type === 'noteOn' && event.note !== undefined && event.velocity && event.velocity > 0) {
       if (this.mutedChannels.has(event.channel)) return;
+      this.bumpMidiChannelActivity(event.channel, event.velocity);
       this.synthesizeNote(event.channel, effectiveNote, event.velocity, now);
     } else if (event.type === 'noteOff' && event.note !== undefined) {
       this.releaseNote(event.channel, effectiveNote, now);
@@ -1320,6 +1371,7 @@ export class AudioGraphManager {
       }
     }
     this.activeMidiNotes.clear();
+    this.midiChannelLevels.fill(0);
 
     if (!this.audioCtx) return;
     const now = this.audioCtx.currentTime;

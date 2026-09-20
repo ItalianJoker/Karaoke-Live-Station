@@ -36,7 +36,8 @@
     "bassTrack": "Basse (Ch 2)",
     "drumsTrack": "Batterie (Ch 10)",
     "soundfontLoaded": "SoundFont: {{path}}",
-    "noSoundfontSelected": "Aucun SoundFont (.sf2) configuré"
+    "noSoundfontSelected": "Aucun SoundFont (.sf2) configuré",
+    "channelActivity": "Activité du canal {{num}}"
   },
   "queue": {
     "title": "File des Chanteurs",
@@ -334,17 +335,18 @@
     "dspEngineSignalsmith": "Signalsmith Stretch (Hi-Fi défaut) — ±8 ST, pitch+speed",
     "dspEngineSignalsmithBlurb": "Signalsmith Stretch (MIT) AudioWorklet. Recommandé ±8 ST (jusqu’à ±12). Tempo via élément média (preservesPitch). Bascule auto vers SoundTouch si le watchdog mute se déclenche — les plages pitch/speed passent alors à SoundTouch (±4 ST, 0,75–1,25×).",
     "themeOptions": {
-      "dark-stage": "Dark Stage (Par défaut)",
-      "midnight-neon": "Midnight Neon (Cyberpunk)",
-      "club-gold": "Club Gold (VIP Lounge)",
-      "ocean-breeze": "Ocean Breeze (Deep Cyan)",
-      "sunset-crimson": "Sunset Crimson (Warm Red)",
-      "emerald-matrix": "Emerald Matrix (Live Green)",
-      "royal-amethyst": "Royal Amethyst (Deep Purple)",
-      "high-contrast": "High Contrast (Accessible)",
-      "light": "Light Studio (Clean)",
-      "studio-desk": "Studio Desk (Mise en page Régie)"
-    }
+      "studio-desk": "Studio Desk (Mise en page Régie)",
+      "dark-stage": "Dark Stage (Legacy)",
+      "midnight-neon": "Midnight Neon (Cyberpunk) (Legacy)",
+      "club-gold": "Club Gold (VIP Lounge) (Legacy)",
+      "ocean-breeze": "Ocean Breeze (Deep Cyan) (Legacy)",
+      "sunset-crimson": "Sunset Crimson (Warm Red) (Legacy)",
+      "emerald-matrix": "Emerald Matrix (Live Green) (Legacy)",
+      "royal-amethyst": "Royal Amethyst (Deep Purple) (Legacy)",
+      "high-contrast": "High Contrast (Accessible) (Legacy)",
+      "light": "Light Studio (Clean) (Legacy)"
+    },
+    "themeRestartNote": "Changer le thème Régie redémarre l'application pour appliquer correctement la mise en page."
   },
   "history": {
     "title": "Historique de Lecture",
@@ -442,10 +444,14 @@
     "navDownloads": "Téléchargements",
     "navQrGuest": "QR Guest",
     "navShortcuts": "Raccourcis",
+    "navSettings": "Paramètres",
     "navDsp": "DSP",
     "showMidiMixer": "Afficher le mixeur MIDI",
     "hideMidiMixer": "Masquer le mixeur MIDI",
     "vocalShort": "Retirer voix guide",
-    "bgmShort": "BGM"
+    "bgmShort": "BGM",
+    "midiMixerShortShow": "MIDI",
+    "midiMixerShortHide": "MIDI",
+    "midiMixerDisabled": "Mixeur MIDI (pistes MIDI/KAR uniquement)"
   }
 }

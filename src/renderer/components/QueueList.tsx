@@ -39,6 +39,11 @@ export interface QueueListProps {
   onEditSinger: (item: QueueItem) => void;
   /** Switch to Libreria Locale and highlight the matching catalog row. */
   onRevealInLibrary: (track: KaraokeMediaTrack) => void;
+  /**
+   * When true, drop outer card chrome (Studio center column already provides the card).
+   * Classic Regia omits this — default bordered panel unchanged.
+   */
+  embedded?: boolean;
 }
 
 /**
@@ -62,7 +67,8 @@ export const QueueList: React.FC<QueueListProps> = ({
   onSaveToPermanentLibrary,
   savingTrackIds,
   onEditSinger,
-  onRevealInLibrary
+  onRevealInLibrary,
+  embedded = false
 }) => {
   const { t } = useTranslation();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -83,7 +89,11 @@ export const QueueList: React.FC<QueueListProps> = ({
 
   return (
     <div
-      className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 shadow-xl backdrop-blur-sm flex-1 min-h-0 flex flex-col overflow-hidden relative"
+      className={
+        embedded
+          ? 'flex-1 min-h-0 flex flex-col overflow-hidden relative'
+          : 'bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 shadow-xl backdrop-blur-sm flex-1 min-h-0 flex flex-col overflow-hidden relative'
+      }
       data-testid="queue-panel-drop-zone"
       onDragEnter={(e) => {
         if (!dataTransferHasFiles(e.dataTransfer)) return;
@@ -169,8 +179,15 @@ export const QueueList: React.FC<QueueListProps> = ({
         </div>
       </div>
 
-      {/* Fair Queue Sorted List */}
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1 flex flex-col">
+      {/* Fair Queue Sorted List — always show scrollbar track in Studio (embedded) */}
+      <div
+        className={`flex-1 min-h-0 space-y-2 pr-1 flex flex-col ${
+          embedded
+            ? 'overflow-y-scroll studio-queue-scroll'
+            : 'overflow-y-auto'
+        }`}
+        data-testid="queue-scroll-region"
+      >
         {queue.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-500 text-xs italic leading-relaxed">
             <Music className="w-8 h-8 opacity-20 mb-2" />

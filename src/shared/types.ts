@@ -20,7 +20,7 @@ export type AppTheme =
   | 'royal-amethyst'
   | 'high-contrast'
   | 'light'
-  /** Opt-in Studio Regia shell (layout + cyan/purple tokens). Default remains dark-stage. */
+  /** Studio Regia shell (layout + cyan/purple tokens). Default Control Room theme. */
   | 'studio-desk';
 
 /**

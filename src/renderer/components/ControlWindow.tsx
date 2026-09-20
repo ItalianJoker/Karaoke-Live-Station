@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Mic,
@@ -138,7 +138,12 @@ export const ControlWindow: React.FC = () => {
     if (!showDownloadsMenu) return;
     const onDoc = (ev: MouseEvent) => {
       const el = downloadsMenuRef.current;
-      if (el && !el.contains(ev.target as Node)) setShowDownloadsMenu(false);
+      const target = ev.target as Node;
+      // Studio Desk portals the downloads panel to document.body — ignore clicks inside it.
+      const studioPortal = document.querySelector('[data-testid="studio-downloads-menu"]');
+      if (el && el.contains(target)) return;
+      if (studioPortal && studioPortal.contains(target)) return;
+      setShowDownloadsMenu(false);
     };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -927,6 +932,27 @@ export const ControlWindow: React.FC = () => {
 
   /** Opt-in Studio Desk shell — classic Regia header/grid stays on all other themes. */
   const isStudioDesk = settings.themeHost === 'studio-desk';
+  /** Bumped by Studio «Ricerca» to force LibraryPanel onto Web/YouTube. */
+  const [studioWebSearchNonce, setStudioWebSearchNonce] = useState(0);
+  /** Bumped by Studio «Libreria» to force LibraryPanel onto Locale. */
+  const [studioLocalSearchNonce, setStudioLocalSearchNonce] = useState(0);
+  /** Studio MIDI mixer column visibility (toggle lives in transport row). */
+  const [showStudioMidiMixer, setShowStudioMidiMixer] = useState(false);
+  /** Track key so a new MIDI/KAR cue re-opens the mixer even if already playing. */
+  const studioMidiTrackKey = isMidiTrack
+    ? (currentTrack?.uri || currentTrack?.localFilePath || currentTrack?.id || 'midi')
+    : null;
+
+  useEffect(() => {
+    if (!isMidiTrack) {
+      setShowStudioMidiMixer(false);
+      return;
+    }
+    // Default-on: open MIDI mixer column when a MIDI/KAR track starts playing.
+    if (playback.isPlaying) {
+      setShowStudioMidiMixer(true);
+    }
+  }, [isMidiTrack, playback.isPlaying, studioMidiTrackKey]);
 
   const libraryPanelNode = (
     <LibraryPanel
@@ -934,6 +960,9 @@ export const ControlWindow: React.FC = () => {
       onStopCue={handleStopCue}
       activeCueUri={activeCueUri}
       searchInputRef={searchInputRef}
+      webSearchNonce={studioWebSearchNonce}
+      localSearchNonce={studioLocalSearchNonce}
+      embedded
     />
   );
 
@@ -954,13 +983,23 @@ export const ControlWindow: React.FC = () => {
         setEditingSingerText(item.assignedSingerName || '');
       }}
       onRevealInLibrary={handleRevealInLibrary}
+      embedded
     />
   );
 
-  const historyPanelNode = <HistoryPanel />;
+  const historyPanelNode = <HistoryPanel embedded />;
+
+  const getMidiChannelActivity = useCallback(
+    () => audioGraphRef.current?.getMidiChannelLevels() ?? null,
+    []
+  );
 
   const midiMixerNode = (
-    <MidiChannelMixer onToggleMuteChannel={toggleMidiChannelMute} />
+    <MidiChannelMixer
+      onToggleMuteChannel={toggleMidiChannelMute}
+      studioColumn={isStudioDesk}
+      getChannelActivity={isStudioDesk ? getMidiChannelActivity : undefined}
+    />
   );
 
   const scrubPercent =
@@ -977,41 +1016,62 @@ export const ControlWindow: React.FC = () => {
 
   const nowPlayingInner = (
     <>
-      <div className="flex items-center justify-between mb-2.5">
-        <span
-          className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-            isStudioDesk ? 'text-[color:var(--accent)]' : 'text-indigo-400'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" /> {t('player.nowPlaying')}
-        </span>
-        <div className="flex items-center gap-2 overflow-hidden">
-          <span className="text-xs text-slate-400 font-mono truncate max-w-xs">
-            {currentTrack
-              ? `${currentTrack.artist} - ${currentTrack.title}`
-              : t('player.noTrackLoaded')}
+      {/* Classic keeps «In Riproduzione» + title; Studio omits them to enlarge the video. */}
+      {!isStudioDesk && (
+        <div className="flex items-center justify-between mb-2.5">
+          <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-indigo-400">
+            <Sparkles className="w-4 h-4" /> {t('player.nowPlaying')}
           </span>
-          {currentTrack &&
-            (currentTrack.source !== 'local_library' ||
-              currentTrack.localFilePath?.includes('queue_cache')) &&
-            currentTrack.localFilePath && (
-              <button
-                type="button"
-                onClick={() => handleSaveToPermanentLibrary(currentTrack)}
-                disabled={savingTrackIds.has(currentTrack.id)}
-                className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-700/60 text-[10px] font-semibold transition-all shrink-0 active:scale-95 shadow-sm"
-                title={t('library.saveToLibrary', 'Salva in Libreria')}
-              >
-                <Download
-                  className={`w-3 h-3 ${savingTrackIds.has(currentTrack.id) ? 'animate-spin' : ''}`}
-                />
-                <span>{t('library.saveToLibrary', 'Salva')}</span>
-              </button>
-            )}
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className="text-xs text-slate-400 font-mono truncate max-w-xs">
+              {currentTrack
+                ? `${currentTrack.artist} - ${currentTrack.title}`
+                : t('player.noTrackLoaded')}
+            </span>
+            {currentTrack &&
+              (currentTrack.source !== 'local_library' ||
+                currentTrack.localFilePath?.includes('queue_cache')) &&
+              currentTrack.localFilePath && (
+                <button
+                  type="button"
+                  onClick={() => handleSaveToPermanentLibrary(currentTrack)}
+                  disabled={savingTrackIds.has(currentTrack.id)}
+                  className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-700/60 text-[10px] font-semibold transition-all shrink-0 active:scale-95 shadow-sm"
+                  title={t('library.saveToLibrary', 'Salva in Libreria')}
+                >
+                  <Download
+                    className={`w-3 h-3 ${savingTrackIds.has(currentTrack.id) ? 'animate-spin' : ''}`}
+                  />
+                  <span>{t('library.saveToLibrary', 'Salva')}</span>
+                </button>
+              )}
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="w-full aspect-video max-h-[32vh] bg-black rounded-xl overflow-hidden relative flex items-center justify-center border border-slate-800 mx-auto">
+      <div
+        className={`w-full aspect-video bg-black rounded-xl overflow-hidden relative flex items-center justify-center border border-slate-800 mx-auto ${
+          isStudioDesk ? 'max-h-[40vh]' : 'max-h-[32vh]'
+        }`}
+      >
+        {isStudioDesk &&
+          currentTrack &&
+          (currentTrack.source !== 'local_library' ||
+            currentTrack.localFilePath?.includes('queue_cache')) &&
+          currentTrack.localFilePath && (
+            <button
+              type="button"
+              onClick={() => handleSaveToPermanentLibrary(currentTrack)}
+              disabled={savingTrackIds.has(currentTrack.id)}
+              className="absolute top-2 right-2 z-20 flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-700/60 text-[10px] font-semibold transition-all shrink-0 active:scale-95 shadow-sm"
+              title={t('library.saveToLibrary', 'Salva in Libreria')}
+            >
+              <Download
+                className={`w-3 h-3 ${savingTrackIds.has(currentTrack.id) ? 'animate-spin' : ''}`}
+              />
+              <span>{t('library.saveToLibrary', 'Salva')}</span>
+            </button>
+          )}
         <video
           ref={videoRef}
           className="w-full h-full object-contain"
@@ -1333,33 +1393,19 @@ export const ControlWindow: React.FC = () => {
     </>
   );
 
-  const dspCompareBody = (
-    <>
-      <p className="leading-relaxed">{t('settings.dspEngineCompareBody')}</p>
-      <ul className="space-y-1.5 list-none pl-0 mt-2">
-        <li>
-          <span className="text-indigo-300 font-semibold">Signalsmith</span>
-          {' — '}
-          {t('settings.dspEngineSignalsmithBlurb')}
-        </li>
-        <li>
-          <span className="text-amber-300 font-semibold">SoundTouch</span>
-          {' — '}
-          {t('settings.dspEngineSoundTouchBlurb')}
-        </li>
-      </ul>
-      <p className="text-slate-500 leading-relaxed mt-2">{t('settings.dspEngineMidiNote')}</p>
-    </>
-  );
-
   return (
     <div className="h-screen max-h-screen app-control-container flex flex-col font-sans select-none overflow-hidden">
       {isStudioDesk ? (
         <StudioDeskShell
           activeRightTab={activeRightTab}
           setActiveRightTab={setActiveRightTab}
-          onFocusLibrarySearch={() => {
+          onOpenLocalLibrary={() => {
             setActiveRightTab('library');
+            setStudioLocalSearchNonce((n) => n + 1);
+          }}
+          onOpenWebSearch={() => {
+            setActiveRightTab('library');
+            setStudioWebSearchNonce((n) => n + 1);
             window.setTimeout(() => searchInputRef.current?.focus(), 0);
           }}
           pendingGuestCount={pendingRequests.length}
@@ -1368,14 +1414,13 @@ export const ControlWindow: React.FC = () => {
           onOpenSingers={() => setShowSingersModal(true)}
           onOpenShortcuts={() => setShowShortcutsModal(true)}
           onOpenSettings={() => setShowSettingsModal(true)}
+          stageOpen={stageOpen}
+          onReopenStage={() => window.karaokeApi?.reopenStageWindow()}
           downloadsSlot={downloadsMenuBody}
           showDownloadsMenu={showDownloadsMenu}
           setShowDownloadsMenu={setShowDownloadsMenu}
           downloadsMenuRef={downloadsMenuRef}
           downloadBadgeCount={Object.keys(headerDownloads).length}
-          showDspCompare={showDspCompare}
-          setShowDspCompare={setShowDspCompare}
-          dspCompareBody={dspCompareBody}
           nowPlaying={nowPlayingInner}
           playerDeck={
             <StudioPlayerDeckControls
@@ -1388,14 +1433,15 @@ export const ControlWindow: React.FC = () => {
               onStop={handleStop}
               onRestart={handleRestart}
               onNext={() => advanceToNextTrack()}
-              stageOpen={stageOpen}
-              onReopenStage={() => window.karaokeApi?.reopenStageWindow()}
+              isMidiTrack={isMidiTrack}
+              showMidiMixer={showStudioMidiMixer}
+              onToggleMidiMixer={() => setShowStudioMidiMixer((v) => !v)}
             />
           }
           libraryColumn={libraryPanelNode}
           queueColumn={queuePanelNode}
           historyColumn={historyPanelNode}
-          isMidiTrack={isMidiTrack}
+          showMidiColumn={isMidiTrack && showStudioMidiMixer}
           midiColumn={midiMixerNode}
         />
       ) : (

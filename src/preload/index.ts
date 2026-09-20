@@ -301,6 +301,11 @@ export interface KaraokeAPI {
     }>;
     /** App semver from Electron package.json (e.g. 1.5.0) */
     getAppVersion: () => Promise<string>;
+    /**
+     * Quit and relaunch the whole app (used after Control Room theme changes so
+     * Studio Desk ↔ classic Regia shell swaps cleanly).
+     */
+    relaunchApp: () => Promise<{ success: boolean }>;
   };
 
   // 10. Diagnostic Logger
@@ -552,7 +557,8 @@ const karaokeApi: KaraokeAPI = {
     checkFirewall: () => ipcRenderer.invoke('system:check-firewall'),
     getCpuCoreCount: () => ipcRenderer.invoke('system:get-cpu-core-count'),
     getGpuStatus: () => ipcRenderer.invoke('system:get-gpu-status'),
-    getAppVersion: () => ipcRenderer.invoke('system:get-app-version')
+    getAppVersion: () => ipcRenderer.invoke('system:get-app-version'),
+    relaunchApp: () => ipcRenderer.invoke('system:relaunch-app')
   },
 
   // Diagnostic Logger

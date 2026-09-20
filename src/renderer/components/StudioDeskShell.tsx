@@ -1,25 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useLayoutEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Library,
   Search,
-  ListMusic,
   History,
   Users,
   Download,
   QrCode,
   HelpCircle,
   Settings,
-  Smartphone,
-  Info,
-  AudioLines,
+  Smartphone
 } from 'lucide-react';
 import appLogo from '../assets/logo.png';
 
 export type StudioNavId =
   | 'library'
   | 'search'
-  | 'queue'
   | 'history'
   | 'singers'
   | 'downloads'
@@ -27,39 +24,44 @@ export type StudioNavId =
   | 'qr'
   | 'shortcuts'
   | 'settings'
-  | 'dsp';
+  | 'stage';
 
 export interface StudioDeskShellProps {
   /** Which right-panel content maps to classic activeRightTab. */
   activeRightTab: 'queue' | 'library' | 'history';
   setActiveRightTab: (tab: 'queue' | 'library' | 'history') => void;
-  /** Focus library search (Ricerca menu / Ctrl+F parity). */
-  onFocusLibrarySearch: () => void;
+  /**
+   * Studio «Libreria»: open library on Locale (mirror Ricerca → Web).
+   */
+  onOpenLocalLibrary: () => void;
+  /**
+   * Studio «Ricerca»: open library on Web/YouTube and focus search.
+   */
+  onOpenWebSearch: () => void;
   pendingGuestCount: number;
   onOpenGuestRequests: () => void;
   onOpenPortalQr: () => void;
   onOpenSingers: () => void;
   onOpenShortcuts: () => void;
   onOpenSettings: () => void;
+  /** Stage open/reopen — menu footer; classic Dark Stage status colors. */
+  stageOpen: boolean;
+  onReopenStage: () => void;
   /** Downloads popover content (wired in ControlWindow). */
   downloadsSlot: React.ReactNode;
   showDownloadsMenu: boolean;
   setShowDownloadsMenu: (open: boolean) => void;
   downloadsMenuRef: React.RefObject<HTMLDivElement | null>;
   downloadBadgeCount: number;
-  /** DSP compare popover (same content as classic header Info). */
-  showDspCompare: boolean;
-  setShowDspCompare: (open: boolean | ((v: boolean) => boolean)) => void;
-  dspCompareBody: React.ReactNode;
   /** Center now-playing card (video + scrub) — owned by ControlWindow for videoRef. */
   nowPlaying: React.ReactNode;
-  /** Studio deck controls under now-playing. */
+  /** Studio deck controls under now-playing (includes MIDI toggle when applicable). */
   playerDeck: React.ReactNode;
   libraryColumn: React.ReactNode;
   queueColumn: React.ReactNode;
   historyColumn: React.ReactNode;
-  /** True when current track is .mid/.kar — enables MIDI mixer toggle. */
-  isMidiTrack: boolean;
+  /** True when MIDI mixer column should be visible (owned by ControlWindow). */
+  showMidiColumn: boolean;
   midiColumn: React.ReactNode;
 }
 
@@ -72,36 +74,71 @@ export interface StudioDeskShellProps {
 export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
   activeRightTab,
   setActiveRightTab,
-  onFocusLibrarySearch,
+  onOpenLocalLibrary,
+  onOpenWebSearch,
   pendingGuestCount,
   onOpenGuestRequests,
   onOpenPortalQr,
   onOpenSingers,
   onOpenShortcuts,
   onOpenSettings,
+  stageOpen,
+  onReopenStage,
   downloadsSlot,
   showDownloadsMenu,
   setShowDownloadsMenu,
   downloadsMenuRef,
   downloadBadgeCount,
-  showDspCompare,
-  setShowDspCompare,
-  dspCompareBody,
   nowPlaying,
   playerDeck,
   libraryColumn,
   queueColumn,
   historyColumn,
-  isMidiTrack,
+  showMidiColumn,
   midiColumn
 }) => {
   const { t } = useTranslation();
-  const [showMidiMixer, setShowMidiMixer] = useState(false);
+  /** Distinguishes Libreria vs Ricerca highlight while both target the library column. */
+  const [libraryNavKind, setLibraryNavKind] = useState<'library' | 'search'>('library');
+  const [downloadsMenuPos, setDownloadsMenuPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
 
-  // Hide MIDI column when leaving MIDI media (default: hidden).
-  useEffect(() => {
-    if (!isMidiTrack) setShowMidiMixer(false);
-  }, [isMidiTrack]);
+  // Position Download submenu in a body portal so aside overflow cannot clip it.
+  useLayoutEffect(() => {
+    if (!showDownloadsMenu) {
+      setDownloadsMenuPos(null);
+      return;
+    }
+    const update = () => {
+      const anchor = downloadsMenuRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const menuWidth = 320;
+      const gap = 8;
+      const vh = window.innerHeight;
+      const vw = window.innerWidth;
+      let left = rect.right + gap;
+      if (left + menuWidth > vw - 8) {
+        left = Math.max(8, rect.left - menuWidth - gap);
+      }
+      const maxHeight = Math.min(320, vh - 16);
+      let top = rect.top;
+      if (top + maxHeight > vh - 8) {
+        top = Math.max(8, vh - 8 - maxHeight);
+      }
+      setDownloadsMenuPos({ top, left, width: menuWidth });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [showDownloadsMenu, downloadsMenuRef]);
 
   const navActive =
     'bg-[color:color-mix(in_srgb,var(--accent)_16%,transparent)] text-[color:var(--accent)] border-[color:var(--accent)] shadow-[0_0_12px_var(--accent-glow)]';
@@ -111,14 +148,12 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
   const selectNav = (id: StudioNavId) => {
     switch (id) {
       case 'library':
-        setActiveRightTab('library');
+        setLibraryNavKind('library');
+        onOpenLocalLibrary();
         break;
       case 'search':
-        setActiveRightTab('library');
-        onFocusLibrarySearch();
-        break;
-      case 'queue':
-        setActiveRightTab('queue');
+        setLibraryNavKind('search');
+        onOpenWebSearch();
         break;
       case 'history':
         setActiveRightTab('history');
@@ -141,8 +176,8 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
       case 'settings':
         onOpenSettings();
         break;
-      case 'dsp':
-        setShowDspCompare((v) => !v);
+      case 'stage':
+        onReopenStage();
         break;
       default:
         break;
@@ -160,19 +195,13 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
       id: 'library',
       label: t('studio.navLibrary', t('library.title')),
       icon: <Library className="w-4 h-4 shrink-0" />,
-      active: activeRightTab === 'library'
+      active: activeRightTab === 'library' && libraryNavKind === 'library'
     },
     {
       id: 'search',
       label: t('studio.navSearch', 'Search'),
       icon: <Search className="w-4 h-4 shrink-0" />,
-      active: activeRightTab === 'library'
-    },
-    {
-      id: 'queue',
-      label: t('studio.navQueue', t('queue.title')),
-      icon: <ListMusic className="w-4 h-4 shrink-0" />,
-      active: activeRightTab === 'queue'
+      active: activeRightTab === 'library' && libraryNavKind === 'search'
     },
     {
       id: 'history',
@@ -196,20 +225,32 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
       label: t('guestRequests.badge'),
       icon: <Smartphone className="w-4 h-4 shrink-0" />,
       badge: pendingGuestCount
-    },
-    {
-      id: 'qr',
-      label: t('studio.navQrGuest', 'QR Guest'),
-      icon: <QrCode className="w-4 h-4 shrink-0" />
-    },
-    {
-      id: 'shortcuts',
-      label: t('studio.navShortcuts', t('shortcuts.title')),
-      icon: <HelpCircle className="w-4 h-4 shrink-0" />
     }
   ];
 
-  const showMidiColumn = isMidiTrack && showMidiMixer;
+  const footerNavClass =
+    'w-full flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left text-xs font-semibold transition-all border-transparent text-[color:var(--text-muted)] hover:text-[color:var(--text-main)] hover:bg-[color:var(--bg-subtle)]';
+
+  const downloadsPortal =
+    showDownloadsMenu &&
+    downloadsMenuPos &&
+    typeof document !== 'undefined' &&
+    createPortal(
+      <div
+        className="fixed z-[200] max-h-80 overflow-y-auto bg-[color:var(--bg-card)] border border-[color:var(--border-color)] rounded-2xl shadow-2xl p-3"
+        style={{
+          top: downloadsMenuPos.top,
+          left: downloadsMenuPos.left,
+          width: downloadsMenuPos.width
+        }}
+        data-testid="studio-downloads-menu"
+        role="dialog"
+        aria-label={t('studio.navDownloads', t('library.downloadsMenu'))}
+      >
+        {downloadsSlot}
+      </div>,
+      document.body
+    );
 
   return (
     <div
@@ -217,17 +258,18 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
       data-testid="studio-desk-shell"
       style={{
         gridTemplateColumns: showMidiColumn
-          ? 'minmax(11rem, 14rem) minmax(16rem, 22rem) minmax(0, 1fr) minmax(14rem, 18rem)'
-          : 'minmax(11rem, 14rem) minmax(16rem, 22rem) minmax(0, 1fr)'
+          ? 'minmax(10rem, 12rem) minmax(22rem, 28rem) minmax(0, 1fr) minmax(14rem, 18rem)'
+          : 'minmax(10rem, 12rem) minmax(22rem, 28rem) minmax(0, 1fr)'
       }}
     >
-      {/* Col 1: logo + menu (no subtitle / no Stage) */}
+      {/* Col 1: logo + menu */}
       <aside className="flex flex-col min-h-0 rounded-2xl border border-[color:var(--border-color)] bg-[color:var(--bg-card)] p-3 overflow-hidden">
-        <div className="flex items-center justify-center mb-3 shrink-0">
+        {/* Slightly more gap under logo before Libreria / menu (Luca polish). */}
+        <div className="px-2.5 mb-5 shrink-0 flex items-center justify-center">
           <img
             src={appLogo}
             alt={t('app.title')}
-            className="w-16 h-16 object-contain drop-shadow-[0_0_12px_var(--accent-glow)]"
+            className="w-full h-auto max-h-[7.5rem] object-contain drop-shadow-[0_0_12px_var(--accent-glow)]"
             data-testid="studio-brand-logo"
           />
         </div>
@@ -258,53 +300,77 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
                   ref={downloadsMenuRef as React.RefObject<HTMLDivElement>}
                 >
                   {btn}
-                  {showDownloadsMenu && (
-                    <div className="absolute left-0 top-full mt-2 w-80 max-h-80 overflow-y-auto z-50 bg-[color:var(--bg-card)] border border-[color:var(--border-color)] rounded-2xl shadow-2xl p-3">
-                      {downloadsSlot}
-                    </div>
-                  )}
                 </div>
               );
             }
             return <React.Fragment key={item.id}>{btn}</React.Fragment>;
           })}
         </nav>
-        <div className="pt-2 mt-2 border-t border-[color:var(--border-subtle)] space-y-1 shrink-0 relative">
+
+        <div className="pt-2 mt-2 shrink-0">
+          {/* Match classic Dark Stage header Stage pill: green active / red inactive + status dot. */}
           <button
             type="button"
-            onClick={() => selectNav('dsp')}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left text-xs font-semibold transition-all ${
-              showDspCompare ? navActive : navIdle
+            onClick={() => selectNav('stage')}
+            className={`w-full px-3 py-2 rounded-full text-xs font-semibold flex items-center justify-center gap-2 border shadow-sm transition-all duration-200 active:scale-95 ${
+              stageOpen
+                ? 'bg-emerald-950/40 border-emerald-800/70 text-emerald-400 hover:bg-emerald-900/50'
+                : 'bg-red-950/40 border-red-800/70 text-red-400 animate-pulse hover:bg-red-900/50'
             }`}
-            title={t('settings.dspEngineCompareTitle')}
-            aria-expanded={showDspCompare}
+            title={stageOpen ? t('app.stageWindow') : t('app.reopenStage')}
+            data-testid="studio-stage-reopen"
           >
-            <Info className="w-4 h-4 shrink-0" />
-            <span className="truncate">{t('studio.navDsp', 'DSP')}</span>
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                stageOpen
+                  ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50'
+                  : 'bg-red-400'
+              }`}
+            />
+            <span className="truncate">
+              {stageOpen ? t('app.stageWindow') : t('app.reopenStage')}
+            </span>
           </button>
-          {showDspCompare && (
-            <div className="absolute left-0 bottom-full mb-2 w-72 z-50 bg-[color:var(--bg-card)] border border-[color:var(--border-color)] rounded-2xl shadow-2xl p-3 text-[11px] text-[color:var(--text-muted)]">
-              <div className="flex items-center gap-1.5 text-[color:var(--accent)] font-bold uppercase tracking-wider text-[10px] mb-2">
-                <AudioLines className="w-3.5 h-3.5" />
-                {t('settings.dspEngineCompareTitle')}
-              </div>
-              {dspCompareBody}
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => selectNav('settings')}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left text-xs font-semibold transition-all ${navIdle}`}
-            title={t('settings.title')}
-          >
-            <Settings className="w-4 h-4 shrink-0" />
-            <span className="truncate">{t('settings.title')}</span>
-          </button>
+
+          {/* Slightly more gap under Stage before the footer separator (Luca pass 3). */}
+          <div className="border-t border-[color:var(--border-subtle)] mt-3.5 pt-2 space-y-1">
+            <button
+              type="button"
+              onClick={() => selectNav('qr')}
+              className={footerNavClass}
+              title={t('studio.navQrGuest', 'QR Guest')}
+            >
+              <QrCode className="w-4 h-4 shrink-0" />
+              <span className="truncate">{t('studio.navQrGuest', 'QR Guest')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => selectNav('shortcuts')}
+              className={footerNavClass}
+              title={t('studio.navShortcuts', t('shortcuts.title'))}
+            >
+              <HelpCircle className="w-4 h-4 shrink-0" />
+              <span className="truncate">
+                {t('studio.navShortcuts', t('shortcuts.title'))}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => selectNav('settings')}
+              className={footerNavClass}
+              title={t('studio.navSettings', 'Settings')}
+            >
+              <Settings className="w-4 h-4 shrink-0" />
+              <span className="truncate">{t('studio.navSettings', 'Settings')}</span>
+            </button>
+          </div>
         </div>
       </aside>
 
-      {/* Col 2: library (default) or history — queue always under center player */}
-      <section className="flex flex-col min-h-0 rounded-2xl border border-[color:var(--border-color)] bg-[color:var(--bg-card)] overflow-hidden">
+      {downloadsPortal}
+
+      {/* Col 2: library / history — slight top pad relative to logo column */}
+      <section className="flex flex-col min-h-0 rounded-2xl border border-[color:var(--border-color)] bg-[color:var(--bg-card)] overflow-hidden pt-1">
         <div
           className={
             activeRightTab === 'history' ? 'hidden' : 'flex flex-col flex-1 min-h-0'
@@ -317,33 +383,19 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
         </div>
       </section>
 
-      {/* Col 3: now playing + deck + queue */}
+      {/* Col 3: now playing + compact deck + queue (grows) */}
       <section className="flex flex-col min-h-0 gap-3 overflow-hidden">
-        <div className="rounded-2xl border border-[color:var(--border-color)] bg-[color:var(--bg-card)] p-3.5 shadow-xl overflow-y-auto min-h-0 flex-1 flex flex-col">
-          {nowPlaying}
-          {playerDeck}
-          {isMidiTrack && (
-            <button
-              type="button"
-              onClick={() => setShowMidiMixer((v) => !v)}
-              className="mt-3 w-full py-2 rounded-xl text-xs font-semibold border border-[color:var(--border-color)] text-[color:var(--text-muted)] hover:text-[color:var(--accent)] hover:border-[color:var(--accent)] transition-all"
-              data-testid="studio-midi-mixer-toggle"
-            >
-              {showMidiMixer
-                ? t('studio.hideMidiMixer', 'Hide MIDI mixer')
-                : t('studio.showMidiMixer', 'Show MIDI mixer')}
-            </button>
-          )}
-          <div className="mt-3 flex-1 min-h-0 flex flex-col border-t border-[color:var(--border-subtle)] pt-3">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--accent)] mb-2">
-              {t('queue.title')}
-            </div>
-            <div className="flex-1 min-h-0 overflow-hidden">{queueColumn}</div>
+        <div className="rounded-2xl border border-[color:var(--border-color)] bg-[color:var(--bg-card)] p-3.5 shadow-xl min-h-0 flex-1 flex flex-col overflow-hidden">
+          <div className="shrink-0">
+            {nowPlaying}
+            {playerDeck}
+          </div>
+          <div className="mt-2 flex-1 min-h-0 flex flex-col border-t border-[color:var(--border-subtle)] pt-2 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{queueColumn}</div>
           </div>
         </div>
       </section>
 
-      {/* Col 4: MIDI mixer on demand */}
       {showMidiColumn && (
         <aside
           className="flex flex-col min-h-0 rounded-2xl border border-[color:var(--border-color)] bg-[color:var(--bg-card)] overflow-hidden"
