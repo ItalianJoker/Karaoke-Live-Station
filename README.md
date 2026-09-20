@@ -248,13 +248,13 @@ I file `.AppImage` (238 MB) e `.deb` (209 MB) verranno generati nella cartella `
 ```bash
 npm run electron:build:win
 ```
-Verranno generati in `release/` l'eseguibile portatile autonomo `Karaoke Live Station 1.5.0.exe` (avviabile immediatamente senza installazione né privilegi di amministratore) e l'archivio `Karaoke Live Station-1.5.0-win.zip`, con binari esclusivi Win32 PE (`yt-dlp.exe`, `ffmpeg.exe`, `better_sqlite3.node`).
+Verranno generati in `release/` l'eseguibile portatile autonomo `Karaoke Live Station 2.0.0.exe` (avviabile immediatamente senza installazione né privilegi di amministratore) e l'archivio `Karaoke Live Station-2.0.0-win.zip`, con binari esclusivi Win32 PE (`yt-dlp.exe`, `ffmpeg.exe`, `better_sqlite3.node`).
 
 ### 🍎 Per macOS (.zip)
 ```bash
 npm run electron:build:mac
 ```
-L'archivio `Karaoke Live Station-1.5.0-mac.zip` contenente l'applicazione `.app` pronta all'uso verrà generato in `release/`, con binari esclusivi Darwin Mach-O (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`).
+L'archivio `Karaoke Live Station-2.0.0-mac.zip` contenente l'applicazione `.app` pronta all'uso verrà generato in `release/`, con binari esclusivi Darwin Mach-O (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`).
 
 ### 🌐 Creazione Release per tutte le piattaforme
 ```bash
@@ -588,13 +588,13 @@ Output packages `.AppImage` (238 MB) and `.deb` (209 MB) will be placed in `rele
 ```bash
 npm run electron:build:win
 ```
-The standalone portable executable `Karaoke Live Station 1.5.0.exe` (runs immediately without installation or admin privileges) and `Karaoke Live Station-1.5.0-win.zip` will be generated in `release/`, with exclusive Win32 PE binaries (`yt-dlp.exe`, `ffmpeg.exe`, `better_sqlite3.node`).
+The standalone portable executable `Karaoke Live Station 2.0.0.exe` (runs immediately without installation or admin privileges) and `Karaoke Live Station-2.0.0-win.zip` will be generated in `release/`, with exclusive Win32 PE binaries (`yt-dlp.exe`, `ffmpeg.exe`, `better_sqlite3.node`).
 
 ### 🍎 Build for macOS (.zip)
 ```bash
 npm run electron:build:mac
 ```
-The standalone `Karaoke Live Station-1.5.0-mac.zip` archive containing `Karaoke Live Station.app` will be generated in `release/`, with exclusive Darwin Mach-O binaries (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`).
+The standalone `Karaoke Live Station-2.0.0-mac.zip` archive containing `Karaoke Live Station.app` will be generated in `release/`, with exclusive Darwin Mach-O binaries (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`).
 
 ### 🌐 Build for all target platforms
 ```bash

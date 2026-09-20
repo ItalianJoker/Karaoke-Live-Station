@@ -958,7 +958,7 @@ class KaraokeMainProcess {
     });
 
     ipcMain.handle('system:get-app-version', () => {
-      return app.getVersion() || '1.5.0';
+      return app.getVersion() || '2.0.0';
     });
 
     /**

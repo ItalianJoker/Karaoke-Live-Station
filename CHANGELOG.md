@@ -9,26 +9,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- **IT:** Badge velocità sul Palco in forma parentesi (`1.00x (103 BPM)`) + tonalità (`0 (D)`); chip coerenti sull’overlay titolo.
-- **EN:** Stage speed/pitch badges in parentheses form (`1.00x (103 BPM)`, `0 (D)`); matching title-overlay chips.
-- **IT:** Pulsante **Mostra in Libreria Locale** su ogni riga della Coda: apre la scheda Libreria (modalità Locale), cerca/scorre ed evidenzia il brano corrispondente (id / percorso). File mancante → stessa modale esistente. Condiviso Regia classica + Studio Desk (`QueueList`).
-- **EN:** **Show in Local Library** control on each Queue row: opens Library (Local mode), searches/scrolls and highlights the matching track (id / path). Missing file → existing modal. Shared classic Regia + Studio Desk (`QueueList`).
+- None yet.
 
 ### Changed
-- **IT:** Tema **Studio Desk** — polish UX (#77) + **default Regia** `studio-desk` (primo in picker; altri temi etichettati « (Legacy)»); meter MIDI note-on; card libreria `py-3`. Id temi invariati. Persistenza: chi ha già un altro `themeHost` lo conserva. (PR #77)
-- **EN:** **Studio Desk** theme UX polish (#77) + **default Control Room** `studio-desk` (first in picker; other themes labeled « (Legacy)»); MIDI note-on meters; library card `py-3`. Theme ids unchanged. Persistence: existing saved `themeHost` kept. (PR #77)
-- **IT/EN:** All’apertura/riapertura lo Stage viene posizionato sul monitor esterno (TV/proiettore) in fullscreen quando disponibile; con un solo display resta in finestra centrata (non copre la Regia).
-- **IT/EN:** Stage floating badges use parentheses Key/BPM form (Luca Stage formatting).
+- None yet.
 
 ### Fixed
-- **IT:** Palco / Live che lasciava il secondo monitor sul desktop — Stage non veniva mai spostato sul display non primario.
-- **EN:** Stage / Live leaving the second monitor on the OS desktop — Stage was never moved to a non-primary display.
-- **IT/EN:** `.stage-screen-container` ora ha fallback opaco `#000` se manca la classe tema.
-- **IT:** **Aggiorna Libreria** ricalcola i flag «file mancante» (righe rosse) dopo lo scan e rimuove i falsi positivi quando il file è di nuovo su disco; overlay drag-and-drop Library/Coda non resta bloccato dopo un drop sulla coda (Studio + Regia classica).
-- **EN:** **Refresh Library** re-checks missing-file flags (red rows) after scan and clears false positives when the file is back on disk; Library/Queue OS drag overlays no longer stick after a queue drop (Studio + classic Regia).
+- None yet.
 
 ### Breaking Changes
 - None yet.
+
+## [2.0.0] — Studio Desk default + Stage/Library/Queue UX — 2026-09-20
+
+New GitHub Release **v2.0.0** after PRs **#77**–**#80** (new tag; does **not** touch `v1.5.0` / `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on `v1.5.0` baseline (#72 + #74 + #76). Package **2.0.0**.
+
+### 🎛️ UI & Regia
+- **IT:** Tema **Studio Desk** polish UX + **default Regia** `studio-desk` (primo in picker; altri temi « (Legacy)»); meter MIDI note-on; card libreria; relaunch al cambio tema. Persistenza: `themeHost` già salvato conservato. (PR #77)
+- **EN:** **Studio Desk** UX polish + **default Control Room** `studio-desk` (first in picker; other themes « (Legacy)»); MIDI note-on meters; library cards; relaunch on theme change. Persistence: existing saved `themeHost` kept. (PR #77)
+- **IT:** Pulsante **Mostra in Libreria Locale** su ogni riga della Coda (cerca/scorre/evidenzia; file mancante → modale esistente). (PR #79)
+- **EN:** **Show in Local Library** control on each Queue row (search/scroll/highlight; missing file → existing modal). (PR #79)
+- **IT:** Badge velocità/tonalità sul Palco in forma parentesi (`1.00x (103 BPM)`, `0 (D)`). (PR #78)
+- **EN:** Stage speed/pitch badges in parentheses form (`1.00x (103 BPM)`, `0 (D)`). (PR #78)
+
+### Fixed
+- **IT:** Palco / Live sul secondo monitor (Stage posizionato sul display non primario); fallback CSS `#000`. (PR #78)
+- **EN:** Stage / Live on secondary monitor (Stage placed on non-primary display); CSS `#000` fallback. (PR #78)
+- **IT:** **Aggiorna Libreria** ricalcola flag «file mancante»; overlay DnD Library/Coda non resta bloccato. (PR #80)
+- **EN:** **Refresh Library** re-checks missing-file flags; Library/Queue OS DnD overlays no longer stick. (PR #80)
+
+### Changed
+- App version **2.0.0** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer. (this release)
+
+### Breaking Changes
+- None (default theme change for new installs / fresh settings only; persisted `themeHost` preserved).
 
 ## [1.5.0] — Hot-paths + Studio Desk opt-in + Key/BPM UX — 2026-09-20
 

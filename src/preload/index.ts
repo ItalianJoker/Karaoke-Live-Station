@@ -299,7 +299,7 @@ export interface KaraokeAPI {
       gpuName?: string;
       vendor?: string;
     }>;
-    /** App semver from Electron package.json (e.g. 1.5.0) */
+    /** App semver from Electron package.json (e.g. 2.0.0) */
     getAppVersion: () => Promise<string>;
     /**
      * Quit and relaunch the whole app (used after Control Room theme changes so
