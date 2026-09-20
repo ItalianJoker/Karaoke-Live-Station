@@ -8,27 +8,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+### Added
+- None yet.
+
+### Changed
+- None yet.
+
+### Fixed
+- None yet.
+
+### Breaking Changes
+- None yet.
+
+## [1.5.0] — Performance hot-paths + deps prune + structured logging — 2026-09-20
+
+New GitHub Release **v1.5.0** after PR **#72**. Builds on `v1.4.0` baseline. Does **not** touch tag `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`. Package bumps **1.4.0 → 1.5.0**.
+
 ### ⚡ Performance & Concurrency
-- **IT:** Dedup download via SQL mirato (`findLocalMediaDedupCandidates`) al posto di `getAllTracks()`; Guest Portal su FTS/`searchTracks` + lookup id; inflate ZIP asincrono (`inflateRaw`); yield FFT durante analisi Key/BPM; `pendingById` Map e Set `missingTrackIds` in UI.
-- **EN:** Download dedup via targeted SQL (`findLocalMediaDedupCandidates`) instead of `getAllTracks()`; Guest Portal on FTS/`searchTracks` + id lookup; async ZIP inflate (`inflateRaw`); FFT yield during Key/BPM analysis; `pendingById` Map and UI `missingTrackIds` Set.
+- **IT:** Dedup download via SQL mirato (`findLocalMediaDedupCandidates`) al posto di `getAllTracks()`; Guest Portal su FTS/`searchTracks` + lookup id; inflate ZIP asincrono (`inflateRaw`); yield FFT durante analisi Key/BPM; `pendingById` Map e Set `missingTrackIds` in UI. (PR #72)
+- **EN:** Download dedup via targeted SQL (`findLocalMediaDedupCandidates`) instead of `getAllTracks()`; Guest Portal on FTS/`searchTracks` + id lookup; async ZIP inflate (`inflateRaw`); FFT yield during Key/BPM analysis; `pendingById` Map and UI `missingTrackIds` Set. (PR #72)
 
 ### 📦 Dependencies
-- **IT/EN:** Removed unused `clsx`, `tailwind-merge`, `autoprefixer`, `postcss` (Tailwind v4 via `@tailwindcss/vite`). Lockfile regenerated.
+- **IT/EN:** Removed unused `clsx`, `tailwind-merge`, `autoprefixer`, `postcss` (Tailwind v4 via `@tailwindcss/vite`). Lockfile regenerated. (PR #72)
 
 ### 🧹 Refactoring & Cleanup
-- **IT/EN:** Surgical Map/Set indexing in download dedup; GuestServer callback contract updated (no full-catalog dump). No UI redesign; playback/AI/library contracts preserved.
+- **IT/EN:** Surgical Map/Set indexing in download dedup; GuestServer callback contract updated (no full-catalog dump). No UI redesign; playback/AI/library contracts preserved. (PR #72)
 
 ### 🪵 Logging & Observability
-- **IT:** Migrazione `console.*` → Logger strutturato (DownloadManager, ZipCdgCache, TrackAnalysis, AudioGraph, Library/Control/store, Signalsmith); DEBUG su `before-quit` e extract ZIP; maschera campi secret nel Logger.
-- **EN:** Migrated `console.*` → structured Logger (DownloadManager, ZipCdgCache, TrackAnalysis, AudioGraph, Library/Control/store, Signalsmith); DEBUG on `before-quit` and ZIP extract; Logger sensitive-key masking.
+- **IT:** Migrazione `console.*` → Logger strutturato (DownloadManager, ZipCdgCache, TrackAnalysis, AudioGraph, Library/Control/store, Signalsmith); DEBUG su `before-quit` e extract ZIP; maschera campi secret nel Logger. (PR #72)
+- **EN:** Migrated `console.*` → structured Logger (DownloadManager, ZipCdgCache, TrackAnalysis, AudioGraph, Library/Control/store, Signalsmith); DEBUG on `before-quit` and ZIP extract; Logger sensitive-key masking. (PR #72)
 
 ### 🧪 Tests
-- **IT/EN:** New source-lock suite for orphan deps, SQL dedup, guest FTS, async ZIP, FFT yield, logger masking (414 tests green).
+- **IT/EN:** New source-lock suite for orphan deps, SQL dedup, guest FTS, async ZIP, FFT yield, logger masking (414 tests green). (PR #72)
 
 ### 📚 Documentation & AI Context
-- **IT/EN:** README deps stack + AI Context hot-path notes; this CHANGELOG entry.
+- **IT/EN:** README deps stack + AI Context hot-path notes; RELEASE_NOTES IT/EN for **v1.5.0**. (PR #72 + this release)
 
-### ⚠️ Breaking Changes
+### Changed
+- App version **1.5.0** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer. (this release)
+
+### Breaking Changes
 - None.
 
 ## [1.4.0] — Signalsmith Hi-Fi DSP + ZIP CD+G + AI WebGPU + Library Phase 2 — 2026-09-20
