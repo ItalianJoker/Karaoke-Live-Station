@@ -161,10 +161,10 @@ html, body {
   color: var(--text-main, #f8fafc);
 }
 
-/* Stage screen container */
+/* Stage screen container — fallback keeps opaque paint if theme class is missing */
 .stage-screen-container {
-  background-color: var(--bg-app) !important;
-  color: var(--text-main) !important;
+  background-color: var(--bg-app, #000000) !important;
+  color: var(--text-main, #f8fafc) !important;
 }
 
 /* App Control Container & Base Deep Backgrounds */

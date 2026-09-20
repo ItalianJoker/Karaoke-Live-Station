@@ -69,6 +69,11 @@ export interface KaraokeAPI {
     ) => Promise<LibraryTracksPage>;
     /** Catalog row count for Local badge without dumping rows. */
     getTracksCount: () => Promise<number>;
+    /**
+     * Single catalog row by id (O(1) SQL).
+     * Why: Aggiorna Libreria missing-flag reconcile — avoid getAllTracks dump.
+     */
+    getTrackById: (trackId: string) => Promise<KaraokeMediaTrack | null>;
     searchTracks: (query: string, limit?: number) => Promise<KaraokeMediaTrack[]>;
     /** Inserts or updates a catalog track */
     upsertTrack: (track: KaraokeMediaTrack) => Promise<{ success: boolean }>;
@@ -385,6 +390,7 @@ const karaokeApi: KaraokeAPI = {
     getTracksPage: (limit?: number, cursor?: LibraryTracksPageCursor | null) =>
       ipcRenderer.invoke('db:get-tracks-page', limit, cursor ?? null),
     getTracksCount: () => ipcRenderer.invoke('db:get-tracks-count'),
+    getTrackById: (trackId: string) => ipcRenderer.invoke('db:get-track-by-id', trackId),
     searchTracks: (query: string, limit?: number) => ipcRenderer.invoke('db:search-tracks', query, limit),
     upsertTrack: (track: KaraokeMediaTrack) => ipcRenderer.invoke('db:upsert-track', track),
     deleteTrack: (trackId: string) => ipcRenderer.invoke('db:delete-track', trackId),

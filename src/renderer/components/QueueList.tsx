@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Play,
@@ -12,10 +12,15 @@ import {
   Edit2,
   Mic,
   AlertCircle,
-  FileX
+  FileX,
+  FolderSearch
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
-import { dataTransferHasFiles } from '../utils/fsDragDrop';
+import {
+  dataTransferHasFiles,
+  dispatchOsFileDragEnd
+} from '../utils/fsDragDrop';
+import { canRevealTrackInLibrary } from '../utils/libraryReveal';
 import { confirmAsync } from '../utils/toast';
 import type { KaraokeMediaTrack, QueueItem } from '../../shared/types';
 import { TrackKeyBpmBadges } from './TrackKeyBpmBadges';
@@ -32,6 +37,8 @@ export interface QueueListProps {
   onSaveToPermanentLibrary: (track: KaraokeMediaTrack) => void;
   savingTrackIds: Set<string>;
   onEditSinger: (item: QueueItem) => void;
+  /** Switch to Libreria Locale and highlight the matching catalog row. */
+  onRevealInLibrary: (track: KaraokeMediaTrack) => void;
   /**
    * When true, drop outer card chrome (Studio center column already provides the card).
    * Classic Regia omits this — default bordered panel unchanged.
@@ -60,11 +67,14 @@ export const QueueList: React.FC<QueueListProps> = ({
   onSaveToPermanentLibrary,
   savingTrackIds,
   onEditSinger,
+  onRevealInLibrary,
   embedded = false
 }) => {
   const { t } = useTranslation();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  /** Enter/leave depth so child bubbles do not clear the overlay early. */
+  const fileDropDepthRef = useRef(0);
 
   const queue = useKaraokeStore((s) => s.queue);
   const missingTrackIds = useKaraokeStore((s) => s.missingTrackIds);
@@ -89,6 +99,9 @@ export const QueueList: React.FC<QueueListProps> = ({
         if (!dataTransferHasFiles(e.dataTransfer)) return;
         e.preventDefault();
         e.stopPropagation();
+        // Crossing into Queue must clear Library overlay (Studio side-by-side).
+        dispatchOsFileDragEnd();
+        fileDropDepthRef.current += 1;
         setQueueFileDropActive(true);
       }}
       onDragOver={(e) => {
@@ -98,9 +111,10 @@ export const QueueList: React.FC<QueueListProps> = ({
         e.dataTransfer.dropEffect = 'copy';
         if (!queueFileDropActive) setQueueFileDropActive(true);
       }}
-      onDragLeave={(e) => {
-        if (!dataTransferHasFiles(e.dataTransfer)) return;
-        if (e.currentTarget === e.target) {
+      onDragLeave={() => {
+        // Depth counter (no Files gate): Chromium often clears types on leave.
+        fileDropDepthRef.current = Math.max(0, fileDropDepthRef.current - 1);
+        if (fileDropDepthRef.current === 0) {
           setQueueFileDropActive(false);
         }
       }}
@@ -108,7 +122,10 @@ export const QueueList: React.FC<QueueListProps> = ({
         if (!dataTransferHasFiles(e.dataTransfer)) return;
         e.preventDefault();
         e.stopPropagation();
+        fileDropDepthRef.current = 0;
         setQueueFileDropActive(false);
+        // Clear Library overlay if drag crossed Library before Queue.
+        dispatchOsFileDragEnd();
         void onOsFileDrop(e.dataTransfer.files);
       }}
     >
@@ -370,6 +387,20 @@ export const QueueList: React.FC<QueueListProps> = ({
                         <Download className={`w-3.5 h-3.5 ${savingTrackIds.has(item.track.id) ? 'animate-spin' : ''}`} />
                       </button>
                     )}
+                  {canRevealTrackInLibrary(item.track) && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRevealInLibrary(item.track);
+                      }}
+                      className="p-1.5 hover:bg-indigo-950/60 rounded-full text-slate-500 hover:text-indigo-300 transition-colors ml-0.5"
+                      title={t('queue.revealInLibrary', 'Mostra in Libreria Locale')}
+                      data-testid="queue-reveal-in-library"
+                    >
+                      <FolderSearch className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={async () => {

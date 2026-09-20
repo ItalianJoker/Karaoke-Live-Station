@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, dialog, Menu, shell, session } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, dialog, Menu, shell, session, screen } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -27,6 +27,7 @@ import {
   GuestSongRequest,
   LogLevel
 } from '../shared/types';
+import { resolveStagePlacement } from '../shared/stageDisplayTarget';
 import { resolveSecondInstanceCopy } from '../shared/singleInstanceI18n';
 import {
   OFFLINE_VOCAL_MODELS,
@@ -664,21 +665,75 @@ class KaraokeMainProcess {
   }
 
   /**
+   * Resolves Stage placement from the current Electron display layout.
+   * Prefers a non-primary display so the TV/projector is not left on the desktop wallpaper.
+   */
+  private computeStagePlacement() {
+    const displays = screen.getAllDisplays().map((d) => ({
+      id: d.id,
+      bounds: {
+        x: d.bounds.x,
+        y: d.bounds.y,
+        width: d.bounds.width,
+        height: d.bounds.height
+      }
+    }));
+    return resolveStagePlacement(displays, screen.getPrimaryDisplay().id);
+  }
+
+  /**
+   * Moves Stage onto the audience display, shows it, and enters fullscreen when
+   * an external monitor is available. Single-monitor stays windowed so Regia remains usable.
+   *
+   * @param reason - Log correlation for create / reopen / handshake / fallback
+   */
+  private placeAndRevealStageWindow(reason: string): void {
+    if (!this.stageWindow || this.stageWindow.isDestroyed()) return;
+
+    const placement = this.computeStagePlacement();
+
+    // Leave fullscreen before cross-display moves (Electron requirement on Win/Linux).
+    if (this.stageWindow.isFullScreen()) {
+      this.stageWindow.setFullScreen(false);
+    }
+
+    this.stageWindow.setBounds(placement.bounds);
+    this.stageWindow.show();
+    this.stageWindow.moveTop();
+    this.stageWindow.focus();
+
+    if (placement.usedExternalDisplay && !this.stageWindow.isFullScreen()) {
+      this.stageWindow.setFullScreen(true);
+    }
+
+    this.logger.info('StageWindow', `Stage placed and revealed (${reason})`, {
+      displayId: placement.displayId,
+      usedExternalDisplay: placement.usedExternalDisplay,
+      bounds: placement.bounds
+    });
+  }
+
+  /**
    * Creates or focuses the Stage Window (Palco) with auto-recovery and handshake synchronization.
    *
    * @param preloadPath - Path to preload script
    */
   private createStageWindow(preloadPath: string): void {
     if (this.stageWindow && !this.stageWindow.isDestroyed()) {
-      this.stageWindow.focus();
+      // Re-place on reopen/focus — displays may have changed since create.
+      this.placeAndRevealStageWindow('reopen-existing');
       return;
     }
 
     this.logger.info('StageWindow', 'Creating stage window (Palco)');
 
+    const placement = this.computeStagePlacement();
+
     this.stageWindow = new BrowserWindow({
-      width: 1280,
-      height: 720,
+      x: placement.bounds.x,
+      y: placement.bounds.y,
+      width: placement.bounds.width,
+      height: placement.bounds.height,
       title: 'Karaoke Live Station - Palco',
       backgroundColor: '#000000',
       show: false,
@@ -698,7 +753,7 @@ class KaraokeMainProcess {
       setTimeout(() => {
         if (this.stageWindow && !this.stageWindow.isDestroyed() && !this.stageWindow.isVisible()) {
           this.logger.info('StageWindow', 'Stage window revealed via safety fallback timer');
-          this.stageWindow.show();
+          this.placeAndRevealStageWindow('ready-to-show-fallback');
         }
       }, 1200);
     });
@@ -932,8 +987,11 @@ class KaraokeMainProcess {
 
     ipcMain.on('stage:ready', () => {
       if (this.stageWindow && !this.stageWindow.isDestroyed()) {
-        this.logger.info('StageWindow', 'Stage window renderer signaled readiness handshake. Displaying stage window.');
-        this.stageWindow.show();
+        this.logger.info(
+          'StageWindow',
+          'Stage window renderer signaled readiness handshake. Displaying stage window.'
+        );
+        this.placeAndRevealStageWindow('stage-ready-handshake');
       }
     });
 
@@ -1201,6 +1259,24 @@ class KaraokeMainProcess {
     // 6. Database IPC Bridge
     ipcMain.handle('db:get-tracks', () => {
       return this.db.getAllTracks();
+    });
+
+    /**
+     * Single-track catalog lookup for missing-flag reconcile after Aggiorna Libreria.
+     * Additive Safety-First channel — does not replace getTracks / getTracksPage.
+     */
+    ipcMain.handle('db:get-track-by-id', (_event, trackId: string) => {
+      const id = typeof trackId === 'string' ? trackId.trim() : '';
+      if (!id) return null;
+      try {
+        return this.db.getTrackById(id);
+      } catch (err) {
+        this.logger.warn('Database', 'get-track-by-id failed', {
+          trackId: id,
+          error: String(err)
+        });
+        return null;
+      }
     });
 
     // Bound LIKE search — keeps large catalogs off the IPC bus during live typing.

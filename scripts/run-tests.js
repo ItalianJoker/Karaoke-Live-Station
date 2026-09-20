@@ -4243,9 +4243,10 @@ console.log('\n\x1b[36m▶ Suite: Pitch/BPM UX + single-instance dialog\x1b[0m')
   assert(
     stageSrc.includes('stage-key-label') &&
       stageSrc.includes('stage-bpm-label') &&
-      stageSrc.includes('TrackKeyBpmBadges') &&
+      stageSrc.includes('stagePitchBadgeText') &&
+      stageSrc.includes('stageSpeedBadgeText') &&
       stageSrc.includes('player.bpm'),
-    'Stage shows Key/BPM on pitch/speed badges and title overlay'
+    'Stage shows Key/BPM in parentheses pitch/speed badges'
   );
 
   assert(
@@ -4582,6 +4583,428 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
         `${lang}: themeOptions.${id} display name includes Legacy`
       );
     }
+  }
+}
+
+// -------------------------------------------------------------
+// Suite: Stage external-display placement + speed label on Palco
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Stage live blank fix + speed on Stage\x1b[0m');
+
+{
+  const stageTargetPath = path.resolve(__dirname, '../src/shared/stageDisplayTarget.ts');
+  const mainSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+  const stageSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/StageWindow.tsx'),
+    'utf8'
+  );
+  const badgesSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/TrackKeyBpmBadges.tsx'),
+    'utf8'
+  );
+  const cssSrc = fs.readFileSync(path.resolve(__dirname, '../src/renderer/index.css'), 'utf8');
+
+  assert(fs.existsSync(stageTargetPath), 'stageDisplayTarget helper exists');
+  assert(
+    mainSrc.includes('resolveStagePlacement') &&
+      mainSrc.includes('placeAndRevealStageWindow') &&
+      mainSrc.includes("from 'electron'") &&
+      /screen/.test(mainSrc),
+    'Main places Stage via resolveStagePlacement + screen'
+  );
+  assert(
+    mainSrc.includes('stage-ready-handshake') &&
+      mainSrc.includes('ready-to-show-fallback') &&
+      mainSrc.includes('reopen-existing'),
+    'Stage reveal paths all re-place on audience display'
+  );
+  assert(
+    /stage-screen-container[\s\S]*var\(--bg-app,\s*#000000\)/.test(cssSrc),
+    'Stage container CSS has opaque --bg-app fallback'
+  );
+  assert(
+    stageSrc.includes("t('player.speed')") &&
+      stageSrc.includes('stage-speed-value') &&
+      stageSrc.includes('stageSpeedBadgeText') &&
+      stageSrc.includes('stagePitchBadgeText') &&
+      stageSrc.includes('stage-title-key-speed') &&
+      stageSrc.includes('showSpeedOnStage'),
+    'Stage shows parentheses Speed/Pitch badges + title overlay chips'
+  );
+  // Explicit parentheses form locks (Luca): `0 (D)` / `1.00x (103 BPM)`
+  assert(
+    stageSrc.includes('(${stageKeyInParens})') &&
+      stageSrc.includes('(${stageBpmInParens})') &&
+      stageSrc.includes('stagePitchBadgeText') &&
+      stageSrc.includes('stageSpeedBadgeText'),
+    'Stage pitch/speed use parentheses form around key and BPM'
+  );
+  assert(
+    badgesSrc.includes('showSpeedRatio') && badgesSrc.includes('track-speed-badge'),
+    'TrackKeyBpmBadges optional speed ratio chip retained for Regia/lists reuse'
+  );
+
+  for (const lang of ['it', 'en', 'es', 'fr']) {
+    const loc = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+    );
+    assert(typeof loc.player?.speed === 'string' && loc.player.speed.length > 0, `${lang}: player.speed`);
+  }
+
+  const { spawnSync } = require('child_process');
+  const probe = spawnSync(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      '--no-warnings',
+      '-e',
+      `
+      import { resolveStagePlacement } from ${JSON.stringify(stageTargetPath)};
+      const assert = (c, m) => { if (!c) { console.error('PROBE_FAIL', m); process.exit(2); } };
+      const dual = resolveStagePlacement(
+        [
+          { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
+          { id: 2, bounds: { x: 1920, y: 0, width: 1280, height: 720 } }
+        ],
+        1
+      );
+      assert(dual.usedExternalDisplay === true, 'dual → external');
+      assert(dual.displayId === 2, 'dual → display 2');
+      assert(dual.bounds.x === 1920 && dual.bounds.width === 1280, 'dual bounds');
+      const single = resolveStagePlacement(
+        [{ id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } }],
+        1
+      );
+      assert(single.usedExternalDisplay === false, 'single → primary');
+      assert(single.bounds.width === 1280 && single.bounds.height === 720, 'single windowed size');
+      assert(single.bounds.x === 320, 'single centered x');
+      const empty = resolveStagePlacement([], 0);
+      assert(empty.usedExternalDisplay === false && empty.bounds.width === 1280, 'empty fallback');
+      console.log('PROBE_OK');
+      `
+    ],
+    { encoding: 'utf8' }
+  );
+  assert(
+    probe.status === 0 && (probe.stdout || '').includes('PROBE_OK'),
+    'resolveStagePlacement dual/single/empty probe'
+  );
+  if (probe.status !== 0) {
+    console.error(probe.stderr || probe.stdout);
+  }
+}
+
+// -------------------------------------------------------------
+// Suite: Library refresh missing-flag reconcile + OS DnD overlay teardown
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Library refresh missing flags + DnD overlay teardown\x1b[0m');
+
+{
+  const mainIndexSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/index.ts'),
+    'utf8'
+  );
+  const preloadSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/preload/index.ts'),
+    'utf8'
+  );
+  const storeSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+    'utf8'
+  );
+  const libraryPanelSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  const queueListSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/QueueList.tsx'),
+    'utf8'
+  );
+  const controlWindowSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+    'utf8'
+  );
+  const fsDragDropSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/utils/fsDragDrop.ts'),
+    'utf8'
+  );
+  const reconcileSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/utils/reconcileMissingTracks.ts'),
+    'utf8'
+  );
+
+  assert(
+    mainIndexSource.includes("ipcMain.handle('db:get-track-by-id'") &&
+      mainIndexSource.includes('getTrackById'),
+    'Main exposes additive db:get-track-by-id'
+  );
+  assert(
+    preloadSource.includes('getTrackById:') &&
+      preloadSource.includes("ipcRenderer.invoke('db:get-track-by-id'"),
+    'Preload db.getTrackById wired'
+  );
+  assert(
+    storeSource.includes('clearMissingTrackIds:') &&
+      storeSource.includes('clearMissingTrackIds: (trackIds: string[])'),
+    'Store exposes clearMissingTrackIds batch clearer'
+  );
+  assert(
+    reconcileSource.includes('reconcileMissingTrackFlags') &&
+      reconcileSource.includes('createMissingTrackResolver') &&
+      reconcileSource.includes('checkTrackLocalFileExists') &&
+      reconcileSource.includes('clearMissingTrackIds'),
+    'reconcileMissingTracks re-probes and batch-clears false positives'
+  );
+  assert(
+    libraryPanelSource.includes('reconcileMissingAfterRefresh') &&
+      libraryPanelSource.includes('reconcileMissingTrackFlags') &&
+      libraryPanelSource.includes('handleScanOrRefresh') &&
+      /handleScanOrRefresh[\s\S]*reconcileMissingAfterRefresh/.test(libraryPanelSource),
+    'Aggiorna Libreria / handleScanOrRefresh reconciles missing flags'
+  );
+  assert(
+    fsDragDropSource.includes('OS_FILE_DRAG_END_EVENT') &&
+      fsDragDropSource.includes('dispatchOsFileDragEnd') &&
+      fsDragDropSource.includes('isDragLeavingHost') &&
+      fsDragDropSource.includes('dataTransferHasFiles'),
+    'fsDragDrop exports drag-end event + leave helper'
+  );
+  assert(
+    libraryPanelSource.includes('fileDropDepthRef') &&
+      libraryPanelSource.includes('OS_FILE_DRAG_END_EVENT') &&
+      libraryPanelSource.includes('dispatchOsFileDragEnd') &&
+      libraryPanelSource.includes('addEventListener(OS_FILE_DRAG_END_EVENT') &&
+      !/onDragLeave=\{\(e\) => \{\s*if \(!dataTransferHasFiles/.test(libraryPanelSource),
+    'LibraryPanel depth counter + drag-end listener; leave not gated on Files'
+  );
+  assert(
+    queueListSource.includes('fileDropDepthRef') &&
+      queueListSource.includes('dispatchOsFileDragEnd') &&
+      !/onDragLeave=\{\(e\) => \{\s*if \(!dataTransferHasFiles/.test(queueListSource),
+    'QueueList depth counter + clears Library overlay on queue enter/drop'
+  );
+  assert(
+    controlWindowSource.includes('dispatchOsFileDragEnd') &&
+      controlWindowSource.includes("addEventListener('dragend'") &&
+      controlWindowSource.includes("addEventListener('drop'") &&
+      controlWindowSource.includes("e.key === 'Escape'"),
+    'ControlWindow window dragend/drop/Escape teardown (Studio + classic)'
+  );
+
+  // Runtime probe: fsDragDrop helpers + localFileCheck (no cross-relative ESM graph).
+  const { spawnSync } = require('child_process');
+  const fsDragPath = path.resolve(__dirname, '../src/renderer/utils/fsDragDrop.ts');
+  const localCheckPath = path.resolve(__dirname, '../src/renderer/utils/localFileCheck.ts');
+  const probe = spawnSync(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      '--no-warnings',
+      '-e',
+      `
+      import { isDragLeavingHost, dataTransferHasFiles, OS_FILE_DRAG_END_EVENT, dispatchOsFileDragEnd } from ${JSON.stringify(fsDragPath)};
+      import { checkTrackLocalFileExists, shouldSkipLocalFileExistsCheck } from ${JSON.stringify(localCheckPath)};
+      const assert = (c, m) => { if (!c) { console.error('PROBE_FAIL', m); process.exit(2); } };
+      const existsByPath = new Map([
+        ['/present.mp4', true],
+        ['/gone.mp4', false]
+      ]);
+      globalThis.window = {
+        karaokeApi: {
+          library: {
+            checkFileExists: async (p) => Boolean(existsByPath.get(p))
+          },
+          dispatchEvent: undefined
+        },
+        dispatchEvent: () => true
+      };
+      assert(OS_FILE_DRAG_END_EVENT === 'karaoke:os-file-drag-end', 'event name stable');
+      assert(dataTransferHasFiles({ types: ['Files'] }) === true, 'Files gate true');
+      assert(dataTransferHasFiles({ types: ['text/plain'] }) === false, 'Files gate false');
+      const fakeHost = { contains: (n) => n && n.id === 'inside' };
+      const inside = { id: 'inside' };
+      const outside = { id: 'outside' };
+      assert(isDragLeavingHost({ currentTarget: fakeHost, relatedTarget: inside }) === false, 'still inside host');
+      assert(isDragLeavingHost({ currentTarget: fakeHost, relatedTarget: outside }) === true, 'left host');
+      assert(isDragLeavingHost({ currentTarget: {}, relatedTarget: inside }) === true, 'non-element host → leave');
+      dispatchOsFileDragEnd();
+      assert(shouldSkipLocalFileExistsCheck('https://x') === true, 'skip https');
+      const present = await checkTrackLocalFileExists({
+        localFilePath: '/present.mp4', source: 'local_library', uri: 'karaoke://present.mp4'
+      });
+      const gone = await checkTrackLocalFileExists({
+        localFilePath: '/gone.mp4', source: 'local_library', uri: 'karaoke://gone.mp4'
+      });
+      assert(present.exists === true, 'present exists');
+      assert(gone.exists === false, 'gone missing');
+      // Mirror reconcileMissingTrackFlags decision table (source-locked module above).
+      const missing = ['a', 'b', 'orphan'];
+      const byId = {
+        a: { localFilePath: '/present.mp4', source: 'local_library', uri: 'x' },
+        b: { localFilePath: '/gone.mp4', source: 'local_library', uri: 'y' }
+      };
+      const cleared = [];
+      const still = [];
+      for (const id of missing) {
+        const track = byId[id];
+        if (!track) { cleared.push(id); continue; }
+        const probe = await checkTrackLocalFileExists(track);
+        if (probe.exists) cleared.push(id); else still.push(id);
+      }
+      assert(cleared.includes('a') && cleared.includes('orphan'), 'reconcile clears false positive + orphan');
+      assert(still.includes('b'), 'reconcile keeps true missing');
+      console.log('PROBE_OK');
+      `
+    ],
+    { encoding: 'utf8' }
+  );
+  assert(
+    probe.status === 0 && (probe.stdout || '').includes('PROBE_OK'),
+    'reconcileMissingTrackFlags + fsDragDrop runtime probe'
+  );
+  if (probe.status !== 0) {
+    console.error(probe.stderr || probe.stdout);
+  }
+}
+
+
+// -------------------------------------------------------------
+// Suite: Queue → Local Library reveal
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Queue → Local Library reveal\x1b[0m');
+
+{
+  const root = path.resolve(__dirname, '..');
+  const revealUtilSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/utils/libraryReveal.ts'),
+    'utf8'
+  );
+  const queueListSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/components/QueueList.tsx'),
+    'utf8'
+  );
+  const libraryPanelSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  const storeSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/store/karaokeStore.ts'),
+    'utf8'
+  );
+  const controlSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/components/ControlWindow.tsx'),
+    'utf8'
+  );
+  const scopedSearchSrc = fs.readFileSync(
+    path.join(root, 'src/renderer/hooks/useScopedLibrarySearch.ts'),
+    'utf8'
+  );
+
+  assert(
+    revealUtilSrc.includes('canRevealTrackInLibrary') &&
+      revealUtilSrc.includes('findTrackRevealIndex') &&
+      revealUtilSrc.includes('buildLibraryRevealSearchSeed') &&
+      revealUtilSrc.includes('LibraryRevealRequest'),
+    'libraryReveal helpers export canReveal / findIndex / searchSeed / request type'
+  );
+  assert(
+    queueListSrc.includes('onRevealInLibrary') &&
+      queueListSrc.includes('canRevealTrackInLibrary') &&
+      queueListSrc.includes('data-testid="queue-reveal-in-library"') &&
+      queueListSrc.includes('FolderSearch') &&
+      queueListSrc.includes("t('queue.revealInLibrary"),
+    'QueueList wires reveal control with i18n + testid'
+  );
+  assert(
+    storeSrc.includes('libraryRevealRequest') &&
+      storeSrc.includes('requestRevealInLibrary') &&
+      storeSrc.includes('clearLibraryRevealRequest'),
+    'Store exposes volatile libraryRevealRequest API'
+  );
+  assert(
+    !/partialize:[\s\S]*libraryRevealRequest/.test(storeSrc),
+    'libraryRevealRequest is not partialize-persisted'
+  );
+  assert(
+    controlSrc.includes('handleRevealInLibrary') &&
+      controlSrc.includes('onRevealInLibrary={handleRevealInLibrary}') &&
+      controlSrc.includes('requestRevealInLibrary') &&
+      controlSrc.includes("setActiveRightTab('library')"),
+    'ControlWindow switches to library tab and requests reveal'
+  );
+  assert(
+    controlSrc.includes('{queuePanelNode}') && controlSrc.includes('{libraryPanelNode}'),
+    'Classic Regia reuses shared queue/library panel nodes (no QueueList drift)'
+  );
+  assert(
+    libraryPanelSrc.includes('libraryRevealRequest') &&
+      libraryPanelSrc.includes('findTrackRevealIndex') &&
+      libraryPanelSrc.includes('buildLibraryRevealSearchSeed') &&
+      libraryPanelSrc.includes('library-row-highlighted') &&
+      libraryPanelSrc.includes('showMissingFileModal') &&
+      libraryPanelSrc.includes("t('library.notInCatalog"),
+    'LibraryPanel consumes reveal request, highlights row, reuses missing-file modal'
+  );
+  assert(
+    scopedSearchSrc.includes('setLocalQuery'),
+    'useScopedLibrarySearch exposes setLocalQuery for reveal while Web tab may be active'
+  );
+
+  // Pure helper probes (transpile-free via Function from extracted source patterns)
+  const canReveal = (track) => {
+    if (track.source === 'local_library' || track.source === 'midi') return true;
+    return Boolean((track.localFilePath || '').trim());
+  };
+  const findIndex = (tracks, req) => {
+    if (!tracks.length || !req.trackId) return -1;
+    const byId = tracks.findIndex((t) => t.id === req.trackId);
+    if (byId >= 0) return byId;
+    const p = (req.localFilePath || '').trim();
+    if (!p) return -1;
+    return tracks.findIndex((t) => (t.localFilePath || '').trim() === p);
+  };
+  const seed = (req) => {
+    const title = (req.title || '').trim();
+    if (title) return title;
+    return (req.artist || '').trim();
+  };
+
+  assert(canReveal({ source: 'local_library' }) === true, 'local_library can reveal');
+  assert(canReveal({ source: 'midi' }) === true, 'midi can reveal');
+  assert(
+    canReveal({ source: 'youtube', localFilePath: '/tmp/a.mp4' }) === true,
+    'youtube with local path can reveal'
+  );
+  assert(
+    canReveal({ source: 'youtube' }) === false,
+    'pure youtube without path cannot reveal'
+  );
+  assert(
+    findIndex(
+      [
+        { id: 'a', localFilePath: '/x' },
+        { id: 'b', localFilePath: '/y' }
+      ],
+      { trackId: 'b' }
+    ) === 1,
+    'findRevealIndex by id'
+  );
+  assert(
+    findIndex([{ id: 'a', localFilePath: '/x' }], {
+      trackId: 'missing',
+      localFilePath: '/x'
+    }) === 0,
+    'findRevealIndex falls back to path'
+  );
+  assert(seed({ title: ' Hello ', artist: 'Art' }) === 'Hello', 'search seed prefers title');
+  assert(seed({ title: '  ', artist: ' Art ' }) === 'Art', 'search seed falls back to artist');
+
+  for (const lang of ['it', 'en', 'es', 'fr']) {
+    const loc = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+    );
+    assert(loc.queue?.revealInLibrary, `${lang}: queue.revealInLibrary`);
+    assert(loc.library?.notInCatalog, `${lang}: library.notInCatalog`);
   }
 }
 
