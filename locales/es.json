@@ -36,7 +36,8 @@
     "bassTrack": "Bajo (Ch 2)",
     "drumsTrack": "Batería (Ch 10)",
     "soundfontLoaded": "SoundFont: {{path}}",
-    "noSoundfontSelected": "Ningún SoundFont (.sf2) configurado"
+    "noSoundfontSelected": "Ningún SoundFont (.sf2) configurado",
+    "channelActivity": "Actividad del canal {{num}}"
   },
   "queue": {
     "title": "Cola de Cantantes",

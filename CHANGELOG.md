@@ -12,8 +12,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - None yet.
 
 ### Changed
-- **IT:** Tema **Studio Desk** — polish UX (#77 pass 1–7): shell Studio, Velo|Ton|Vol una riga, MIDI default-on, libreria con azioni sotto titolo, card **content-sized** con **`py-3` uniforme** (niente padding basso diseguale su titoli 1 vs 2 linee), SoundFont/scrollbar/relaunch. Regia classica invariata. (PR #77)
-- **EN:** **Studio Desk** theme UX polish (#77 pass 1–7): Studio shell, Speed|Pitch|Volume one row, MIDI mixer default-on, library actions under title, **content-sized** cards with **uniform `py-3`** (no uneven bottom padding on 1- vs 2-line titles), SoundFont/scrollbar/relaunch. Classic Regia unchanged. (PR #77)
+- **IT:** Tema **Studio Desk** — polish UX (#77 pass 1–7 + meter MIDI): shell Studio, Velo|Ton|Vol una riga, MIDI default-on, **meter attività canale** (velocity note-on), libreria content-sized con `py-3` uniforme, SoundFont/scrollbar/relaunch. Regia classica invariata. (PR #77)
+- **EN:** **Studio Desk** theme UX polish (#77 pass 1–7 + MIDI meters): Studio shell, Speed|Pitch|Volume one row, MIDI mixer default-on, **per-channel activity meters** (note-on velocity), content-sized library cards with uniform `py-3`, SoundFont/scrollbar/relaunch. Classic Regia unchanged. (PR #77)
 
 ### Fixed
 - None yet.

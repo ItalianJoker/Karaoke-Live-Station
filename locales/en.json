@@ -36,7 +36,8 @@
     "bassTrack": "Bass (Ch 2)",
     "drumsTrack": "Drums (Ch 10)",
     "soundfontLoaded": "SoundFont: {{path}}",
-    "noSoundfontSelected": "No SoundFont (.sf2) configured"
+    "noSoundfontSelected": "No SoundFont (.sf2) configured",
+    "channelActivity": "Channel {{num}} activity"
   },
   "queue": {
     "title": "Singer Queue",

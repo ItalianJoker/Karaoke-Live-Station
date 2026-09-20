@@ -36,7 +36,8 @@
     "bassTrack": "Basso (Ch 2)",
     "drumsTrack": "Batteria (Ch 10)",
     "soundfontLoaded": "SoundFont: {{path}}",
-    "noSoundfontSelected": "Nessun SoundFont (.sf2) configurato"
+    "noSoundfontSelected": "Nessun SoundFont (.sf2) configurato",
+    "channelActivity": "Attività canale {{num}}"
   },
   "queue": {
     "title": "Coda Cantanti",

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Mic,
@@ -939,10 +939,16 @@ export const ControlWindow: React.FC = () => {
 
   const historyPanelNode = <HistoryPanel embedded />;
 
+  const getMidiChannelActivity = useCallback(
+    () => audioGraphRef.current?.getMidiChannelLevels() ?? null,
+    []
+  );
+
   const midiMixerNode = (
     <MidiChannelMixer
       onToggleMuteChannel={toggleMidiChannelMute}
       studioColumn={isStudioDesk}
+      getChannelActivity={isStudioDesk ? getMidiChannelActivity : undefined}
     />
   );
 

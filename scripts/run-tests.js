@@ -4399,6 +4399,10 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     path.resolve(__dirname, '../src/renderer/components/MidiChannelMixer.tsx'),
     'utf8'
   );
+  const audioGraphSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
+    'utf8'
+  );
   const queueListSrc = fs.readFileSync(
     path.resolve(__dirname, '../src/renderer/components/QueueList.tsx'),
     'utf8'
@@ -4531,6 +4535,13 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     'MidiChannelMixer studioColumn lays out SoundFont under header'
   );
   assert(
+    midiMixerSrc.includes('getChannelActivity') &&
+      midiMixerSrc.includes('midi-channel-activity-') &&
+      audioGraphSrc.includes('getMidiChannelLevels') &&
+      audioGraphSrc.includes('bumpMidiChannelActivity'),
+    'Studio MIDI mixer shows per-channel note-on activity meters'
+  );
+  assert(
     queueListSrc.includes('studio-queue-scroll') &&
       queueListSrc.includes('queue-scroll-region'),
     'QueueList exposes Studio scrollbar region'
@@ -4545,6 +4556,7 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
     assert(loc.studio?.hideMidiMixer, `${lang}: studio.hideMidiMixer`);
     assert(loc.studio?.navSettings, `${lang}: studio.navSettings short label`);
     assert(loc.settings?.themeRestartNote, `${lang}: settings.themeRestartNote`);
+    assert(loc.midi?.channelActivity, `${lang}: midi.channelActivity`);
   }
 
   assert(

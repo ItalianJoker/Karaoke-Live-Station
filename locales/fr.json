@@ -36,7 +36,8 @@
     "bassTrack": "Basse (Ch 2)",
     "drumsTrack": "Batterie (Ch 10)",
     "soundfontLoaded": "SoundFont: {{path}}",
-    "noSoundfontSelected": "Aucun SoundFont (.sf2) configuré"
+    "noSoundfontSelected": "Aucun SoundFont (.sf2) configuré",
+    "channelActivity": "Activité du canal {{num}}"
   },
   "queue": {
     "title": "File des Chanteurs",
