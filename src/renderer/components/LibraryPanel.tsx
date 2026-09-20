@@ -44,6 +44,11 @@ import {
   checkTrackLocalFileExists,
   trackNeedsLocalFileCheck
 } from '../utils/localFileCheck';
+import {
+  buildLibraryRevealSearchSeed,
+  findTrackRevealIndex,
+  type LibraryRevealRequest
+} from '../utils/libraryReveal';
 import { computeVirtualWindow } from '../utils/listVirtualization';
 import { TrackKeyBpmBadges } from './TrackKeyBpmBadges';
 
@@ -99,6 +104,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     setSearchMode,
     query,
     setQuery,
+    setLocalQuery,
     results: searchResults,
     setLocalResults,
     setWebResults,
@@ -162,6 +168,10 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   const [isDeletingTrack, setIsDeletingTrack] = useState(false);
   // When auto-archive is on, YouTube→queue waits for library file before enqueue (no remote/temp pointer).
   const pendingArchiveEnqueueRef = useRef<Record<string, PendingArchiveEnqueue>>({});
+  /** Active queue→library reveal waiting for Local list/search to settle. */
+  const [pendingReveal, setPendingReveal] = useState<LibraryRevealRequest | null>(null);
+  const [highlightedTrackId, setHighlightedTrackId] = useState<string | null>(null);
+  const highlightClearTimerRef = useRef<number | null>(null);
 
   const settings = useKaraokeStore((state) => state.settings);
   const updateSettings = useKaraokeStore((state) => state.updateSettings);
@@ -172,6 +182,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   const markTrackMissing = useKaraokeStore((state) => state.markTrackMissing);
   const clearTrackMissing = useKaraokeStore((state) => state.clearTrackMissing);
   const missingTrackIds = useKaraokeStore((state) => state.missingTrackIds);
+  const libraryRevealRequest = useKaraokeStore((state) => state.libraryRevealRequest);
+  const clearLibraryRevealRequest = useKaraokeStore((state) => state.clearLibraryRevealRequest);
   /** O(1) membership for virtualized rows — store shape stays string[] for persist. */
   const missingTrackIdSet = useMemo(() => new Set(missingTrackIds), [missingTrackIds]);
 
@@ -852,6 +864,127 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   // Windowed rendering for 16k+ local catalogs — only mount visible rows
   const [listScrollTop, setListScrollTop] = useState(0);
   const [listViewportH, setListViewportH] = useState(480);
+  const revealGenRef = useRef(0);
+
+  /**
+   * Pick up queue→library reveal requests: switch to Locale, seed Local search,
+   * optionally run searchTracks immediately (bypass debounce), and reuse missing-file handling.
+   */
+  useEffect(() => {
+    if (!libraryRevealRequest) return;
+    const req = libraryRevealRequest;
+    clearLibraryRevealRequest(req.requestId);
+    const gen = ++revealGenRef.current;
+
+    setSearchMode('local');
+    const seed = buildLibraryRevealSearchSeed(req);
+    setLocalQuery(seed);
+    setPendingReveal(req);
+
+    void (async () => {
+      const probeTrack = {
+        id: req.trackId,
+        source: req.source,
+        localFilePath: req.localFilePath,
+        uri: req.uri || '',
+        title: req.title,
+        artist: req.artist,
+        durationSec: 0
+      } as KaraokeMediaTrack;
+      if (trackNeedsLocalFileCheck(probeTrack)) {
+        const check = await checkTrackLocalFileExists(probeTrack);
+        if (gen !== revealGenRef.current) return;
+        if (!check.exists) {
+          markTrackMissing(req.trackId);
+          showMissingFileModal({
+            filePath: check.path,
+            trackTitle: req.title,
+            trackArtist: req.artist,
+            trackId: req.trackId,
+            context: 'library'
+          });
+        } else {
+          clearTrackMissing(req.trackId);
+        }
+      }
+
+      if (seed) {
+        let matches: KaraokeMediaTrack[] = [];
+        try {
+          if (window.karaokeApi?.db?.searchTracks) {
+            matches = await window.karaokeApi.db.searchTracks(seed, 200);
+          }
+        } catch (err) {
+          logLibrary('error', 'Reveal-in-library search failed:', err);
+        }
+        if (gen !== revealGenRef.current) return;
+        setLocalResults(matches);
+        // Declare not-in-catalog immediately when FTS/filter misses — do not race a short timer.
+        if (findTrackRevealIndex(matches, req) < 0) {
+          showToast(t('library.notInCatalog', 'Brano non trovato nella Libreria Locale'), 'warning');
+          setPendingReveal(null);
+        }
+        return;
+      }
+
+      // Browse mode (empty seed): allow resolve effect a beat, then toast if still unresolved.
+      window.setTimeout(() => {
+        if (gen !== revealGenRef.current) return;
+        setPendingReveal((cur) => {
+          if (!cur || cur.requestId !== req.requestId) return cur;
+          showToast(t('library.notInCatalog', 'Brano non trovato nella Libreria Locale'), 'warning');
+          return null;
+        });
+      }, 180);
+    })();
+  }, [
+    libraryRevealRequest,
+    clearLibraryRevealRequest,
+    setSearchMode,
+    setLocalQuery,
+    setLocalResults,
+    markTrackMissing,
+    clearTrackMissing,
+    showMissingFileModal,
+    t
+  ]);
+
+  /**
+   * Resolve pending reveal against the Local list once rows are available.
+   * Why: large catalogs are paged — title seed + searchTracks surfaces the row without walking 14k.
+   */
+  useEffect(() => {
+    if (!pendingReveal || searchMode !== 'local') return;
+
+    const idx = findTrackRevealIndex(displayedTracks, pendingReveal);
+    if (idx < 0) return;
+
+    const trackId = pendingReveal.trackId;
+    const top = idx * LIBRARY_ROW_HEIGHT;
+    const el = resultsListRef.current;
+    if (el) {
+      el.scrollTop = top;
+    }
+    setListScrollTop(top);
+    setHighlightedTrackId(trackId);
+    setPendingReveal(null);
+    if (highlightClearTimerRef.current != null) {
+      window.clearTimeout(highlightClearTimerRef.current);
+    }
+    highlightClearTimerRef.current = window.setTimeout(() => {
+      setHighlightedTrackId((cur) => (cur === trackId ? null : cur));
+      highlightClearTimerRef.current = null;
+    }, 2500);
+  }, [pendingReveal, searchMode, displayedTracks, resultsListRef]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightClearTimerRef.current != null) {
+        window.clearTimeout(highlightClearTimerRef.current);
+      }
+    };
+  }, []);
+
   React.useEffect(() => {
     const el = resultsListRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
@@ -1289,17 +1422,22 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
           {virtualizedTracks.map((track) => {
             const versionTags = extractVersionTags(track);
             const isMissing = missingTrackIdSet.has(track.id);
+            const isRevealHighlight = highlightedTrackId === track.id;
 
             return (
               <div
                 key={track.id}
                 style={{ height: LIBRARY_ROW_HEIGHT - 8, marginBottom: 8 }}
                 className={`p-2.5 sm:p-3 border rounded-2xl flex items-center justify-between gap-3 transition-all group/item box-border overflow-hidden ${
-                  isMissing
-                    ? 'bg-rose-950/40 border-rose-500/70 hover:bg-rose-950/55'
-                    : 'bg-slate-950/40 hover:bg-slate-950/80 border-slate-800/60 hover:border-slate-700/80'
+                  isRevealHighlight
+                    ? 'bg-indigo-950/50 border-indigo-400/80 ring-2 ring-indigo-400/60'
+                    : isMissing
+                      ? 'bg-rose-950/40 border-rose-500/70 hover:bg-rose-950/55'
+                      : 'bg-slate-950/40 hover:bg-slate-950/80 border-slate-800/60 hover:border-slate-700/80'
                 }`}
                 data-missing-file={isMissing ? 'true' : undefined}
+                data-library-reveal-highlight={isRevealHighlight ? 'true' : undefined}
+                data-testid={isRevealHighlight ? 'library-row-highlighted' : undefined}
               >
                 <div className="flex items-center gap-3 overflow-hidden min-w-0">
                   {/* 16:9 Video / Media Preview Thumbnail */}

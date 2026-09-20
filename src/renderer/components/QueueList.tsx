@@ -12,13 +12,15 @@ import {
   Edit2,
   Mic,
   AlertCircle,
-  FileX
+  FileX,
+  FolderSearch
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import {
   dataTransferHasFiles,
   dispatchOsFileDragEnd
 } from '../utils/fsDragDrop';
+import { canRevealTrackInLibrary } from '../utils/libraryReveal';
 import { confirmAsync } from '../utils/toast';
 import type { KaraokeMediaTrack, QueueItem } from '../../shared/types';
 import { TrackKeyBpmBadges } from './TrackKeyBpmBadges';
@@ -35,6 +37,8 @@ export interface QueueListProps {
   onSaveToPermanentLibrary: (track: KaraokeMediaTrack) => void;
   savingTrackIds: Set<string>;
   onEditSinger: (item: QueueItem) => void;
+  /** Switch to Libreria Locale and highlight the matching catalog row. */
+  onRevealInLibrary: (track: KaraokeMediaTrack) => void;
 }
 
 /**
@@ -57,7 +61,8 @@ export const QueueList: React.FC<QueueListProps> = ({
   onJumpToTrack,
   onSaveToPermanentLibrary,
   savingTrackIds,
-  onEditSinger
+  onEditSinger,
+  onRevealInLibrary
 }) => {
   const { t } = useTranslation();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -365,6 +370,20 @@ export const QueueList: React.FC<QueueListProps> = ({
                         <Download className={`w-3.5 h-3.5 ${savingTrackIds.has(item.track.id) ? 'animate-spin' : ''}`} />
                       </button>
                     )}
+                  {canRevealTrackInLibrary(item.track) && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRevealInLibrary(item.track);
+                      }}
+                      className="p-1.5 hover:bg-indigo-950/60 rounded-full text-slate-500 hover:text-indigo-300 transition-colors ml-0.5"
+                      title={t('queue.revealInLibrary', 'Mostra in Libreria Locale')}
+                      data-testid="queue-reveal-in-library"
+                    >
+                      <FolderSearch className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={async () => {

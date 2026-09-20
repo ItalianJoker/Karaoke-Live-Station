@@ -63,7 +63,8 @@
     "hintPlayOrDoubleClick": "Doble clic o Play para iniciar",
     "confirmRemove": "¿Quitar este tema de la cola?",
     "dropToImport": "Suelta archivos multimedia para importarlos y añadirlos a la cola",
-    "importDropped": "Importadas y encoladas {{count}} pista(s)"
+    "importDropped": "Importadas y encoladas {{count}} pista(s)",
+    "revealInLibrary": "Mostrar en Biblioteca Local"
   },
   "singers": {
     "title": "Gestión de Cantantes",
@@ -118,6 +119,7 @@
     "saveToLibrary": "Guardar en Biblioteca",
     "savedSuccess": "Canción guardada en la biblioteca local: {{title}}",
     "missingFile": "Archivo multimedia no encontrado en disco",
+    "notInCatalog": "Pista no encontrada en la Biblioteca Local",
     "addAsNone": "Añadir como: (Ninguno)",
     "previewVideo": "Vista Previa de Video",
     "previewTitle": "Vista Previa y Verificación de Versión",

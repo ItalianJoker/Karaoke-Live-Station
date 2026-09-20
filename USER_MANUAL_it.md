@@ -211,6 +211,8 @@ Puoi avviare/mettere in pausa con il pulsante Play sulla riga del primo elemento
 
 **Salva in Libreria:** se il brano proviene dal web o da `queue_cache`, compare **Salva in Libreria** sulla riga coda e nella testata player, per promuoverlo nella cartella libreria permanente.
 
+**Mostra in Libreria Locale:** sulle righe locali / MIDI / con file in cache, il controllo a icona cartella passa a **Libreria & Ricerca → Locale**, filtra per titolo e scorre/evidenzia la riga catalogo corrispondente per identificare il file corretto. Se il percorso manca su disco, si riusa la modale file mancante esistente.
+
 ### 4.2 Volume percettivo
 
 Lo slider Volume Master usa una curva **quadratica psicoacustica**:

@@ -63,7 +63,8 @@
     "hintPlayOrDoubleClick": "Doppio click o Play per avviare",
     "confirmRemove": "Rimuovere questo brano dalla coda?",
     "dropToImport": "Trascina qui i file media per importarli e metterli in coda",
-    "importDropped": "Importati e messi in coda {{count}} brano/i"
+    "importDropped": "Importati e messi in coda {{count}} brano/i",
+    "revealInLibrary": "Mostra in Libreria Locale"
   },
   "singers": {
     "title": "Gestione Cantanti",
@@ -118,6 +119,7 @@
     "saveToLibrary": "Salva in Libreria",
     "savedSuccess": "Brano salvato correttamente nella libreria locale: {{title}}",
     "missingFile": "File multimediale non trovato sul disco",
+    "notInCatalog": "Brano non trovato nella Libreria Locale",
     "addAsNone": "Aggiungi come: (Nessuno)",
     "previewVideo": "Anteprima Video",
     "previewTitle": "Anteprima e Controllo Versione",

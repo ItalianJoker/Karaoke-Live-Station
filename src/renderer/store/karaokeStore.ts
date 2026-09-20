@@ -36,7 +36,10 @@ import {
 import { coerceAiCpuThreads } from '../../shared/aiCpuThreads';
 import { coerceAiEnableGpu } from '../../shared/aiOrtProviders';
 import { clampPitchForEngine, clampSpeedForEngine, coerceDspPitchEngine } from '../../shared/dspPitch';
-
+import type {
+  LibraryRevealRequest,
+  LibraryRevealRequestInput
+} from '../utils/libraryReveal';
 
 function logStore(level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown): void {
   try {
@@ -139,6 +142,14 @@ export interface KaraokeStoreState {
   clearMissingTrackIds: (trackIds: string[]) => void;
   showMissingFileModal: (args: ShowMissingFileModalArgs) => void;
   closeMissingFileModal: () => void;
+
+  /**
+   * Short-lived queue → Libreria Locale reveal request (not persisted).
+   * ControlWindow switches to the library tab; LibraryPanel scrolls + highlights.
+   */
+  libraryRevealRequest: LibraryRevealRequest | null;
+  requestRevealInLibrary: (input: LibraryRevealRequestInput) => void;
+  clearLibraryRevealRequest: (requestId?: number) => void;
 
   // 6. Guest Portal Requests
   pendingGuestRequests: GuestSongRequest[];
@@ -1117,6 +1128,41 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
             trackArtist: '',
             context: 'queue'
           }
+        });
+      },
+
+      // Queue → local library reveal (volatile; never partialize)
+      libraryRevealRequest: null,
+
+      requestRevealInLibrary: (input: LibraryRevealRequestInput) => {
+        const trackId = (input.trackId || '').trim();
+        if (!trackId) return;
+        const prevId = get().libraryRevealRequest?.requestId ?? 0;
+        const requestId = prevId + 1;
+        set({
+          libraryRevealRequest: {
+            requestId,
+            trackId,
+            title: input.title || '',
+            artist: input.artist || '',
+            source: input.source,
+            localFilePath: input.localFilePath,
+            uri: input.uri
+          }
+        });
+        logStore('debug', 'libraryRevealRequest', { requestId, trackId });
+      },
+
+      clearLibraryRevealRequest: (requestId?: number) => {
+        set((state) => {
+          if (
+            typeof requestId === 'number' &&
+            state.libraryRevealRequest &&
+            state.libraryRevealRequest.requestId !== requestId
+          ) {
+            return state;
+          }
+          return { libraryRevealRequest: null };
         });
       },
 

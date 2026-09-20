@@ -211,6 +211,8 @@ Puedes iniciar/pausar con el botón Play de la primera fila, o hacer doble clic 
 
 **Guardar en biblioteca:** si el tema proviene de la web o de `queue_cache`, aparece **Salva in Libreria** en la fila de cola y en la cabecera del reproductor, para promoverlo a la carpeta permanente de biblioteca.
 
+**Mostrar en Biblioteca Local:** en filas locales / MIDI / con archivo en caché, el control de carpeta cambia a **Biblioteca & Búsqueda → Local**, filtra por título y desplaza/resalta la fila del catálogo para identificar el archivo correcto. Si falta el archivo en disco, se reutiliza el modal de archivo faltante existente.
+
 ### 4.2 Volumen perceptivo
 
 El deslizador de Volumen Master usa una curva **cuadrática psicoacústica**:

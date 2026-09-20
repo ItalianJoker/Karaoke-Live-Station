@@ -211,6 +211,8 @@ You can start/pause with the Play button on the first row, or double-click a tra
 
 **Save to Library:** if the track comes from the web or from `queue_cache`, **Salva in Libreria** appears on the queue row and in the player header, to promote it into the permanent library folder.
 
+**Show in Local Library:** on local / MIDI / cached queue rows, the folder-search control switches to **Library & Search → Local**, filters to the title, and scrolls/highlights the matching catalog row so you can confirm the correct file. Missing disk paths reuse the existing missing-file modal.
+
 ### 4.2 Perceptual volume
 
 The Master Volume slider uses a **psychoacoustic quadratic** curve:

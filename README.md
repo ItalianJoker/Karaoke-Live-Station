@@ -336,6 +336,7 @@ Se trovi utile **Karaoke Live Station** per le tue serate, feste o eventi e desi
 - GPU-First (`aiEnableGpu`, default on) + probe `system:get-gpu-status` → ORT `executionProviders` `webgpu`→`wasm` oppure solo `wasm`.
 - HTDemucs avanzato: `demucsShifts` (0|1|2), `demucsSegmentSize` (5–20 s), `demucsOverlap` (0.10–0.50); MDX knobs invariati.
 - **Modularizzazione (Safety-First):** transport/scorciatoie Regia in `useControlPlayback` / `useKeyboardShortcuts` + `PlayerDeckControls` / `QueueList`; tab Impostazioni in `src/renderer/components/settings/`. Lista libreria con virtualizzazione a finestra (`listVirtualization.ts`) per cataloghi 16k+. Preferire selettori Zustand granulari; GC solo `queue_cache` / temp — mai `libraryPath`.
+- **Coda → Libreria Locale:** `QueueList` espone `onRevealInLibrary`; store `libraryRevealRequest` (volatile); `LibraryPanel` passa a Locale, cerca/scorre/evidenzia; file mancante riusa la modale esistente. Helper puri in `libraryReveal.ts`.
 - **Hot path 14k+:** dedup download via SQL `findLocalMediaDedupCandidates` (non `getAllTracks`); Guest Portal `searchTracks`/id; ZIP inflate async; analisi Key/BPM con yield FFT.
 
 ---
@@ -730,6 +731,7 @@ If you find **Karaoke Live Station** valuable for your shows, venues, or private
 - HTDemucs advanced: `demucsShifts` (0|1|2), `demucsSegmentSize` (5–20 s), `demucsOverlap` (0.10–0.50); MDX knobs unchanged.
 - Frozen contracts: IPC / `electronAPI` (`src/preload/index.ts`), `src/shared/types.ts`, Zustand `useKaraokeStore` shape, SQLite WAL schema. Dynamic/preload/Socket.IO/global-shortcut handlers → **Watchlist** (never delete as “dead”).
 - **Modularization (Safety-First):** Control transport/shortcuts live in `useControlPlayback` / `useKeyboardShortcuts` + `PlayerDeckControls` / `QueueList`; Settings tabs under `src/renderer/components/settings/`. Library results use windowed virtualization (`listVirtualization.ts`) for 16k+ catalogs. Prefer granular Zustand selectors; GC still only `queue_cache` / temp — never `libraryPath`.
+- **Queue → Local Library reveal:** `QueueList` exposes `onRevealInLibrary`; volatile store `libraryRevealRequest`; `LibraryPanel` switches to Local, searches/scrolls/highlights; missing disk path reuses the existing modal. Pure helpers in `libraryReveal.ts`.
 - **14k+ hot paths:** download dedup via SQL `findLocalMediaDedupCandidates` (not `getAllTracks`); Guest Portal `searchTracks`/id lookup; async ZIP inflate; Key/BPM analysis yields during FFT.
 
 **Critical invariants (must not regress)**
