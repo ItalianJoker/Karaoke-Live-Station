@@ -13,10 +13,10 @@ import { SOUNDTOUCH_PITCH_MAX, SOUNDTOUCH_PITCH_MIN } from '../../shared/dspPitc
  * bypassed (`input → output` direct). ScriptProcessor must stay off the realtime
  * path at pitch 0 — leaving it connected causes audible underruns under UI load.
  *
- * Kept on the Watchlist even when Bungee is the default — do not delete this path.
+ * Kept on the Watchlist even when Signalsmith is the default — do not delete this path.
  *
  * @see scripts/verify-critical-invariants.js
- * @see BungeePitchShifterNode
+ * @see SignalsmithPitchShifterNode
  */
 export class PitchShifterNode {
   private processor: ScriptProcessorNode;

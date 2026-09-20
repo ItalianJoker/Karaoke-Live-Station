@@ -104,6 +104,18 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   /** Bumped on cancel so late yt-dlp results are ignored and loading flags stay clear. */
   const webSearchGenRef = useRef(0);
   const [localTracks, setLocalTracks] = useState<KaraokeMediaTrack[]>([]);
+  const [localCatalogTotal, setLocalCatalogTotal] = useState(0);
+  const [localPageCursor, setLocalPageCursor] = useState<{
+    artist: string;
+    title: string;
+    id: string;
+  } | null>(null);
+  const [localHasMore, setLocalHasMore] = useState(false);
+  const [localLoadingMore, setLocalLoadingMore] = useState(false);
+  const [scanProgress, setScanProgress] = useState<{ scanned: number; found: number } | null>(
+    null
+  );
+  const LOCAL_PAGE_SIZE = 200;
   const storeSingers = useKaraokeStore((state) => state.singers);
   const singers = React.useMemo(() => {
     return Object.values(storeSingers).sort((a, b) => {
@@ -141,28 +153,69 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   const clearTrackMissing = useKaraokeStore((state) => state.clearTrackMissing);
   const missingTrackIds = useKaraokeStore((state) => state.missingTrackIds);
 
-  const loadLocalCatalog = async () => {
-    if (window.karaokeApi) {
-      const tracks = await window.karaokeApi.db.getTracks();
-      // Client-side safety net: one row per local path / stable id
-      const byKey = new Map<string, KaraokeMediaTrack>();
-      for (const track of tracks) {
-        if (track.source === 'youtube' && !track.localFilePath) continue;
-        const pathKey = (track.localFilePath || '').toLowerCase();
-        const key = pathKey || track.id;
-        const prev = byKey.get(key);
-        if (!prev) {
-          byKey.set(key, track);
-          continue;
-        }
-        const prefer =
-          (/^[\w-]{11}$/.test(track.id) ? 2 : 0) + (track.source === 'local_library' ? 1 : 0);
-        const prevScore =
-          (/^[\w-]{11}$/.test(prev.id) ? 2 : 0) + (prev.source === 'local_library' ? 1 : 0);
-        if (prefer >= prevScore) byKey.set(key, track);
+  const dedupeLocalTracks = (tracks: KaraokeMediaTrack[]): KaraokeMediaTrack[] => {
+    const byKey = new Map<string, KaraokeMediaTrack>();
+    for (const track of tracks) {
+      if (track.source === 'youtube' && !track.localFilePath) continue;
+      const pathKey = (track.localFilePath || '').toLowerCase();
+      const key = pathKey || track.id;
+      const prev = byKey.get(key);
+      if (!prev) {
+        byKey.set(key, track);
+        continue;
       }
-      setLocalTracks(Array.from(byKey.values()));
+      const prefer =
+        (/^[\w-]{11}$/.test(track.id) ? 2 : 0) + (track.source === 'local_library' ? 1 : 0);
+      const prevScore =
+        (/^[\w-]{11}$/.test(prev.id) ? 2 : 0) + (prev.source === 'local_library' ? 1 : 0);
+      if (prefer >= prevScore) byKey.set(key, track);
+    }
+    return Array.from(byKey.values());
+  };
+
+  /** Warm Local load: first page from SQLite — never IPC-dumps the full catalog. */
+  const loadLocalCatalog = async (opts?: { reset?: boolean }) => {
+    if (!window.karaokeApi) return;
+    const reset = opts?.reset !== false;
+    try {
+      if (window.karaokeApi.db.getTracksPage) {
+        const page = await window.karaokeApi.db.getTracksPage(LOCAL_PAGE_SIZE, null);
+        setLocalTracks(dedupeLocalTracks(page.tracks || []));
+        setLocalCatalogTotal(page.total || 0);
+        setLocalPageCursor(page.nextCursor || null);
+        setLocalHasMore(Boolean(page.nextCursor));
+      } else {
+        // Legacy fallback (pre-Phase-2 preload)
+        const tracks = await window.karaokeApi.db.getTracks();
+        setLocalTracks(dedupeLocalTracks(tracks));
+        setLocalCatalogTotal(tracks.length);
+        setLocalPageCursor(null);
+        setLocalHasMore(false);
+      }
       await useKaraokeStore.getState().loadSingersFromDb();
+    } catch (err) {
+      console.error('Failed loading local catalog page:', err);
+      if (reset) {
+        setLocalTracks([]);
+        setLocalCatalogTotal(0);
+      }
+    }
+  };
+
+  const loadMoreLocalTracks = async () => {
+    if (!window.karaokeApi?.db?.getTracksPage || !localHasMore || localLoadingMore) return;
+    if (!localPageCursor) return;
+    setLocalLoadingMore(true);
+    try {
+      const page = await window.karaokeApi.db.getTracksPage(LOCAL_PAGE_SIZE, localPageCursor);
+      setLocalTracks((prev) => dedupeLocalTracks([...prev, ...(page.tracks || [])]));
+      setLocalCatalogTotal(page.total || localCatalogTotal);
+      setLocalPageCursor(page.nextCursor || null);
+      setLocalHasMore(Boolean(page.nextCursor));
+    } catch (err) {
+      console.error('Failed loading more local tracks:', err);
+    } finally {
+      setLocalLoadingMore(false);
     }
   };
 
@@ -183,14 +236,14 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   };
 
   useEffect(() => {
-    loadLocalCatalog();
+    loadLocalCatalog({ reset: true });
 
     const handleLibraryRefreshed = () => {
-      loadLocalCatalog();
+      loadLocalCatalog({ reset: true });
     };
     window.addEventListener('karaoke:library-refreshed', handleLibraryRefreshed);
     const unSubReindex = window.karaokeApi?.downloads?.onLibraryReindexed?.(() => {
-      loadLocalCatalog();
+      loadLocalCatalog({ reset: true });
     });
     const unSubTrackUpdated = window.karaokeApi?.downloads?.onLibraryTrackUpdated?.(
       (tracks) => {
@@ -220,11 +273,19 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         });
       }
     );
+    const unSubScanProgress = window.karaokeApi?.library?.onScanProgress?.((progress) => {
+      if (progress.phase === 'done') {
+        setScanProgress(null);
+        return;
+      }
+      setScanProgress({ scanned: progress.scanned, found: progress.found });
+    });
 
     return () => {
       window.removeEventListener('karaoke:library-refreshed', handleLibraryRefreshed);
       unSubReindex?.();
       unSubTrackUpdated?.();
+      unSubScanProgress?.();
     };
   }, [settings.libraryPath]);
 
@@ -563,9 +624,16 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     setIsScanning(true);
     try {
       const discovered = await window.karaokeApi.library.scanFolder(folder);
-      await loadLocalCatalog();
-      window.dispatchEvent(new CustomEvent('karaoke:library-refreshed', { detail: { count: discovered.length } }));
-      showToast(t('library.scanSuccess', { count: discovered.length }));
+      await loadLocalCatalog({ reset: true });
+      const count =
+        (await window.karaokeApi.db.getTracksCount?.()) ??
+        discovered.length ??
+        localCatalogTotal;
+      window.dispatchEvent(
+        new CustomEvent('karaoke:library-refreshed', { detail: { count } })
+      );
+      showToast(t('library.scanSuccess', { count }));
+      setScanProgress(null);
     } catch (err) {
       console.error('Library scan error:', err);
     } finally {
@@ -748,7 +816,18 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
 
   const handleListScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
     onListScroll();
-    setListScrollTop(e.currentTarget.scrollTop);
+    const el = e.currentTarget;
+    setListScrollTop(el.scrollTop);
+    // Prefetch next Local page when browsing empty query near the bottom.
+    if (
+      searchMode === 'local' &&
+      !localQuery.trim() &&
+      localHasMore &&
+      !localLoadingMore &&
+      el.scrollHeight - el.scrollTop - el.clientHeight < LIBRARY_ROW_HEIGHT * 12
+    ) {
+      void loadMoreLocalTracks();
+    }
   };
 
   const handleStartDownload = async (
@@ -1039,7 +1118,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
             }`}
           >
             <HardDrive className="w-3.5 h-3.5" />
-            {t('library.modeLocal')} ({localTracks.length})
+            {t('library.modeLocal')} ({localCatalogTotal || localTracks.length})
           </button>
           <button
             type="button"
@@ -1070,7 +1149,12 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
             className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isScanning ? 'animate-spin' : ''}`} />
-            {t('library.scanFolder')}
+            {isScanning && scanProgress
+              ? t('library.scanProgress', {
+                  scanned: scanProgress.scanned,
+                  found: scanProgress.found
+                })
+              : t('library.scanFolder')}
           </button>
         )}
       </div>

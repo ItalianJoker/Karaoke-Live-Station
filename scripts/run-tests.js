@@ -1219,7 +1219,9 @@ assert(
 assert(
   libraryPanelSourceP45.includes('isFinishedLibraryFile') &&
     libraryPanelSourceP45.includes('touchLibraryList') &&
-    libraryPanelSourceP45.includes('Client-side safety net'),
+    (libraryPanelSourceP45.includes('Client-side safety net') ||
+      libraryPanelSourceP45.includes('dedupeLocalTracks')) &&
+    libraryPanelSourceP45.includes('getTracksPage'),
   'LibraryPanel refuses temp/partial downloads as finished library rows and dedupes on refresh'
 );
 
@@ -1230,7 +1232,7 @@ const libraryScannerSourceDedupe = fs.readFileSync(
 );
 const databaseSourceDedupe = fs.readFileSync(path.resolve(__dirname, '../src/main/db/database.ts'), 'utf8');
 assert(
-  mainScanSource.includes('discoverLibraryMedia') &&
+  mainScanSource.includes('discoverLibraryMediaAsync') &&
     libraryScannerSourceDedupe.includes('.part') &&
     libraryScannerSourceDedupe.includes('stableYtId') &&
     databaseSourceDedupe.includes('deleteTracksByLocalPathExcept') &&
@@ -1640,8 +1642,8 @@ console.log('\n\x1b[36m▶ Suite: Recursive library media discovery\x1b[0m');
   );
   assert(
     mainIndexSource.includes("from '../shared/libraryScanner'") &&
-      mainIndexSource.includes('discoverLibraryMedia'),
-    'Main scanFolder uses shared discoverLibraryMedia (recursive)'
+      mainIndexSource.includes('discoverLibraryMediaAsync'),
+    'Main scanFolder uses shared discoverLibraryMediaAsync (recursive async)'
   );
   assert(
     downloadManagerSource.includes('findMediaMatchInTree') &&
@@ -1764,7 +1766,7 @@ console.log('\n\x1b[36m▶ Suite: Recursive library media discovery\x1b[0m');
   );
 
   const scanFolderFn = mainScanLatency.match(
-    /private scanFolder\(folderPath: string\): KaraokeMediaTrack\[\] \{[\s\S]*?\n  \}/
+    /private async scanFolder\(folderPath: string\): Promise<KaraokeMediaTrack\[\]> \{[\s\S]*?\n  \}/
   );
   assert(Boolean(scanFolderFn), 'scanFolder method body is locatable for latency contracts');
   const scanBody = scanFolderFn ? scanFolderFn[0] : '';
@@ -1772,9 +1774,12 @@ console.log('\n\x1b[36m▶ Suite: Recursive library media discovery\x1b[0m');
     scanBody.includes('upsertTracksBatch') &&
       scanBody.includes('peekCachedThumbnail') &&
       scanBody.includes('enqueueThumbnailBackfill') &&
+      scanBody.includes('discoverLibraryMediaAsync') &&
+      scanBody.includes('getPathFingerprints') &&
+      scanBody.includes('library:scan-progress') &&
       !scanBody.includes('getOrGenerateThumbnail') &&
       !/upsertTrack\(/.test(scanBody),
-    'scanFolder batch-upserts, peeks cache only, enqueues async thumbs (no sync FFmpeg / per-track upsert)'
+    'scanFolder async+delta: progress IPC, fingerprints, batch upsert, no sync FFmpeg'
   );
   assert(
     mainScanLatency.includes('generateThumbnailAsync') &&
@@ -3219,16 +3224,16 @@ assert(
 );
 
 // -------------------------------------------------------------
-// Suite: Bungee default DSP + SoundTouch selectable + ranges / bypass / fallback
+// Suite: Signalsmith default DSP + SoundTouch selectable + ranges / bypass / fallback
 // -------------------------------------------------------------
-console.log('\n\x1b[36m▶ Suite: Bungee DSP default + SoundTouch selectable\x1b[0m');
+console.log('\n\x1b[36m▶ Suite: Signalsmith DSP default + SoundTouch selectable\x1b[0m');
 
 const dspPitchShared = fs.readFileSync(
   path.resolve(__dirname, '../src/shared/dspPitch.ts'),
   'utf8'
 );
-const bungeeNodeSrc = fs.readFileSync(
-  path.resolve(__dirname, '../src/renderer/core/BungeePitchShifterNode.ts'),
+const signalsmithNodeSrc = fs.readFileSync(
+  path.resolve(__dirname, '../src/renderer/core/SignalsmithPitchShifterNode.ts'),
   'utf8'
 );
 const pitchShifterSrc = fs.readFileSync(
@@ -3263,41 +3268,42 @@ function isDspNeutralBypassTest(pitch, speed) {
 }
 
 assert(
-  dspPitchShared.includes("return 'bungee'") &&
-    dspPitchShared.includes("Unknown / missing → `'bungee'`"),
-  'coerceDspPitchEngine defaults to bungee (Hi-Fi Signalsmith)'
+  dspPitchShared.includes("return 'signalsmith'") &&
+    dspPitchShared.includes("Unknown / missing → `'signalsmith'`"),
+  'coerceDspPitchEngine defaults to signalsmith (Hi-Fi)'
 );
 
 assert(
-  /dspEngine:\s*'bungee'/.test(storeDspSrc),
-  'Default settings.dspEngine === bungee (Hi-Fi)'
+  /dspEngine:\s*'signalsmith'/.test(storeDspSrc),
+  'Default settings.dspEngine === signalsmith (Hi-Fi)'
 );
 assert(
-  dspPitchShared.includes("export type DspPitchEngine = 'bungee' | 'soundtouch'") &&
-    dspPitchShared.includes('BUNGEE_PITCH_UI_MIN = -8') &&
+  dspPitchShared.includes("export type DspPitchEngine = 'signalsmith' | 'soundtouch'") &&
+    dspPitchShared.includes('SIGNALSMITH_PITCH_UI_MIN = -8') &&
     dspPitchShared.includes('SOUNDTOUCH_PITCH_MIN = -4') &&
-    dspPitchShared.includes('BUNGEE_SPEED_UI_MIN = 0.5') &&
-    dspPitchShared.includes('BUNGEE_SPEED_UI_MAX = 1.5') &&
+    dspPitchShared.includes('SIGNALSMITH_SPEED_UI_MIN = 0.5') &&
+    dspPitchShared.includes('SIGNALSMITH_SPEED_UI_MAX = 1.5') &&
     dspPitchShared.includes('SOUNDTOUCH_SPEED_UI_MIN = 0.75') &&
     dspPitchShared.includes('SOUNDTOUCH_SPEED_UI_MAX = 1.25') &&
-    dspPitchShared.includes('BUNGEE_SPEED_ABSOLUTE_MAX = 2.0') &&
+    dspPitchShared.includes('SIGNALSMITH_SPEED_ABSOLUTE_MAX = 2.0') &&
+    dspPitchShared.includes("value === 'bungee'") &&
     dspPitchShared.includes('getSpeedRangeForEngine') &&
     dspPitchShared.includes('clampSpeedForEngine'),
   'Shared pitch + speed ranges: Hi-Fi UI ±8 / 0.50–1.50, SoundTouch ±4 / 0.75–1.25'
 );
 assert(
-  clampPitchForEngineTest(9, 'bungee') === 8 &&
-    clampPitchForEngineTest(-9, 'bungee') === -8 &&
+  clampPitchForEngineTest(9, 'signalsmith') === 8 &&
+    clampPitchForEngineTest(-9, 'signalsmith') === -8 &&
     clampPitchForEngineTest(5, 'soundtouch') === 4 &&
     clampPitchForEngineTest(-5, 'soundtouch') === -4,
   'Semitone clamp per engine (Hi-Fi ±8, SoundTouch ±4)'
 );
 assert(
-  clampSpeedForEngineTest(0.4, 'bungee') === 0.5 &&
-    clampSpeedForEngineTest(1.8, 'bungee') === 1.5 &&
+  clampSpeedForEngineTest(0.4, 'signalsmith') === 0.5 &&
+    clampSpeedForEngineTest(1.8, 'signalsmith') === 1.5 &&
     clampSpeedForEngineTest(0.6, 'soundtouch') === 0.75 &&
     clampSpeedForEngineTest(1.4, 'soundtouch') === 1.25 &&
-    clampSpeedForEngineTest(1.111, 'bungee') === 1.11,
+    clampSpeedForEngineTest(1.111, 'signalsmith') === 1.11,
   'Speed clamp per engine (Hi-Fi 0.50–1.50, SoundTouch 0.75–1.25, round 0.01)'
 );
 assert(
@@ -3312,14 +3318,14 @@ assert(
   'Shared isDspNeutralBypass: pitch 0 & speed 1.0 only'
 );
 assert(
-  bungeeNodeSrc.includes('signalsmith-stretch') &&
-    bungeeNodeSrc.includes('SignalsmithStretch') &&
-    bungeeNodeSrc.includes('applyBypassRouting') &&
-    bungeeNodeSrc.includes('semitones !== 0') &&
-    bungeeNodeSrc.includes('setUnderrunFallbackHandler') &&
-    bungeeNodeSrc.includes('WATCHDOG_SILENT_POLLS') &&
-    bungeeNodeSrc.includes('HIFI_INIT_TIMEOUT_MS'),
-  'BungeePitchShifterNode: Signalsmith Stretch Hi-Fi + pitch-0 bypass + mute watchdog'
+  signalsmithNodeSrc.includes('signalsmith-stretch') &&
+    signalsmithNodeSrc.includes('SignalsmithStretch') &&
+    signalsmithNodeSrc.includes('applyBypassRouting') &&
+    signalsmithNodeSrc.includes('semitones !== 0') &&
+    signalsmithNodeSrc.includes('setUnderrunFallbackHandler') &&
+    signalsmithNodeSrc.includes('WATCHDOG_SILENT_POLLS') &&
+    signalsmithNodeSrc.includes('HIFI_INIT_TIMEOUT_MS'),
+  'SignalsmithPitchShifterNode: Signalsmith Stretch Hi-Fi + pitch-0 bypass + mute watchdog'
 );
 assert(
   pitchShifterSrc.includes('SOUNDTOUCH_PITCH_MIN') &&
@@ -3329,14 +3335,16 @@ assert(
 );
 assert(
   audioGraphDspSrc.includes('setDspEngine') &&
-    audioGraphDspSrc.includes('BungeePitchShifterNode') &&
+    audioGraphDspSrc.includes('SignalsmithPitchShifterNode') &&
     audioGraphDspSrc.includes('falling back to SoundTouch') &&
     audioGraphDspSrc.includes('PitchShifterNode') &&
     audioGraphDspSrc.includes('Signalsmith Hi-Fi wired') &&
     audioGraphDspSrc.includes('Pitch offset applied') &&
     audioGraphDspSrc.includes('dspEnsurePromise') &&
     audioGraphDspSrc.includes('applyMediaElementRateForActiveEngine') &&
-    audioGraphDspSrc.includes('Signalsmith Hi-Fi mute watchdog'),
+    audioGraphDspSrc.includes('Signalsmith Hi-Fi mute watchdog') &&
+    audioGraphDspSrc.includes('applySoundTouchFallback') &&
+    audioGraphDspSrc.includes('setDspEngineFallbackHandler'),
   'AudioGraphManager: Signalsmith Hi-Fi wire + media rate + SoundTouch emergency fallback'
 );
 {
@@ -3363,11 +3371,11 @@ assert(
   'karaokeStore: setPlaybackSpeed clamps by engine; engine switch re-clamps speed'
 );
 assert(
-  settingsDspSrc.includes("value=\"bungee\"") &&
-    settingsDspSrc.includes("value=\"soundtouch\"") &&
+  settingsDspSrc.includes('value="signalsmith"') &&
+    settingsDspSrc.includes('value="soundtouch"') &&
     settingsDspSrc.includes('dspEngine') &&
     settingsDspSrc.includes('dspEngineHiFiLabel'),
-  'SettingsModal exposes Hi-Fi (bungee id) / SoundTouch engine select'
+  'SettingsModal exposes Hi-Fi (signalsmith id) / SoundTouch engine select'
 );
 assert(
   fs.existsSync(path.resolve(__dirname, '../public/workers/SIGNALSMITH_NOTICE.md')) &&
@@ -3384,8 +3392,8 @@ assert(
     'package.json depends on signalsmith-stretch'
   );
   assert(
-    bungeeNodeSrc.includes("this.send('reset')") === false &&
-      bungeeNodeSrc.includes('setUnderrunFallbackHandler'),
+    signalsmithNodeSrc.includes("this.send('reset')") === false &&
+      signalsmithNodeSrc.includes('setUnderrunFallbackHandler'),
     'Hi-Fi node uses Signalsmith schedule API (no legacy bungee port messages)'
   );
   assert(
@@ -3404,14 +3412,86 @@ assert(
     itLocale.settings?.dspEngine &&
     esLocale.settings?.dspEngine &&
     frLocale.settings?.dspEngine &&
-    String(enLocale.settings.dspEngineBungee || '').toLowerCase().includes('signalsmith') &&
+    String(enLocale.settings.dspEngineSignalsmith || enLocale.settings.dspEngineBungee || '')
+      .toLowerCase()
+      .includes('signalsmith') &&
     String(enLocale.settings.dspEngineSoundTouch || '').toLowerCase().includes('emergency') &&
     enLocale.settings?.dspEngineHiFiLabel &&
     itLocale.settings?.dspEngineHiFiLabel &&
     esLocale.settings?.dspEngineHiFiLabel &&
-    frLocale.settings?.dspEngineHiFiLabel,
+    frLocale.settings?.dspEngineHiFiLabel &&
+    enLocale.settings?.dspEngineSignalsmithBlurb &&
+    itLocale.settings?.dspEngineSignalsmithBlurb,
   'i18n DSP engine keys: Signalsmith Hi-Fi default + SoundTouch emergency in en/it/es/fr'
 );
+
+
+// -------------------------------------------------------------
+// Suite: Library Phase 2 (delta / async scan / FTS5 / paged Local)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Library Phase 2 (14k scale)\x1b[0m');
+{
+  const dbSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/db/database.ts'), 'utf8');
+  const mainSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+  const preloadSrc = fs.readFileSync(path.resolve(__dirname, '../src/preload/index.ts'), 'utf8');
+  const panelSrc = fs.readFileSync(path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'), 'utf8');
+  const scannerSrc = fs.readFileSync(path.resolve(__dirname, '../src/shared/libraryScanner.ts'), 'utf8');
+  const aiSepSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/InstrumentalAiSeparator.ts'),
+    'utf8'
+  );
+  const graphSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
+    'utf8'
+  );
+  const keysSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/hooks/useKeyboardShortcuts.ts'),
+    'utf8'
+  );
+  assert(
+    dbSrc.includes('fileMtimeMs') &&
+      dbSrc.includes('fileSizeBytes') &&
+      dbSrc.includes('tracks_fts') &&
+      dbSrc.includes('getTracksPage') &&
+      dbSrc.includes('getPathFingerprints') &&
+      dbSrc.includes('searchTracksFts'),
+    'DB: delta fingerprints + FTS5 + keyset getTracksPage'
+  );
+  assert(
+    mainSrc.includes('discoverLibraryMediaAsync') &&
+      mainSrc.includes('library:scan-progress') &&
+      mainSrc.includes('getPathFingerprints') &&
+      mainSrc.includes('deleteTracksMissingFromScan'),
+    'Main: async scan + progress IPC + delta upsert/prune'
+  );
+  assert(
+    scannerSrc.includes('discoverLibraryMediaAsync') &&
+      scannerSrc.includes('opendir') &&
+      scannerSrc.includes('deferZipInspect'),
+    'libraryScanner: async opendir walk with deferred ZIP inspect'
+  );
+  assert(
+    preloadSrc.includes('getTracksPage') &&
+      preloadSrc.includes('onScanProgress') &&
+      preloadSrc.includes('db:get-tracks-page'),
+    'Preload exposes paged Local + scan progress'
+  );
+  assert(
+    panelSrc.includes('getTracksPage') &&
+      panelSrc.includes('loadMoreLocalTracks') &&
+      panelSrc.includes('onScanProgress'),
+    'LibraryPanel warm-loads via getTracksPage + scan progress'
+  );
+  assert(
+    aiSepSrc.includes('effectiveAiCpuThreads') &&
+      aiSepSrc.includes('aiCpuThreads: effectiveAiCpuThreads'),
+    'WebGPU→WASM re-route reasserts resolveAiCpuThreads / aiCpuThreads'
+  );
+  assert(
+    graphSrc.includes('applySoundTouchFallback') && keysSrc.includes('pitchRange.max'),
+    'SoundTouch fallback clamps pitch bounds; shortcuts use engine pitchRange'
+  );
+}
 
 // -------------------------------------------------------------
 // Suite: Signalsmith pitch lab (-1..-4 ST, 500+ blocks, no mute)

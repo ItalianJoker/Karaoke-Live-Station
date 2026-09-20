@@ -1,8 +1,25 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
-import { KaraokeMediaTrack, SingerProfile, SqlQueryResult } from '../../shared/types';
+import {
+  KaraokeMediaTrack,
+  SingerProfile,
+  SqlQueryResult,
+  LibraryTracksPage,
+  LibraryTracksPageCursor
+} from '../../shared/types';
 import { normalizeForSearch } from '../../shared/textNormalize';
+
+/** Lightweight path → fingerprint row for delta library rescan (no full track dump). */
+export type TrackPathFingerprint = {
+  id: string;
+  localFilePath: string;
+  fileMtimeMs: number | null;
+  fileSizeBytes: number | null;
+  thumbnailUrl: string | null;
+  initialKey: string | null;
+  initialBpm: number | null;
+};
 
 /**
  * SQLite Database Manager utilizing better-sqlite3 with Write-Ahead Logging (WAL).
@@ -41,8 +58,8 @@ export class DatabaseManager {
    */
   private prepareTrackStatements(): void {
     this.upsertTrackStmt = this.db.prepare(`
-      INSERT INTO tracks (id, source, title, artist, durationSec, uri, localFilePath, thumbnailUrl, hasEmbeddedLyrics, isMultiplex, isEmbeddable, initialKey, initialBpm, addedAt, titleNorm, artistNorm)
-      VALUES (@id, @source, @title, @artist, @durationSec, @uri, @localFilePath, @thumbnailUrl, @hasEmbeddedLyrics, @isMultiplex, @isEmbeddable, @initialKey, @initialBpm, @addedAt, @titleNorm, @artistNorm)
+      INSERT INTO tracks (id, source, title, artist, durationSec, uri, localFilePath, thumbnailUrl, hasEmbeddedLyrics, isMultiplex, isEmbeddable, initialKey, initialBpm, addedAt, titleNorm, artistNorm, fileMtimeMs, fileSizeBytes)
+      VALUES (@id, @source, @title, @artist, @durationSec, @uri, @localFilePath, @thumbnailUrl, @hasEmbeddedLyrics, @isMultiplex, @isEmbeddable, @initialKey, @initialBpm, @addedAt, @titleNorm, @artistNorm, @fileMtimeMs, @fileSizeBytes)
       ON CONFLICT(id) DO UPDATE SET
         source = excluded.source,
         title = excluded.title,
@@ -57,7 +74,9 @@ export class DatabaseManager {
         initialKey = COALESCE(excluded.initialKey, tracks.initialKey),
         initialBpm = COALESCE(excluded.initialBpm, tracks.initialBpm),
         titleNorm = excluded.titleNorm,
-        artistNorm = excluded.artistNorm
+        artistNorm = excluded.artistNorm,
+        fileMtimeMs = COALESCE(excluded.fileMtimeMs, tracks.fileMtimeMs),
+        fileSizeBytes = COALESCE(excluded.fileSizeBytes, tracks.fileSizeBytes)
     `);
     this.deleteByPathExceptStmt = this.db.prepare(
       `DELETE FROM tracks WHERE localFilePath = ? AND id != ?`
@@ -83,7 +102,15 @@ export class DatabaseManager {
       addedAt: Date.now(),
       // Precomputed accent-folded fields — search uses these instead of per-row JS UDF.
       titleNorm: normalizeForSearch(track.title),
-      artistNorm: normalizeForSearch(track.artist)
+      artistNorm: normalizeForSearch(track.artist),
+      fileMtimeMs:
+        track.fileMtimeMs != null && Number.isFinite(track.fileMtimeMs)
+          ? Math.floor(track.fileMtimeMs)
+          : null,
+      fileSizeBytes:
+        track.fileSizeBytes != null && Number.isFinite(track.fileSizeBytes)
+          ? Math.floor(track.fileSizeBytes)
+          : null
     };
   }
 
@@ -97,6 +124,26 @@ export class DatabaseManager {
     this.upsertTrackStmt!.run(this.trackUpsertParams(track));
     if (track.localFilePath) {
       this.deleteByPathExceptStmt!.run(track.localFilePath, track.id);
+    }
+    this.syncTrackFts(track);
+  }
+
+  /** Keep FTS5 index in sync with tracks (contentless external id). */
+  private syncTrackFts(track: KaraokeMediaTrack): void {
+    try {
+      this.db.prepare(`DELETE FROM tracks_fts WHERE trackId = ?`).run(track.id);
+      this.db
+        .prepare(
+          `INSERT INTO tracks_fts (trackId, titleNorm, artistNorm) VALUES (?, ?, ?)`
+        )
+        .run(
+          track.id,
+          normalizeForSearch(track.title),
+          normalizeForSearch(track.artist)
+        );
+    } catch (err) {
+      // FTS optional on very old SQLite builds — LIKE fallback still works.
+      console.warn('tracks_fts sync notice:', err);
     }
   }
 
@@ -194,6 +241,64 @@ export class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_tracks_artist_norm ON tracks(artistNorm);
     `);
     this.backfillNormalizedSearchColumns();
+
+    // Delta rescan fingerprints (mtime/size) — additive columns.
+    try {
+      this.db.exec('ALTER TABLE tracks ADD COLUMN fileMtimeMs INTEGER;');
+    } catch {
+      // Column already exists
+    }
+    try {
+      this.db.exec('ALTER TABLE tracks ADD COLUMN fileSizeBytes INTEGER;');
+    } catch {
+      // Column already exists
+    }
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_tracks_file_mtime ON tracks(fileMtimeMs);
+      CREATE INDEX IF NOT EXISTS idx_tracks_artist_title_id ON tracks(artist, title, id);
+    `);
+
+    // FTS5 for Local search (accent-folded norms). Contentless + trackId UNINDEXED.
+    try {
+      this.db.exec(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS tracks_fts USING fts5(
+          titleNorm,
+          artistNorm,
+          trackId UNINDEXED,
+          tokenize = 'unicode61 remove_diacritics 2'
+        );
+      `);
+      this.rebuildTracksFtsIfEmpty();
+    } catch (err) {
+      console.warn('tracks_fts setup notice (LIKE fallback remains):', err);
+    }
+  }
+
+  /** One-shot FTS rebuild when the virtual table exists but has no rows. */
+  private rebuildTracksFtsIfEmpty(): void {
+    try {
+      const row = this.db.prepare(`SELECT COUNT(*) AS c FROM tracks_fts`).get() as {
+        c: number;
+      };
+      if (row?.c > 0) return;
+      const tracks = this.db
+        .prepare(`SELECT id, titleNorm, artistNorm FROM tracks`)
+        .all() as Array<{ id: string; titleNorm: string | null; artistNorm: string | null }>;
+      if (!tracks.length) return;
+      const ins = this.db.prepare(
+        `INSERT INTO tracks_fts (trackId, titleNorm, artistNorm) VALUES (?, ?, ?)`
+      );
+      const run = this.db.transaction(
+        (rows: Array<{ id: string; titleNorm: string | null; artistNorm: string | null }>) => {
+          for (const r of rows) {
+            ins.run(r.id, r.titleNorm || '', r.artistNorm || '');
+          }
+        }
+      );
+      run(tracks);
+    } catch (err) {
+      console.warn('tracks_fts rebuild notice:', err);
+    }
   }
 
   /**
@@ -238,6 +343,8 @@ export class DatabaseManager {
     isEmbeddable: number;
     initialKey?: string | null;
     initialBpm?: number | null;
+    fileMtimeMs?: number | null;
+    fileSizeBytes?: number | null;
   }): KaraokeMediaTrack {
     return {
       id: r.id,
@@ -252,7 +359,9 @@ export class DatabaseManager {
       isMultiplex: Boolean(r.isMultiplex),
       isEmbeddable: Boolean(r.isEmbeddable),
       initialKey: r.initialKey ?? undefined,
-      initialBpm: r.initialBpm != null ? Number(r.initialBpm) : undefined
+      initialBpm: r.initialBpm != null ? Number(r.initialBpm) : undefined,
+      fileMtimeMs: r.fileMtimeMs != null ? Number(r.fileMtimeMs) : undefined,
+      fileSizeBytes: r.fileSizeBytes != null ? Number(r.fileSizeBytes) : undefined
     };
   }
 
@@ -316,8 +425,7 @@ export class DatabaseManager {
   /**
    * Parameterized title/artist search with LIMIT — avoids shipping the full catalog
    * across IPC when the operator types into the library filter on large libraries.
-   * Uses precomputed titleNorm/artistNorm (same folding as normalizeForSearch) so
-   * SQLite does not invoke the JS fold_diacritics UDF on every row.
+   * Prefers FTS5 on accent-folded norms; falls back to titleNorm/artistNorm LIKE.
    */
   public searchTracks(query: string, limit = 200): KaraokeMediaTrack[] {
     const capped = Math.max(1, Math.min(2000, limit));
@@ -326,23 +434,13 @@ export class DatabaseManager {
       // Empty query: LIMIT in SQL — never materialize the full 10k–50k catalog.
       const rows = this.db
         .prepare('SELECT * FROM tracks ORDER BY artist ASC, title ASC LIMIT ?')
-        .all(capped) as Array<{
-        id: string;
-        source: string;
-        title: string;
-        artist: string;
-        durationSec: number;
-        uri: string;
-        localFilePath: string | null;
-        thumbnailUrl: string | null;
-        hasEmbeddedLyrics: number;
-        isMultiplex: number;
-        isEmbeddable: number;
-        initialKey: string | null;
-        initialBpm: number | null;
-      }>;
+        .all(capped) as Array<Parameters<DatabaseManager['mapTrackRow']>[0]>;
       return rows.map((r) => this.mapTrackRow(r));
     }
+
+    const ftsHits = this.searchTracksFts(q, capped);
+    if (ftsHits) return ftsHits;
+
     const like = `%${q.replace(/[%_]/g, '')}%`;
     const stmt = this.db.prepare(
       `SELECT * FROM tracks
@@ -350,22 +448,164 @@ export class DatabaseManager {
        ORDER BY artist ASC, title ASC
        LIMIT ?`
     );
-    const rows = stmt.all(like, like, capped) as Array<{
+    const rows = stmt.all(like, like, capped) as Array<
+      Parameters<DatabaseManager['mapTrackRow']>[0]
+    >;
+    return rows.map((r) => this.mapTrackRow(r));
+  }
+
+  /**
+   * FTS5 MATCH on folded title/artist. Returns null when FTS is unavailable
+   * so callers can fall back to LIKE.
+   */
+  private searchTracksFts(normalizedQuery: string, limit: number): KaraokeMediaTrack[] | null {
+    try {
+      const tokens = normalizedQuery
+        .split(/\s+/)
+        .map((t) => t.replace(/["']/g, '').trim())
+        .filter((t) => t.length > 0);
+      if (!tokens.length) return [];
+      // Prefix tokens so partial typing still hits (Safety-First vs leading-% LIKE).
+      const matchExpr = tokens.map((t) => `"${t}"*`).join(' AND ');
+      const rows = this.db
+        .prepare(
+          `SELECT t.* FROM tracks_fts f
+           INNER JOIN tracks t ON t.id = f.trackId
+           WHERE f MATCH ?
+           ORDER BY t.artist ASC, t.title ASC
+           LIMIT ?`
+        )
+        .all(matchExpr, limit) as Array<Parameters<DatabaseManager['mapTrackRow']>[0]>;
+      return rows.map((r) => this.mapTrackRow(r));
+    } catch {
+      return null;
+    }
+  }
+
+  /** Total catalog row count (for Local tab badge without dumping all rows). */
+  public getTracksCount(): number {
+    const row = this.db.prepare(`SELECT COUNT(*) AS c FROM tracks`).get() as { c: number };
+    return Number(row?.c || 0);
+  }
+
+  /**
+   * Keyset-paged Local browse — never IPC-dumps the full ~14k catalog.
+   * Order: artist ASC, title ASC, id ASC.
+   */
+  public getTracksPage(
+    limit = 200,
+    cursor?: LibraryTracksPageCursor | null
+  ): LibraryTracksPage {
+    const capped = Math.max(1, Math.min(500, Math.floor(limit) || 200));
+    const total = this.getTracksCount();
+    let rows: Array<Parameters<DatabaseManager['mapTrackRow']>[0]>;
+    if (cursor?.id) {
+      rows = this.db
+        .prepare(
+          `SELECT * FROM tracks
+           WHERE (artist > ?)
+              OR (artist = ? AND title > ?)
+              OR (artist = ? AND title = ? AND id > ?)
+           ORDER BY artist ASC, title ASC, id ASC
+           LIMIT ?`
+        )
+        .all(
+          cursor.artist,
+          cursor.artist,
+          cursor.title,
+          cursor.artist,
+          cursor.title,
+          cursor.id,
+          capped
+        ) as Array<Parameters<DatabaseManager['mapTrackRow']>[0]>;
+    } else {
+      rows = this.db
+        .prepare(
+          `SELECT * FROM tracks ORDER BY artist ASC, title ASC, id ASC LIMIT ?`
+        )
+        .all(capped) as Array<Parameters<DatabaseManager['mapTrackRow']>[0]>;
+    }
+    const tracks = rows.map((r) => this.mapTrackRow(r));
+    const last = tracks[tracks.length - 1];
+    const nextCursor: LibraryTracksPageCursor | null =
+      tracks.length >= capped && last
+        ? { artist: last.artist, title: last.title, id: last.id }
+        : null;
+    return { tracks, nextCursor, total };
+  }
+
+  /**
+   * Lightweight path fingerprints for delta rescan — avoids getAllTracks() dump.
+   */
+  public getPathFingerprints(): Map<string, TrackPathFingerprint> {
+    const rows = this.db
+      .prepare(
+        `SELECT id, localFilePath, fileMtimeMs, fileSizeBytes, thumbnailUrl, initialKey, initialBpm
+         FROM tracks
+         WHERE localFilePath IS NOT NULL AND localFilePath != ''`
+      )
+      .all() as Array<{
       id: string;
-      source: string;
-      title: string;
-      artist: string;
-      durationSec: number;
-      uri: string;
-      localFilePath: string | null;
+      localFilePath: string;
+      fileMtimeMs: number | null;
+      fileSizeBytes: number | null;
       thumbnailUrl: string | null;
-      hasEmbeddedLyrics: number;
-      isMultiplex: number;
-      isEmbeddable: number;
       initialKey: string | null;
       initialBpm: number | null;
     }>;
-    return rows.map((r) => this.mapTrackRow(r));
+    const map = new Map<string, TrackPathFingerprint>();
+    for (const r of rows) {
+      map.set(r.localFilePath.toLowerCase(), {
+        id: r.id,
+        localFilePath: r.localFilePath,
+        fileMtimeMs: r.fileMtimeMs != null ? Number(r.fileMtimeMs) : null,
+        fileSizeBytes: r.fileSizeBytes != null ? Number(r.fileSizeBytes) : null,
+        thumbnailUrl: r.thumbnailUrl,
+        initialKey: r.initialKey,
+        initialBpm: r.initialBpm
+      });
+    }
+    return map;
+  }
+
+  /**
+   * Delete catalog rows under a library root whose paths were not seen in the latest scan.
+   * Safety-First: only touches rows with localFilePath under the resolved root.
+   */
+  public deleteTracksMissingFromScan(rootPath: string, seenAbsolutePaths: Set<string>): number {
+    const root = path.resolve(rootPath);
+    const rootLower = root.toLowerCase();
+    const sep = path.sep;
+    const rows = this.db
+      .prepare(
+        `SELECT id, localFilePath FROM tracks
+         WHERE localFilePath IS NOT NULL AND localFilePath != ''`
+      )
+      .all() as Array<{ id: string; localFilePath: string }>;
+    const toDelete: string[] = [];
+    for (const r of rows) {
+      const resolved = path.resolve(r.localFilePath);
+      const lower = resolved.toLowerCase();
+      if (lower !== rootLower && !lower.startsWith(rootLower + sep)) continue;
+      if (!seenAbsolutePaths.has(resolved) && !seenAbsolutePaths.has(r.localFilePath)) {
+        toDelete.push(r.id);
+      }
+    }
+    if (!toDelete.length) return 0;
+    const del = this.db.prepare(`DELETE FROM tracks WHERE id = ?`);
+    const delFts = this.db.prepare(`DELETE FROM tracks_fts WHERE trackId = ?`);
+    const run = this.db.transaction((ids: string[]) => {
+      for (const id of ids) {
+        del.run(id);
+        try {
+          delFts.run(id);
+        } catch {
+          /* FTS optional */
+        }
+      }
+    });
+    run(toDelete);
+    return toDelete.length;
   }
 
   /**
@@ -530,6 +770,11 @@ export class DatabaseManager {
   /** Deletes a single track by primary key. */
   public deleteTrackById(id: string): void {
     this.db.prepare(`DELETE FROM tracks WHERE id = ?`).run(id);
+    try {
+      this.db.prepare(`DELETE FROM tracks_fts WHERE trackId = ?`).run(id);
+    } catch {
+      /* FTS optional */
+    }
   }
 
   /**

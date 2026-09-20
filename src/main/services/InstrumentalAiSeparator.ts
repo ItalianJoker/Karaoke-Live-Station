@@ -8,6 +8,7 @@
 import { utilityProcess, type UtilityProcess } from 'electron';
 import { fork, type ChildProcess } from 'child_process';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { app } from 'electron';
 import { Logger } from './Logger';
@@ -20,6 +21,7 @@ import {
   demucsPayloadForMethod
 } from '../../shared/demucsAdvancedSettings';
 import type { InstrumentalAiSeparateRequest } from '../workers/instrumentalAiSeparateCore';
+import { resolveAiCpuThreads } from '../../shared/aiCpuThreads';
 
 export type InstrumentalAiProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
@@ -303,6 +305,10 @@ export async function separateInstrumentalWithAi(
 
   const modelId = methodToModelId(method);
   const catalog = OFFLINE_VOCAL_MODELS[modelId];
+  // Honor Settings CPU cores even after WebGPU → utilityProcess WASM re-route.
+  // Never silently fall back to "all cores" when the operator set a limit.
+  const totalCpus = Math.max(1, os.cpus()?.length || 1);
+  const effectiveAiCpuThreads = resolveAiCpuThreads(options.aiCpuThreads, totalCpus);
   const worker = await resolveWorkerHandle(options, logger);
   let requestId = 1;
   let settled = false;
@@ -320,7 +326,8 @@ export async function separateInstrumentalWithAi(
   /** Last known ORT EP from worker progress (defaults unknown until reported). */
   let lastOrtBackend: 'webgpu' | 'wasm' | 'unknown' = 'unknown';
   let lastOrtFallbackReason: string | undefined;
-  let lastOrtNumThreads: number | undefined = options.aiCpuThreads;
+  /** Effective WASM thread count — Settings aiCpuThreads, not WebGPU's temporary 1. */
+  let lastOrtNumThreads: number = effectiveAiCpuThreads;
   /** Prevents double utility re-route if Hidden Renderer posts fallback twice. */
   let utilityFallbackStarted = false;
 
@@ -466,15 +473,18 @@ export async function separateInstrumentalWithAi(
       utilityFallbackStarted = true;
       lastOrtFallbackReason = reason;
       lastOrtBackend = 'wasm';
+      lastOrtNumThreads = effectiveAiCpuThreads;
       lastProgressAt = Date.now();
-      lastProgressMessage = `WebGPU unavailable — switching to WASM CPU (${reason})`;
+      lastProgressMessage = `WebGPU unavailable — switching to WASM CPU (${effectiveAiCpuThreads} threads; ${reason})`;
       logger?.warn(
         'InstrumentalAiSeparator',
         'Hidden Renderer requested WASM re-route (utilityProcess)',
         {
           reason,
           disposeHiddenWindow,
-          ortNumThreads: lastOrtNumThreads ?? options.aiCpuThreads ?? null,
+          ortNumThreads: effectiveAiCpuThreads,
+          aiCpuThreadsConfigured: options.aiCpuThreads ?? null,
+          totalCpus,
           elapsedMs: Date.now() - startedAt
         }
       );
@@ -484,7 +494,7 @@ export async function separateInstrumentalWithAi(
         message: lastProgressMessage,
         ortBackend: 'wasm',
         ortFallbackReason: reason,
-        ortNumThreads: lastOrtNumThreads
+        ortNumThreads: effectiveAiCpuThreads
       });
       // Detach Hidden Renderer job; keep outer promise open for utility re-run.
       clearTimers();
@@ -499,7 +509,9 @@ export async function separateInstrumentalWithAi(
         {
           ...options,
           aiEnableGpu: false,
-          aiGpuSupported: false
+          aiGpuSupported: false,
+          // Re-assert Settings CPU cores — never drop the limit on GPU→CPU fallback.
+          aiCpuThreads: effectiveAiCpuThreads
         },
         logger
       ).then(
@@ -591,7 +603,7 @@ export async function separateInstrumentalWithAi(
         ortDir,
         inputWav,
         outputWav,
-        aiCpuThreads: options.aiCpuThreads,
+        aiCpuThreads: effectiveAiCpuThreads,
         aiEnableGpu: options.aiEnableGpu,
         // Hidden Renderer path: force supported so ORT prefers WebGPU EP.
         // utility/fork path: false so worker skips doomed webgpu session.create.
@@ -612,7 +624,7 @@ export async function separateInstrumentalWithAi(
         waitMs: Date.now() - startedAt,
         aiEnableGpu: options.aiEnableGpu ?? null,
         aiGpuSupported: options.aiGpuSupported ?? null,
-        aiCpuThreads: options.aiCpuThreads ?? null,
+        aiCpuThreads: effectiveAiCpuThreads,
         mdxAdvanced: isMdxInstrumentalMethod(method) ? mdxPayload : null,
         demucsAdvanced: isDemucsInstrumentalMethod(method) ? demucsPayload : null
       });
@@ -696,7 +708,12 @@ export async function separateInstrumentalWithAi(
           });
         }
         if (typeof msg.ortNumThreads === 'number' && Number.isFinite(msg.ortNumThreads)) {
-          lastOrtNumThreads = msg.ortNumThreads;
+          // Keep Settings CPU limit for WASM; ignore WebGPU's temporary numThreads=1.
+          if (msg.ortBackend === 'wasm' || lastOrtBackend === 'wasm') {
+            lastOrtNumThreads = msg.ortNumThreads;
+          } else if (msg.ortBackend !== 'webgpu') {
+            lastOrtNumThreads = msg.ortNumThreads;
+          }
         }
         armIdleWatchdog();
         if (
@@ -817,7 +834,7 @@ export async function separateInstrumentalWithAi(
       // Preference label only — live routing uses Hidden Renderer probe in resolveWorkerHandle.
       ortBackendPreferred: worker.kind === 'hidden-renderer' ? 'webgpu' : 'wasm',
       ortBackend: 'pending',
-      ortNumThreads: options.aiCpuThreads ?? null,
+      ortNumThreads: effectiveAiCpuThreads,
       aiEnableGpu: options.aiEnableGpu ?? null,
       aiGpuSupported: options.aiGpuSupported ?? null,
       inputWav,

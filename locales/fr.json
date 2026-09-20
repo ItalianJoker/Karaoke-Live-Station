@@ -161,7 +161,9 @@
     "loadMoreVideos": "Charger plus de vidéos",
     "loadingMore": "Chargement…",
     "clearDownloads": "Vider les téléchargements",
-    "confirmClearDownloads": "Annuler tous les téléchargements en cours et vider la liste ?"
+    "confirmClearDownloads": "Annuler tous les téléchargements en cours et vider la liste ?",
+    "scanProgress": "Analyse… {{scanned}} vérifiés, {{found}} trouvés",
+    "scanWarm": "Bibliothèque prête (cache)"
   },
   "settings": {
     "title": "Paramètres Système",
@@ -299,12 +301,12 @@
     "aiCpuCoresAvailable": "Cœurs CPU disponibles : {{count}}",
     "aiCpuThreadsResetMax": "Réinitialiser au maximum ({{count}})",
     "dspEngine": "Moteur DSP tonalité / vitesse",
-    "dspEngineDesc": "Par défaut : Signalsmith Stretch Hi-Fi (id réglages : bungee). SoundTouch reste disponible comme secours léger / d'urgence. MIDI/KAR utilise toujours la transposition de notes SpessaSynth — pas ce DSP.",
+    "dspEngineDesc": "Par défaut : Signalsmith Stretch Hi-Fi (id réglages : signalsmith ; l’ancien bungee migre automatiquement). SoundTouch reste disponible comme secours léger / d’urgence. MIDI/KAR utilise toujours la transposition de notes SpessaSynth — pas ce DSP.",
     "dspEngineBungee": "Signalsmith Stretch (Hi-Fi défaut) — ±8 ST, pitch+speed",
     "dspEngineSoundTouch": "SoundTouch (urgence/léger) — WSOLA, ±4 ST",
     "dspEngineCompareTitle": "Hi-Fi vs SoundTouch",
     "dspEngineCompareBody": "Compare architecture, plage de qualité, latence et CPU. Bypass bit-perfect avec pitch 0 et vitesse 1.00x.",
-    "dspEngineBungeeBlurb": "Signalsmith Stretch (MIT) AudioWorklet — successeur de Bungee. Recommandé ±8 ST (jusqu'à ±12). Tempo via élément média (preservesPitch). Bascule auto vers SoundTouch si le watchdog mute se déclenche.",
+    "dspEngineBungeeBlurb": "Signalsmith Stretch (MIT) AudioWorklet. Recommandé ±8 ST (jusqu’à ±12). Tempo via élément média (preservesPitch). Bascule auto vers SoundTouch si le watchdog mute se déclenche — les plages pitch/speed passent alors à SoundTouch (±4 ST, 0,75–1,25×).",
     "dspEngineSoundTouchBlurb": "WSOLA ScriptProcessor — secours d'urgence/léger. Limite dure ±4 ST. Vitesse via élément média. CPU quasi nulle à pitch 0 (processeur déconnecté).",
     "dspEngineMidiNote": "Le pitch et le tempo MIDI/KAR ne passent jamais par Signalsmith ou SoundTouch.",
     "demucsAdvancedTitle": "Paramètres avancés HTDemucs",
@@ -323,7 +325,9 @@
     "aiGpuBadgeCpu": "CPU : {{detail}}",
     "aiGpuBadgeWasmWorker": "WASM CPU",
     "aiGpuBadgeHardwareOnly": "GPU matériel détecté : {{name}} — l’IA utilise quand même WASM (pas d’adaptateur WebGPU)",
-    "dspEngineHiFiLabel": "Signalsmith Stretch (Hi-Fi)"
+    "dspEngineHiFiLabel": "Signalsmith Stretch (Hi-Fi)",
+    "dspEngineSignalsmith": "Signalsmith Stretch (Hi-Fi défaut) — ±8 ST, pitch+speed",
+    "dspEngineSignalsmithBlurb": "Signalsmith Stretch (MIT) AudioWorklet. Recommandé ±8 ST (jusqu’à ±12). Tempo via élément média (preservesPitch). Bascule auto vers SoundTouch si le watchdog mute se déclenche — les plages pitch/speed passent alors à SoundTouch (±4 ST, 0,75–1,25×)."
   },
   "history": {
     "title": "Historique de Lecture",

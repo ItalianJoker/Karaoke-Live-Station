@@ -207,7 +207,7 @@ export const SettingsAudioTab: React.FC<SettingsAudioTabProps> = ({
                       }}
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs"
                     >
-                      <option value="bungee">{t('settings.dspEngineBungee')}</option>
+                      <option value="signalsmith">{t('settings.dspEngineSignalsmith')}</option>
                       <option value="soundtouch">{t('settings.dspEngineSoundTouch')}</option>
                     </select>
                     <div className="text-[11px] text-slate-400 leading-relaxed space-y-1 border-t border-slate-800/80 pt-2">
@@ -216,7 +216,7 @@ export const SettingsAudioTab: React.FC<SettingsAudioTabProps> = ({
                           {t('settings.dspEngineHiFiLabel')}
                         </span>
                         {' — '}
-                        {t('settings.dspEngineBungeeBlurb')}
+                        {t('settings.dspEngineSignalsmithBlurb')}
                       </p>
                       <p>
                         <span className="text-amber-300 font-semibold">SoundTouch</span>

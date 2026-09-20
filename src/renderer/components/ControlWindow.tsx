@@ -343,6 +343,13 @@ export const ControlWindow: React.FC = () => {
   useEffect(() => {
     const manager = new AudioGraphManager();
     audioGraphRef.current = manager;
+    // Mute watchdog / init failure → SoundTouch: sync Settings + clamp live pitch/speed UI.
+    manager.setDspEngineFallbackHandler((engine) => {
+      const store = useKaraokeStore.getState();
+      store.updateSettings({ dspEngine: engine });
+      store.setLivePitch(store.playback.livePitchOffset);
+      store.setPlaybackSpeed(store.playback.playbackSpeed);
+    });
     manager.setAudioNormalization(useKaraokeStore.getState().settings.enableAudioNormalization ?? true);
 
     if (videoRef.current) {
@@ -526,7 +533,7 @@ export const ControlWindow: React.FC = () => {
 
   useEffect(() => {
     if (!audioGraphRef.current) return;
-    audioGraphRef.current.setDspEngine(settings.dspEngine || 'bungee');
+    audioGraphRef.current.setDspEngine(settings.dspEngine || 'signalsmith');
     audioGraphRef.current.setPitchOffset(playback.livePitchOffset);
     audioGraphRef.current.setPlaybackSpeed(playback.playbackSpeed);
     audioGraphRef.current.setMutedMidiChannels(playback.mutedMidiChannels);
@@ -951,9 +958,9 @@ export const ControlWindow: React.FC = () => {
                 <p className="leading-relaxed">{t('settings.dspEngineCompareBody')}</p>
                 <ul className="space-y-1.5 list-none pl-0">
                   <li>
-                    <span className="text-indigo-300 font-semibold">Bungee</span>
+                    <span className="text-indigo-300 font-semibold">Signalsmith</span>
                     {' — '}
-                    {t('settings.dspEngineBungeeBlurb')}
+                    {t('settings.dspEngineSignalsmithBlurb')}
                   </li>
                   <li>
                     <span className="text-amber-300 font-semibold">SoundTouch</span>

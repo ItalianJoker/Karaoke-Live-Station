@@ -66,6 +66,10 @@ export type DiscoveredLibraryTrack = {
   idHint: string;
   /** Basename without extension (after stripping optional YouTube prefix) */
   baseName: string;
+  /** Filesystem mtime (ms) when known — used for delta rescan. */
+  fileMtimeMs?: number;
+  /** Filesystem size (bytes) when known — used for delta rescan. */
+  fileSizeBytes?: number;
 };
 
 export type DiscoverLibraryMediaOptions = {
@@ -73,7 +77,22 @@ export type DiscoverLibraryMediaOptions = {
   fsImpl?: Pick<typeof fs, 'existsSync' | 'readdirSync' | 'statSync' | 'realpathSync'>;
   /** Override path helpers for tests */
   pathImpl?: Pick<typeof path, 'join' | 'extname' | 'basename' | 'resolve' | 'dirname'>;
+  /**
+   * When true, skip ZIP Central Directory inspect (pass-1 / hot walk).
+   * ZIP packs are validated later or when not in delta cache.
+   */
+  deferZipInspect?: boolean;
+  /**
+   * When true, skip per-file statSync size gate in buildDiscoveredTrack
+   * (caller already stamped mtime/size from async walk).
+   */
+  skipStatInBuild?: boolean;
 };
+
+export type LibraryScanProgressCallback = (info: {
+  scanned: number;
+  found: number;
+}) => void;
 
 function shouldSkipDirectoryName(name: string): boolean {
   const lower = name.toLowerCase();
@@ -201,7 +220,7 @@ export function pickPrimaryLibraryExtension(exts: string[]): {
  * probes that import this file stay green without .js/.ts extension games.
  * Full extract lives in `zipCdg.ts` (main process).
  */
-function zipContainsCdgKaraokePair(zipPath: string): boolean {
+export function zipContainsCdgKaraokePair(zipPath: string): boolean {
   try {
     const st = fs.statSync(zipPath);
     if (!st.isFile() || st.size < LIBRARY_SCAN_MIN_BYTES) return false;
@@ -254,7 +273,8 @@ function buildDiscoveredTrack(
   baseName: string,
   exts: string[],
   pathImpl: NonNullable<DiscoverLibraryMediaOptions['pathImpl']>,
-  fsImpl: NonNullable<DiscoverLibraryMediaOptions['fsImpl']>
+  fsImpl: NonNullable<DiscoverLibraryMediaOptions['fsImpl']>,
+  options?: Pick<DiscoverLibraryMediaOptions, 'deferZipInspect' | 'skipStatInBuild'>
 ): DiscoveredLibraryTrack | null {
   if (exts.some((e) => INCOMPLETE_EXTENSIONS.has(e)) || /\.part$/i.test(baseName)) {
     return null;
@@ -265,15 +285,23 @@ function buildDiscoveredTrack(
 
   const fullFilePath = pathImpl.join(dir, `${baseName}${picked.targetExt}`);
 
-  try {
-    const st = fsImpl.statSync(fullFilePath);
-    if (!st.isFile() || st.size < LIBRARY_SCAN_MIN_BYTES) return null;
-  } catch {
-    return null;
+  let fileMtimeMs: number | undefined;
+  let fileSizeBytes: number | undefined;
+
+  if (!options?.skipStatInBuild) {
+    try {
+      const st = fsImpl.statSync(fullFilePath);
+      if (!st.isFile() || st.size < LIBRARY_SCAN_MIN_BYTES) return null;
+      fileMtimeMs = Math.floor(st.mtimeMs);
+      fileSizeBytes = st.size;
+    } catch {
+      return null;
+    }
   }
 
   // Karaoke ZIP packs must contain an audio+CDG pair (Central Directory inspect).
-  if (picked.targetExt === '.zip') {
+  // Pass-1 / hot walk may defer this; delta-unchanged zips skip re-inspect.
+  if (picked.targetExt === '.zip' && !options?.deferZipInspect) {
     if (!zipContainsCdgKaraokePair(fullFilePath)) return null;
   }
 
@@ -288,7 +316,9 @@ function buildDiscoveredTrack(
     artist: meta.artist,
     hasEmbeddedLyrics: hasCdg || hasKar,
     idHint: meta.idHintFromYt || `track_${Buffer.from(fullFilePath).toString('base64url')}`,
-    baseName
+    baseName,
+    fileMtimeMs,
+    fileSizeBytes
   };
 }
 
@@ -371,6 +401,108 @@ export function discoverLibraryMedia(
   };
 
   walk(pathImpl.resolve(root));
+  return discovered;
+}
+
+/**
+ * Async high-speed library walk (opendir + Dirent).
+ * Pass 1: path + basename meta only — no ID3/FFmpeg; ZIP CD inspect deferred;
+ * size/mtime collected via one stat per candidate (needed for delta).
+ * Emits progress every ~500 files.
+ */
+export async function discoverLibraryMediaAsync(
+  folderPath: string,
+  options: DiscoverLibraryMediaOptions & {
+    onProgress?: LibraryScanProgressCallback;
+    /** Progress emit cadence (default 500). */
+    progressEvery?: number;
+  } = {}
+): Promise<DiscoveredLibraryTrack[]> {
+  const pathImpl = options.pathImpl || path;
+  const discovered: DiscoveredLibraryTrack[] = [];
+  const root = (folderPath || '').trim();
+  if (!root || !fs.existsSync(root)) return discovered;
+
+  const progressEvery = Math.max(50, options.progressEvery ?? 500);
+  let scanned = 0;
+  let lastEmit = 0;
+  const visited = new Set<string>();
+  const emit = () => {
+    options.onProgress?.({ scanned, found: discovered.length });
+    lastEmit = scanned;
+  };
+
+  const walkDir = async (dir: string): Promise<void> => {
+    let realDir = dir;
+    try {
+      realDir = fs.realpathSync(dir);
+    } catch {
+      /* keep original */
+    }
+    if (visited.has(realDir)) return;
+    visited.add(realDir);
+
+    let handle: fs.Dir;
+    try {
+      handle = await fs.promises.opendir(dir);
+    } catch (err) {
+      console.warn(`Error opening directory ${dir}:`, err);
+      return;
+    }
+
+    const filesMap = new Map<string, string[]>();
+    try {
+      for await (const entry of handle) {
+        const full = pathImpl.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (shouldSkipDirectoryName(entry.name)) continue;
+          await walkDir(full);
+        } else if (entry.isSymbolicLink()) {
+          try {
+            const st = fs.statSync(full);
+            if (st.isDirectory()) {
+              if (shouldSkipDirectoryName(entry.name)) continue;
+              await walkDir(full);
+            } else if (st.isFile()) {
+              const ext = pathImpl.extname(entry.name).toLowerCase();
+              const base = pathImpl.basename(entry.name, ext);
+              if (!filesMap.has(base)) filesMap.set(base, []);
+              filesMap.get(base)!.push(ext);
+            }
+          } catch {
+            /* ignore broken symlink */
+          }
+        } else if (entry.isFile()) {
+          const ext = pathImpl.extname(entry.name).toLowerCase();
+          const base = pathImpl.basename(entry.name, ext);
+          if (!filesMap.has(base)) filesMap.set(base, []);
+          filesMap.get(base)!.push(ext);
+        }
+      }
+    } finally {
+      await handle.close().catch(() => undefined);
+    }
+
+    for (const [baseName, exts] of filesMap.entries()) {
+      scanned += 1;
+      // Pass 1: path + basename + size/mtime only — ZIP CD inspect deferred to Main delta.
+      const track = buildDiscoveredTrack(dir, baseName, exts, pathImpl, fs, {
+        deferZipInspect: true,
+        skipStatInBuild: false
+      });
+      if (track) {
+        discovered.push(track);
+      }
+      if (scanned - lastEmit >= progressEvery) emit();
+      // Yield occasionally so Main can flush IPC / paint.
+      if (scanned % 2000 === 0) {
+        await new Promise<void>((r) => setImmediate(r));
+      }
+    }
+  };
+
+  await walkDir(pathImpl.resolve(root));
+  emit();
   return discovered;
 }
 

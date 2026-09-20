@@ -13,7 +13,10 @@ import {
   LogLevel,
   YtDlpStatus,
   FirewallCheckResult,
-  SiaeLogEntry
+  SiaeLogEntry,
+  LibraryTracksPage,
+  LibraryTracksPageCursor,
+  LibraryScanProgress
 } from '../shared/types';
 import type { OfflineVocalModelId, VocalModelDownloadProgress } from '../shared/vocalRemover';
 
@@ -57,8 +60,15 @@ export interface KaraokeAPI {
 
   // 3. SQLite Database Operations
   db: {
-    /** Retrieves all catalog tracks */
+    /** Retrieves all catalog tracks (legacy — prefer getTracksPage for Local browse) */
     getTracks: () => Promise<KaraokeMediaTrack[]>;
+    /** Keyset-paged Local catalog browse (avoids full IPC dump). */
+    getTracksPage: (
+      limit?: number,
+      cursor?: LibraryTracksPageCursor | null
+    ) => Promise<LibraryTracksPage>;
+    /** Catalog row count for Local badge without dumping rows. */
+    getTracksCount: () => Promise<number>;
     searchTracks: (query: string, limit?: number) => Promise<KaraokeMediaTrack[]>;
     /** Inserts or updates a catalog track */
     upsertTrack: (track: KaraokeMediaTrack) => Promise<{ success: boolean }>;
@@ -84,6 +94,8 @@ export interface KaraokeAPI {
   library: {
     /** Scans a local filesystem folder for media files */
     scanFolder: (folderPath: string) => Promise<KaraokeMediaTrack[]>;
+    /** Progress during async folder scan (every ~500 files). */
+    onScanProgress: (callback: (progress: LibraryScanProgress) => void) => () => void;
     /**
      * Catalog absolute filesystem paths (OS drag-and-drop import).
      * Why: additive IPC — does not replace or alter scanFolder.
@@ -365,6 +377,9 @@ const karaokeApi: KaraokeAPI = {
   // Database Bridge
   db: {
     getTracks: () => ipcRenderer.invoke('db:get-tracks'),
+    getTracksPage: (limit?: number, cursor?: LibraryTracksPageCursor | null) =>
+      ipcRenderer.invoke('db:get-tracks-page', limit, cursor ?? null),
+    getTracksCount: () => ipcRenderer.invoke('db:get-tracks-count'),
     searchTracks: (query: string, limit?: number) => ipcRenderer.invoke('db:search-tracks', query, limit),
     upsertTrack: (track: KaraokeMediaTrack) => ipcRenderer.invoke('db:upsert-track', track),
     deleteTrack: (trackId: string) => ipcRenderer.invoke('db:delete-track', trackId),
@@ -380,6 +395,13 @@ const karaokeApi: KaraokeAPI = {
   // Library Scanner & YouTube Search
   library: {
     scanFolder: (folderPath: string) => ipcRenderer.invoke('library:scan-folder', folderPath),
+    onScanProgress: (callback: (progress: LibraryScanProgress) => void) => {
+      const handler = (_event: IpcRendererEvent, progress: LibraryScanProgress) => callback(progress);
+      ipcRenderer.on('library:scan-progress', handler);
+      return () => {
+        ipcRenderer.removeListener('library:scan-progress', handler);
+      };
+    },
     importFiles: (filePaths: string[]) => ipcRenderer.invoke('library:import-files', filePaths),
     /**
      * Absolute path for a dropped File (sandbox-safe).

@@ -15,8 +15,8 @@ when fed 128-frame quanta.
 
 ## App wiring
 
-- Settings engine id `bungee` = Hi-Fi Signalsmith (kept for persisted settings).
-- `BungeePitchShifterNode` wraps `SignalsmithStretch(audioContext)`.
+- Settings engine id `signalsmith` = Hi-Fi Signalsmith (legacy `bungee` migrates automatically).
+- `SignalsmithPitchShifterNode` wraps `SignalsmithStretch(audioContext)`.
 - Tempo: `HTMLMediaElement.playbackRate` + `preservesPitch`.
 - Pitch: `stretch.schedule({ semitones })` while pitch ≠ 0; true bypass at pitch 0.
-- Mute watchdog → dry pass-through + SoundTouch emergency fallback.
+- Mute watchdog → dry pass-through + SoundTouch emergency fallback (pitch/speed bounds switch to SoundTouch ±4 / 0.75–1.25×).
