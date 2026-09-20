@@ -9,7 +9,7 @@
 <a name="v140-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 1.4.0
 
-Sovrascrittura GitHub **v1.4.0** (stesso tag; **non** tocca `v1.3.0` / `v1.2.0` / `v1.1.0`). Parte dalla baseline **v1.3.0**. PRs **#52**–**#64**. Pacchetto resta **1.4.0** (nessuna v1.5.0).
+Sovrascrittura GitHub **v1.4.0** (stesso tag; **non** tocca `v1.3.0` / `v1.2.0` / `v1.1.0`). Parte dalla baseline **v1.3.0**. PRs **#52**–**#66**. Pacchetto resta **1.4.0** (nessuna v1.5.0).
 
 ## 📦 File di Installazione
 
@@ -23,14 +23,14 @@ Sovrascrittura GitHub **v1.4.0** (stesso tag; **non** tocca `v1.3.0` / `v1.2.0` 
 
 ## 🌟 Novità di questa versione
 
-### 🎵 DSP pitch/speed — Bungee predefinito (#52) + fix udibile (#56) + `_malloc` (#60) + FIFO (#63)
-- Motore media predefinito **Bungee** (phase vocoder Wasm AudioWorklet, MPL-2.0 — solo prebuilt in `public/workers/`, nessun sorgente C++ in-repo).
-- **SoundTouch WSOLA** resta selezionabile in Impostazioni come motore legacy/leggero.
-- Range UI: ±8 ST (Bungee) / ±4 ST (SoundTouch). Bypass bit-perfect a pitch 0 e velocità 1.00x.
-- **Fix #56:** AudioWorklet/Emscripten init, attesa Wasm `initialized`, tempo solo via Wasm (niente doppio `playbackRate`), limiti velocità per motore (Bungee 0.50–1.50 / SoundTouch 0.75–1.25).
-- **Fix #60:** `BungeeModule._malloc` / `HEAPF32` esposti sul Module (Emscripten MODULARIZE) — niente fallback forzato a SoundTouch per alloc mancante.
-- **Fix #63:** output FIFO stereo (scratch 8192 + dequeue 128) — audio continuo a pitch negativo / stretch (niente mute da grain drop).
-- Fallback silenzioso a SoundTouch se Bungee non inizializza. MIDI/KAR invariato (SpessaSynth).
+### 🎵 DSP pitch/speed — Signalsmith Hi-Fi (#66) [ex Bungee #52–#63]
+- Motore media predefinito **Signalsmith Stretch** (MIT AudioWorklet via npm; id settings resta `bungee` per persistenza). Notice: `public/workers/SIGNALSMITH_NOTICE.md`.
+- **SoundTouch WSOLA** resta in Impostazioni come fallback emergenza/leggero (±4 ST).
+- Range UI: ±8 ST (Hi-Fi) / ±4 ST (SoundTouch). Bypass bit-perfect a pitch 0 e velocità 1.00x.
+- Tempo via `HTMLMediaElement.playbackRate` + `preservesPitch`; pitch via Signalsmith `schedule({ semitones })`.
+- Mute watchdog → dry pass-through + SoundTouch automatico (niente stop playback).
+- Rimossi `bungee_processor.js` / `bungee.wasm` (path Wasm mute a pitch negativo). Storico #52/#56/#60/#63 (FIFO, `_malloc`) sostituito da #66.
+- MIDI/KAR invariato (SpessaSynth).
 
 ### 📥 Scarica strumentale — modal sottotitoli (#53) + policy in Impostazioni (#61)
 - Conferma prima del download: con sottotitoli / solo strumentale / annulla (Esc / click fuori).
@@ -43,11 +43,12 @@ Sovrascrittura GitHub **v1.4.0** (stesso tag; **non** tocca `v1.3.0` / `v1.2.0` 
 - Scan/import `.zip` con MP3/WAV+`.cdg`; estrazione on-demand in `temp/zip_cache`; cleanup a dequeue/uscita.
 - Analisi async `initialKey` / `initialBpm`; pillole Pitch/Speed in Regia con etichetta `base→risultato` / BPM accanto a ± (handler invariati).
 
-### 🎛️ AI strumentale — GPU-First + opzioni (#55) + telemetria onesta (#59/#60) + Hidden Renderer (#63)
+### 🎛️ AI strumentale — GPU-First (#55) + telemetria (#59/#60) + Hidden Renderer (#63) + `/all` (#66)
 - Toggle **AI GPU** (default on) + badge live; probe `system:get-gpu-status`.
 - **#59:** card GPU (toggle + badge) e card CPU sorella (core + `mdxEnableOrt` MDX-only).
 - **#60:** badge verde solo se il worker AI può davvero ospitare WebGPU; altrimenti ambra WASM (GPU hardware solo come nota). Telemetria `ortBackend` / `ortFallbackReason`; WebGPU-only poi WASM.
-- **#63:** ORT WebGPU in **Hidden BrowserWindow** quando GPU on + `requestAdapter()` OK (`workerKind=hidden-renderer`); altrimenti `utilityProcess` WASM + core CPU. Probe asar-safe sotto `userData`; badge verde solo con adapter Hidden Renderer.
+- **#63:** ORT WebGPU in **Hidden BrowserWindow** quando GPU on + `requestAdapter()` OK (`workerKind=hidden-renderer`); altrimenti `utilityProcess` WASM + core CPU.
+- **#66:** import `onnxruntime-web/all` (registra EP WebGPU in Electron); Hidden Renderer **non** fa WASM multithread in-process dopo fallimento WebGPU — posta `gpu-fallback-requested` e main re-instrada a **utilityProcess** (niente deadlock SAB).
 - Metodo Download Strumentale solo **UVR-MDX Karaoke 2** / **HTDemucs** (DSP e Roformer rimossi dalla tendina download; live `V` resta DSP).
 - Pannello avanzato HTDemucs (shifts / segmento / overlap); MDX avanzato invariato.
 - Etichette live: **Algoritmo Base** (ex Sperimentale).
@@ -57,7 +58,7 @@ Sovrascrittura GitHub **v1.4.0** (stesso tag; **non** tocca `v1.3.0` / `v1.2.0` 
 - Benchmark in `scripts/benchmark-large-library.js` (25k-safe).
 
 ### 🧹 Safety-First cleanup (#57)
-- Modularizzazione Regia/Impostazioni (hook + tab), virtualizzazione libreria 16k+, disconnect Web Audio su dispose, parity manuali it/en/es/fr (DnD OS, scan ricorsivo, Bungee/SoundTouch, SoundFont AppImage).
+- Modularizzazione Regia/Impostazioni (hook + tab), virtualizzazione libreria 16k+, disconnect Web Audio su dispose, parity manuali it/en/es/fr (DnD OS, scan ricorsivo, DSP pitch, SoundFont AppImage).
 - **Nessun bump a 1.5.0** — resta **1.4.0**.
 
 ### 🏷️ Versione
@@ -71,7 +72,7 @@ Resta incluso: massimizza Regia all’avvio, Schermo Palco on/off, core CPU AI s
 <a name="v140-english"></a>
 # 🇬🇧 Release Notes — Version 1.4.0
 
-Overwrite of GitHub release **v1.4.0** (same tag; does **not** touch `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on **v1.3.0** baseline. PRs **#52**–**#64**. Package stays **1.4.0** (no v1.5.0).
+Overwrite of GitHub release **v1.4.0** (same tag; does **not** touch `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on **v1.3.0** baseline. PRs **#52**–**#66**. Package stays **1.4.0** (no v1.5.0).
 
 ## 📦 Installer Files
 
@@ -85,14 +86,14 @@ Overwrite of GitHub release **v1.4.0** (same tag; does **not** touch `v1.3.0` / 
 
 ## 🌟 What’s new
 
-### 🎵 Pitch/speed DSP — Bungee default (#52) + audible fix (#56) + `_malloc` (#60) + FIFO (#63)
-- Default media engine is **Bungee** (phase-vocoder Wasm AudioWorklet, MPL-2.0 — runtime prebuilts only under `public/workers/`, no C++ source tree).
-- **SoundTouch WSOLA** remains selectable in Settings as the legacy/light engine.
-- UI ranges: ±8 ST (Bungee) / ±4 ST (SoundTouch). Bit-perfect bypass at pitch 0 and speed 1.00x.
-- **Fix #56:** AudioWorklet/Emscripten init, wait for Wasm `initialized`, tempo via Wasm only (no double `playbackRate`), per-engine speed limits (Bungee 0.50–1.50 / SoundTouch 0.75–1.25).
-- **Fix #60:** expose `BungeeModule._malloc` / `HEAPF32` on the Module (Emscripten MODULARIZE) — no forced SoundTouch fallback from missing alloc.
-- **Fix #63:** stereo output FIFO (8192 scratch + dequeue 128) — continuous audio at negative pitch / stretch (no mute from grain drop).
-- Silent fallback to SoundTouch if Bungee init fails. MIDI/KAR unchanged (SpessaSynth).
+### 🎵 Pitch/speed DSP — Signalsmith Hi-Fi (#66) [ex Bungee #52–#63]
+- Default media engine is **Signalsmith Stretch** (MIT AudioWorklet via npm; settings id stays `bungee` for persistence). Notice: `public/workers/SIGNALSMITH_NOTICE.md`.
+- **SoundTouch WSOLA** remains in Settings as emergency/light fallback (±4 ST).
+- UI ranges: ±8 ST (Hi-Fi) / ±4 ST (SoundTouch). Bit-perfect bypass at pitch 0 and speed 1.00x.
+- Tempo via `HTMLMediaElement.playbackRate` + `preservesPitch`; pitch via Signalsmith `schedule({ semitones })`.
+- Mute watchdog → dry pass-through + automatic SoundTouch (playback keeps going).
+- Removed `bungee_processor.js` / `bungee.wasm` (Wasm path muted on negative pitch). Historical #52/#56/#60/#63 (FIFO, `_malloc`) superseded by #66.
+- MIDI/KAR unchanged (SpessaSynth).
 
 ### 📥 Download Instrumental — subtitles modal (#53) + Settings policy (#61)
 - Confirm before download: with subtitles / instrumental only / cancel (Esc / outside click).
@@ -105,11 +106,12 @@ Overwrite of GitHub release **v1.4.0** (same tag; does **not** touch `v1.3.0` / 
 - Scan/import `.zip` with MP3/WAV+`.cdg`; on-demand extract under `temp/zip_cache`; cleanup on dequeue/quit.
 - Async `initialKey` / `initialBpm`; Control Pitch/Speed pills show `base→result` / BPM beside ± (handlers unchanged).
 
-### 🎛️ Instrumental AI — GPU-First + options (#55) + honest telemetry (#59/#60) + Hidden Renderer (#63)
+### 🎛️ Instrumental AI — GPU-First (#55) + telemetry (#59/#60) + Hidden Renderer (#63) + `/all` (#66)
 - **AI GPU** toggle (default on) + live badge; `system:get-gpu-status` probe.
 - **#59:** GPU card (toggle + badge) and sibling CPU card (cores + MDX-only `mdxEnableOrt`).
 - **#60:** green badge only when the AI worker can actually host WebGPU; otherwise amber WASM (hardware GPU as note only). `ortBackend` / `ortFallbackReason` telemetry; WebGPU-only then WASM.
-- **#63:** ORT WebGPU in a **Hidden BrowserWindow** when GPU on + `requestAdapter()` OK (`workerKind=hidden-renderer`); else `utilityProcess` WASM + CPU cores. Asar-safe probe under `userData`; green badge only when Hidden Renderer adapter OK.
+- **#63:** ORT WebGPU in a **Hidden BrowserWindow** when GPU on + `requestAdapter()` OK (`workerKind=hidden-renderer`); else `utilityProcess` WASM + CPU cores.
+- **#66:** import `onnxruntime-web/all` (registers WebGPU EP in Electron); Hidden Renderer **never** runs in-process multithreaded WASM after WebGPU failure — posts `gpu-fallback-requested` and main re-routes to **utilityProcess** (no SAB deadlock).
 - Download Instrumental methods: **UVR-MDX Karaoke 2** / **HTDemucs** only (DSP and Roformer removed from download Settings; live `V` stays DSP).
 - HTDemucs advanced panel (shifts / segment / overlap); MDX advanced unchanged.
 - Live labels: **Basic Algorithm** (was Experimental).
@@ -119,7 +121,7 @@ Overwrite of GitHub release **v1.4.0** (same tag; does **not** touch `v1.3.0` / 
 - Benchmarks in `scripts/benchmark-large-library.js` (25k-safe).
 
 ### 🧹 Safety-First cleanup (#57)
-- Control/Settings modularization (hooks + tabs), 16k+ library list virtualization, Web Audio disconnect on dispose, it/en/es/fr manual parity (OS DnD, recursive scan, Bungee/SoundTouch, AppImage SoundFont).
+- Control/Settings modularization (hooks + tabs), 16k+ library list virtualization, Web Audio disconnect on dispose, it/en/es/fr manual parity (OS DnD, recursive scan, pitch DSP, AppImage SoundFont).
 - **No bump to 1.5.0** — stays **1.4.0**.
 
 ### 🏷️ Version
