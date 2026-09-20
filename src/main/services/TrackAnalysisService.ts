@@ -4,6 +4,9 @@
  * Never blocks play-start: jobs run via setImmediate queue after scan/import
  * or when a track without analysis becomes current. Results persist to SQLite
  * (`initialKey`, `initialBpm`) and are optional on KaraokeMediaTrack.
+ *
+ * FFT chromagram work yields to the event loop every N hops so Electron main
+ * stays responsive during large post-scan analysis bursts (Safety-First).
  */
 
 import fs from 'fs';
@@ -18,6 +21,7 @@ import { peekMidiKeyAndBpm } from '../../shared/midiKeyBpmPeek';
 import type { KaraokeMediaTrack } from '../../shared/types';
 import type { DatabaseManager } from '../db/database';
 import { inspectZipForCdgPair, extractZipEntryToFile, readZipCentralDirectoryFromFile } from '../../shared/zipCdg';
+import type { Logger } from './Logger';
 
 export type TrackAnalysisResult = {
   initialKey?: string;
@@ -34,6 +38,8 @@ const SAMPLE_RATE = 22050;
 const ANALYZE_SECONDS = 45;
 const FFT_SIZE = 2048;
 const HOP = 512;
+/** Yield to main every N FFT frames — keeps IPC/Regia snappy during long PCM. */
+const YIELD_EVERY_FRAMES = 64;
 
 export class TrackAnalysisService {
   private readonly db: DatabaseManager;
@@ -44,11 +50,18 @@ export class TrackAnalysisService {
   private running = false;
   private readonly attempted = new Set<string>();
   private readonly tempDir: string;
+  private readonly logger?: Logger;
 
-  constructor(db: DatabaseManager, tempDir: string, ffmpegPath: string | null) {
+  constructor(
+    db: DatabaseManager,
+    tempDir: string,
+    ffmpegPath: string | null,
+    logger?: Logger
+  ) {
     this.db = db;
     this.tempDir = path.join(tempDir, 'analysis');
     this.ffmpegPath = ffmpegPath;
+    this.logger = logger;
   }
 
   /**
@@ -83,13 +96,29 @@ export class TrackAnalysisService {
       const job = this.queue.shift()!;
       this.queuedTrackIds.delete(job.trackId);
       this.attempted.add(job.trackId);
+      const startedAt = Date.now();
       try {
+        this.logger?.debug('TrackAnalysisService', 'analyze start', {
+          trackId: job.trackId,
+          correlationId: `analysis_${job.trackId}`
+        });
         const result = await this.analyzePath(job);
         if (result.initialKey || result.initialBpm) {
           this.db.updateTrackKeyBpm(job.trackId, result.initialKey, result.initialBpm);
         }
+        this.logger?.debug('TrackAnalysisService', 'analyze complete', {
+          trackId: job.trackId,
+          correlationId: `analysis_${job.trackId}`,
+          elapsedMs: Date.now() - startedAt,
+          initialKey: result.initialKey ?? null,
+          initialBpm: result.initialBpm ?? null
+        });
       } catch (err) {
-        console.warn('TrackAnalysisService: analyze failed', job.trackId, err);
+        this.logger?.warn('TrackAnalysisService', 'analyze failed', {
+          trackId: job.trackId,
+          correlationId: `analysis_${job.trackId}`,
+          err: err instanceof Error ? err.message : String(err)
+        });
       }
       // Yield between tracks so scan/play IPC stay snappy
       await new Promise<void>((r) => setImmediate(r));
@@ -142,7 +171,7 @@ export class TrackAnalysisService {
     const pcm = await this.decodePcmMono(audioPath);
     if (!pcm || pcm.length < SAMPLE_RATE) return {};
 
-    const { chroma, onset } = this.computeChromaAndOnset(pcm);
+    const { chroma, onset } = await this.computeChromaAndOnset(pcm);
     const initialKey = estimateKeyFromChromagram(chroma);
     const hopSec = HOP / SAMPLE_RATE;
     const initialBpm = estimateBpmFromOnsetStrength(onset, hopSec);
@@ -190,10 +219,15 @@ export class TrackAnalysisService {
     });
   }
 
-  private computeChromaAndOnset(samples: Float32Array): {
+  /**
+   * Chromagram + onset flux over PCM.
+   * Time ≈ O((N/HOP)·FFT_SIZE); space O(FFT_SIZE + frames).
+   * Yields every {@link YIELD_EVERY_FRAMES} hops so main stays responsive.
+   */
+  private async computeChromaAndOnset(samples: Float32Array): Promise<{
     chroma: number[];
     onset: number[];
-  } {
+  }> {
     const fft = new FFT(FFT_SIZE);
     const window = new Float32Array(FFT_SIZE);
     for (let i = 0; i < FFT_SIZE; i++) {
@@ -207,6 +241,7 @@ export class TrackAnalysisService {
     const out = fft.createComplexArray() as number[];
     const input = fft.createComplexArray() as number[];
 
+    let frame = 0;
     for (let start = 0; start + FFT_SIZE < samples.length; start += HOP) {
       for (let i = 0; i < FFT_SIZE; i++) {
         input[i * 2] = samples[start + i] * window[i];
@@ -235,6 +270,10 @@ export class TrackAnalysisService {
       }
       onset.push(flux);
       prevMag = mags;
+      frame++;
+      if (frame % YIELD_EVERY_FRAMES === 0) {
+        await new Promise<void>((r) => setImmediate(r));
+      }
     }
 
     return { chroma, onset };

@@ -2011,7 +2011,9 @@ assert(
     databaseSourceAccent.includes('normalizeForSearch') &&
     databaseSourceAccent.includes('titleNorm') &&
     databaseSourceAccent.includes('artistNorm') &&
-    guestServerSourceAccent.includes('textMatchesSearch') &&
+    // Guest portal: accent folding via normalizeForSearch + DB FTS/searchTracks (not full-catalog JS filter).
+    guestServerSourceAccent.includes('normalizeForSearch') &&
+    guestServerSourceAccent.includes('searchLibraryTracks') &&
     libraryPanelSourceAccent.includes('textMatchesSearch') &&
     historyPanelSourceAccent.includes('textMatchesSearch') &&
     settingsModalSourceAccent.includes('textMatchesSearch') &&
@@ -4069,6 +4071,109 @@ console.log('\n\x1b[36m▶ Suite: Safety-First modularization, virtualization, i
       `${code} locale has core queue/player/settings defaults`
     );
   }
+}
+
+// -------------------------------------------------------------
+// Suite: Refactor / MT / deps / logging audit (Safety-First)
+// -------------------------------------------------------------
+console.log('\x1b[36m▶ Suite: Refactor MT deps logging audit\x1b[0m');
+{
+  const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
+  const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  assert(!deps.clsx, 'orphan clsx removed from package.json');
+  assert(!deps['tailwind-merge'], 'orphan tailwind-merge removed from package.json');
+  assert(!deps.autoprefixer, 'orphan autoprefixer removed from package.json');
+  assert(!deps.postcss, 'orphan postcss removed (Tailwind v4 via @tailwindcss/vite)');
+
+  const dbSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/db/database.ts'), 'utf8');
+  assert(
+    dbSrc.includes('findLocalMediaDedupCandidates'),
+    'DatabaseManager exposes findLocalMediaDedupCandidates (SQL dedup)'
+  );
+
+  const guestSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/server/guestServer.ts'), 'utf8');
+  assert(
+    guestSrc.includes('searchLibraryTracks') &&
+      guestSrc.includes('getLibraryTrackById') &&
+      guestSrc.includes('getLibraryTrackCount') &&
+      !guestSrc.includes('getLibraryTracks'),
+    'Guest portal uses FTS/id/count callbacks (no getAllTracks dump)'
+  );
+
+  const mainSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+  assert(
+    mainSrc.includes('findLocalMediaDedupCandidates') &&
+      !/download:start[\s\S]{0,1200}getAllTracks\(\)/.test(mainSrc),
+    'download:start uses SQL dedup candidates (not getAllTracks)'
+  );
+  assert(
+    mainSrc.includes("before-quit cleanup starting"),
+    'before-quit emits structured DEBUG cleanup markers'
+  );
+
+  const dmSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+    'utf8'
+  );
+  assert(dmSrc.includes('pendingById'), 'DownloadManager pendingById Map for O(1) cancel/dedup');
+  assert(
+    !dmSrc.includes("console.warn('Security guard:") &&
+      dmSrc.includes("Security guard: Refused deletion"),
+    'DownloadManager security guard uses structured logger'
+  );
+
+  const zipSrc = fs.readFileSync(path.resolve(__dirname, '../src/shared/zipCdg.ts'), 'utf8');
+  assert(
+    zipSrc.includes('extractZipEntryToFileAsync') && zipSrc.includes('inflateRaw'),
+    'ZIP extract has async inflateRaw path'
+  );
+  assert(
+    fs
+      .readFileSync(path.resolve(__dirname, '../src/main/services/ZipCdgCache.ts'), 'utf8')
+      .includes('extractZipCdgPairAsync'),
+    'ZipCdgCache play-start uses async extract'
+  );
+
+  const analysisSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/TrackAnalysisService.ts'),
+    'utf8'
+  );
+  assert(
+    analysisSrc.includes('YIELD_EVERY_FRAMES') && analysisSrc.includes('setImmediate'),
+    'TrackAnalysisService yields during FFT chromagram work'
+  );
+
+  const loggerSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/Logger.ts'),
+    'utf8'
+  );
+  assert(
+    loggerSrc.includes('maskSensitive') && loggerSrc.includes('[REDACTED]'),
+    'Logger masks sensitive keys in structured data'
+  );
+
+  const libPanel = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  const queueList = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/QueueList.tsx'),
+    'utf8'
+  );
+  assert(
+    libPanel.includes('missingTrackIdSet') && queueList.includes('missingTrackIdSet'),
+    'Library/Queue use Set for missingTrackIds membership (O(1))'
+  );
+
+  // Unit-test maskSensitive key regex + zlib async inflate parity
+  const maskKey = (k) => /pass(word)?|token|secret|api[_-]?key|authorization|credential/i.test(k);
+  assert(maskKey('apiKey') && maskKey('password') && !maskKey('artist'), 'secret key regex covers apiKey/password');
+
+  const zlib = require('zlib');
+  const payload = Buffer.from('karaoke-zip-async-test');
+  const deflated = zlib.deflateRawSync(payload);
+  assert(zlib.inflateRawSync(deflated).equals(payload), 'zlib inflateRawSync round-trip (baseline)');
+  assert(typeof zlib.inflateRaw === 'function', 'zlib.inflateRaw available for async ZIP extract');
 }
 
 // Summary

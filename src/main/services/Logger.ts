@@ -107,6 +107,7 @@ export class Logger {
 
   /**
    * Serializes arbitrary metadata or Error objects safely.
+   * Masks common secret field names (tokens, passwords, API keys) before JSON stringify.
    */
   private serializeData(data: unknown): string {
     if (data === undefined) return '';
@@ -115,12 +116,35 @@ export class Logger {
     }
     if (typeof data === 'object' && data !== null) {
       try {
-        return ` | Data: ${JSON.stringify(data)}`;
+        return ` | Data: ${JSON.stringify(Logger.maskSensitive(data))}`;
       } catch {
         return ` | Data: [Unserializable Object]`;
       }
     }
     return ` | Data: ${String(data)}`;
+  }
+
+  /**
+   * Deep-ish mask for log payloads — redacts keys that look like secrets.
+   * Why: DEBUG may attach yt-dlp argv / settings blobs; never persist credentials.
+   */
+  private static maskSensitive(value: unknown, depth = 0): unknown {
+    if (depth > 6 || value == null) return value;
+    if (Array.isArray(value)) {
+      return value.map((v) => Logger.maskSensitive(v, depth + 1));
+    }
+    if (typeof value === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        if (/pass(word)?|token|secret|api[_-]?key|authorization|credential/i.test(k)) {
+          out[k] = '[REDACTED]';
+        } else {
+          out[k] = Logger.maskSensitive(v, depth + 1);
+        }
+      }
+      return out;
+    }
+    return value;
   }
 
   /**

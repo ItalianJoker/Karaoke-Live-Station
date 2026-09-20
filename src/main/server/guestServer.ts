@@ -6,7 +6,7 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import os from 'os';
 import QRCode from 'qrcode';
 import { GuestSongRequest, QueueItem, ActivePlaybackState, KaraokeMediaTrack } from '../../shared/types';
-import { normalizeForSearch, textMatchesSearch } from '../../shared/textNormalize';
+import { normalizeForSearch } from '../../shared/textNormalize';
 
 /**
  * Callback contracts invoked by the embedded Guest Portal server.
@@ -18,8 +18,15 @@ export interface GuestServerCallbacks {
   getPublicQueue: () => QueueItem[];
   /** Supplies current playback status for the mobile UI */
   getPlaybackState: () => ActivePlaybackState;
-  /** Supplies available catalog tracks from the local library */
-  getLibraryTracks: () => KaraokeMediaTrack[];
+  /**
+   * FTS / LIMIT search for Guest Portal catalog — never dump full getAllTracks().
+   * Empty query returns the first `limit` tracks ordered by artist/title.
+   */
+  searchLibraryTracks: (query: string, limit: number) => KaraokeMediaTrack[];
+  /** O(1) id lookup for guest song requests */
+  getLibraryTrackById: (id: string) => KaraokeMediaTrack | null;
+  /** Total catalog size for `{ total }` without materializing rows */
+  getLibraryTrackCount: () => number;
 }
 
 /**
@@ -153,7 +160,9 @@ export class GuestPortalServer {
       });
       return this.qrCodeDataUrl;
     } catch (err) {
-      console.error('Failed to generate QR Code:', err);
+      // Guest portal has no Logger inject — surface via stderr for main dual-sink capture.
+      // Why: QR failure must not throw into Express; empty string → UI hides QR.
+      console.error('[GuestPortal] Failed to generate QR Code:', err);
       return '';
     }
   }
@@ -202,24 +211,17 @@ export class GuestPortalServer {
     this.app.get('/api/songs', (req: Request, res: Response) => {
       const q =
         typeof req.query.q === 'string' ? normalizeForSearch(req.query.q).trim() : '';
-      const allTracks = this.callbacks.getLibraryTracks();
-      const sanitized = allTracks.map((t) => ({
+      // FTS / LIMIT — O(log N) / O(k); never materialize 10k–14k rows for guest mobiles.
+      const tracks = this.callbacks.searchLibraryTracks(q, 100);
+      const total = this.callbacks.getLibraryTrackCount();
+      const songs = tracks.map((t) => ({
         id: t.id,
         title: t.title,
         artist: t.artist,
         durationSec: t.durationSec,
         source: t.source
       }));
-
-      if (!q) {
-        res.json({ total: allTracks.length, songs: sanitized.slice(0, 100) });
-        return;
-      }
-
-      const filtered = sanitized.filter(
-        (t) => textMatchesSearch(t.title, q) || textMatchesSearch(t.artist, q)
-      );
-      res.json({ total: allTracks.length, songs: filtered.slice(0, 100) });
+      res.json({ total, songs });
     });
 
     // API endpoint for submitting a request
@@ -236,8 +238,7 @@ export class GuestPortalServer {
         return;
       }
 
-      const allTracks = this.callbacks.getLibraryTracks();
-      const matchedTrack = allTracks.find((t) => t.id === trackId);
+      const matchedTrack = this.callbacks.getLibraryTrackById(String(trackId));
 
       if (!matchedTrack) {
         res.status(400).json({ error: 'Il brano selezionato non è presente nella libreria karaoke' });
@@ -609,7 +610,8 @@ export class GuestPortalServer {
           srv.close();
           ioServer.close();
           if (err.code === 'EADDRINUSE' && port < 3020) {
-            console.log(`[GuestPortal] Port ${port} in use, trying ${port + 1}...`);
+            // Main already logs start success; keep retry visible on stderr for operators.
+            console.warn(`[GuestPortal] Port ${port} in use, trying ${port + 1}...`);
             this.port = port + 1;
             this.qrCodeDataUrl = '';
             tryListen(this.port).then(resolve).catch(reject);
@@ -624,7 +626,7 @@ export class GuestPortalServer {
           this.io.on('connection', (socket: Socket) => {
             socket.emit('queue:updated', { queue: this.callbacks.getPublicQueue() });
           });
-          console.log(`[GuestPortal] Running on http://${this.localIpAddress}:${this.port}`);
+          // Success is logged by MainProcess GuestServer info — avoid duplicate console.log noise.
           resolve();
         });
       });

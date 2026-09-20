@@ -267,7 +267,7 @@ export class AudioGraphManager {
         this.sourceNode = this.audioCtx.createMediaElementSource(element);
         this.setupVocalRemoverGraph();
       } catch (err) {
-        console.warn('MediaElementSource binding notice:', err);
+        this.log('warn', 'MediaElementSource binding notice', err);
       }
     }
 
@@ -693,7 +693,7 @@ export class AudioGraphManager {
         await element.setSinkId(deviceId);
         return true;
       } catch (err) {
-        console.error('Failed to set sinkId on media element:', err);
+        this.log('error', 'Failed to set sinkId on media element', err);
         return false;
       }
     }
@@ -718,7 +718,7 @@ export class AudioGraphManager {
       await ctx.setSinkId(sink);
       return true;
     } catch (err) {
-      console.warn('AudioContext setSinkId failed:', err);
+      this.log('warn', 'AudioContext setSinkId failed', err);
       return false;
     }
   }
@@ -743,14 +743,14 @@ export class AudioGraphManager {
       try {
         await el.setSinkId(deviceId);
       } catch (err) {
-        console.warn('Could not set sinkId on CUE element:', err);
+        this.log('warn', 'Could not set sinkId on CUE element', err);
       }
     }
 
     try {
       await this.cueAudioElement.play();
     } catch (err) {
-      console.error('Failed to start CUE playback:', err);
+      this.log('error', 'Failed to start CUE playback', err);
     }
   }
 
@@ -1016,7 +1016,7 @@ export class AudioGraphManager {
       try {
         await this.audioCtx.resume();
       } catch (err) {
-        console.warn('AudioContext resume notice:', err);
+        this.log('warn', 'AudioContext resume notice', err);
       }
     }
 
@@ -1213,7 +1213,7 @@ export class AudioGraphManager {
         }
         return;
       } catch (err) {
-        console.warn('WorkletSynth execution error, using fallback:', err);
+        this.log('warn', 'WorkletSynth execution error, using fallback', err);
       }
     }
 

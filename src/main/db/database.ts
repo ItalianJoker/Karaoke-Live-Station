@@ -748,6 +748,75 @@ export class DatabaseManager {
   }
 
   /**
+   * Targeted catalog candidates for download / local-media dedup.
+   *
+   * Why: callers previously dumped `getAllTracks()` (O(N) materialize) then walked
+   * every row. Matching order stays id → artist+title; disk scan remains last-resort
+   * in DownloadManager. Time ≈ O(k) SQL hits where k ≪ catalog size.
+   *
+   * @param options.ytId - YouTube id (exact or substring on id/uri)
+   * @param options.title / artist - exact accent-folded titleNorm/artistNorm match
+   * @param options.instrumentalOnly - keep rows whose title or path mentions instrumental
+   * @returns Deduped tracks that still have a localFilePath (may be empty)
+   */
+  public findLocalMediaDedupCandidates(options: {
+    ytId?: string | null;
+    title?: string;
+    artist?: string;
+    instrumentalOnly?: boolean;
+  }): KaraokeMediaTrack[] {
+    const byId = new Map<string, KaraokeMediaTrack>();
+    const take = (row: Parameters<DatabaseManager['mapTrackRow']>[0] | undefined) => {
+      if (!row) return;
+      const track = this.mapTrackRow(row);
+      if (!track.localFilePath) return;
+      byId.set(track.id, track);
+    };
+
+    const ytId = options.ytId?.trim() || null;
+    if (ytId) {
+      const exact = this.db.prepare('SELECT * FROM tracks WHERE id = ?').get(ytId) as
+        | Parameters<DatabaseManager['mapTrackRow']>[0]
+        | undefined;
+      take(exact);
+      // Substring match mirrors DownloadManager id/uri includes(ytId) behavior.
+      const like = `%${ytId.replace(/[%_]/g, '')}%`;
+      const fuzzy = this.db
+        .prepare(
+          `SELECT * FROM tracks
+           WHERE id LIKE ? OR uri LIKE ?
+           LIMIT 32`
+        )
+        .all(like, like) as Array<Parameters<DatabaseManager['mapTrackRow']>[0]>;
+      for (const row of fuzzy) take(row);
+    }
+
+    const title = options.title?.trim();
+    const artist = options.artist?.trim();
+    if (title && artist) {
+      const titleNorm = normalizeForSearch(title);
+      const artistNorm = normalizeForSearch(artist);
+      const named = this.db
+        .prepare(
+          `SELECT * FROM tracks
+           WHERE titleNorm = ? AND artistNorm = ?
+           LIMIT 16`
+        )
+        .all(titleNorm, artistNorm) as Array<Parameters<DatabaseManager['mapTrackRow']>[0]>;
+      for (const row of named) take(row);
+    }
+
+    let out = Array.from(byId.values());
+    if (options.instrumentalOnly) {
+      out = out.filter(
+        (t) =>
+          /instrumental/i.test(t.title || '') || /instrumental/i.test(t.localFilePath || '')
+      );
+    }
+    return out;
+  }
+
+  /**
    * Persist async key/BPM analysis without clobbering other track fields.
    * Why: analysis must not race a full upsert from a concurrent library scan.
    */

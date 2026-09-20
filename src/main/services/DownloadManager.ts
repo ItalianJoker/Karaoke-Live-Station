@@ -139,7 +139,10 @@ export class DownloadManager {
   private progressListeners: Set<DownloadProgressCallback> = new Set();
   /** Shared pool limit for normal + instrumental yt-dlp children. */
   private maxSimultaneousDownloads = 2;
+  /** FIFO drain order for queued downloads. */
   private pendingQueue: PendingDownloadJob[] = [];
+  /** O(1) pending lookup by downloadId (mirrors TrackAnalysisService.queuedTrackIds). */
+  private pendingById = new Map<string, PendingDownloadJob>();
   private vocalModelManager?: OfflineVocalModelManager;
   private ortWasmManager?: OrtWasmManager;
   private logger?: Logger;
@@ -216,7 +219,7 @@ export class DownloadManager {
       try {
         listener(payload);
       } catch (err) {
-        console.error('Error in progress listener:', err);
+        this.logger?.error('DownloadManager', 'Error in progress listener', err);
       }
     }
   }
@@ -251,6 +254,7 @@ export class DownloadManager {
     while (this.getRunningCount() < this.maxSimultaneousDownloads && this.pendingQueue.length > 0) {
       const next = this.pendingQueue.shift();
       if (!next) break;
+      this.pendingById.delete(next.downloadId);
       if (next.payload.status === 'cancelled') continue;
       next.payload.status = 'downloading';
       next.payload.percent = 0;
@@ -320,8 +324,8 @@ export class DownloadManager {
    * Why this runs before any network I/O: live karaoke nights re-request the same
    * YouTube karaoke frequently. Dedup against library + queue_cache prevents duplicate
    * multi-hundred-MB files and keeps preview/cover URIs stable when re-queueing.
-   * Directory scans are last-resort after the in-memory catalogTracks list misses,
-   * so the common path is O(n catalog) with cheap string compares, not disk thrash.
+   * Prefer SQL-targeted `catalogTracks` candidates from DatabaseManager (O(k));
+   * in-memory Maps make id / artist+title lookup O(1). Directory scans are last-resort.
    */
   public findExistingLocalMedia(options: {
     url?: string;
@@ -365,19 +369,42 @@ export class DownloadManager {
       return null;
     };
 
+    // Index candidates once — O(k) build, O(1) id / artist+title probes.
+    const byExactId = new Map<string, KaraokeMediaTrack>();
+    const byArtistTitle = new Map<string, KaraokeMediaTrack>();
+    const ytIdHits: KaraokeMediaTrack[] = [];
     for (const track of options.catalogTracks || []) {
       if (!track?.localFilePath) continue;
-      if (ytId && (track.id === ytId || track.id?.includes(ytId) || track.uri?.includes(ytId))) {
+      if (track.id) byExactId.set(track.id, track);
+      if (track.title && track.artist) {
+        const key = `${track.artist.trim().toLowerCase()}\0${track.title.trim().toLowerCase()}`;
+        byArtistTitle.set(key, track);
+      }
+      if (
+        ytId &&
+        (track.id === ytId || track.id?.includes(ytId) || track.uri?.includes(ytId))
+      ) {
+        ytIdHits.push(track);
+      }
+    }
+
+    if (ytId) {
+      const exact = byExactId.get(ytId);
+      if (exact) {
+        const hit = tryPath(exact.localFilePath, 'database', 'id');
+        if (hit) return hit;
+      }
+      for (const track of ytIdHits) {
         const hit = tryPath(track.localFilePath, 'database', 'id');
         if (hit) return hit;
       }
-      if (
-        options.title &&
-        options.artist &&
-        track.title?.trim().toLowerCase() === options.title.trim().toLowerCase() &&
-        track.artist?.trim().toLowerCase() === options.artist.trim().toLowerCase()
-      ) {
-        const hit = tryPath(track.localFilePath, 'database', 'filename');
+    }
+
+    if (options.title && options.artist) {
+      const key = `${options.artist.trim().toLowerCase()}\0${options.title.trim().toLowerCase()}`;
+      const named = byArtistTitle.get(key);
+      if (named) {
+        const hit = tryPath(named.localFilePath, 'database', 'filename');
         if (hit) return hit;
       }
     }
@@ -499,7 +526,7 @@ export class DownloadManager {
         this.emitProgress({ ...active.payload });
         return { downloadId: existingDownloadId, alreadyExists: false };
       }
-      const pending = this.pendingQueue.find((job) => job.downloadId === existingDownloadId);
+      const pending = this.pendingById.get(existingDownloadId);
       if (pending) {
         this.emitProgress({ ...pending.payload });
         return { downloadId: existingDownloadId, alreadyExists: false };
@@ -528,12 +555,14 @@ export class DownloadManager {
 
     if (this.getRunningCount() >= this.maxSimultaneousDownloads) {
       payload.status = 'queued';
-      this.pendingQueue.push({
+      const pendingJob: PendingDownloadJob = {
         downloadId,
         options: launchOptions,
         payload,
         dedupUrlKey
-      });
+      };
+      this.pendingQueue.push(pendingJob);
+      this.pendingById.set(downloadId, pendingJob);
       this.emitProgress({ ...payload });
       return { downloadId, alreadyExists: false };
     }
@@ -1139,9 +1168,11 @@ export class DownloadManager {
    * Aborts yt-dlp process trees, ffmpeg remux, model download, and AI workers.
    */
   public cancelDownload(downloadId: string): boolean {
-    const pendingIdx = this.pendingQueue.findIndex((job) => job.downloadId === downloadId);
-    if (pendingIdx >= 0) {
-      const [pending] = this.pendingQueue.splice(pendingIdx, 1);
+    const pending = this.pendingById.get(downloadId);
+    if (pending) {
+      this.pendingById.delete(downloadId);
+      const pendingIdx = this.pendingQueue.findIndex((job) => job.downloadId === downloadId);
+      if (pendingIdx >= 0) this.pendingQueue.splice(pendingIdx, 1);
       pending.payload.status = 'cancelled';
       pending.payload.errorMessage = 'Download cancelled by user';
       this.emitProgress({ ...pending.payload });
@@ -1178,7 +1209,10 @@ export class DownloadManager {
         }
       }
     } catch (err) {
-      console.warn('Failed to clean partial download files:', err);
+      this.logger?.warn('DownloadManager', 'Failed to clean partial download files', {
+        downloadId,
+        err: err instanceof Error ? err.message : String(err)
+      });
     }
 
     this.pumpQueue();
@@ -1325,7 +1359,11 @@ export class DownloadManager {
 
       // INVARIANT: libraryPath and other user media are never deletable here
       if (!isInCache && !isInTemp) {
-        console.warn('Security guard: Refused deletion of file outside queue_cache/temp:', filePath);
+        this.logger?.warn(
+          'DownloadManager',
+          'Security guard: Refused deletion of file outside queue_cache/temp',
+          { filePath: resolvedPath }
+        );
         return { success: false };
       }
 
@@ -1334,7 +1372,10 @@ export class DownloadManager {
         return { success: true };
       }
     } catch (err) {
-      console.warn('Failed to delete cached file:', filePath, err);
+      this.logger?.warn('DownloadManager', 'Failed to delete cached file', {
+        filePath,
+        err: err instanceof Error ? err.message : String(err)
+      });
     }
     return { success: false };
   }
@@ -1356,12 +1397,15 @@ export class DownloadManager {
             await fs.promises.unlink(fullPath);
             deletedCount++;
           } catch (delErr) {
-            console.warn('Failed to delete orphaned queue cache file:', fullPath, delErr);
+            this.logger?.warn('DownloadManager', 'Failed to delete orphaned queue cache file', {
+              fullPath,
+              err: delErr instanceof Error ? delErr.message : String(delErr)
+            });
           }
         }
       }
     } catch (err) {
-      console.warn('Failed to cleanup unreferenced cache:', err);
+      this.logger?.warn('DownloadManager', 'Failed to cleanup unreferenced cache', err);
     }
     return { deletedCount };
   }
@@ -1372,7 +1416,7 @@ export class DownloadManager {
         fs.unlinkSync(path.join(this.tempDir, file));
       }
     } catch (err) {
-      console.warn('Failed to cleanup temp directory:', err);
+      this.logger?.warn('DownloadManager', 'Failed to cleanup temp directory', err);
     }
   }
 }

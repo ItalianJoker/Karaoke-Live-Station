@@ -56,6 +56,16 @@ import { AppSettings, DownloadProgressPayload } from '../../shared/types';
 import { textMatchesSearch } from '../../shared/textNormalize';
 import appLogo from '../assets/logo.png';
 
+
+function logControl(level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown): void {
+  try {
+    window.karaokeApi?.logger?.log(level, 'ControlWindow', message, data);
+  } catch {
+    /* ignore */
+  }
+}
+
+
 /**
  * ControlWindow (Regia Operator Console)
  *
@@ -282,7 +292,7 @@ export const ControlWindow: React.FC = () => {
       );
       showToast(t('queue.importDropped', { count: imported.length }), 'success');
     } catch (err) {
-      console.error('Queue OS drop import error:', err);
+      logControl('error', 'Queue OS drop import error:', err);
       showToast(t('library.importFailed'), 'error');
     } finally {
       setIsImportingQueueDrop(false);
@@ -328,7 +338,7 @@ export const ControlWindow: React.FC = () => {
 
       window.dispatchEvent(new CustomEvent('karaoke:library-refreshed'));
     } catch (err: any) {
-      console.error('Failed to save track to library:', err);
+      logControl('error', 'Failed to save track to library:', err);
       showToast(t('errors.downloadFailed', { error: err?.message || String(err) }));
     } finally {
       setSavingTrackIds((prev) => {
@@ -388,11 +398,11 @@ export const ControlWindow: React.FC = () => {
                     })
                   );
                 })
-                .catch((err) => console.warn('Startup library refresh warning:', err));
+                .catch((err) => logControl('warn', 'Startup library refresh warning:', err));
             }
           }
         })
-        .catch((err) => console.warn('Path initialization notice:', err));
+        .catch((err) => logControl('warn', 'Path initialization notice:', err));
     } else if (window.karaokeApi?.system?.getDefaultSoundFont) {
       window.karaokeApi.system.getDefaultSoundFont().then((defaultSf) => {
         if (defaultSf) {
@@ -637,7 +647,7 @@ export const ControlWindow: React.FC = () => {
             }
           })
           .catch((err) => {
-            console.error('Failed to auto-download YouTube track:', err);
+            logControl('error', 'Failed to auto-download YouTube track:', err);
             setDownloadProgress(null);
           });
       }
@@ -697,7 +707,7 @@ export const ControlWindow: React.FC = () => {
               cdgFilePath: zipResult.cdgPath
             });
           } catch (err) {
-            console.error('ZIP CD+G extract failed:', err);
+            logControl('error', 'ZIP CD+G extract failed:', err);
             if (!cancelled) {
               pauseResetForMissingFile();
               openMissingForQueueItem(
@@ -756,7 +766,7 @@ export const ControlWindow: React.FC = () => {
               }
             })
             .catch((err) => {
-              console.error('Failed to load MIDI file:', err);
+              logControl('error', 'Failed to load MIDI file:', err);
               if (cancelled) return;
               // Treat fetch failure (missing file behind karaoke://) as missing media
               if (trackNeedsLocalFileCheck(currentTrack) || currentTrack.localFilePath) {
@@ -799,7 +809,7 @@ export const ControlWindow: React.FC = () => {
               if (cancelled || !videoRef.current) return;
               audioGraphRef.current?.bindMediaElement(videoRef.current);
               videoRef.current.play().catch((err) => {
-                console.warn('Playback play() was rejected:', err);
+                logControl('warn', 'Playback play() was rejected:', err);
                 // Media error often means missing/unreadable file after USB unplug mid-session
                 const mediaErr = videoRef.current?.error;
                 if (mediaErr && trackNeedsLocalFileCheck(currentTrack)) {

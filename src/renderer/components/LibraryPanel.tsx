@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { showToast } from '../utils/toast';
 import { useTranslation } from 'react-i18next';
 import {
@@ -36,6 +36,14 @@ import {
   trackNeedsLocalFileCheck
 } from '../utils/localFileCheck';
 import { computeVirtualWindow } from '../utils/listVirtualization';
+
+function logLibrary(level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown): void {
+  try {
+    window.karaokeApi?.logger?.log(level, 'LibraryPanel', message, data);
+  } catch {
+    /* ignore logger gaps during early boot */
+  }
+}
 
 /** Approx row height incl. vertical gap — keep in sync with list row padding. */
 const LIBRARY_ROW_HEIGHT = 96;
@@ -152,6 +160,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
   const markTrackMissing = useKaraokeStore((state) => state.markTrackMissing);
   const clearTrackMissing = useKaraokeStore((state) => state.clearTrackMissing);
   const missingTrackIds = useKaraokeStore((state) => state.missingTrackIds);
+  /** O(1) membership for virtualized rows — store shape stays string[] for persist. */
+  const missingTrackIdSet = useMemo(() => new Set(missingTrackIds), [missingTrackIds]);
 
   const dedupeLocalTracks = (tracks: KaraokeMediaTrack[]): KaraokeMediaTrack[] => {
     const byKey = new Map<string, KaraokeMediaTrack>();
@@ -194,7 +204,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       }
       await useKaraokeStore.getState().loadSingersFromDb();
     } catch (err) {
-      console.error('Failed loading local catalog page:', err);
+      logLibrary('error', 'Failed loading local catalog page:', err);
       if (reset) {
         setLocalTracks([]);
         setLocalCatalogTotal(0);
@@ -213,7 +223,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       setLocalPageCursor(page.nextCursor || null);
       setLocalHasMore(Boolean(page.nextCursor));
     } catch (err) {
-      console.error('Failed loading more local tracks:', err);
+      logLibrary('error', 'Failed loading more local tracks:', err);
     } finally {
       setLocalLoadingMore(false);
     }
@@ -228,7 +238,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       try {
         await window.karaokeApi.library.scanFolder(settings.libraryPath.trim());
       } catch (err) {
-        console.error('Library reindex after archive failed:', err);
+        logLibrary('error', 'Library reindex after archive failed:', err);
       }
     }
     await loadLocalCatalog();
@@ -491,7 +501,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                 showToast(t('library.queueArchiveReady', { title: saved.title || localTrack.title }));
               } catch (err) {
                 delete pendingArchiveEnqueueRef.current[payload.downloadId];
-                console.error('Auto-archive before queue failed:', err);
+                logLibrary('error', 'Auto-archive before queue failed:', err);
                 showToast(t('errors.downloadFailed', { error: String(err) }), 'error', 0);
               }
               return;
@@ -504,7 +514,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
             // Auto-archive web tracks if enabled (track already in queue, e.g. guest request)
             if (settings.autoArchiveWebTracks) {
               if (!settings.libraryPath?.trim()) {
-                console.error('Auto-archive skipped: libraryPath is not configured');
+                logLibrary('error', 'Auto-archive skipped: libraryPath is not configured');
                 return;
               }
               try {
@@ -529,7 +539,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                 // Full reindex so Local shows the new file with thumbnail (no manual Aggiorna libreria)
                 await refreshLocalLibraryFully();
               } catch (err) {
-                console.error('Auto-archive failed:', err);
+                logLibrary('error', 'Auto-archive failed:', err);
                 showToast(t('errors.downloadFailed', { error: String(err) }), 'error', 0);
               }
             } else {
@@ -550,7 +560,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                   });
                 }
               } catch (err) {
-                console.error('Queue cache save failed:', err);
+                logLibrary('error', 'Queue cache save failed:', err);
               }
             }
           }
@@ -593,7 +603,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
         const matches = await window.karaokeApi.db.searchTracks(q, 200);
         if (!cancelled) setLocalResults(matches);
       } catch (err) {
-        console.error('Local library search failed:', err);
+        logLibrary('error', 'Local library search failed:', err);
         if (!cancelled) {
           setLocalResults(
             localTracks.filter(
@@ -635,7 +645,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       showToast(t('library.scanSuccess', { count }));
       setScanProgress(null);
     } catch (err) {
-      console.error('Library scan error:', err);
+      logLibrary('error', 'Library scan error:', err);
     } finally {
       setIsScanning(false);
     }
@@ -681,7 +691,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
       );
       showToast(t('library.importSuccess', { count: imported.length }), 'success');
     } catch (err) {
-      console.error('Library OS drop import error:', err);
+      logLibrary('error', 'Library OS drop import error:', err);
       showToast(t('library.importFailed'), 'error');
     } finally {
       setIsImportingDrop(false);
@@ -698,7 +708,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
     try {
       await window.karaokeApi?.library?.cancelYouTubeSearch?.();
     } catch (err) {
-      console.error('Cancel YouTube search error:', err);
+      logLibrary('error', 'Cancel YouTube search error:', err);
     }
   };
 
@@ -1228,7 +1238,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
           >
           {virtualizedTracks.map((track) => {
             const versionTags = extractVersionTags(track);
-            const isMissing = missingTrackIds.includes(track.id);
+            const isMissing = missingTrackIdSet.has(track.id);
 
             return (
               <div
