@@ -1250,6 +1250,24 @@ class KaraokeMainProcess {
       return this.db.getAllTracks();
     });
 
+    /**
+     * Single-track catalog lookup for missing-flag reconcile after Aggiorna Libreria.
+     * Additive Safety-First channel — does not replace getTracks / getTracksPage.
+     */
+    ipcMain.handle('db:get-track-by-id', (_event, trackId: string) => {
+      const id = typeof trackId === 'string' ? trackId.trim() : '';
+      if (!id) return null;
+      try {
+        return this.db.getTrackById(id);
+      } catch (err) {
+        this.logger.warn('Database', 'get-track-by-id failed', {
+          trackId: id,
+          error: String(err)
+        });
+        return null;
+      }
+    });
+
     // Bound LIKE search — keeps large catalogs off the IPC bus during live typing.
     ipcMain.handle('db:search-tracks', (_event, query: string, limit?: number) => {
       return this.db.searchTracks(query, limit);

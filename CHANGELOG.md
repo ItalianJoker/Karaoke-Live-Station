@@ -20,6 +20,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - **IT:** Palco / Live che lasciava il secondo monitor sul desktop — Stage non veniva mai spostato sul display non primario.
 - **EN:** Stage / Live leaving the second monitor on the OS desktop — Stage was never moved to a non-primary display.
 - **IT/EN:** `.stage-screen-container` ora ha fallback opaco `#000` se manca la classe tema.
+- **IT:** **Aggiorna Libreria** ricalcola i flag «file mancante» (righe rosse) dopo lo scan e rimuove i falsi positivi quando il file è di nuovo su disco; overlay drag-and-drop Library/Coda non resta bloccato dopo un drop sulla coda (Studio + Regia classica).
+- **EN:** **Refresh Library** re-checks missing-file flags (red rows) after scan and clears false positives when the file is back on disk; Library/Queue OS drag overlays no longer stick after a queue drop (Studio + classic Regia).
 
 ### Breaking Changes
 - None yet.

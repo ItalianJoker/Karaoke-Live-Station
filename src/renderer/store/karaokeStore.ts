@@ -135,6 +135,8 @@ export interface KaraokeStoreState {
   missingTrackIds: string[];
   markTrackMissing: (trackId: string) => void;
   clearTrackMissing: (trackId: string) => void;
+  /** Batch-clear rose missing marks (Aggiorna Libreria reconcile). */
+  clearMissingTrackIds: (trackIds: string[]) => void;
   showMissingFileModal: (args: ShowMissingFileModalArgs) => void;
   closeMissingFileModal: () => void;
 
@@ -1075,6 +1077,18 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         set((state) => ({
           missingTrackIds: state.missingTrackIds.filter((id) => id !== trackId)
         }));
+      },
+
+      clearMissingTrackIds: (trackIds: string[]) => {
+        if (!trackIds?.length) return;
+        const remove = new Set(trackIds.filter(Boolean));
+        if (!remove.size) return;
+        set((state) => {
+          if (!state.missingTrackIds.some((id) => remove.has(id))) return state;
+          return {
+            missingTrackIds: state.missingTrackIds.filter((id) => !remove.has(id))
+          };
+        });
       },
 
       showMissingFileModal: (args: ShowMissingFileModalArgs) => {

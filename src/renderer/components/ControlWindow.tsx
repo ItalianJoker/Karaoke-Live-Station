@@ -41,7 +41,7 @@ import { PlayerDeckControls } from './PlayerDeckControls';
 import { QueueList } from './QueueList';
 import { useControlPlayback } from '../hooks/useControlPlayback';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
-import { resolveDroppedAbsolutePaths } from '../utils/fsDragDrop';
+import { dispatchOsFileDragEnd, resolveDroppedAbsolutePaths } from '../utils/fsDragDrop';
 import {
   checkTrackLocalFileExists,
   trackNeedsLocalFileCheck
@@ -299,6 +299,7 @@ export const ControlWindow: React.FC = () => {
     } finally {
       setIsImportingQueueDrop(false);
       setQueueFileDropActive(false);
+      dispatchOsFileDragEnd();
     }
   };
 
@@ -531,6 +532,31 @@ export const ControlWindow: React.FC = () => {
 
     return () => {
       manager.dispose();
+    };
+  }, []);
+
+  /**
+   * Global OS-file drag teardown (Studio + classic).
+   * Why: Library overlay sticks when the drop lands on Queue; Chromium may omit
+   * Files types on dragleave. Window drop/dragend/Escape force-clear both overlays.
+   */
+  useEffect(() => {
+    const endOsFileDrag = () => {
+      setQueueFileDropActive(false);
+      dispatchOsFileDragEnd();
+    };
+    const onWindowDragEnd = () => endOsFileDrag();
+    const onWindowDrop = () => endOsFileDrag();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') endOsFileDrag();
+    };
+    window.addEventListener('dragend', onWindowDragEnd);
+    window.addEventListener('drop', onWindowDrop);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('dragend', onWindowDragEnd);
+      window.removeEventListener('drop', onWindowDrop);
+      window.removeEventListener('keydown', onKeyDown);
     };
   }, []);
 

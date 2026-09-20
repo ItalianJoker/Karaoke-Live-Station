@@ -4502,6 +4502,179 @@ console.log('\n\x1b[36m▶ Suite: Stage live blank fix + speed on Stage\x1b[0m')
   }
 }
 
+// -------------------------------------------------------------
+// Suite: Library refresh missing-flag reconcile + OS DnD overlay teardown
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Library refresh missing flags + DnD overlay teardown\x1b[0m');
+
+{
+  const mainIndexSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/index.ts'),
+    'utf8'
+  );
+  const preloadSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/preload/index.ts'),
+    'utf8'
+  );
+  const storeSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+    'utf8'
+  );
+  const libraryPanelSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  const queueListSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/QueueList.tsx'),
+    'utf8'
+  );
+  const controlWindowSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+    'utf8'
+  );
+  const fsDragDropSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/utils/fsDragDrop.ts'),
+    'utf8'
+  );
+  const reconcileSource = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/utils/reconcileMissingTracks.ts'),
+    'utf8'
+  );
+
+  assert(
+    mainIndexSource.includes("ipcMain.handle('db:get-track-by-id'") &&
+      mainIndexSource.includes('getTrackById'),
+    'Main exposes additive db:get-track-by-id'
+  );
+  assert(
+    preloadSource.includes('getTrackById:') &&
+      preloadSource.includes("ipcRenderer.invoke('db:get-track-by-id'"),
+    'Preload db.getTrackById wired'
+  );
+  assert(
+    storeSource.includes('clearMissingTrackIds:') &&
+      storeSource.includes('clearMissingTrackIds: (trackIds: string[])'),
+    'Store exposes clearMissingTrackIds batch clearer'
+  );
+  assert(
+    reconcileSource.includes('reconcileMissingTrackFlags') &&
+      reconcileSource.includes('createMissingTrackResolver') &&
+      reconcileSource.includes('checkTrackLocalFileExists') &&
+      reconcileSource.includes('clearMissingTrackIds'),
+    'reconcileMissingTracks re-probes and batch-clears false positives'
+  );
+  assert(
+    libraryPanelSource.includes('reconcileMissingAfterRefresh') &&
+      libraryPanelSource.includes('reconcileMissingTrackFlags') &&
+      libraryPanelSource.includes('handleScanOrRefresh') &&
+      /handleScanOrRefresh[\s\S]*reconcileMissingAfterRefresh/.test(libraryPanelSource),
+    'Aggiorna Libreria / handleScanOrRefresh reconciles missing flags'
+  );
+  assert(
+    fsDragDropSource.includes('OS_FILE_DRAG_END_EVENT') &&
+      fsDragDropSource.includes('dispatchOsFileDragEnd') &&
+      fsDragDropSource.includes('isDragLeavingHost') &&
+      fsDragDropSource.includes('dataTransferHasFiles'),
+    'fsDragDrop exports drag-end event + leave helper'
+  );
+  assert(
+    libraryPanelSource.includes('fileDropDepthRef') &&
+      libraryPanelSource.includes('OS_FILE_DRAG_END_EVENT') &&
+      libraryPanelSource.includes('dispatchOsFileDragEnd') &&
+      libraryPanelSource.includes('addEventListener(OS_FILE_DRAG_END_EVENT') &&
+      !/onDragLeave=\{\(e\) => \{\s*if \(!dataTransferHasFiles/.test(libraryPanelSource),
+    'LibraryPanel depth counter + drag-end listener; leave not gated on Files'
+  );
+  assert(
+    queueListSource.includes('fileDropDepthRef') &&
+      queueListSource.includes('dispatchOsFileDragEnd') &&
+      !/onDragLeave=\{\(e\) => \{\s*if \(!dataTransferHasFiles/.test(queueListSource),
+    'QueueList depth counter + clears Library overlay on queue enter/drop'
+  );
+  assert(
+    controlWindowSource.includes('dispatchOsFileDragEnd') &&
+      controlWindowSource.includes("addEventListener('dragend'") &&
+      controlWindowSource.includes("addEventListener('drop'") &&
+      controlWindowSource.includes("e.key === 'Escape'"),
+    'ControlWindow window dragend/drop/Escape teardown (Studio + classic)'
+  );
+
+  // Runtime probe: fsDragDrop helpers + localFileCheck (no cross-relative ESM graph).
+  const { spawnSync } = require('child_process');
+  const fsDragPath = path.resolve(__dirname, '../src/renderer/utils/fsDragDrop.ts');
+  const localCheckPath = path.resolve(__dirname, '../src/renderer/utils/localFileCheck.ts');
+  const probe = spawnSync(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      '--no-warnings',
+      '-e',
+      `
+      import { isDragLeavingHost, dataTransferHasFiles, OS_FILE_DRAG_END_EVENT, dispatchOsFileDragEnd } from ${JSON.stringify(fsDragPath)};
+      import { checkTrackLocalFileExists, shouldSkipLocalFileExistsCheck } from ${JSON.stringify(localCheckPath)};
+      const assert = (c, m) => { if (!c) { console.error('PROBE_FAIL', m); process.exit(2); } };
+      const existsByPath = new Map([
+        ['/present.mp4', true],
+        ['/gone.mp4', false]
+      ]);
+      globalThis.window = {
+        karaokeApi: {
+          library: {
+            checkFileExists: async (p) => Boolean(existsByPath.get(p))
+          },
+          dispatchEvent: undefined
+        },
+        dispatchEvent: () => true
+      };
+      assert(OS_FILE_DRAG_END_EVENT === 'karaoke:os-file-drag-end', 'event name stable');
+      assert(dataTransferHasFiles({ types: ['Files'] }) === true, 'Files gate true');
+      assert(dataTransferHasFiles({ types: ['text/plain'] }) === false, 'Files gate false');
+      const fakeHost = { contains: (n) => n && n.id === 'inside' };
+      const inside = { id: 'inside' };
+      const outside = { id: 'outside' };
+      assert(isDragLeavingHost({ currentTarget: fakeHost, relatedTarget: inside }) === false, 'still inside host');
+      assert(isDragLeavingHost({ currentTarget: fakeHost, relatedTarget: outside }) === true, 'left host');
+      assert(isDragLeavingHost({ currentTarget: {}, relatedTarget: inside }) === true, 'non-element host → leave');
+      dispatchOsFileDragEnd();
+      assert(shouldSkipLocalFileExistsCheck('https://x') === true, 'skip https');
+      const present = await checkTrackLocalFileExists({
+        localFilePath: '/present.mp4', source: 'local_library', uri: 'karaoke://present.mp4'
+      });
+      const gone = await checkTrackLocalFileExists({
+        localFilePath: '/gone.mp4', source: 'local_library', uri: 'karaoke://gone.mp4'
+      });
+      assert(present.exists === true, 'present exists');
+      assert(gone.exists === false, 'gone missing');
+      // Mirror reconcileMissingTrackFlags decision table (source-locked module above).
+      const missing = ['a', 'b', 'orphan'];
+      const byId = {
+        a: { localFilePath: '/present.mp4', source: 'local_library', uri: 'x' },
+        b: { localFilePath: '/gone.mp4', source: 'local_library', uri: 'y' }
+      };
+      const cleared = [];
+      const still = [];
+      for (const id of missing) {
+        const track = byId[id];
+        if (!track) { cleared.push(id); continue; }
+        const probe = await checkTrackLocalFileExists(track);
+        if (probe.exists) cleared.push(id); else still.push(id);
+      }
+      assert(cleared.includes('a') && cleared.includes('orphan'), 'reconcile clears false positive + orphan');
+      assert(still.includes('b'), 'reconcile keeps true missing');
+      console.log('PROBE_OK');
+      `
+    ],
+    { encoding: 'utf8' }
+  );
+  assert(
+    probe.status === 0 && (probe.stdout || '').includes('PROBE_OK'),
+    'reconcileMissingTrackFlags + fsDragDrop runtime probe'
+  );
+  if (probe.status !== 0) {
+    console.error(probe.stderr || probe.stdout);
+  }
+}
+
 // Summary
 // -------------------------------------------------------------
 console.log('\n========================================================');
