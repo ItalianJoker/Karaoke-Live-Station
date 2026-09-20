@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Play,
@@ -15,7 +15,10 @@ import {
   FileX
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
-import { dataTransferHasFiles } from '../utils/fsDragDrop';
+import {
+  dataTransferHasFiles,
+  dispatchOsFileDragEnd
+} from '../utils/fsDragDrop';
 import { confirmAsync } from '../utils/toast';
 import type { KaraokeMediaTrack, QueueItem } from '../../shared/types';
 import { TrackKeyBpmBadges } from './TrackKeyBpmBadges';
@@ -59,6 +62,8 @@ export const QueueList: React.FC<QueueListProps> = ({
   const { t } = useTranslation();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  /** Enter/leave depth so child bubbles do not clear the overlay early. */
+  const fileDropDepthRef = useRef(0);
 
   const queue = useKaraokeStore((s) => s.queue);
   const missingTrackIds = useKaraokeStore((s) => s.missingTrackIds);
@@ -79,6 +84,9 @@ export const QueueList: React.FC<QueueListProps> = ({
         if (!dataTransferHasFiles(e.dataTransfer)) return;
         e.preventDefault();
         e.stopPropagation();
+        // Crossing into Queue must clear Library overlay (Studio side-by-side).
+        dispatchOsFileDragEnd();
+        fileDropDepthRef.current += 1;
         setQueueFileDropActive(true);
       }}
       onDragOver={(e) => {
@@ -88,9 +96,10 @@ export const QueueList: React.FC<QueueListProps> = ({
         e.dataTransfer.dropEffect = 'copy';
         if (!queueFileDropActive) setQueueFileDropActive(true);
       }}
-      onDragLeave={(e) => {
-        if (!dataTransferHasFiles(e.dataTransfer)) return;
-        if (e.currentTarget === e.target) {
+      onDragLeave={() => {
+        // Depth counter (no Files gate): Chromium often clears types on leave.
+        fileDropDepthRef.current = Math.max(0, fileDropDepthRef.current - 1);
+        if (fileDropDepthRef.current === 0) {
           setQueueFileDropActive(false);
         }
       }}
@@ -98,7 +107,10 @@ export const QueueList: React.FC<QueueListProps> = ({
         if (!dataTransferHasFiles(e.dataTransfer)) return;
         e.preventDefault();
         e.stopPropagation();
+        fileDropDepthRef.current = 0;
         setQueueFileDropActive(false);
+        // Clear Library overlay if drag crossed Library before Queue.
+        dispatchOsFileDragEnd();
         void onOsFileDrop(e.dataTransfer.files);
       }}
     >
