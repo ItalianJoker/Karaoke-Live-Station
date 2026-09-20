@@ -62,7 +62,7 @@ Serveur web intégré (Express + Socket.IO) sur le Wi‑Fi de l’établissement
 
 ### 1.4 Instance unique (Single Instance Lock)
 
-L’application n’autorise **qu’une seule instance** en cours d’exécution. Un second démarrage est bloqué : le nouveau processus se termine et la fenêtre de Régie déjà ouverte est restaurée et mise au premier plan. Évite les doubles Régies, les conflits audio et les ports Guest Portal dupliqués.
+L’application n’autorise **qu’une seule instance** en cours d’exécution. Un second démarrage est bloqué : le nouveau processus affiche un dialogue (**« Logiciel déjà en cours d’exécution »** / équivalents IT/EN/ES), puis se termine, et la fenêtre de Régie déjà ouverte est restaurée et mise au premier plan. Évite les doubles Régies, les conflits audio et les ports Guest Portal dupliqués.
 
 ### 1.5 Flux audio / vidéo en résumé
 
@@ -228,7 +228,9 @@ Exemples : 100 % → gain plein ; 50 % → gain 0,25 (−12 dB environ, moitié 
 
 ### 4.3 Pitch (demi-tons) et vitesse
 
-- **Tonalité :** de **−8 à +8** demi-tons (`+` / `-` ou `Ctrl+↑` / `Ctrl+↓`).
+- **Tonalité :** de **−8 à +8** demi-tons (`+` / `-` ou `Ctrl+↑` / `Ctrl+↓`). À côté des commandes Régie apparaît la **clé musicale** détectée (`Am→Bm` si transposée) ou le placeholder « — » si elle n’est pas encore connue.
+- Puces **Key / BPM** aussi sur les lignes Bibliothèque et File (toujours visibles ; placeholder si manquantes).
+- À côté du tempo apparaît la valeur BPM avec le libellé **BPM** (ou « — BPM » si inconnue).
 - Le pitch est lié à l’**instance en file** (et à la mémoire de tonalité du chanteur) : il reste mémorisé pour cette prestation.
 - À 0 demi-ton le moteur peut contourner le shifter (latence/CPU minimales).
 - **Vitesse :** selon le moteur (défaut **Bungee** ~0,50×–1,50× ; **SoundTouch** ~0,75×–1,25× en UI). `Ctrl+←` / `Ctrl+→` règlent de ±5 %. Un clic sur l’indicateur numérique restaure souvent 1,00×.

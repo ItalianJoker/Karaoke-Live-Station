@@ -13,6 +13,8 @@ import {
 import { CdgParser } from '../core/CdgParser';
 import { useKaraokeStore } from '../store/karaokeStore';
 import appLogo from '../assets/logo.png';
+import { formatBpmTransition, formatKeyTransition } from '../../shared/musicalKeys';
+import { TrackKeyBpmBadges } from './TrackKeyBpmBadges';
 
 /**
  * StageWindow (Palco / Singer Display)
@@ -457,6 +459,17 @@ export const StageWindow: React.FC = () => {
     playback.currentTime <= titleDuration &&
     Boolean(activeTrack?.title);
 
+  // Stage Key/BPM labels — always computed so badges can show placeholders when unknown
+  const stageKeyLabel = formatKeyTransition(activeTrack?.initialKey, playback.livePitchOffset);
+  const stageBpmLabel = formatBpmTransition(
+    activeTrack?.initialBpm,
+    playback.playbackSpeed || 1
+  );
+  const stageBpmUnit = t('player.bpm');
+  const stageBpmDisplay = stageBpmLabel
+    ? `${stageBpmLabel} ${stageBpmUnit}`
+    : t('player.bpmPlaceholder', { unit: stageBpmUnit });
+
   const stageMessages = mergeStageMessages(settings?.stageMessages);
   const unassignedMsg = resolveStageMessage(
     stageMessages.nextSingerUnassigned,
@@ -628,26 +641,44 @@ export const StageWindow: React.FC = () => {
         </div>
       )}
 
-      {/* Floating Live Pitch Semitone Offset Badge (+N / -N / 0) — always when toggle enabled */}
-      {(settings?.showPitchOnStage ?? true) && (
-        <div
-          className="absolute top-6 right-6 z-[70] bg-slate-950/95 backdrop-blur-md border border-indigo-500/50 px-4 py-2 rounded-full text-sm font-mono text-indigo-300 font-bold shadow-[0_8px_30px_rgba(0,0,0,0.65)] pointer-events-none tracking-wide"
-          data-testid="stage-semitone-badge"
-          aria-label={`Pitch ${playback.livePitchOffset > 0 ? '+' : ''}${playback.livePitchOffset}`}
-        >
-          {playback.livePitchOffset > 0 ? `+${playback.livePitchOffset}` : `${playback.livePitchOffset}`}
-        </div>
-      )}
+      {/* Floating pitch/speed badges — stacked to avoid overlap when Key/BPM text is long */}
+      <div className="absolute top-6 right-6 z-[70] flex flex-col items-end gap-2 pointer-events-none">
+        {(settings?.showPitchOnStage ?? true) && (
+          <div
+            className="bg-slate-950/95 backdrop-blur-md border border-indigo-500/50 px-4 py-2 rounded-full text-sm font-mono text-indigo-300 font-bold shadow-[0_8px_30px_rgba(0,0,0,0.65)] tracking-wide flex items-center gap-2"
+            data-testid="stage-semitone-badge"
+            aria-label={`Pitch ${playback.livePitchOffset > 0 ? '+' : ''}${playback.livePitchOffset}`}
+          >
+            <span>
+              {playback.livePitchOffset > 0
+                ? `+${playback.livePitchOffset}`
+                : `${playback.livePitchOffset}`}
+            </span>
+            <span
+              className={stageKeyLabel ? 'text-indigo-200' : 'text-slate-500'}
+              data-testid="stage-key-label"
+            >
+              {stageKeyLabel ?? t('player.keyPlaceholder')}
+            </span>
+          </div>
+        )}
 
-      {(settings?.showSpeedOnStage ?? true) && (
-        <div
-          className="absolute top-6 right-28 z-[70] bg-slate-950/95 backdrop-blur-md border border-emerald-500/50 px-4 py-2 rounded-full text-sm font-mono text-emerald-300 font-bold shadow-[0_8px_30px_rgba(0,0,0,0.65)] pointer-events-none tracking-wide"
-          data-testid="stage-speed-badge"
-          aria-label={`Speed ${(playback.playbackSpeed || 1).toFixed(2)}x`}
-        >
-          {`${Number(playback.playbackSpeed || 1).toFixed(2)}x`}
-        </div>
-      )}
+        {(settings?.showSpeedOnStage ?? true) && (
+          <div
+            className="bg-slate-950/95 backdrop-blur-md border border-emerald-500/50 px-4 py-2 rounded-full text-sm font-mono text-emerald-300 font-bold shadow-[0_8px_30px_rgba(0,0,0,0.65)] tracking-wide flex items-center gap-2"
+            data-testid="stage-speed-badge"
+            aria-label={`Speed ${(playback.playbackSpeed || 1).toFixed(2)}x`}
+          >
+            <span>{`${Number(playback.playbackSpeed || 1).toFixed(2)}x`}</span>
+            <span
+              className={stageBpmLabel ? 'text-emerald-200' : 'text-slate-500'}
+              data-testid="stage-bpm-label"
+            >
+              {stageBpmDisplay}
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Temporary Floating Bottom-Center Track Title & Artist Overlay */}
       {showTitleOverlay && activeTrack?.title && (
@@ -661,6 +692,14 @@ export const StageWindow: React.FC = () => {
                 {activeTrack.artist}
               </span>
             )}
+            <TrackKeyBpmBadges
+              className="mt-1"
+              size="md"
+              initialKey={activeTrack.initialKey}
+              initialBpm={activeTrack.initialBpm}
+              pitchOffset={playback.livePitchOffset}
+              speed={playback.playbackSpeed || 1}
+            />
           </div>
         </div>
       )}

@@ -27,6 +27,7 @@ import {
   GuestSongRequest,
   LogLevel
 } from '../shared/types';
+import { resolveSecondInstanceCopy } from '../shared/singleInstanceI18n';
 import {
   OFFLINE_VOCAL_MODELS,
   type OfflineVocalModelId
@@ -2319,9 +2320,13 @@ class KaraokeMainProcess {
   }
 }
 
-// Enforce Single Application Instance Lock
+// Enforce Single Application Instance Lock — blocked second launch shows a
+// localized OS dialog (not a silent quit) so operators know why the app exited.
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
+  const copy = resolveSecondInstanceCopy(app.getLocale());
+  // showErrorBox is safe before ready; MessageBox may require whenReady.
+  dialog.showErrorBox(copy.title, copy.message);
   app.quit();
 } else {
   new KaraokeMainProcess();

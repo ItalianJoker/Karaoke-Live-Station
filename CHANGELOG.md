@@ -9,13 +9,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ## [Unreleased]
 
 ### Added
-- None yet.
+- **IT:** Chip Key/BPM sempre visibili in Libreria, Coda, Regia e Palco (placeholder «—» se mancanti); etichetta **BPM** accanto al tempo; dialogo istanza singola «Software già in esecuzione» (+ EN/ES/FR).
+- **EN:** Always-visible Key/BPM chips in Library, Queue, Control, and Stage (“—” placeholder when unknown); **BPM** unit beside tempo; single-instance dialog “Software already running” (+ IT/ES/FR).
 
 ### Changed
 - None yet.
 
 ### Fixed
-- None yet.
+- **IT/EN:** Key/BPM non più nascosti da rendering condizionale / overflow sulle sole tracce analizzate.
 
 ### Breaking Changes
 - None yet.

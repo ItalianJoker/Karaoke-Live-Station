@@ -36,6 +36,7 @@ import {
   trackNeedsLocalFileCheck
 } from '../utils/localFileCheck';
 import { computeVirtualWindow } from '../utils/listVirtualization';
+import { TrackKeyBpmBadges } from './TrackKeyBpmBadges';
 
 function logLibrary(level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown): void {
   try {
@@ -1312,16 +1313,20 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({ onPlayCue: _onPlayCu
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-slate-400 truncate flex flex-wrap items-center gap-1.5 mt-0.5">
-                      <span className="truncate">{track.artist}</span>
+                    <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-1.5 mt-0.5 min-w-0">
+                      <span className="truncate min-w-0 max-w-full">{track.artist}</span>
+                      <TrackKeyBpmBadges
+                        initialKey={track.initialKey}
+                        initialBpm={track.initialBpm}
+                      />
                       <span className="text-slate-600">•</span>
-                      <span className="uppercase text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-slate-800/80 text-indigo-300 border border-slate-700/50">
+                      <span className="uppercase text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-slate-800/80 text-indigo-300 border border-slate-700/50 shrink-0">
                         {track.source === 'local_library' ? 'locale' : track.source}
                       </span>
                       {versionTags.map((vTag) => (
                         <span
                           key={vTag}
-                          className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full bg-cyan-950/70 text-cyan-300 border border-cyan-800/60 shadow-sm"
+                          className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full bg-cyan-950/70 text-cyan-300 border border-cyan-800/60 shadow-sm shrink-0"
                         >
                           {vTag}
                         </span>
