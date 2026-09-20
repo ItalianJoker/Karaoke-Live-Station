@@ -333,16 +333,16 @@
     "dspEngineSignalsmith": "Signalsmith Stretch (Hi-Fi predeterminado) — ±8 ST, pitch+speed",
     "dspEngineSignalsmithBlurb": "Signalsmith Stretch (MIT) AudioWorklet. Recomendado ±8 ST (hasta ±12). Tempo vía elemento media (preservesPitch). Fallback automático a SoundTouch si dispara el watchdog de mute — los límites pitch/speed pasan a SoundTouch (±4 ST, 0.75–1.25×).",
     "themeOptions": {
-      "dark-stage": "Dark Stage (Predeterminado)",
-      "midnight-neon": "Midnight Neon (Cyberpunk)",
-      "club-gold": "Club Gold (VIP Lounge)",
-      "ocean-breeze": "Ocean Breeze (Deep Cyan)",
-      "sunset-crimson": "Sunset Crimson (Warm Red)",
-      "emerald-matrix": "Emerald Matrix (Live Green)",
-      "royal-amethyst": "Royal Amethyst (Deep Purple)",
-      "high-contrast": "High Contrast (Accesible)",
-      "light": "Light Studio (Clean)",
-      "studio-desk": "Studio Desk (Diseño Regia)"
+      "studio-desk": "Studio Desk (Diseño Regia)",
+      "dark-stage": "Dark Stage (Legacy)",
+      "midnight-neon": "Midnight Neon (Cyberpunk) (Legacy)",
+      "club-gold": "Club Gold (VIP Lounge) (Legacy)",
+      "ocean-breeze": "Ocean Breeze (Deep Cyan) (Legacy)",
+      "sunset-crimson": "Sunset Crimson (Warm Red) (Legacy)",
+      "emerald-matrix": "Emerald Matrix (Live Green) (Legacy)",
+      "royal-amethyst": "Royal Amethyst (Deep Purple) (Legacy)",
+      "high-contrast": "High Contrast (Accesible) (Legacy)",
+      "light": "Light Studio (Clean) (Legacy)"
     },
     "themeRestartNote": "Al cambiar el tema de la sala de control, la app se reinicia para aplicar el diseño correctamente."
   },

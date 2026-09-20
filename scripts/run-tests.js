@@ -4560,9 +4560,29 @@ console.log('\n\x1b[36m▶ Suite: Studio Desk opt-in theme (Zero Regression gate
   }
 
   assert(
-    storeSrc.includes("themeHost: 'dark-stage'"),
-    'Default themeHost remains dark-stage'
+    storeSrc.includes("themeHost: 'studio-desk'"),
+    'Default themeHost is studio-desk'
   );
+  assert(
+    settingsTypesSrc.indexOf("id: 'studio-desk'") <
+      settingsTypesSrc.indexOf("id: 'dark-stage'"),
+    'THEME_OPTIONS lists studio-desk first'
+  );
+  for (const lang of ['it', 'en', 'es', 'fr']) {
+    const loc = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+    );
+    const opts = loc.settings?.themeOptions || {};
+    const keys = Object.keys(opts);
+    assert(keys[0] === 'studio-desk', `${lang}: studio-desk first in themeOptions`);
+    for (const [id, label] of Object.entries(opts)) {
+      if (id === 'studio-desk') continue;
+      assert(
+        typeof label === 'string' && label.includes('Legacy'),
+        `${lang}: themeOptions.${id} display name includes Legacy`
+      );
+    }
+  }
 }
 
 // Summary

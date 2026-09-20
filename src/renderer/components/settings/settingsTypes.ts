@@ -20,16 +20,16 @@ export interface SettingsThemeOption {
  * Labels are fallback display strings; Settings prefers `settings.themeOptions.<id>` i18n keys.
  */
 export const THEME_OPTIONS: SettingsThemeOption[] = [
-  { id: 'dark-stage', label: 'Dark Stage (Predefinito)' },
-  { id: 'midnight-neon', label: 'Midnight Neon (Cyberpunk)' },
-  { id: 'club-gold', label: 'Club Gold (VIP Lounge)' },
-  { id: 'ocean-breeze', label: 'Ocean Breeze (Deep Cyan)' },
-  { id: 'sunset-crimson', label: 'Sunset Crimson (Warm Red)' },
-  { id: 'emerald-matrix', label: 'Emerald Matrix (Live Green)' },
-  { id: 'royal-amethyst', label: 'Royal Amethyst (Deep Purple)' },
-  { id: 'high-contrast', label: 'High Contrast (Accessibile)' },
-  { id: 'light', label: 'Light Studio (Clean)' },
   { id: 'studio-desk', label: 'Studio Desk (Regia Layout)' },
+  { id: 'dark-stage', label: 'Dark Stage (Legacy)' },
+  { id: 'midnight-neon', label: 'Midnight Neon (Cyberpunk) (Legacy)' },
+  { id: 'club-gold', label: 'Club Gold (VIP Lounge) (Legacy)' },
+  { id: 'ocean-breeze', label: 'Ocean Breeze (Deep Cyan) (Legacy)' },
+  { id: 'sunset-crimson', label: 'Sunset Crimson (Warm Red) (Legacy)' },
+  { id: 'emerald-matrix', label: 'Emerald Matrix (Live Green) (Legacy)' },
+  { id: 'royal-amethyst', label: 'Royal Amethyst (Deep Purple) (Legacy)' },
+  { id: 'high-contrast', label: 'High Contrast (Accessible) (Legacy)' },
+  { id: 'light', label: 'Light Studio (Clean) (Legacy)' },
 ];
 
 /**

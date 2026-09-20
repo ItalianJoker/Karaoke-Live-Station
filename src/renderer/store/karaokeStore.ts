@@ -146,7 +146,7 @@ export interface KaraokeStoreState {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  themeHost: 'dark-stage',
+  themeHost: 'studio-desk',
   themeStage: 'dark-stage',
   language: 'autodetect',
 
@@ -446,7 +446,7 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           'light',
           'studio-desk'
         );
-        root.classList.add(activeTheme || 'dark-stage');
+        root.classList.add(activeTheme || 'studio-desk');
       },
 
       // 2. Playback State

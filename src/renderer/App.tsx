@@ -34,7 +34,7 @@ export const App: React.FC = () => {
       'studio-desk'
     );
     const activeTheme = windowMode === 'stage' ? themeStage : themeHost;
-    root.classList.add(activeTheme || 'dark-stage');
+    root.classList.add(activeTheme || 'studio-desk');
   }, [windowMode, themeHost, themeStage]);
 
   if (windowMode === 'stage') {
