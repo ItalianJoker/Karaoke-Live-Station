@@ -137,7 +137,7 @@ export const MidiChannelMixer: React.FC<MidiChannelMixerProps> = ({
             </span>
             {studioColumn && (
               <div
-                className="w-full mt-1.5 h-1 rounded-full bg-slate-950/80 overflow-hidden border border-slate-700/50"
+                className="w-full mt-1.5 h-1.5 rounded-full bg-slate-950/90 overflow-hidden border border-slate-600/60"
                 data-testid={`midi-channel-activity-${index}`}
                 aria-label={t('midi.channelActivity', {
                   num: index + 1,
@@ -149,14 +149,16 @@ export const MidiChannelMixer: React.FC<MidiChannelMixerProps> = ({
                 role="meter"
               >
                 <div
-                  className={`h-full rounded-full transition-[width] duration-75 ${
+                  className={`h-full rounded-sm transition-[width] duration-75 ease-out ${
                     isMuted
-                      ? 'bg-red-500/40'
+                      ? 'bg-red-500/30'
                       : activity > 0.55
-                        ? 'bg-[color:var(--accent,#00D4F0)]'
-                        : 'bg-emerald-400/80'
+                        ? 'bg-[color:var(--accent,#00D4F0)] shadow-[0_0_6px_color-mix(in_srgb,var(--accent,#00D4F0)_50%,transparent)]'
+                        : activity > 0.02
+                          ? 'bg-emerald-400'
+                          : 'bg-transparent'
                   }`}
-                  style={{ width: `${isMuted ? 0 : activityPct}%` }}
+                  style={{ width: `${isMuted ? 0 : Math.max(activityPct, activity > 0.02 ? 8 : 0)}%` }}
                 />
               </div>
             )}

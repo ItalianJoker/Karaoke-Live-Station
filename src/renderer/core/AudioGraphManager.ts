@@ -1191,6 +1191,13 @@ export class AudioGraphManager {
     }
 
     // Decay channel activity meters after note processing (Studio Desk VU).
+    // Hold a floor while notes are still active so sustained parts stay visible.
+    for (const key of this.activeMidiNotes.keys()) {
+      const ch = key >> 8;
+      if (ch >= 0 && ch < 16 && !this.mutedChannels.has(ch)) {
+        this.midiChannelLevels[ch] = Math.max(this.midiChannelLevels[ch], 0.4);
+      }
+    }
     this.decayMidiChannelLevels();
 
     // 2. Process Synchronized Lyrics
