@@ -1512,7 +1512,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
                 }
                 className={`border rounded-2xl flex gap-3 transition-all group/item box-border ${
                   embedded
-                    ? 'items-start overflow-visible py-3 px-2.5 sm:px-3'
+                    ? // Equal py-3; items-center keeps inset above title == below actions
+                      // when the thumb is taller than a 1-line content column.
+                      'items-center overflow-visible py-3 px-2.5 sm:px-3'
                     : 'p-2.5 sm:p-3 items-center justify-between overflow-hidden'
                 } ${
                   isMissing
@@ -1523,9 +1525,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
                 data-studio-library-row={embedded ? 'true' : undefined}
               >
                 {embedded ? (
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     {thumb}
-                    <div className="min-w-0 flex-1 flex flex-col">
+                    <div className="min-w-0 flex-1 flex flex-col justify-center">
                       {trackMeta}
                       {trackActions}
                     </div>
