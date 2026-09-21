@@ -250,10 +250,11 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
         byKey.set(key, track);
         continue;
       }
+      const isLocal = (s: string) => s === 'local_library' || s === 'midi';
       const prefer =
-        (/^[\w-]{11}$/.test(track.id) ? 2 : 0) + (track.source === 'local_library' ? 1 : 0);
+        (/^[\w-]{11}$/.test(track.id) ? 2 : 0) + (isLocal(track.source) ? 1 : 0);
       const prevScore =
-        (/^[\w-]{11}$/.test(prev.id) ? 2 : 0) + (prev.source === 'local_library' ? 1 : 0);
+        (/^[\w-]{11}$/.test(prev.id) ? 2 : 0) + (isLocal(prev.source) ? 1 : 0);
       if (prefer >= prevScore) byKey.set(key, track);
     }
     return Array.from(byKey.values());
@@ -435,7 +436,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
           const associatedTrack = trackMap[payload.downloadId];
           if (associatedTrack) {
             const isFinishedLibraryFile = (filePath: string, source?: KaraokeMediaTrack['source']) => {
-              if (source !== 'local_library') return false;
+              if (source !== 'local_library' && source !== 'midi') return false;
               const lower = filePath.toLowerCase();
               if (!filePath) return false;
               if (lower.includes('queue_cache') || lower.includes(`${'temp'}`) || lower.includes('/tmp')) return false;
@@ -1005,7 +1006,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
     const idx = findTrackRevealIndex(displayedTracks, pendingReveal);
     if (idx < 0) return;
 
-    const trackId = pendingReveal.trackId;
+    const trackId = displayedTracks[idx]?.id || pendingReveal.trackId;
     const top = idx * LIBRARY_ROW_HEIGHT;
     const el = resultsListRef.current;
     if (el) {

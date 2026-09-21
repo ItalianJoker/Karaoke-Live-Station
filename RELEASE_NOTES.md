@@ -1,4 +1,4 @@
-# 🎤 Karaoke Live Station v2.0.0 — Release Notes
+# 🎤 Karaoke Live Station v2.1.0 — Release Notes
 
 <p align="center">
   <a href="#-italiano">🇮🇹 <strong>Italiano</strong></a> • <a href="#-english">🇬🇧 <strong>English</strong></a>
@@ -6,98 +6,82 @@
 
 ---
 
-<a name="v200-italiano"></a>
-# 🇮🇹 Note di Rilascio — Versione 2.0.0
+<a name="v210-italiano"></a>
+# 🇮🇹 Note di Rilascio — Versione 2.1.0
 
-Nuova release GitHub **v2.0.0** (tag nuovo; **non** sovrascrive `v1.5.0` / `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Parte dalla baseline **v1.5.0** (#72 + #74 + #76) e include **#77–#80**. Pacchetto **2.0.0**.
+Nuova release GitHub **v2.1.0**. Include il nuovo sistema di verifica aggiornamenti, il ripristino affidabile della tonalità al riavvio, migliorie grafiche al layout Studio Desk, gating dei file MIDI e correzioni alla ricerca locale con caratteri speciali. Pacchetto **2.1.0**.
 
 ## 📦 File di Installazione
 
 | Piattaforma | File | Descrizione |
 | :--- | :--- | :--- |
-| **Windows** | `Karaoke Live Station 2.0.0.exe` | Eseguibile portatile |
-| **Windows** | `Karaoke Live Station-2.0.0-win.zip` | Archivio completo Windows 64-bit |
-| **Linux** | `Karaoke Live Station-2.0.0.AppImage` | AppImage universale |
-| **Linux** | `karaoke-live-station_2.0.0_amd64.deb` | Pacchetto Debian/Ubuntu |
-| **macOS** | `Karaoke Live Station-2.0.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
+| **Windows** | `Karaoke Live Station 2.1.0.exe` | Eseguibile portatile |
+| **Windows** | `Karaoke Live Station-2.1.0-win.zip` | Archivio completo Windows 64-bit |
+| **Linux** | `Karaoke Live Station-2.1.0.AppImage` | AppImage universale |
+| **Linux** | `karaoke-live-station_2.1.0_amd64.deb` | Pacchetto Debian/Ubuntu |
+| **macOS** | `Karaoke Live Station-2.1.0-arm64-mac.zip` | Bundle `.app` (Apple Silicon, build Actions) |
 
 ## 🌟 Novità di questa versione
 
-### 🎛️ Studio Desk default + polish UX (#77)
-- **Default Regia** → tema **`studio-desk`** (primo in picker; altri temi etichettati « (Legacy)»).
-- Persistenza: chi ha già un altro `themeHost` salvato **lo conserva**.
-- Polish layout Studio: colonne, menu, deck, MIDI note-on meters, card libreria, Stage pill, relaunch al cambio tema Regia.
-- Id temi invariati; path Regia classica resta disponibile.
+### 🔄 Controllo Aggiornamenti Software (Fase 1)
+- **Verifica automatica all'avvio:** L'applicazione interroga in background le release ufficiali di GitHub (con debounce di 24 ore) e mostra una modale interattiva in caso di nuova versione disponibile.
+- **Verifica manuale su richiesta:** Pulsante dedicato in **Impostazioni → Generali** con stato di caricamento e changelog formattato.
+- **Configurazione utente:** Possibilità di attivare o disattivare la ricerca automatica degli aggiornamenti nelle preferenze generali.
 
-### 🖥️ Palco su display esterno + velocità (#78)
-- Stage/Palco posizionato sul monitor non primario (fullscreen su TV/proiettore; finestra centrata su singolo display).
-- Badge velocità/tonalità sul Palco in forma parentesi: `1.00x (103 BPM)`, `0 (D)`.
-- Fallback CSS opaco `#000` su `.stage-screen-container`.
+### 🎵 Ripristino Tonalità al Riavvio (Pitch Offset Restore)
+- Se una canzone nella coda viene modificata di tonalità (es. `-2 ST`), chiudendo e riaprendo il programma la canzone parte immediatamente con la tonalità impostata e non con l'originale a `0 ST`.
+- Rehydration store istantanea al caricamento e allineamento sincronizzato con Regia, Stage Window e AudioGraphManager (Signalsmith / SpessaSynth).
 
-### 📚 Aggiorna Libreria + DnD overlay (#80)
-- **Aggiorna Libreria** ricalcola i flag «file mancante» e toglie i falsi positivi quando il file torna su disco.
-- Overlay drag-and-drop Library/Coda non resta bloccato dopo drop sulla coda (Studio + Regia classica).
+### 🎛️ Regia Studio Desk: Tipografia & Layout DSP
+- Testi dei BPM e della tonalità ingranditi e perfettamente centrati sotto le etichette VELOCITÀ e TONALITÀ.
+- Altezza del pannello allineata con i pulsanti di controllo del player.
 
-### 🔎 Mostra in Libreria Locale dalla Coda (#79)
-- Pulsante su ogni riga eleggibile della Coda: apre Libreria Locale, cerca/scorre ed evidenzia il brano (id / percorso).
-- File mancante → modale esistente; brano non in catalogo → toast. Condiviso classic + Studio Desk.
+### 📁 Gating Libreria File MIDI / KAR
+- I file MIDI/KAR già presenti permanentemente su disco non mostrano più erroneamente il pulsante "Salva in libreria" nella coda e nei deck di riproduzione.
+- Preservato il tipo `midi` durante i salvataggi dalla cache e nella logica di deduplica locale.
 
-### 🔑 Già in 1.5.0 (baseline inclusa)
-- Key/BPM sempre visibili + dialogo seconda istanza (#74).
-- Studio Desk introdotto come tema opt-in (#76) — ora default in 2.0.0 via #77.
-- Hot path libreria / download / Guest, Logger strutturato, prune deps (#72).
-
-### 🏷️ Versione
-- Badge UI / pacchetto **v2.0.0**.
-
-## ✅ Baseline 1.5.0
-Resta incluso: hot path 14k+, Studio Desk shell, Key/BPM UX, Signalsmith Hi-Fi DSP, ZIP CD+G, AI WebGPU / quit watchdog, Library Phase 2 FTS5, modal sottotitoli strumentale, Safety-First modularizzazione.
+### 🔍 Ricerca Locale & "Mostra in Libreria Locale"
+- Risolto il problema che causava l'errore "Brano non trovato nella Libreria Locale" su titoli con underscore (`_`) o trattini (`-`).
+- Corretta la sintassi FTS5 (`WHERE tracks_fts MATCH ?`) e implementata una tokenizzazione Unicode robusta.
+- Fallback LIKE multi-token con escaping sicuro (`ESCAPE '\'`) capace di trovare qualsiasi traccia anche senza corrispondenza FTS esatta.
 
 ---
 
-<a name="v200-english"></a>
-# 🇬🇧 Release Notes — Version 2.0.0
+<a name="v210-english"></a>
+# 🇬🇧 Release Notes — Version 2.1.0
 
-New GitHub release **v2.0.0** (new tag; does **not** overwrite `v1.5.0` / `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on **v1.5.0** baseline (#72 + #74 + #76) and includes **#77–#80**. Package **2.0.0**.
+New GitHub release **v2.1.0**. Introduces the software update checker, reliable pitch offset restoration across restarts, Studio Desk DSP deck typography polish, MIDI library gating, and special-character local search reveal fixes. Package **2.1.0**.
 
 ## 📦 Installer Files
 
 | Platform | File | Description |
 | :--- | :--- | :--- |
-| **Windows** | `Karaoke Live Station 2.0.0.exe` | Portable executable |
-| **Windows** | `Karaoke Live Station-2.0.0-win.zip` | Full Windows 64-bit archive |
-| **Linux** | `Karaoke Live Station-2.0.0.AppImage` | Universal AppImage |
-| **Linux** | `karaoke-live-station_2.0.0_amd64.deb` | Debian/Ubuntu package |
-| **macOS** | `Karaoke Live Station-2.0.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
+| **Windows** | `Karaoke Live Station 2.1.0.exe` | Portable executable |
+| **Windows** | `Karaoke Live Station-2.1.0-win.zip` | Full Windows 64-bit archive |
+| **Linux** | `Karaoke Live Station-2.1.0.AppImage` | Universal AppImage |
+| **Linux** | `karaoke-live-station_2.1.0_amd64.deb` | Debian/Ubuntu package |
+| **macOS** | `Karaoke Live Station-2.1.0-arm64-mac.zip` | `.app` bundle (Apple Silicon, Actions build) |
 
 ## 🌟 What’s new
 
-### 🎛️ Studio Desk default + UX polish (#77)
-- **Default Control Room** → **`studio-desk`** theme (first in picker; other themes labeled « (Legacy)»).
-- Persistence: an already-saved different `themeHost` is **kept**.
-- Studio layout polish: columns, menu, deck, MIDI note-on meters, library cards, Stage pill, relaunch on Control Room theme change.
-- Theme ids unchanged; classic Regia path remains available.
+### 🔄 Software Update Checker (Phase 1)
+- **Automatic startup check:** Checks GitHub Releases in the background (with 24-hour debounce) and presents an interactive notification modal when a newer release is published.
+- **Manual check on demand:** Check button in **Settings → General** displaying live status, version badge, and release changelog.
+- **Configurable:** Option to toggle automatic update checks on or off at any time.
 
-### 🖥️ Stage on external display + speed (#78)
-- Stage placed on the non-primary monitor (fullscreen on TV/projector; centered window on single display).
-- Stage speed/pitch badges in parentheses form: `1.00x (103 BPM)`, `0 (D)`.
-- Opaque `#000` CSS fallback on `.stage-screen-container`.
+### 🎵 Pitch Offset Restore on Restart
+- When a song in the queue has an adjusted pitch (e.g. `-2 ST`), restarting the software now retains and plays that pitch rather than reverting to the original at `0 ST`.
+- Instant store rehydration on hydration and seamless alignment with Control Room, Stage Window, and AudioGraphManager (Signalsmith / SpessaSynth).
 
-### 📚 Refresh Library + DnD overlay (#80)
-- **Refresh Library** re-checks missing-file flags and clears false positives when the file is back on disk.
-- Library/Queue OS drag overlays no longer stick after a queue drop (Studio + classic Regia).
+### 🎛️ Studio Desk: DSP Deck Layout & Typography
+- Enlarged and centered BPM and pitch numeric displays positioned under SPEED and PITCH labels.
+- Panel container height aligned with player transport buttons.
 
-### 🔎 Show in Local Library from Queue (#79)
-- Control on each eligible Queue row: opens Local Library, searches/scrolls and highlights the track (id / path).
-- Missing file → existing modal; not in catalog → toast. Shared classic + Studio Desk.
+### 📁 MIDI / KAR Library Membership
+- Permanent local MIDI/KAR tracks no longer incorrectly display the "Save to library" button in the queue and deck headers.
+- Native `midi` source preserved when saving from cache and during catalog deduplication.
 
-### 🔑 Already in 1.5.0 (baseline included)
-- Always-visible Key/BPM + second-instance dialog (#74).
-- Studio Desk introduced as opt-in (#76) — now default in 2.0.0 via #77.
-- Library / download / Guest hot paths, structured Logger, deps prune (#72).
-
-### 🏷️ Version
-- UI badge / package **v2.0.0**.
-
-## ✅ 1.5.0 baseline
-Still includes: 14k+ hot paths, Studio Desk shell, Key/BPM UX, Signalsmith Hi-Fi DSP, ZIP CD+G, AI WebGPU / quit watchdog, Library Phase 2 FTS5, instrumental subtitles modal, Safety-First modularization.
+### 🔍 Local Search & "Show in Local Library"
+- Fixed the issue where clicking "Show in Local Library" on tracks with underscores (`_`) or hyphens (`-`) reported "Track not found in Local Library".
+- Fixed FTS5 query syntax (`WHERE tracks_fts MATCH ?`) and Unicode word boundary tokenization.
+- Multi-token LIKE fallback with wildcard escaping (`ESCAPE '\'`) ensuring reliable row matching and instant highlighting.

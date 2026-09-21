@@ -64,6 +64,7 @@ export interface SettingsTabSharedProps {
   matchGuestPortal: boolean;
   matchSiae: boolean;
   matchLogs: boolean;
+  matchUpdates: boolean;
 
   // --- Library match flags ---
   matchLibraryPath: boolean;
@@ -141,6 +142,7 @@ export type SettingsGeneralTabProps = Pick<
   | 'matchGuestPortal'
   | 'matchSiae'
   | 'matchLogs'
+  | 'matchUpdates'
   | 'portalInfo'
   | 'logFilePath'
   | 'handleExportSiae'

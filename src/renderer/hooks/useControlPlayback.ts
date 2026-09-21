@@ -145,6 +145,14 @@ export function useControlPlayback(deps: {
       clearTrackMissing(currentTrack.id);
     }
 
+    if (!isPlaying) {
+      const curPitch = useKaraokeStore.getState().playback.livePitchOffset;
+      if (curPitch !== currentQueueItem.pitchOffset) {
+        setPlaybackState({ livePitchOffset: currentQueueItem.pitchOffset });
+      }
+      audioGraphRef.current?.setPitchOffset(currentQueueItem.pitchOffset);
+    }
+
     await audioGraphRef.current?.initContext();
     togglePlayPause();
   }, [
@@ -155,6 +163,7 @@ export function useControlPlayback(deps: {
     pauseResetForMissingFile,
     openMissingForQueueItem,
     clearTrackMissing,
+    setPlaybackState,
     togglePlayPause
   ]);
 

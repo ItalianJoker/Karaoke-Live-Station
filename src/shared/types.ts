@@ -641,4 +641,32 @@ export interface FirewallCheckResult {
   rules: Record<OperatingSystem, FirewallRuleInfo>;
 }
 
-
+/**
+ * Information regarding application software updates queried from GitHub Releases.
+ */
+export interface AppUpdateInfo {
+  /** Currently installed software version (e.g. "2.1.0") */
+  currentVersion: string;
+  /** Latest available release version detected on GitHub (e.g. "2.0.1") */
+  latestVersion: string;
+  /** Whether a newer version exists compared to currentVersion */
+  hasUpdate: boolean;
+  /** Human-readable title or name of the latest release */
+  releaseName?: string;
+  /** Markdown/text release notes */
+  releaseNotes?: string;
+  /** ISO date/time or formatted publish date */
+  publishedAt?: string;
+  /** Web URL to the GitHub release page */
+  releaseUrl?: string;
+  /** Direct download URL for the current platform package if available */
+  downloadUrl?: string;
+  /** Name of the recommended download package asset */
+  assetName?: string;
+  /** Approximate byte size of the recommended download asset */
+  assetSize?: number;
+  /** Error message if query failed */
+  error?: string;
+  /** Timestamp when check was performed */
+  lastChecked?: number;
+}

@@ -346,7 +346,20 @@
       "high-contrast": "High Contrast (Accessible) (Legacy)",
       "light": "Light Studio (Clean) (Legacy)"
     },
-    "themeRestartNote": "Changer le thème Régie redémarre l'application pour appliquer correctement la mise en page."
+    "themeRestartNote": "Changer le thème Régie redémarre l'application pour appliquer correctement la mise en page.",
+    "updatesTitle": "Mises à jour logicielles",
+    "updatesDesc": "Vérifiez la disponibilité de nouvelles versions officielles sur GitHub.",
+    "currentVersion": "Version actuelle",
+    "checkUpdates": "Vérifier les mises à jour",
+    "checkingUpdates": "Vérification en cours...",
+    "updateAvailable": "Nouvelle version disponible : {{version}}",
+    "upToDate": "Karaoke Live Station est à jour",
+    "upToDateDesc": "Vous utilisez la dernière version disponible ({{version}}).",
+    "viewRelease": "Voir les notes de version et télécharger",
+    "downloadUpdate": "Télécharger la mise à jour",
+    "releaseNotes": "Nouveautés de la version",
+    "updateError": "Impossible de vérifier les mises à jour : {{error}}",
+    "updateLater": "Plus tard"
   },
   "history": {
     "title": "Historique de Lecture",

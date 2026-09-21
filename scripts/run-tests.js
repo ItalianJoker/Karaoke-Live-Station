@@ -30,6 +30,41 @@ function assert(condition, testName, detail = '') {
   }
 }
 
+// Check if current Node binary supports --experimental-strip-types
+const supportsStripTypes = (() => {
+  const { spawnSync } = require('child_process');
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '-e', ''], { stdio: 'ignore' });
+  return r.status === 0;
+})();
+
+/**
+ * Spawns a TS probe snippet safely across all Node.js versions.
+ * If Node < 22 without native strip-types, transpiles with bundled TypeScript.
+ */
+function spawnTsProbe(snippet, options = {}) {
+  const { spawnSync } = require('child_process');
+  if (supportsStripTypes) {
+    return spawnSync(
+      process.execPath,
+      ['--experimental-strip-types', '--no-warnings', '-e', snippet],
+      { encoding: 'utf8', ...options }
+    );
+  }
+  // Transpile snippet using typescript
+  const ts = require('typescript');
+  const transpiled = ts.transpileModule(snippet, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022
+    }
+  }).outputText;
+  return spawnSync(
+    process.execPath,
+    ['-e', transpiled],
+    { encoding: 'utf8', ...options }
+  );
+}
+
 /** Concatenate Settings shell + per-tab sources (Safety-First modularization). */
 function readSettingsUiSource() {
   const base = path.resolve(__dirname, '../src/renderer/components');
@@ -3173,8 +3208,8 @@ assert(
     settingsModalSrcV13.includes('aiCpuThreads') &&
     settingsModalSrcV13.includes('autoMaximizeControlOnLaunch') &&
     settingsModalSrcV13.includes('autoOpenStageOnLaunch') &&
-    settingsModalShellV13.includes("useState('2.0.0')"),
-  'SettingsModal wider sidebar layout + launch/AI cores + v2.0.0 footer state'
+    settingsModalShellV13.includes("useState('2.1.0')"),
+  'SettingsModal wider sidebar layout + launch/AI cores + v2.1.0 footer state'
 );
 
 // Instrumental block lives under Library tab component (shell still orders library before audio)
@@ -3194,10 +3229,14 @@ assert(
 const pkgV13 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
 const changelogV13 = fs.readFileSync(path.resolve(__dirname, '../CHANGELOG.md'), 'utf8');
 const releaseNotesV13 = fs.readFileSync(path.resolve(__dirname, '../RELEASE_NOTES.md'), 'utf8');
-assert(pkgV13.version === '2.0.0', 'package.json version is 2.0.0');
+assert(pkgV13.version === '2.1.0', 'package.json version is 2.1.0');
+assert(
+  changelogV13.includes('## [2.1.0]') || changelogV13.includes('## [2.1.0] '),
+  'CHANGELOG has ## [2.1.0] section'
+);
 assert(
   changelogV13.includes('## [2.0.0]') || changelogV13.includes('## [2.0.0] '),
-  'CHANGELOG has ## [2.0.0] section'
+  'CHANGELOG retains ## [2.0.0] section'
 );
 assert(
   changelogV13.includes('## [1.5.0]') || changelogV13.includes('## [1.5.0] '),
@@ -3212,8 +3251,8 @@ assert(
   'CHANGELOG retains ## [1.3.0] section'
 );
 assert(
-  /v2\.0\.0|Version 2\.0\.0|Versione 2\.0\.0/.test(releaseNotesV13),
-  'RELEASE_NOTES mentions 2.0.0'
+  /v2\.1\.0|Version 2\.1\.0|Versione 2\.1\.0/.test(releaseNotesV13),
+  'RELEASE_NOTES mentions 2.1.0'
 );
 
 for (const lang of ['it', 'en', 'es', 'fr']) {
@@ -4054,7 +4093,7 @@ console.log('\n\x1b[36m▶ Suite: Safety-First modularization, virtualization, i
   );
 
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert(pkg.version === '2.0.0', 'package.json is 2.0.0 (new release cycle)');
+  assert(pkg.version === '2.1.0', 'package.json is 2.1.0 (new release cycle)');
 
   // Manual chapter parity markers (DnD / recursive scan / Bungee / AppImage SoundFont)
   for (const manual of [
@@ -5010,6 +5049,133 @@ console.log('\n\x1b[36m▶ Suite: Queue → Local Library reveal\x1b[0m');
     assert(loc.queue?.revealInLibrary, `${lang}: queue.revealInLibrary`);
     assert(loc.library?.notInCatalog, `${lang}: library.notInCatalog`);
   }
+}
+
+// -------------------------------------------------------------
+// Suite: Queue head pitch offset startup restore & DSP sync
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: Queue head pitch offset startup restore\x1b[0m');
+
+{
+  const storeCode = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/store/karaokeStore.ts'),
+    'utf8'
+  );
+  const controlCode = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+    'utf8'
+  );
+  const playbackHookCode = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/hooks/useControlPlayback.ts'),
+    'utf8'
+  );
+  const audioGraphCode = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/core/AudioGraphManager.ts'),
+    'utf8'
+  );
+
+  assert(
+    storeCode.includes('const restoredQueue = p.queue ?? current.queue;') &&
+      storeCode.includes('const firstItem = restoredQueue[0];') &&
+      storeCode.includes('livePitchOffset: initialPitch'),
+    'karaokeStore merge initializes livePitchOffset to queue head pitchOffset on hydration'
+  );
+
+  assert(
+    controlCode.includes('setPlaybackState({') &&
+      controlCode.includes('livePitchOffset: currentQueueItem.pitchOffset') &&
+      controlCode.includes('playback.livePitchOffset !== currentQueueItem.pitchOffset'),
+    'ControlWindow syncs livePitchOffset with current queue item pitch'
+  );
+
+  assert(
+    controlCode.includes('initPlayback.livePitchOffset !== targetPitch') &&
+      controlCode.includes('window.karaokeApi.sendStateSync(initPlayback);'),
+    'ControlWindow mount effect validates initial pitch offset and syncs to Stage window'
+  );
+
+  assert(
+    playbackHookCode.includes('audioGraphRef.current?.setPitchOffset(currentQueueItem.pitchOffset);'),
+    'useControlPlayback sets audioGraph pitch offset on playback start'
+  );
+
+  assert(
+    audioGraphCode.includes('const hasChanged = clamped !== this.currentPitchOffset;') &&
+      !audioGraphCode.includes('if (clamped === this.currentPitchOffset) return;'),
+    'AudioGraphManager setPitchOffset does not drop pending pitch shifts across DSP wiring'
+  );
+}
+
+// -------------------------------------------------------------
+// Suite: MIDI / KAR permanent library membership & save button gating
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: MIDI permanent library membership & save gating\x1b[0m');
+
+{
+  const membershipCode = fs.readFileSync(
+    path.resolve(__dirname, '../src/shared/libraryMembership.ts'),
+    'utf8'
+  );
+  const queueListCode = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/QueueList.tsx'),
+    'utf8'
+  );
+  const controlCode = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/ControlWindow.tsx'),
+    'utf8'
+  );
+
+  assert(
+    membershipCode.includes('export function canSaveTrackToPermanentLibrary(') &&
+      membershipCode.includes("track.source === 'midi'"),
+    'libraryMembership exports canSaveTrackToPermanentLibrary recognizing midi as library source'
+  );
+
+  assert(
+    queueListCode.includes('canSaveTrackToPermanentLibrary(item.track)') &&
+      !queueListCode.includes("item.track.source !== 'local_library'"),
+    'QueueList uses canSaveTrackToPermanentLibrary and does not misidentify midi tracks'
+  );
+
+  assert(
+    controlCode.includes('canSaveTrackToPermanentLibrary(currentTrack)') &&
+      !controlCode.includes("currentTrack.source !== 'local_library'"),
+    'ControlWindow uses canSaveTrackToPermanentLibrary for now playing save buttons'
+  );
+
+  function canSaveTest(track) {
+    if (!track || !track.localFilePath) return false;
+    if (
+      (track.source === 'local_library' || track.source === 'midi') &&
+      !track.localFilePath.includes('queue_cache') &&
+      !track.localFilePath.includes('/temp/') &&
+      !track.localFilePath.includes('\\temp\\')
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  assert(
+    canSaveTest({ source: 'midi', localFilePath: '/home/user/Karaoke/song.mid' }) === false,
+    'Permanent MIDI track does not show save to library'
+  );
+  assert(
+    canSaveTest({ source: 'local_library', localFilePath: '/home/user/Karaoke/song.mp4' }) === false,
+    'Permanent local_library track does not show save to library'
+  );
+  assert(
+    canSaveTest({ source: 'midi', localFilePath: '/cache/queue_cache/qc_temp.mid' }) === true,
+    'Temporary cached MIDI track shows save to library'
+  );
+  assert(
+    canSaveTest({ source: 'youtube', localFilePath: '/cache/queue_cache/qc_video.mp4' }) === true,
+    'Temporary YouTube track shows save to library'
+  );
+  assert(
+    canSaveTest({ source: 'youtube', localFilePath: '' }) === false,
+    'YouTube track without local file does not show save button'
+  );
 }
 
 // Summary

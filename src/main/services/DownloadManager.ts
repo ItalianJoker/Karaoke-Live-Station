@@ -1275,9 +1275,10 @@ export class DownloadManager {
       }
     }
 
+    const isMidi = ext.toLowerCase() === '.mid' || ext.toLowerCase() === '.kar';
     return {
       id: trackMetadata.trackId || `track_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      source: 'local_library',
+      source: isMidi ? 'midi' : 'local_library',
       title: trackMetadata.title,
       artist: trackMetadata.artist,
       durationSec: trackMetadata.durationSec || 0,

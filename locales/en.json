@@ -346,7 +346,20 @@
       "high-contrast": "High Contrast (Accessible) (Legacy)",
       "light": "Light Studio (Clean) (Legacy)"
     },
-    "themeRestartNote": "Changing the Control Room theme restarts the app so the layout applies cleanly."
+    "themeRestartNote": "Changing the Control Room theme restarts the app so the layout applies cleanly.",
+    "updatesTitle": "Software Updates",
+    "updatesDesc": "Check for new official releases on GitHub.",
+    "currentVersion": "Current version",
+    "checkUpdates": "Check for updates",
+    "checkingUpdates": "Checking...",
+    "updateAvailable": "New version available: {{version}}",
+    "upToDate": "Karaoke Live Station is up to date",
+    "upToDateDesc": "You are running the latest version ({{version}}).",
+    "viewRelease": "View release notes & download",
+    "downloadUpdate": "Download update",
+    "releaseNotes": "Release notes",
+    "updateError": "Unable to check for updates: {{error}}",
+    "updateLater": "Later"
   },
   "history": {
     "title": "Playback History",

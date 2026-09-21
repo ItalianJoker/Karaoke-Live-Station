@@ -586,7 +586,7 @@ export class AudioGraphManager {
     const clampEngine =
       this.activeDspEngine === 'soundtouch' ? 'soundtouch' : this.preferredDspEngine;
     const clamped = clampPitchForEngine(semitones, clampEngine);
-    if (clamped === this.currentPitchOffset) return;
+    const hasChanged = clamped !== this.currentPitchOffset;
     this.currentPitchOffset = clamped;
 
     if (this.activeDspEngine === 'signalsmith' || (this.activeDspEngine === null && this.signalsmithNode)) {
@@ -599,7 +599,7 @@ export class AudioGraphManager {
       this.log('debug', `Pitch offset queued (${clamped} ST) — DSP engine not wired yet`);
     }
 
-    if (this.isMidiMode) {
+    if (hasChanged && this.isMidiMode) {
       this.silenceAllVoices();
     }
   }

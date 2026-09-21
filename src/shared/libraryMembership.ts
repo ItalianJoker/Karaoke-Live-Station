@@ -145,3 +145,24 @@ export function revertLibraryMembershipInTrackList(
   });
   return changed ? next : tracks;
 }
+
+/**
+ * Whether a track is eligible to be saved to the permanent library.
+ * Tracks already in the local library (both 'local_library' and 'midi' outside queue_cache)
+ * must NOT show the "Save to library" button.
+ */
+export function canSaveTrackToPermanentLibrary(
+  track?: Pick<KaraokeMediaTrack, 'source' | 'localFilePath'> | null
+): boolean {
+  if (!track || !track.localFilePath) return false;
+  // If it's already in the permanent library (not in queue cache or temp folder), it's not saveable
+  if (
+    (track.source === 'local_library' || track.source === 'midi') &&
+    !track.localFilePath.includes('queue_cache') &&
+    !track.localFilePath.includes('/temp/') &&
+    !track.localFilePath.includes('\\temp\\')
+  ) {
+    return false;
+  }
+  return true;
+}

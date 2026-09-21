@@ -42,17 +42,36 @@ export function buildLibraryRevealSearchSeed(
 }
 
 /**
- * Locate a catalog row by track id, then by absolute local path.
+ * Locate a catalog row by track id, then by normalized local path, and finally by title & artist.
  * @returns Index in `tracks`, or -1 when not present in the current list window.
  */
 export function findTrackRevealIndex(
-  tracks: ReadonlyArray<Pick<KaraokeMediaTrack, 'id' | 'localFilePath'>>,
-  req: Pick<LibraryRevealRequest, 'trackId' | 'localFilePath'>
+  tracks: ReadonlyArray<
+    Pick<KaraokeMediaTrack, 'id' | 'localFilePath'> & Partial<Pick<KaraokeMediaTrack, 'title' | 'artist'>>
+  >,
+  req: Pick<LibraryRevealRequest, 'trackId' | 'localFilePath'> &
+    Partial<Pick<LibraryRevealRequest, 'title' | 'artist'>>
 ): number {
-  if (!tracks.length || !req.trackId) return -1;
-  const byId = tracks.findIndex((t) => t.id === req.trackId);
-  if (byId >= 0) return byId;
-  const path = (req.localFilePath || '').trim();
-  if (!path) return -1;
-  return tracks.findIndex((t) => (t.localFilePath || '').trim() === path);
+  if (!tracks.length) return -1;
+  if (req.trackId) {
+    const byId = tracks.findIndex((t) => t.id === req.trackId);
+    if (byId >= 0) return byId;
+  }
+  const normPath = (p?: string) => (p || '').trim().toLowerCase().replace(/\\/g, '/');
+  const pathNorm = normPath(req.localFilePath);
+  if (pathNorm) {
+    const byPath = tracks.findIndex((t) => normPath(t.localFilePath) === pathNorm);
+    if (byPath >= 0) return byPath;
+  }
+  if (req.title) {
+    const tNorm = req.title.trim().toLowerCase();
+    const aNorm = (req.artist || '').trim().toLowerCase();
+    const byMeta = tracks.findIndex(
+      (t) =>
+        (t.title || '').trim().toLowerCase() === tNorm &&
+        (!aNorm || (t.artist || '').trim().toLowerCase() === aNorm)
+    );
+    if (byMeta >= 0) return byMeta;
+  }
+  return -1;
 }

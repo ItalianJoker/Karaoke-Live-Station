@@ -396,7 +396,7 @@ export class DatabaseManager {
   private dedupeTracksByIdentity(tracks: KaraokeMediaTrack[]): KaraokeMediaTrack[] {
     const score = (t: KaraokeMediaTrack) => {
       const yt = /^[\w-]{11}$/.test(t.id) ? 2 : t.id.startsWith('track_') ? 0 : 1;
-      const local = t.source === 'local_library' ? 1 : 0;
+      const local = (t.source === 'local_library' || t.source === 'midi') ? 1 : 0;
       return yt * 10 + local;
     };
     const byPath = new Map<string, KaraokeMediaTrack>();
@@ -439,18 +439,45 @@ export class DatabaseManager {
     }
 
     const ftsHits = this.searchTracksFts(q, capped);
-    if (ftsHits) return ftsHits;
+    if (ftsHits && ftsHits.length > 0) return ftsHits;
 
-    const like = `%${q.replace(/[%_]/g, '')}%`;
+    const tokens = q
+      .split(/[^\p{L}\p{N}]+/u)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+
+    if (!tokens.length) {
+      const safeLike = `%${q.replace(/([%_\\])/g, '\\$1')}%`;
+      const stmt = this.db.prepare(
+        `SELECT * FROM tracks
+         WHERE titleNorm LIKE ? ESCAPE '\\' OR artistNorm LIKE ? ESCAPE '\\'
+         ORDER BY artist ASC, title ASC
+         LIMIT ?`
+      );
+      const rows = stmt.all(safeLike, safeLike, capped) as Array<
+        Parameters<DatabaseManager['mapTrackRow']>[0]
+      >;
+      return rows.map((r) => this.mapTrackRow(r));
+    }
+
+    const clauses = tokens.map(
+      () => `(titleNorm LIKE ? ESCAPE '\\' OR artistNorm LIKE ? ESCAPE '\\')`
+    );
+    const whereSql = clauses.join(' AND ');
+    const params: (string | number)[] = [];
+    for (const token of tokens) {
+      const safe = `%${token.replace(/([%_\\])/g, '\\$1')}%`;
+      params.push(safe, safe);
+    }
+    params.push(capped);
+
     const stmt = this.db.prepare(
       `SELECT * FROM tracks
-       WHERE titleNorm LIKE ? OR artistNorm LIKE ?
+       WHERE ${whereSql}
        ORDER BY artist ASC, title ASC
        LIMIT ?`
     );
-    const rows = stmt.all(like, like, capped) as Array<
-      Parameters<DatabaseManager['mapTrackRow']>[0]
-    >;
+    const rows = stmt.all(...params) as Array<Parameters<DatabaseManager['mapTrackRow']>[0]>;
     return rows.map((r) => this.mapTrackRow(r));
   }
 
@@ -461,17 +488,17 @@ export class DatabaseManager {
   private searchTracksFts(normalizedQuery: string, limit: number): KaraokeMediaTrack[] | null {
     try {
       const tokens = normalizedQuery
-        .split(/\s+/)
-        .map((t) => t.replace(/["']/g, '').trim())
+        .split(/[^\p{L}\p{N}]+/u)
+        .map((t) => t.replace(/["'*^~]/g, '').trim())
         .filter((t) => t.length > 0);
       if (!tokens.length) return [];
       // Prefix tokens so partial typing still hits (Safety-First vs leading-% LIKE).
       const matchExpr = tokens.map((t) => `"${t}"*`).join(' AND ');
       const rows = this.db
         .prepare(
-          `SELECT t.* FROM tracks_fts f
-           INNER JOIN tracks t ON t.id = f.trackId
-           WHERE f MATCH ?
+          `SELECT t.* FROM tracks_fts
+           INNER JOIN tracks t ON t.id = tracks_fts.trackId
+           WHERE tracks_fts MATCH ?
            ORDER BY t.artist ASC, t.title ASC
            LIMIT ?`
         )

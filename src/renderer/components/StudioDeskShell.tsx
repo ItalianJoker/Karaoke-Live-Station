@@ -12,6 +12,7 @@ import {
   Settings,
   Smartphone
 } from 'lucide-react';
+import { useKaraokeStore } from '../store/karaokeStore';
 import appLogo from '../assets/logo.png';
 
 export type StudioNavId =
@@ -252,6 +253,8 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
       document.body
     );
 
+  const hasAppUpdate = useKaraokeStore((s) => s.appUpdateInfo?.hasUpdate);
+
   return (
     <div
       className="flex-1 min-h-0 p-3 grid gap-3 overflow-hidden"
@@ -357,11 +360,21 @@ export const StudioDeskShell: React.FC<StudioDeskShellProps> = ({
             <button
               type="button"
               onClick={() => selectNav('settings')}
-              className={footerNavClass}
+              className={`${footerNavClass} relative`}
               title={t('studio.navSettings', 'Settings')}
             >
-              <Settings className="w-4 h-4 shrink-0" />
-              <span className="truncate">{t('studio.navSettings', 'Settings')}</span>
+              <div className="relative">
+                <Settings className="w-4 h-4 shrink-0" />
+                {hasAppUpdate && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
+                )}
+              </div>
+              <span className="truncate flex-1">{t('studio.navSettings', 'Settings')}</span>
+              {hasAppUpdate && (
+                <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold">
+                  NEW
+                </span>
+              )}
             </button>
           </div>
         </div>

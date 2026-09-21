@@ -16,7 +16,8 @@ import {
   SiaeLogEntry,
   LibraryTracksPage,
   LibraryTracksPageCursor,
-  LibraryScanProgress
+  LibraryScanProgress,
+  AppUpdateInfo
 } from '../shared/types';
 import type { OfflineVocalModelId, VocalModelDownloadProgress } from '../shared/vocalRemover';
 
@@ -299,13 +300,17 @@ export interface KaraokeAPI {
       gpuName?: string;
       vendor?: string;
     }>;
-    /** App semver from Electron package.json (e.g. 2.0.0) */
+    /** App semver from Electron package.json (e.g. 2.1.0) */
     getAppVersion: () => Promise<string>;
     /**
      * Quit and relaunch the whole app (used after Control Room theme changes so
      * Studio Desk ↔ classic Regia shell swaps cleanly).
      */
     relaunchApp: () => Promise<{ success: boolean }>;
+    /** Queries GitHub Releases to check if a new software update is available */
+    checkForAppUpdates: (force?: boolean) => Promise<AppUpdateInfo>;
+    /** Listens for background software update notifications */
+    onAppUpdateAvailable: (callback: (info: AppUpdateInfo) => void) => () => void;
   };
 
   // 10. Diagnostic Logger
@@ -558,7 +563,15 @@ const karaokeApi: KaraokeAPI = {
     getCpuCoreCount: () => ipcRenderer.invoke('system:get-cpu-core-count'),
     getGpuStatus: () => ipcRenderer.invoke('system:get-gpu-status'),
     getAppVersion: () => ipcRenderer.invoke('system:get-app-version'),
-    relaunchApp: () => ipcRenderer.invoke('system:relaunch-app')
+    relaunchApp: () => ipcRenderer.invoke('system:relaunch-app'),
+    checkForAppUpdates: (force?: boolean) => ipcRenderer.invoke('app:check-for-updates', force),
+    onAppUpdateAvailable: (callback: (info: AppUpdateInfo) => void) => {
+      const handler = (_event: IpcRendererEvent, info: AppUpdateInfo) => callback(info);
+      ipcRenderer.on('system:app-update-available', handler);
+      return () => {
+        ipcRenderer.removeListener('system:app-update-available', handler);
+      };
+    }
   },
 
   // Diagnostic Logger

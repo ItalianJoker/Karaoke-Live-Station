@@ -6,7 +6,6 @@ import {
   Settings,
   Heart,
   Coffee,
-  ExternalLink,
   Search,
   Keyboard,
   Monitor,
@@ -68,7 +67,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [settingsSearch, setSettingsSearch] = useState('');
   const [cpuCoreCount, setCpuCoreCount] = useState(detectUiCpuCoreCount());
   const [gpuStatus, setGpuStatus] = useState<GpuStatus | null>(null);
-  const [appVersion, setAppVersion] = useState('2.0.0');
+  const [appVersion, setAppVersion] = useState('2.1.0');
 
   const isSearching = settingsSearch.trim().length > 0;
 
@@ -146,7 +145,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         .then((v) => {
           if (typeof v === 'string' && v.trim()) setAppVersion(v.trim());
         })
-        .catch(() => setAppVersion('2.0.0'));
+        .catch(() => setAppVersion('2.1.0'));
     }
   }, [isOpen]);
 
@@ -328,6 +327,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     'log',
     'diagnostica',
     'debug'
+  );
+  const matchUpdates = matchesSearch(
+    t('settings.updatesTitle'),
+    t('settings.updatesDesc'),
+    t('settings.currentVersion'),
+    t('settings.checkUpdates'),
+    'aggiornamenti',
+    'updates',
+    'update',
+    'github',
+    'versione',
+    'version',
+    'release'
   );
   const matchMaximize = matchesSearch(
     t('settings.autoMaximizeControl', 'Massimizza Regia all\'avvio'),
@@ -565,7 +577,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     matchFairQueue ||
     matchGuestPortal ||
     matchSiae ||
-    matchLogs;
+    matchLogs ||
+    matchUpdates;
   const libraryHasMatches =
     matchLibraryPath ||
     matchAutoArchive ||
@@ -618,17 +631,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/40 border border-indigo-500/30 p-4 shadow-lg shadow-indigo-950/20">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0 text-indigo-400">
-                  <Heart className="w-5 h-5 text-rose-400 animate-pulse" />
+                <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 shrink-0 mt-0.5">
+                  <Heart className="w-5 h-5 text-pink-400 fill-pink-400/20" />
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span>{t('settings.supportTitle')}</span>
-                    <span className="text-[10px] font-semibold bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30">
-                      PayPal
-                    </span>
-                  </h4>
-                  <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-200">
+                    {t('settings.supportTitle')}
+                  </h3>
+                  <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
                     {t('settings.supportDescription')}
                   </p>
                 </div>
@@ -636,57 +646,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <button
                 type="button"
                 onClick={handleOpenDonation}
-                className="px-4 py-2.5 bg-[#0070BA] hover:bg-[#005ea6] active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-blue-900/30 border border-blue-400/30 transition-all shrink-0 cursor-pointer"
+                className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-lg shadow-amber-950/30 transition-all transform active:scale-95 cursor-pointer"
               >
-                <Coffee className="w-4 h-4 text-amber-200" />
+                <Coffee className="w-4 h-4 text-slate-950" />
                 <span>{t('settings.donateButton')}</span>
-                <ExternalLink className="w-3.5 h-3.5 opacity-70" />
               </button>
             </div>
           </div>
         </div>
 
-        {/* Instant search */}
-        <div className="pt-4 pb-3 shrink-0">
+        {/* Search Bar */}
+        <div className="pt-3 pb-2 shrink-0">
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={settingsSearch}
               onChange={(e) => setSettingsSearch(e.target.value)}
               placeholder={t('settings.searchPlaceholder', 'Cerca impostazioni...')}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 transition-all"
+              className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-10 pr-9 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
             />
+            {settingsSearch && (
+              <button
+                type="button"
+                onClick={() => setSettingsSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Sidebar tabs + scrollable content */}
-        <div className="flex flex-1 min-h-0 border-t border-slate-800/80">
-          {!isSearching && (
-            <nav className="w-[220px] shrink-0 border-r border-slate-800/80 overflow-y-auto py-3 pr-3 space-y-1">
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full px-3 py-2.5 rounded-xl text-[11px] font-semibold flex items-center gap-2 transition-all border text-left ${
-                      isActive
-                        ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300'
-                        : 'bg-transparent border-transparent text-slate-400 hover:text-white hover:bg-slate-800/60'
-                    }`}
-                  >
-                    {tab.icon}
-                    <span className="leading-snug">{tab.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          )}
+        {/* Tabs navigation - hidden during search */}
+        {!isSearching && (
+          <div className="flex border-b border-slate-800 gap-1 pb-px shrink-0 overflow-x-auto">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-colors shrink-0 ${
+                  activeTab === tab.id
+                    ? 'bg-slate-800 text-white border-b-2 border-indigo-500'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
-          {/* Form Body */}
-          <div className={`flex-1 min-h-0 overflow-y-auto py-4 space-y-6 text-xs ${isSearching ? '' : 'pl-4'} pr-2 md:pr-3`}>
+        {/* Tab Body Container */}
+        <div className="flex-1 overflow-y-auto pt-4 pr-1 space-y-4 text-xs select-none custom-scrollbar min-h-0">
           {isSearching && !anySearchResults && (
             <div className="text-center py-10 text-slate-400 text-xs">
               {t('library.noResults', 'Nessun risultato')}
@@ -706,6 +720,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               matchGuestPortal={matchGuestPortal}
               matchSiae={matchSiae}
               matchLogs={matchLogs}
+              matchUpdates={matchUpdates}
               portalInfo={portalInfo}
               logFilePath={logFilePath}
               handleExportSiae={handleExportSiae}
@@ -787,7 +802,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               matchingShortcuts={matchingShortcuts}
             />
           )}
-          </div>
         </div>
 
         {/* Footer & Branding */}

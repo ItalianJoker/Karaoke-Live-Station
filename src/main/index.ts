@@ -11,6 +11,7 @@ import { DownloadManager } from './services/DownloadManager';
 import { Logger } from './services/Logger';
 import { resolveFfmpegPath, resolveYtDlpPath } from './services/BinaryResolver';
 import { YtDlpUpdater } from './services/YtDlpUpdater';
+import { AppUpdateChecker } from './services/AppUpdateChecker';
 import { FirewallHelper } from './services/FirewallHelper';
 import { OfflineVocalModelManager } from './services/OfflineVocalModelManager';
 import { OrtWasmManager } from './services/OrtWasmManager';
@@ -175,6 +176,7 @@ class KaraokeMainProcess {
   private db: DatabaseManager;
   private downloadManager: DownloadManager;
   private ytDlpUpdater: YtDlpUpdater;
+  private appUpdateChecker: AppUpdateChecker;
   private vocalModelManager: OfflineVocalModelManager;
   private ortWasmManager: OrtWasmManager;
   private soundFontManager: SoundFontManager;
@@ -260,6 +262,7 @@ class KaraokeMainProcess {
       this.logger
     );
     this.ytDlpUpdater = new YtDlpUpdater(userDataPath, this.logger);
+    this.appUpdateChecker = new AppUpdateChecker(app.getVersion(), this.logger);
     this.vocalModelManager = new OfflineVocalModelManager(this.logger);
     this.ortWasmManager = new OrtWasmManager(this.logger);
     this.soundFontManager = new SoundFontManager(this.logger);
@@ -525,6 +528,13 @@ class KaraokeMainProcess {
       setTimeout(() => {
         this.ytDlpUpdater.checkAndAutoUpdateOnStartup();
       }, 4000);
+      setTimeout(() => {
+        this.appUpdateChecker.startBackgroundCheck((info) => {
+          if (this.controlWindow && !this.controlWindow.isDestroyed()) {
+            this.controlWindow.webContents.send('system:app-update-available', info);
+          }
+        }, 5000);
+      }, 4500);
     });
   }
 
@@ -958,7 +968,7 @@ class KaraokeMainProcess {
     });
 
     ipcMain.handle('system:get-app-version', () => {
-      return app.getVersion() || '2.0.0';
+      return app.getVersion() || '2.1.0';
     });
 
     /**
@@ -1651,6 +1661,18 @@ class KaraokeMainProcess {
 
     ipcMain.handle('ytdlp:check-update', async () => {
       return await this.ytDlpUpdater.checkForUpdates(true);
+    });
+
+    ipcMain.handle('app:check-for-updates', async (_event, force?: boolean) => {
+      return await this.appUpdateChecker.checkForUpdates(Boolean(force));
+    });
+
+    ipcMain.handle('app:open-external-url', async (_event, url: string) => {
+      if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
+        await shell.openExternal(url);
+        return { success: true };
+      }
+      return { success: false, error: 'Invalid URL' };
     });
 
     // Offline AI models for Download Instrumental (userData/models) — not live dual-stem

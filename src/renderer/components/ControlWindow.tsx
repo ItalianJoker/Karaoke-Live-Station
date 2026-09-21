@@ -29,13 +29,15 @@ import { AudioGraphManager } from '../core/AudioGraphManager';
 import {
   getPitchRangeForEngine,
   getSpeedRangeForEngine,
-  coerceDspPitchEngine
+  coerceDspPitchEngine,
+  clampPitchForEngine
 } from '../../shared/dspPitch';
 
 import { MidiChannelMixer } from './MidiChannelMixer';
 import { LibraryPanel } from './LibraryPanel';
 import { HistoryPanel } from './HistoryPanel';
 import { SettingsModal } from './SettingsModal';
+import { UpdateAvailableModal } from './UpdateAvailableModal';
 import { MissingFileModal } from './MissingFileModal';
 import { PlayerDeckControls } from './PlayerDeckControls';
 import { QueueList } from './QueueList';
@@ -46,6 +48,7 @@ import {
   checkTrackLocalFileExists,
   trackNeedsLocalFileCheck
 } from '../utils/localFileCheck';
+import { canSaveTrackToPermanentLibrary } from '../../shared/libraryMembership';
 import { ToastHost } from './ToastHost';
 import { showToast, confirmAsync } from '../utils/toast';
 import { SingersModal } from './SingersModal';
@@ -234,16 +237,31 @@ export const ControlWindow: React.FC = () => {
     return knownSingersList.filter((s) => textMatchesSearch(s.name, query));
   }, [knownSingersList, editingSingerText]);
 
-  // Keep playback.currentTrackId in sync with currentTrack
+  // Keep playback.currentTrackId and livePitchOffset in sync with currentTrack / currentQueueItem
   useEffect(() => {
-    if (currentTrack?.id) {
+    if (currentTrack?.id && currentQueueItem) {
       if (playback.currentTrackId !== currentTrack.id) {
-        setPlaybackState({ currentTrackId: currentTrack.id });
+        setPlaybackState({
+          currentTrackId: currentTrack.id,
+          livePitchOffset: currentQueueItem.pitchOffset
+        });
+      } else if (!playback.isPlaying && playback.livePitchOffset !== currentQueueItem.pitchOffset) {
+        setPlaybackState({
+          livePitchOffset: currentQueueItem.pitchOffset
+        });
       }
     } else if (playback.currentTrackId) {
-      setPlaybackState({ currentTrackId: undefined });
+      setPlaybackState({ currentTrackId: undefined, livePitchOffset: 0 });
     }
-  }, [currentTrack?.id, playback.currentTrackId, setPlaybackState]);
+  }, [
+    currentTrack?.id,
+    currentQueueItem?.queueId,
+    currentQueueItem?.pitchOffset,
+    playback.currentTrackId,
+    playback.isPlaying,
+    playback.livePitchOffset,
+    setPlaybackState
+  ]);
 
   const {
     pauseResetForMissingFile,
@@ -326,21 +344,29 @@ export const ControlWindow: React.FC = () => {
         trackId: track.id
       });
 
+      const isMidi =
+        track.source === 'midi' ||
+        track.uri?.endsWith('.mid') ||
+        track.uri?.endsWith('.kar') ||
+        track.localFilePath?.endsWith('.mid') ||
+        track.localFilePath?.endsWith('.kar');
+      const targetSource = isMidi ? 'midi' : 'local_library';
+
       updateTrackInQueue(track.id, {
         localFilePath: saved.localFilePath,
         uri: saved.uri,
-        source: 'local_library'
+        source: targetSource
       });
       updateTrackInQueue(track.uri, {
         localFilePath: saved.localFilePath,
         uri: saved.uri,
-        source: 'local_library'
+        source: targetSource
       });
       if (track.localFilePath) {
         updateTrackInQueue(track.localFilePath, {
           localFilePath: saved.localFilePath,
           uri: saved.uri,
-          source: 'local_library'
+          source: targetSource
         });
       }
 
@@ -462,15 +488,21 @@ export const ControlWindow: React.FC = () => {
       const initSettings = useKaraokeStore.getState().settings;
       let initPlayback = useKaraokeStore.getState().playback;
 
-      if (initQueue.length > 0 && !initPlayback.currentTrackId) {
-        initPlayback = {
-          ...initPlayback,
-          currentTrackId: initQueue[0].track.id,
-          livePitchOffset: initQueue[0].pitchOffset,
-          isPlaying: false,
-          currentTime: 0
-        };
-        useKaraokeStore.getState().setPlaybackState(initPlayback);
+      if (initQueue.length > 0) {
+        const targetPitch = clampPitchForEngine(
+          initQueue[0].pitchOffset,
+          coerceDspPitchEngine(initSettings.dspEngine)
+        );
+        if (!initPlayback.currentTrackId || initPlayback.livePitchOffset !== targetPitch) {
+          initPlayback = {
+            ...initPlayback,
+            currentTrackId: initQueue[0].track.id,
+            livePitchOffset: targetPitch,
+            isPlaying: false,
+            currentTime: 0
+          };
+          useKaraokeStore.getState().setPlaybackState(initPlayback);
+        }
       }
 
       window.karaokeApi.syncQueueCache(initQueue);
@@ -550,10 +582,19 @@ export const ControlWindow: React.FC = () => {
         }
       });
 
+      const unSubAppUpdate = window.karaokeApi?.system?.onAppUpdateAvailable
+        ? window.karaokeApi.system.onAppUpdateAvailable((info) => {
+            logControl('info', 'New software update detected via push:', info.latestVersion);
+            useKaraokeStore.getState().setAppUpdateInfo(info);
+            useKaraokeStore.getState().setShowUpdateModal(true);
+          })
+        : () => {};
+
       return () => {
         unSubGuest();
         unSubStageStatus();
         unSubDownloads();
+        unSubAppUpdate();
         manager.dispose();
       };
     }
@@ -809,6 +850,9 @@ export const ControlWindow: React.FC = () => {
               // Guard against race conditions when skipping tracks rapidly
               if (cancelled || loadedTrackMediaKeyRef.current !== mediaKeyToLoad) return;
               await audioGraphRef.current?.initContext();
+              audioGraphRef.current?.setPitchOffset(
+                useKaraokeStore.getState().playback.livePitchOffset
+              );
               const song = await audioGraphRef.current?.loadMidiSong(buffer);
               if (song && loadedTrackMediaKeyRef.current === mediaKeyToLoad) {
                 // Prefer MIDI-declared BPM when catalog has none yet
@@ -864,6 +908,9 @@ export const ControlWindow: React.FC = () => {
             audioGraphRef.current?.initContext().then(() => {
               if (cancelled || !videoRef.current) return;
               audioGraphRef.current?.bindMediaElement(videoRef.current);
+              audioGraphRef.current?.setPitchOffset(
+                useKaraokeStore.getState().playback.livePitchOffset
+              );
               videoRef.current.play().catch((err) => {
                 logControl('warn', 'Playback play() was rejected:', err);
                 // Media error often means missing/unreadable file after USB unplug mid-session
@@ -1028,10 +1075,7 @@ export const ControlWindow: React.FC = () => {
                 ? `${currentTrack.artist} - ${currentTrack.title}`
                 : t('player.noTrackLoaded')}
             </span>
-            {currentTrack &&
-              (currentTrack.source !== 'local_library' ||
-                currentTrack.localFilePath?.includes('queue_cache')) &&
-              currentTrack.localFilePath && (
+            {canSaveTrackToPermanentLibrary(currentTrack) && (
                 <button
                   type="button"
                   onClick={() => handleSaveToPermanentLibrary(currentTrack)}
@@ -1055,10 +1099,7 @@ export const ControlWindow: React.FC = () => {
         }`}
       >
         {isStudioDesk &&
-          currentTrack &&
-          (currentTrack.source !== 'local_library' ||
-            currentTrack.localFilePath?.includes('queue_cache')) &&
-          currentTrack.localFilePath && (
+          canSaveTrackToPermanentLibrary(currentTrack) && (
             <button
               type="button"
               onClick={() => handleSaveToPermanentLibrary(currentTrack)}
@@ -1740,10 +1781,13 @@ export const ControlWindow: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowSettingsModal(true)}
-            className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95"
+            className="p-2 rounded-full text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 shadow-sm transition-all duration-200 active:scale-95 relative"
             title={t('settings.title')}
           >
             <Settings className="w-4 h-4 text-slate-400 hover:text-white" />
+            {useKaraokeStore.getState().appUpdateInfo?.hasUpdate && (
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
+            )}
           </button>
         </div>
       </header>
@@ -1762,7 +1806,7 @@ export const ControlWindow: React.FC = () => {
                 <span className="text-xs text-slate-400 font-mono truncate max-w-xs">
                   {currentTrack ? `${currentTrack.artist} - ${currentTrack.title}` : t('player.noTrackLoaded')}
                 </span>
-                {currentTrack && (currentTrack.source !== 'local_library' || currentTrack.localFilePath?.includes('queue_cache')) && currentTrack.localFilePath && (
+                {canSaveTrackToPermanentLibrary(currentTrack) && (
                   <button
                     type="button"
                     onClick={() => handleSaveToPermanentLibrary(currentTrack)}
@@ -2365,6 +2409,9 @@ export const ControlWindow: React.FC = () => {
         isOpen={showShortcutsModal}
         onClose={() => setShowShortcutsModal(false)}
       />
+
+      {/* App Update Available Modal (Phase 1) */}
+      <UpdateAvailableModal />
     </div>
   );
 };

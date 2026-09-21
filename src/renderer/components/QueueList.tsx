@@ -21,6 +21,7 @@ import {
   dispatchOsFileDragEnd
 } from '../utils/fsDragDrop';
 import { canRevealTrackInLibrary } from '../utils/libraryReveal';
+import { canSaveTrackToPermanentLibrary } from '../../shared/libraryMembership';
 import { confirmAsync } from '../utils/toast';
 import type { KaraokeMediaTrack, QueueItem } from '../../shared/types';
 import { TrackKeyBpmBadges } from './TrackKeyBpmBadges';
@@ -372,8 +373,7 @@ export const QueueList: React.FC<QueueListProps> = ({
                   >
                     +
                   </button>
-                  {(item.track.source !== 'local_library' || item.track.localFilePath?.includes('queue_cache')) &&
-                    item.track.localFilePath && (
+                  {canSaveTrackToPermanentLibrary(item.track) && (
                       <button
                         type="button"
                         onClick={(e) => {

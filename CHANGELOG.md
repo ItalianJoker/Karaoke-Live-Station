@@ -20,6 +20,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ### Breaking Changes
 - None yet.
 
+## [2.1.0] — Update Checker + Pitch Restore + MIDI Gating & Search Fixes — 2026-09-21
+
+Release **v2.1.0** with software update checker, queue pitch restoration on restart, Studio DSP typography polish, MIDI library gating, and local search reveal fixes. Package **2.1.0**.
+
+### 🔄 App Updates
+- **IT:** Controllo automatico aggiornamenti GitHub all'avvio (debounce 24h) e manuale in Impostazioni Generali con modale interattiva di notifica e link diretto al rilascio.
+- **EN:** Automatic GitHub update check at startup (24h debounce) and manual check in General Settings with interactive release notification modal.
+
+### 🎵 Playback & DSP
+- **IT:** Ripristino automatico della tonalità (Pitch Offset) al riavvio dell'applicazione per i brani in coda; audio graph e DSP inizializzati con il valore corretto anziché la tonalità originale (0 ST).
+- **EN:** Automatic pitch offset restoration on app restart for queued tracks; audio graph and DSP start with the queued pitch rather than resetting to 0 ST.
+
+### 🎛️ UI & Regia Studio
+- **IT:** Ingrandimento e centraggio delle scritte BPM e tonalità sotto le rispettive etichette VELOCITÀ e TONALITÀ; altezza del pannello allineata con i tasti del player.
+- **EN:** Enlarged and centered BPM and pitch readouts beneath SPEED and PITCH labels; panel height aligned with player buttons.
+
+### 📁 MIDI & Library
+- **IT:** I brani MIDI/KAR locali permanenti non mostrano più il pulsante «Salva in libreria»; preservata la sorgente `'midi'` durante i salvataggi e nella deduplica locale.
+- **EN:** Permanent local MIDI/KAR tracks no longer show «Save to library»; `'midi'` source preserved during saves and in catalog deduplication.
+- **IT:** Risoluzione «Mostra in Libreria Locale» per titoli contenenti underscore (`_`), trattini (`-`) e caratteri speciali tramite correzione FTS5 (`tracks_fts MATCH ?`) e fallback LIKE multi-token con escaping sicuro.
+- **EN:** Fix for «Show in Local Library» on titles with underscores, hyphens, and punctuation via corrected FTS5 syntax and multi-token LIKE fallback with wildcard escaping.
+
+### Changed
+- App version **2.1.0** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer.
+
+### Breaking Changes
+- None.
+
 ## [2.0.0] — Studio Desk default + Stage/Library/Queue UX — 2026-09-20
 
 New GitHub Release **v2.0.0** after PRs **#77**–**#80** (new tag; does **not** touch `v1.5.0` / `v1.4.0` / `v1.3.0` / `v1.2.0` / `v1.1.0`). Builds on `v1.5.0` baseline (#72 + #74 + #76). Package **2.0.0**.

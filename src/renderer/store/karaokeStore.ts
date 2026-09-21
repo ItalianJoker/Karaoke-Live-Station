@@ -6,7 +6,8 @@ import {
   QueueItem,
   ActivePlaybackState,
   SingerProfile,
-  GuestSongRequest
+  GuestSongRequest,
+  AppUpdateInfo
 } from '../../shared/types';
 import {
   createDefaultStageMessages,
@@ -156,6 +157,14 @@ export interface KaraokeStoreState {
   addGuestRequest: (req: GuestSongRequest) => void;
   approveGuestRequest: (requestId: string, track: KaraokeMediaTrack) => void;
   rejectGuestRequest: (requestId: string) => void;
+
+  // 7. Software Updates (Phase 1)
+  appUpdateInfo: AppUpdateInfo | null;
+  isCheckingAppUpdate: boolean;
+  showUpdateModal: boolean;
+  setAppUpdateInfo: (info: AppUpdateInfo | null) => void;
+  setIsCheckingAppUpdate: (checking: boolean) => void;
+  setShowUpdateModal: (show: boolean) => void;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -1190,7 +1199,15 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         set((state) => ({
           pendingGuestRequests: state.pendingGuestRequests.filter((r) => r.requestId !== requestId)
         }));
-      }
+      },
+
+      // Software updates (Phase 1)
+      appUpdateInfo: null,
+      isCheckingAppUpdate: false,
+      showUpdateModal: false,
+      setAppUpdateInfo: (info) => set({ appUpdateInfo: info }),
+      setIsCheckingAppUpdate: (checking) => set({ isCheckingAppUpdate: checking }),
+      setShowUpdateModal: (show) => set({ showUpdateModal: show })
     }),
     {
       name: 'karaoke_station_storage',
@@ -1248,12 +1265,21 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         const maxDl = Number(mergedSettings.maxSimultaneousDownloads);
         mergedSettings.maxSimultaneousDownloads =
           Number.isFinite(maxDl) && maxDl >= 1 ? Math.min(8, Math.floor(maxDl)) : 2;
+        const restoredQueue = p.queue ?? current.queue;
+        const firstItem = restoredQueue[0];
+        const engine = coerceDspPitchEngine(mergedSettings.dspEngine);
+        const initialPitch = firstItem ? clampPitchForEngine(firstItem.pitchOffset, engine) : 0;
         return {
           ...current,
           ...p,
           settings: mergedSettings,
           singers: p.singers ?? current.singers,
-          queue: p.queue ?? current.queue
+          queue: restoredQueue,
+          playback: {
+            ...current.playback,
+            currentTrackId: firstItem?.track?.id,
+            livePitchOffset: initialPitch
+          }
         };
       }
     }
