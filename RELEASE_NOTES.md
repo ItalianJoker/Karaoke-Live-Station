@@ -6,23 +6,27 @@
 
 ---
 
-## [Unreleased] — Audit remediation (docs, no version bump)
+## [Unreleased] — Audit remediation (code + docs, no version bump)
 
 ### 🇮🇹
-Allineamento documentazione post-**v2.2.0** (pacchetto resta **2.2.0**):
-- DSP pitch/speed: default **Signalsmith Stretch Hi-Fi** (`signalsmith`; legacy `bungee` migra); tempo via `playbackRate` + `preservesPitch`; SoundTouch = fallback leggero/emergenza; MIDI/KAR = SpessaSynth.
-- Download: completamenti solo nel menu Download header (`library.downloadCompleted`); niente badge/toast fullscreen «Download completato».
-- Temi: **10**; **Studio Desk** = default Regia; altri temi Regia Legacy; Palco default Dark Stage.
-- Cookie YouTube: obbligatori per ogni download; path `<userData>/youtube/cookies.txt`; Accedi/Cancella in Impostazioni → Libreria & Download; search usa cookie solo se già validi.
-- GPU AI: badge Impostazioni = probe capacità; chip Download = backend sessione WebGPU/WASM durante rimozione AI.
+Remediation post-**v2.2.0** (pacchetto resta **2.2.0**):
+- **Cancel** durante login cookie YouTube funziona (`awaiting_auth`; chiude/porta avanti la finestra auth).
+- DSP pitch/speed docs: default **Signalsmith Stretch Hi-Fi**; tempo via `playbackRate` + `preservesPitch`; toast su fallback SoundTouch.
+- Download: completamenti solo nel menu Download header; chip backend AI (WebGPU/WASM); snapshot job attivi dopo refresh; persist marchi file mancante.
+- Temi: **10**; **Studio Desk** = default Regia; `embedded` solo su Studio Desk.
+- Cookie YouTube: obbligatori per ogni download; path `<userData>/youtube/cookies.txt`; toast Accedi su search auth fail.
+- GPU AI: badge Impostazioni = probe capacità; chip Download = backend sessione.
+- Perf: Guest `getTrackById`, FFT worker, ZIP analysis async, MIDI Worker, vocal-remover disconnect-when-off, virt prefix memo.
 
 ### 🇬🇧
-Post-**v2.2.0** documentation alignment (package remains **2.2.0**):
-- Pitch/speed DSP: default **Signalsmith Stretch Hi-Fi** (`signalsmith`; legacy `bungee` migrates); tempo via `playbackRate` + `preservesPitch`; SoundTouch = light/emergency fallback; MIDI/KAR = SpessaSynth.
-- Downloads: completions only in the header Downloads menu (`library.downloadCompleted`); no dismissible fullscreen «Download completato» badge/toast.
-- Themes: **10**; **Studio Desk** = default Control; other Control themes Legacy; Stage default Dark Stage.
-- YouTube cookies: required for every download; path `<userData>/youtube/cookies.txt`; Sign in / Clear in Settings → Library & Download; search uses cookies only if already valid.
-- AI GPU: Settings badge = capability probe; Downloads chip = session WebGPU/WASM during AI removal.
+Post-**v2.2.0** remediation (package remains **2.2.0**):
+- **Cancel** during YouTube cookie login works (`awaiting_auth`; closes/brings auth window front).
+- Pitch/speed docs: default **Signalsmith Stretch Hi-Fi**; tempo via `playbackRate` + `preservesPitch`; toast on SoundTouch fallback.
+- Downloads: completions only in header Downloads menu; AI backend chip (WebGPU/WASM); active-job snapshot after refresh; persist missing-file marks.
+- Themes: **10**; **Studio Desk** = default Control; `embedded` only for Studio Desk.
+- YouTube cookies: required for every download; path `<userData>/youtube/cookies.txt`; Sign-in toast on search auth fail.
+- AI GPU: Settings badge = capability probe; Downloads chip = session backend.
+- Perf: Guest `getTrackById`, FFT worker, ZIP analysis async, MIDI Worker, vocal-remover disconnect-when-off, virt prefix memo.
 
 ---
 
