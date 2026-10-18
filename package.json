@@ -1,6 +1,6 @@
 {
   "name": "karaoke-live-station",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Cross-platform mission-critical desktop software for live karaoke entertainment",
   "license": "AGPL-3.0-or-later",
   "author": {
@@ -18,11 +18,12 @@
     "generate-icons": "node scripts/generate-icons.js",
     "clean": "node scripts/clean-test-data.js",
     "electron:dev": "concurrently -k \"vite\" \"env -u ELECTRON_RUN_AS_NODE electron .\"",
-    "electron:build": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js current && vite build && electron-builder && node scripts/restore-host-node.js",
-    "electron:build:linux": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js linux && vite build && electron-builder --linux && node scripts/restore-host-node.js",
-    "electron:build:win": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js win && vite build && electron-builder --win && node scripts/restore-host-node.js",
-    "electron:build:mac": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js mac && vite build && electron-builder --mac && node scripts/restore-host-node.js",
-    "electron:build:all": "npm run electron:build:linux && npm run electron:build:win && npm run electron:build:mac"
+    "electron:build": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js current && vite build && electron-builder && node scripts/verify-packaged-bins.js && node scripts/restore-host-node.js",
+    "electron:build:linux": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js linux && vite build && electron-builder --linux && node scripts/verify-packaged-bins.js && node scripts/restore-host-node.js",
+    "electron:build:win": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js win && vite build && electron-builder --win && node scripts/verify-packaged-bins.js && node scripts/restore-host-node.js",
+    "electron:build:mac": "node scripts/clean-test-data.js && node scripts/prepare-binaries.js mac && vite build && electron-builder --mac && node scripts/verify-packaged-bins.js && node scripts/restore-host-node.js",
+    "electron:build:all": "npm run electron:build:linux && npm run electron:build:win && npm run electron:build:mac",
+    "verify:packaged-bins": "node scripts/verify-packaged-bins.js"
   },
   "build": {
     "appId": "com.karaoke.livestation",
@@ -69,7 +70,8 @@
           "from": "bin/linux",
           "to": "bin",
           "filter": [
-            "*"
+            "yt-dlp",
+            "ffmpeg"
           ]
         }
       ]
@@ -86,7 +88,8 @@
           "from": "bin/win",
           "to": "bin",
           "filter": [
-            "*.exe"
+            "yt-dlp.exe",
+            "ffmpeg.exe"
           ]
         }
       ]
@@ -102,7 +105,8 @@
           "from": "bin/mac",
           "to": "bin",
           "filter": [
-            "*"
+            "yt-dlp",
+            "ffmpeg"
           ]
         }
       ]

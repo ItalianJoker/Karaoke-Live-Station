@@ -28,6 +28,8 @@ import {
   resolvePathAgainstTempDir,
   shouldWriteInstrumentalAutoSubs
 } from './downloadStaging';
+import type { YouTubeCookieBridge } from './youtubeCookies';
+import { isYtDlpYouTubeAuthError, isYouTubeUrl } from './youtubeCookies';
 
 /** Media extensions considered when matching existing local karaoke files. */
 const MEDIA_EXTENSIONS = new Set([
@@ -146,6 +148,8 @@ export class DownloadManager {
   private vocalModelManager?: OfflineVocalModelManager;
   private ortWasmManager?: OrtWasmManager;
   private logger?: Logger;
+  /** Optional YouTube cookie auth (login window + Netscape cookies.txt for yt-dlp). */
+  private youtubeCookies?: YouTubeCookieBridge;
 
   constructor(tempDir: string, queueCacheDir?: string) {
     this.tempDir = tempDir;
@@ -176,6 +180,14 @@ export class DownloadManager {
     this.vocalModelManager = deps.vocalModelManager;
     this.ortWasmManager = deps.ortWasmManager;
     this.logger = deps.logger;
+  }
+
+  /**
+   * Wire automated YouTube cookie login / `--cookies` injection.
+   * Safe to call once after construction from Main Process.
+   */
+  public setYouTubeCookieBridge(bridge: YouTubeCookieBridge): void {
+    this.youtubeCookies = bridge;
   }
 
   /**
@@ -259,7 +271,13 @@ export class DownloadManager {
       next.payload.status = 'downloading';
       next.payload.percent = 0;
       this.emitProgress({ ...next.payload });
-      this.launchDownload(next.downloadId, next.options, next.payload, next.dedupUrlKey);
+      void this.launchDownload(
+        next.downloadId,
+        next.options,
+        next.payload,
+        next.dedupUrlKey,
+        false
+      );
     }
   }
 
@@ -568,23 +586,52 @@ export class DownloadManager {
     }
 
     this.emitProgress(payload);
-    this.launchDownload(downloadId, launchOptions, payload, dedupUrlKey);
+    void this.launchDownload(downloadId, launchOptions, payload, dedupUrlKey, false);
     return { downloadId, alreadyExists: false };
   }
 
   /**
    * Spawns yt-dlp for a download that already owns a pool slot (or was just dequeued).
+   * For YouTube URLs: ensures cookies.txt (login window if needed) and passes `--cookies`.
+   * On auth errors, refreshes cookies once and retries.
    */
-  private launchDownload(
+  private async launchDownload(
     downloadId: string,
     options: DownloadOptions,
     payload: DownloadProgressPayload,
-    dedupUrlKey: string
-  ): void {
+    dedupUrlKey: string,
+    authRetried: boolean
+  ): Promise<void> {
     const instrumental = options.instrumental === true;
     // Relative -o + cwd=tempDir (same staging files as absolute join). Avoids
     // Windows drive-letter / TYPES: colon edge cases on absolute -o paths.
     const outputTemplate = buildYtDlpOutputTemplate(downloadId);
+
+    // YouTube: open login when cookies missing/invalid before the first spawn.
+    if (this.youtubeCookies && isYouTubeUrl(options.url)) {
+      const ensured = await this.youtubeCookies.ensureForYouTubeDownload(options.url);
+      if (!ensured.ok) {
+        // Cancel may have raced while the login window was open.
+        if (payload.status === 'cancelled') {
+          this.activeUrls.delete(dedupUrlKey);
+          this.pumpQueue();
+          return;
+        }
+        payload.status = 'error';
+        payload.errorMessage = ensured.cancelled
+          ? 'YouTube login cancelled — cookies are required for this download'
+          : ensured.error || 'YouTube login failed — cannot download without cookies';
+        this.logDownloadFailure(
+          payload.errorMessage,
+          { downloadId, instrumental, url: options.url, cancelled: ensured.cancelled },
+          undefined
+        );
+        this.emitProgress({ ...payload });
+        this.activeUrls.delete(dedupUrlKey);
+        this.pumpQueue();
+        return;
+      }
+    }
 
     const args: string[] = [
       options.url,
@@ -602,6 +649,11 @@ export class DownloadManager {
       '--progress-template',
       'download:KLSPROG|%(progress.status)s|%(progress._percent_str)s|%(progress.speed)s|%(progress.eta)s|%(progress.downloaded_bytes)s|%(progress.total_bytes)s'
     ];
+
+    const cookiesPath = this.youtubeCookies?.getValidCookiesPath() ?? null;
+    if (cookiesPath) {
+      args.push('--cookies', cookiesPath);
+    }
 
     if (options.isAudioOnly) {
       args.push('-x', '--audio-format', 'mp3', '--audio-quality', '0');
@@ -626,6 +678,11 @@ export class DownloadManager {
       );
     }
 
+    // Mask cookie path contents in debug — path is OK; never dump file body.
+    const debugArgs = args.map((a, i) =>
+      args[i - 1] === '--cookies' ? '[COOKIES_FILE]' : a
+    );
+
     const child = spawn(this.ytdlpPath, args, {
       cwd: this.tempDir,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -639,7 +696,9 @@ export class DownloadManager {
       isAudioOnly: options.isAudioOnly === true,
       ytdlpPath: this.ytdlpPath,
       cwd: this.tempDir,
-      args
+      hasCookies: Boolean(cookiesPath),
+      authRetried,
+      args: debugArgs
     });
 
     const abortController = new AbortController();
@@ -664,7 +723,9 @@ export class DownloadManager {
     const debugSpawnExtras = () => ({
       ytdlpPath: this.ytdlpPath,
       cwd: this.tempDir,
-      args: [...args],
+      hasCookies: Boolean(cookiesPath),
+      authRetried,
+      args: [...debugArgs],
       recentOutput: [...recentYtDlpLines]
     });
 
@@ -835,8 +896,24 @@ export class DownloadManager {
           return;
         }
 
+        // Peek auth failure before freeing the pool slot — retry reuses this slot.
+        const peekAuthFailure =
+          code !== 0 &&
+          !authRetried &&
+          isYouTubeUrl(options.url) &&
+          Boolean(this.youtubeCookies) &&
+          (isYtDlpYouTubeAuthError(lastYtDlpErrorLine) ||
+            isYtDlpYouTubeAuthError(
+              `yt-dlp exited with error code ${code}${
+                lastYtDlpErrorLine ? `: ${lastYtDlpErrorLine}` : ''
+              }`
+            ));
+
         // Free the yt-dlp pool slot while instrumental conversion may still run.
-        this.pumpQueue();
+        // Skip when we will reopen login + retry so concurrency stays correct.
+        if (!peekAuthFailure) {
+          this.pumpQueue();
+        }
 
         if (code === 0) {
           // Always re-resolve against userData/temp: yt-dlp may report relative
@@ -1062,13 +1139,74 @@ export class DownloadManager {
           this.activeJobs.delete(downloadId);
           this.activeUrls.delete(dedupUrlKey);
         } else if ((payload.status as DownloadProgressPayload['status']) !== 'cancelled') {
-          payload.status = 'error';
           const errnoHint =
             typeof code === 'number' && code < 0
               ? ` (OS errno ${-code}; often spawn/permission — not a YouTube filename)`
               : '';
           const detail = lastYtDlpErrorLine ? `: ${lastYtDlpErrorLine}` : errnoHint;
-          payload.errorMessage = `yt-dlp exited with error code ${code}${detail}`;
+          const failureText = `yt-dlp exited with error code ${code}${detail}`;
+
+          // Auth / bot-check: reopen login once, then retry the same downloadId.
+          const authFailure =
+            !authRetried &&
+            isYouTubeUrl(options.url) &&
+            Boolean(this.youtubeCookies) &&
+            (isYtDlpYouTubeAuthError(lastYtDlpErrorLine) ||
+              isYtDlpYouTubeAuthError(failureText));
+
+          if (authFailure && this.youtubeCookies) {
+            this.logger?.warn(
+              'DownloadManager',
+              'yt-dlp YouTube auth failure — opening login and retrying once',
+              { downloadId, exitCode: code }
+            );
+            payload.status = 'downloading';
+            payload.percent = 0;
+            payload.speed = '';
+            payload.eta = '--:--';
+            payload.errorMessage = undefined;
+            this.emitProgress({ ...payload });
+            this.activeJobs.delete(downloadId);
+
+            const refreshed = await this.youtubeCookies.refreshAfterAuthFailure(options.url);
+            if ((payload.status as DownloadProgressPayload['status']) === 'cancelled') {
+              this.activeUrls.delete(dedupUrlKey);
+              this.pumpQueue();
+              return;
+            }
+            if (refreshed) {
+              // Reclaim the pool slot for the retry (pumpQueue already ran above).
+              void this.launchDownload(
+                downloadId,
+                options,
+                payload,
+                dedupUrlKey,
+                true
+              );
+              return;
+            }
+
+            payload.status = 'error';
+            payload.errorMessage =
+              'YouTube login required after auth error, but login did not complete';
+            this.logDownloadFailure(
+              payload.errorMessage,
+              {
+                downloadId,
+                exitCode: code,
+                instrumental,
+                url: options.url,
+                lastYtDlpErrorLine: lastYtDlpErrorLine || undefined
+              },
+              debugSpawnExtras()
+            );
+            this.emitProgress({ ...payload });
+            this.activeUrls.delete(dedupUrlKey);
+            return;
+          }
+
+          payload.status = 'error';
+          payload.errorMessage = failureText;
           this.logDownloadFailure(
             payload.errorMessage,
             {

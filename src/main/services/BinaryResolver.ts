@@ -1,9 +1,37 @@
 import fs from 'fs';
 import path from 'path';
+import { execFileSync } from 'child_process';
 import { app } from 'electron';
 
 /** Minimum plausible size for a real yt-dlp standalone binary (~1 MB floor). */
 const YTDLP_MIN_BYTES = 1 * 1024 * 1024;
+
+/**
+ * Clear macOS Gatekeeper quarantine xattrs on a helper binary.
+ * Why: unsigned `.app` zips from GitHub mark nested binaries quarantined;
+ * `copyFileSync` into userData preserves the xattr and spawn then SIGKILLs.
+ * No-op on non-darwin or when `xattr` is unavailable.
+ */
+export function clearMacQuarantine(filePath: string): void {
+  if (process.platform !== 'darwin' || !filePath) return;
+  try {
+    if (!fs.existsSync(filePath)) return;
+    execFileSync('/usr/bin/xattr', ['-dr', 'com.apple.quarantine', filePath], {
+      stdio: 'ignore',
+      timeout: 5000
+    });
+  } catch {
+    // Non-fatal: attribute may already be absent
+    try {
+      execFileSync('/usr/bin/xattr', ['-c', filePath], {
+        stdio: 'ignore',
+        timeout: 5000
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 /**
  * Resolves the absolute path to the FFmpeg executable.
@@ -80,6 +108,7 @@ export function ensureDir(dirPath: string): void {
 
 /**
  * Applies execute permission on POSIX platforms (no-op on Windows).
+ * On macOS also clears quarantine so unsigned helpers can spawn.
  */
 export function ensureExecutable(filePath: string): void {
   if (process.platform === 'win32') return;
@@ -88,6 +117,7 @@ export function ensureExecutable(filePath: string): void {
   } catch {
     // Non-fatal: some filesystems may reject chmod
   }
+  clearMacQuarantine(filePath);
 }
 
 /**
@@ -163,8 +193,12 @@ export function ensureManagedYtDlpFromBundle(): string | null {
     try {
       ensureDir(getUserDataBinDir());
       fs.copyFileSync(candidate, managedPath);
+      // chmod + clear quarantine (copy preserves com.apple.quarantine on macOS)
       ensureExecutable(managedPath);
-      const after = validateYtDlpBinaryIntegrity(managedPath);
+      clearMacQuarantine(managedPath);
+      const after = validateYtDlpBinaryIntegrity(managedPath, {
+        requireExecutableBit: process.platform !== 'win32'
+      });
       if (after.ok) {
         return managedPath;
       }

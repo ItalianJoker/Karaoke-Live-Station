@@ -12,6 +12,8 @@ import {
   AppSettings,
   LogLevel,
   YtDlpStatus,
+  YouTubeCookieStatus,
+  YouTubeLoginIpcResult,
   FirewallCheckResult,
   SiaeLogEntry,
   LibraryTracksPage,
@@ -337,6 +339,12 @@ export interface KaraokeAPI {
     getStatus: () => Promise<YtDlpStatus>;
     /** Checks GitHub releases for updates and performs immediate download/update if available */
     checkUpdate: () => Promise<YtDlpStatus>;
+    /** Netscape cookies.txt presence/validity under userData (no cookie values) */
+    getCookieStatus: () => Promise<YouTubeCookieStatus>;
+    /** Opens partitioned YouTube login window; exports cookies for yt-dlp */
+    loginYouTube: () => Promise<YouTubeLoginIpcResult>;
+    /** Deletes cookies.txt and clears the auth session partition */
+    clearCookies: () => Promise<{ success: boolean }>;
   };
 }
 
@@ -590,7 +598,10 @@ const karaokeApi: KaraokeAPI = {
   // yt-dlp Auto-Updater & Status
   ytdlp: {
     getStatus: () => ipcRenderer.invoke('ytdlp:get-status'),
-    checkUpdate: () => ipcRenderer.invoke('ytdlp:check-update')
+    checkUpdate: () => ipcRenderer.invoke('ytdlp:check-update'),
+    getCookieStatus: () => ipcRenderer.invoke('ytdlp:get-cookie-status'),
+    loginYouTube: () => ipcRenderer.invoke('ytdlp:login-youtube'),
+    clearCookies: () => ipcRenderer.invoke('ytdlp:clear-cookies')
   }
 };
 

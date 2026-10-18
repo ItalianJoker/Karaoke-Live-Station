@@ -14,7 +14,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
-import { YtDlpStatus } from '../../shared/types';
+import { YtDlpStatus, YouTubeCookieStatus } from '../../shared/types';
 import { textMatchesSearch } from '../../shared/textNormalize';
 import {
   SOUND_FONT_OTHER_OPTION_ID,
@@ -62,12 +62,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [ytdlpStatus, setYtdlpStatus] = useState<YtDlpStatus | null>(null);
   const [isCheckingYtdlp, setIsCheckingYtdlp] = useState(false);
   const [ytdlpMessage, setYtdlpMessage] = useState<string | null>(null);
+  const [youtubeCookieStatus, setYoutubeCookieStatus] = useState<YouTubeCookieStatus | null>(null);
+  const [isYoutubeLoginBusy, setIsYoutubeLoginBusy] = useState(false);
+  const [youtubeCookieMessage, setYoutubeCookieMessage] = useState<string | null>(null);
   const [showAutoArchiveConfirm, setShowAutoArchiveConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settingsSearch, setSettingsSearch] = useState('');
   const [cpuCoreCount, setCpuCoreCount] = useState(detectUiCpuCoreCount());
   const [gpuStatus, setGpuStatus] = useState<GpuStatus | null>(null);
-  const [appVersion, setAppVersion] = useState('2.1.0');
+  const [appVersion, setAppVersion] = useState('2.2.0');
 
   const isSearching = settingsSearch.trim().length > 0;
 
@@ -112,6 +115,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       window.karaokeApi.ytdlp.getStatus().then(setYtdlpStatus);
     }
 
+    if (window.karaokeApi?.ytdlp?.getCookieStatus) {
+      window.karaokeApi.ytdlp.getCookieStatus().then(setYoutubeCookieStatus);
+    }
+
     if (window.karaokeApi?.system?.getCpuCoreCount) {
       window.karaokeApi.system
         .getCpuCoreCount()
@@ -145,7 +152,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         .then((v) => {
           if (typeof v === 'string' && v.trim()) setAppVersion(v.trim());
         })
-        .catch(() => setAppVersion('2.1.0'));
+        .catch(() => setAppVersion('2.2.0'));
     }
   }, [isOpen]);
 
@@ -250,6 +257,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setYtdlpMessage(t('settings.ytdlpUpdateFailed', { error: err?.message || String(err) }));
     } finally {
       setIsCheckingYtdlp(false);
+    }
+  };
+
+  const refreshYouTubeCookieStatus = async () => {
+    if (!window.karaokeApi?.ytdlp?.getCookieStatus) return;
+    try {
+      const status = await window.karaokeApi.ytdlp.getCookieStatus();
+      setYoutubeCookieStatus(status);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleYouTubeLogin = async () => {
+    if (!window.karaokeApi?.ytdlp?.loginYouTube) return;
+    setIsYoutubeLoginBusy(true);
+    setYoutubeCookieMessage(null);
+    try {
+      const result = await window.karaokeApi.ytdlp.loginYouTube();
+      await refreshYouTubeCookieStatus();
+      if (result.success) {
+        setYoutubeCookieMessage(t('settings.youtubeCookiesLoginSuccess'));
+      } else if ('cancelled' in result && result.cancelled) {
+        setYoutubeCookieMessage(t('settings.youtubeCookiesLoginCancelled'));
+      } else {
+        setYoutubeCookieMessage(
+          t('settings.youtubeCookiesLoginFailed', {
+            error: ('error' in result && result.error) || 'unknown'
+          })
+        );
+      }
+    } catch (err: any) {
+      setYoutubeCookieMessage(
+        t('settings.youtubeCookiesLoginFailed', { error: err?.message || String(err) })
+      );
+    } finally {
+      setIsYoutubeLoginBusy(false);
+    }
+  };
+
+  const handleClearYouTubeCookies = async () => {
+    if (!window.karaokeApi?.ytdlp?.clearCookies) return;
+    if (!(await confirmAsync(t('settings.youtubeCookiesClearConfirm')))) return;
+    setIsYoutubeLoginBusy(true);
+    setYoutubeCookieMessage(null);
+    try {
+      await window.karaokeApi.ytdlp.clearCookies();
+      await refreshYouTubeCookieStatus();
+      setYoutubeCookieMessage(t('settings.youtubeCookiesCleared'));
+    } catch (err: any) {
+      setYoutubeCookieMessage(
+        t('settings.youtubeCookiesLoginFailed', { error: err?.message || String(err) })
+      );
+    } finally {
+      setIsYoutubeLoginBusy(false);
     }
   };
 
@@ -369,8 +431,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     t('settings.ytdlpStatus'),
     t('settings.ytdlpPath'),
     t('settings.ytdlpCheckUpdate'),
+    t('settings.youtubeCookiesTitle'),
+    t('settings.youtubeCookiesLogin'),
+    t('settings.youtubeCookiesClear'),
     'yt-dlp',
     'ytdlp',
+    'youtube',
+    'cookies',
     'download'
   );
 
@@ -748,9 +815,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               isCheckingYtdlp={isCheckingYtdlp}
               ytdlpStatus={ytdlpStatus}
               ytdlpMessage={ytdlpMessage}
+              youtubeCookieStatus={youtubeCookieStatus}
+              isYoutubeLoginBusy={isYoutubeLoginBusy}
+              youtubeCookieMessage={youtubeCookieMessage}
               setShowAutoArchiveConfirm={setShowAutoArchiveConfirm}
               handleSelectLibraryPath={handleSelectLibraryPath}
               handleCheckYtDlpUpdate={handleCheckYtDlpUpdate}
+              handleYouTubeLogin={handleYouTubeLogin}
+              handleClearYouTubeCookies={handleClearYouTubeCookies}
             />
           )}
 

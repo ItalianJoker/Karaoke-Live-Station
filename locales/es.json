@@ -359,7 +359,19 @@
     "downloadUpdate": "Descargar actualización",
     "releaseNotes": "Novedades de la versión",
     "updateError": "No se pudieron buscar actualizaciones: {{error}}",
-    "updateLater": "Más tarde"
+    "updateLater": "Más tarde",
+    "youtubeCookiesTitle": "Inicio de sesión de YouTube (cookies para yt-dlp)",
+    "youtubeCookiesDesc": "Cuando YouTube pide iniciar sesión o las cookies caducan, se abre una ventana dedicada para entrar (2FA/CAPTCHA admitidos). Las cookies se guardan en userData de la app y se pasan a yt-dlp automáticamente — sin exportar cookies.txt a mano.",
+    "youtubeCookiesReady": "Sesión iniciada (cookies listas)",
+    "youtubeCookiesMissing": "Sin sesión",
+    "youtubeCookiesLogin": "Iniciar sesión en YouTube",
+    "youtubeCookiesLoggingIn": "Esperando inicio de sesión…",
+    "youtubeCookiesClear": "Borrar cookies",
+    "youtubeCookiesClearConfirm": "¿Borrar las cookies de YouTube guardadas y cerrar la sesión de acceso?",
+    "youtubeCookiesLoginSuccess": "Cookies de YouTube guardadas. Las descargas las usarán automáticamente.",
+    "youtubeCookiesLoginCancelled": "Inicio de sesión de YouTube cancelado.",
+    "youtubeCookiesLoginFailed": "Error al iniciar sesión en YouTube: {{error}}",
+    "youtubeCookiesCleared": "Cookies de YouTube borradas."
   },
   "history": {
     "title": "Historial de Reproducción",

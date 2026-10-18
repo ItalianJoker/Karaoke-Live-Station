@@ -1009,6 +1009,11 @@ assert(
   'BinaryResolver validates integrity and seeds managed yt-dlp under userData/bin'
 );
 assert(
+  binaryResolverSource.includes('clearMacQuarantine') &&
+    binaryResolverSource.includes('com.apple.quarantine'),
+  'BinaryResolver clears macOS Gatekeeper quarantine on helper binaries'
+);
+assert(
   binaryResolverSource.includes("0o755") || binaryResolverSource.includes('0o755'),
   'BinaryResolver applies POSIX executable permissions'
 );
@@ -1248,8 +1253,11 @@ assert(
 
 assert(
   settingsModalSourceP45.indexOf('PayPal support banner') > -1 &&
-    settingsModalSourceP45.indexOf('PayPal support banner') <
-      settingsModalSourceP45.indexOf('{/* Instant search */}'),
+    (settingsModalSourceP45.indexOf('{/* Instant search */}') > -1
+      ? settingsModalSourceP45.indexOf('PayPal support banner') <
+        settingsModalSourceP45.indexOf('{/* Instant search */}')
+      : settingsModalSourceP45.indexOf('PayPal support banner') <
+        settingsModalSourceP45.indexOf('{/* Search Bar */}')),
   'PayPal banner is pinned above the Settings search bar'
 );
 
@@ -2352,7 +2360,30 @@ assert(
       platRes.some((e) => e && String(e.from || '').includes('bin/')),
       `Platform ${plat} extraResources still includes platform bin/`
     );
+    const binEntry = platRes.find((e) => e && String(e.from || '').includes('bin/'));
+    const filter = (binEntry && binEntry.filter) || [];
+    const expectsYt =
+      plat === 'win' ? filter.includes('yt-dlp.exe') : filter.includes('yt-dlp');
+    const expectsFf =
+      plat === 'win' ? filter.includes('ffmpeg.exe') : filter.includes('ffmpeg');
+    assert(
+      expectsYt && expectsFf,
+      `Platform ${plat} extraResources filter explicitly lists yt-dlp + ffmpeg (avoids empty mac Resources/bin)`
+    );
   }
+  assert(
+    String(packageJson.scripts['electron:build'] || '').includes('verify-packaged-bins') &&
+      fs.existsSync(path.resolve(__dirname, 'verify-packaged-bins.js')),
+    'electron:build runs verify-packaged-bins.js after electron-builder'
+  );
+  const prepareBinsSrc = fs.readFileSync(path.resolve(__dirname, 'prepare-binaries.js'), 'utf8');
+  assert(
+    prepareBinsSrc.includes('GITHUB_TOKEN') &&
+      prepareBinsSrc.includes('releases/latest/download') &&
+      prepareBinsSrc.includes('assertYtDlpPresent') &&
+      prepareBinsSrc.includes('process.exit(1)'),
+    'prepare-binaries authenticates GitHub, falls back to direct download, fails hard without yt-dlp'
+  );
   assert(
     Array.isArray(buildCfg.asarUnpack) &&
       !buildCfg.asarUnpack.some((p) => String(p).includes('soundfonts')),
@@ -3204,12 +3235,14 @@ const settingsModalShellV13 = fs.readFileSync(
 assert(
   settingsModalShellV13.includes('max-w-5xl') &&
     settingsModalShellV13.includes('h-[88vh]') &&
-    settingsModalShellV13.includes('w-[220px]') &&
+    (settingsModalShellV13.includes('w-[220px]') ||
+      settingsModalShellV13.includes('overflow-x-auto') ||
+      settingsModalShellV13.includes('rounded-t-xl')) &&
     settingsModalSrcV13.includes('aiCpuThreads') &&
     settingsModalSrcV13.includes('autoMaximizeControlOnLaunch') &&
     settingsModalSrcV13.includes('autoOpenStageOnLaunch') &&
-    settingsModalShellV13.includes("useState('2.1.0')"),
-  'SettingsModal wider sidebar layout + launch/AI cores + v2.1.0 footer state'
+    settingsModalShellV13.includes("useState('2.2.0')"),
+  'SettingsModal wider sidebar layout + launch/AI cores + v2.2.0 footer state'
 );
 
 // Instrumental block lives under Library tab component (shell still orders library before audio)
@@ -3229,10 +3262,14 @@ assert(
 const pkgV13 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
 const changelogV13 = fs.readFileSync(path.resolve(__dirname, '../CHANGELOG.md'), 'utf8');
 const releaseNotesV13 = fs.readFileSync(path.resolve(__dirname, '../RELEASE_NOTES.md'), 'utf8');
-assert(pkgV13.version === '2.1.0', 'package.json version is 2.1.0');
+assert(pkgV13.version === '2.2.0', 'package.json version is 2.2.0');
+assert(
+  changelogV13.includes('## [2.2.0]') || changelogV13.includes('## [2.2.0] '),
+  'CHANGELOG has ## [2.2.0] section'
+);
 assert(
   changelogV13.includes('## [2.1.0]') || changelogV13.includes('## [2.1.0] '),
-  'CHANGELOG has ## [2.1.0] section'
+  'CHANGELOG retains ## [2.1.0] section'
 );
 assert(
   changelogV13.includes('## [2.0.0]') || changelogV13.includes('## [2.0.0] '),
@@ -3251,8 +3288,8 @@ assert(
   'CHANGELOG retains ## [1.3.0] section'
 );
 assert(
-  /v2\.1\.0|Version 2\.1\.0|Versione 2\.1\.0/.test(releaseNotesV13),
-  'RELEASE_NOTES mentions 2.1.0'
+  /v2\.2\.0|Version 2\.2\.0|Versione 2\.2\.0/.test(releaseNotesV13),
+  'RELEASE_NOTES mentions 2.2.0'
 );
 
 for (const lang of ['it', 'en', 'es', 'fr']) {
@@ -4093,7 +4130,7 @@ console.log('\n\x1b[36m▶ Suite: Safety-First modularization, virtualization, i
   );
 
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert(pkg.version === '2.1.0', 'package.json is 2.1.0 (new release cycle)');
+  assert(pkg.version === '2.2.0', 'package.json is 2.2.0 (new release cycle)');
 
   // Manual chapter parity markers (DnD / recursive scan / Bungee / AppImage SoundFont)
   for (const manual of [
@@ -5157,11 +5194,11 @@ console.log('\n\x1b[36m▶ Suite: MIDI permanent library membership & save gatin
   }
 
   assert(
-    canSaveTest({ source: 'midi', localFilePath: '/home/user/Karaoke/song.mid' }) === false,
+    canSaveTest({ source: 'midi', localFilePath: '/LibraryRoot/Karaoke/song.mid' }) === false,
     'Permanent MIDI track does not show save to library'
   );
   assert(
-    canSaveTest({ source: 'local_library', localFilePath: '/home/user/Karaoke/song.mp4' }) === false,
+    canSaveTest({ source: 'local_library', localFilePath: '/LibraryRoot/Karaoke/song.mp4' }) === false,
     'Permanent local_library track does not show save to library'
   );
   assert(
@@ -5176,6 +5213,127 @@ console.log('\n\x1b[36m▶ Suite: MIDI permanent library membership & save gatin
     canSaveTest({ source: 'youtube', localFilePath: '' }) === false,
     'YouTube track without local file does not show save button'
   );
+}
+
+// -------------------------------------------------------------
+// Suite: YouTube cookie auth + packaged yt-dlp contract (v2.2.0)
+// -------------------------------------------------------------
+console.log('\n\x1b[36m▶ Suite: YouTube Cookie Auth & Packaged yt-dlp Contract\x1b[0m');
+
+{
+  const cookieDir = path.resolve(__dirname, '../src/main/services/youtubeCookies');
+  const netscapeSrc = fs.readFileSync(path.join(cookieDir, 'netscapeCookies.ts'), 'utf8');
+  const storeSrc = fs.readFileSync(path.join(cookieDir, 'YouTubeCookieStore.ts'), 'utf8');
+  const loginSrc = fs.readFileSync(path.join(cookieDir, 'YouTubeLoginWindow.ts'), 'utf8');
+  const authSrc = fs.readFileSync(path.join(cookieDir, 'YouTubeCookieAuth.ts'), 'utf8');
+  const errSrc = fs.readFileSync(path.join(cookieDir, 'youtubeAuthErrors.ts'), 'utf8');
+  const dmSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+    'utf8'
+  );
+  const mainSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+  const preloadSrc = fs.readFileSync(path.resolve(__dirname, '../src/preload/index.ts'), 'utf8');
+
+  assert(
+    netscapeSrc.includes('Netscape HTTP Cookie File') &&
+      netscapeSrc.includes('electronCookiesToNetscape'),
+    'netscapeCookies builds Netscape cookies.txt for yt-dlp'
+  );
+  assert(
+    storeSrc.includes("path.join(app.getPath('userData'), 'youtube')") &&
+      storeSrc.includes('cookies.txt') &&
+      storeSrc.includes('0o600'),
+    'YouTubeCookieStore saves cookies.txt under userData/youtube with mode 0o600'
+  );
+  assert(
+    loginSrc.includes('persist:kls-youtube-auth') &&
+      loginSrc.includes('session.fromPartition') &&
+      loginSrc.includes('cookies.get'),
+    'YouTubeLoginWindow uses partitioned Electron session + cookies.get (no Playwright)'
+  );
+  assert(
+    !/require\(['"]playwright/.test(loginSrc) &&
+      !/from ['"]playwright/.test(loginSrc) &&
+      !/require\(['"]playwright/.test(authSrc) &&
+      !/from ['"]playwright/.test(authSrc) &&
+      !fs.existsSync(path.resolve(__dirname, '../node_modules/playwright')),
+    'YouTube cookie auth does not depend on Playwright'
+  );
+  assert(
+    authSrc.includes('ensureForYouTubeDownload') &&
+      authSrc.includes('refreshAfterAuthFailure') &&
+      dmSrc.includes('setYouTubeCookieBridge') &&
+      dmSrc.includes("'--cookies'") &&
+      dmSrc.includes('isYtDlpYouTubeAuthError'),
+    'DownloadManager wires cookie bridge, --cookies, and auth-error retry'
+  );
+  assert(
+    errSrc.includes('HTTP Error 401') && errSrc.includes('HTTP Error 403'),
+    'youtubeAuthErrors detects 401/403 auth failures'
+  );
+  assert(
+    mainSrc.includes('YouTubeCookieAuth') &&
+      mainSrc.includes('ytdlp:login-youtube') &&
+      preloadSrc.includes('loginYouTube') &&
+      preloadSrc.includes('getCookieStatus'),
+    'Main + preload expose YouTube cookie IPC'
+  );
+
+  // Lightweight mirrors of pure helpers (source of truth remains TypeScript modules).
+  const isYouTubeUrl = (url) =>
+    typeof url === 'string' &&
+    /(?:youtube\.com|youtu\.be|youtube-nocookie\.com)/i.test(url);
+  const isYtDlpYouTubeAuthError = (text) =>
+    typeof text === 'string' &&
+    (/\bHTTP Error 401\b/i.test(text) ||
+      /\bHTTP Error 403\b/i.test(text) ||
+      /Sign in to confirm/i.test(text) ||
+      /Use --cookies/i.test(text));
+  assert(isYouTubeUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ') === true, 'isYouTubeUrl accepts watch URL');
+  assert(isYouTubeUrl('https://example.com/a') === false, 'isYouTubeUrl rejects non-YouTube');
+  assert(
+    isYtDlpYouTubeAuthError("ERROR: [youtube] Sign in to confirm you're not a bot") === true,
+    'isYtDlpYouTubeAuthError matches bot/sign-in errors'
+  );
+  assert(
+    isYtDlpYouTubeAuthError('ERROR: Unable to extract video data') === false,
+    'isYtDlpYouTubeAuthError ignores generic extract failures'
+  );
+
+  // verify-packaged-bins catches the v2.1.0 mac release regression (missing yt-dlp).
+  const badZipDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'kls-bins-'));
+  const badZip = path.join(badZipDir, 'Karaoke.Live.Station-bad-arm64-mac.zip');
+  try {
+    const { execFileSync } = require('child_process');
+    const staging = path.join(badZipDir, 'app');
+    fs.mkdirSync(path.join(staging, 'Karaoke Live Station.app/Contents/Resources/bin'), {
+      recursive: true
+    });
+    fs.writeFileSync(
+      path.join(staging, 'Karaoke Live Station.app/Contents/Resources/bin/ffmpeg'),
+      Buffer.alloc(2 * 1024 * 1024)
+    );
+    execFileSync(
+      'zip',
+      ['-r', badZip, 'Karaoke Live Station.app'],
+      { cwd: staging, stdio: 'ignore' }
+    );
+    let failed = false;
+    try {
+      execFileSync('node', [path.resolve(__dirname, 'verify-packaged-bins.js'), badZipDir], {
+        stdio: 'ignore'
+      });
+    } catch {
+      failed = true;
+    }
+    assert(failed, 'verify-packaged-bins fails when mac zip lacks yt-dlp');
+  } finally {
+    try {
+      fs.rmSync(badZipDir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 // Summary

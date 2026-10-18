@@ -182,11 +182,12 @@ Premi **`F1`** o **`?`** in qualsiasi momento per aprire la guida interattiva co
 - **Log Diagnostico Persistente**: Sistema di log diagnostico continuo su file con rotazione e livelli configurabili (Debug, Info, Warn, Error).
 
 ### ⚡ Motore yt-dlp & Gestione Eseguibili Standalone Multipiattaforma
-- **Zero Installazioni Esterne nei Pacchetti di Release**: Negli eseguibili distribuiti per Windows (`.exe`), Linux (`.AppImage`, `.deb`) e macOS (`.dmg`), l'applicazione è al 100% autosufficiente. Non richiede l'installazione manuale preliminare di `yt-dlp`, `ffmpeg`, né la manipolazione di variabili di ambiente PATH.
+- **Zero Installazioni Esterne nei Pacchetti di Release**: Negli eseguibili distribuiti per Windows (`.exe`), Linux (`.AppImage`, `.deb`) e macOS (`.dmg`/`.zip`), l'applicazione è al 100% autosufficiente. Non richiede l'installazione manuale preliminare di `yt-dlp`, `ffmpeg`, né la manipolazione di variabili di ambiente PATH.
 - **Rilevamento e Download Automatico all'Avvio**: All'avvio, il servizio `YtDlpUpdater` controlla la presenza dell'eseguibile sul sistema e interroga in background l'API GitHub di `yt-dlp`. Se l'eseguibile non è presente, viene scaricato automaticamente il binario ufficiale compatibile con il sistema operativo e l'architettura in uso (x86_64 o ARM64).
 - **Aggiornamento Trasparente in Background**: Qualora sia disponibile una nuova release di `yt-dlp`, il sistema scarica e valida il nuovo file in una cartella dati utente scrivibile (`userData/bin/`), impostando i permessi di esecuzione (`chmod 0755` su Linux e macOS) e sostituendolo in modo atomico, garantendo che i download web continuino a funzionare anche a fronte di cambi API da parte di YouTube.
-- **Risoluzione Relativa delle Risorse (`BinaryResolver`)**: Tutti i path dei binari e delle risorse sono risolti dinamicamente con percorsi relativi conformi ad Electron, prevenendo errori di permessi di sola lettura tipici delle directory di installazione (`C:\Program Files`, `/opt`).
-- **Pannello di Controllo Dedicato nelle Impostazioni**: Mostra lo stato di operatività, la versione corrente e il percorso del binario, con pulsante manuale per forzare la verifica e l'aggiornamento.
+- **Accesso YouTube automatico (cookie, v2.2.0)**: Se i cookie mancano/non sono validi oppure yt-dlp segnala 401/403/scadenza, si apre una `BrowserWindow` dedicata (session partition isolata) per il login (2FA/CAPTCHA ok). I cookie vengono esportati in Netscape `cookies.txt` sotto `<userData>/youtube/` e usati da yt-dlp con `--cookies` — nessuna esportazione manuale dal browser. Controlli in Impostazioni → Libreria & Download.
+- **Risoluzione Relativa delle Risorse (`BinaryResolver`)**: Tutti i path dei binari e delle risorse sono risolti dinamicamente con percorsi relativi conformi ad Electron, prevenendo errori di permessi di sola lettura tipici delle directory di installazione (`C:\Program Files`, `/opt`). Su macOS viene anche rimossa la quarantena Gatekeeper (`xattr`) dai binari helper dopo seed/download.
+- **Pannello di Controllo Dedicato nelle Impostazioni**: Mostra lo stato di operatività, la versione corrente e il percorso del binario, con pulsante manuale per forzare la verifica e l'aggiornamento, più stato cookie YouTube / Accedi / Cancella.
 
 ---
 
@@ -254,7 +255,23 @@ Verranno generati in `release/` l'eseguibile portatile autonomo `Karaoke Live St
 ```bash
 npm run electron:build:mac
 ```
-L'archivio `Karaoke Live Station-2.0.0-mac.zip` contenente l'applicazione `.app` pronta all'uso verrà generato in `release/`, con binari esclusivi Darwin Mach-O (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`).
+L'archivio `Karaoke Live Station-2.2.0-arm64-mac.zip` contenente l'applicazione `.app` pronta all'uso verrà generato in `release/`, con binari esclusivi Darwin Mach-O (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`). Il passo `verify-packaged-bins` fallisce se `yt-dlp` o `ffmpeg` mancano nel bundle.
+
+#### Aprire la build macOS unsigned (Gatekeeper / quarantena)
+Le release ufficiali **non sono firmate** con Developer ID. Dopo il download da GitHub:
+
+1. Scarica `Karaoke.Live.Station-*-arm64-mac.zip` e decomprimila (doppio clic o `unzip`).
+2. Sposta `Karaoke Live Station.app` in `/Applications` (consigliato) oppure lasciala dove preferisci.
+3. Rimuovi l’attributo di quarantena (Terminal):
+   ```bash
+   xattr -dr com.apple.quarantine "/Applications/Karaoke Live Station.app"
+   ```
+   Se l’app non è in Applications, usa il percorso completo della `.app`.
+4. **Primo avvio**: clic destro (o Control-click) su `Karaoke Live Station.app` → **Apri** → conferma **Apri** nel dialogo Gatekeeper. I successivi avvii possono usare il doppio clic normale.
+5. Se macOS blocca ancora: **Impostazioni di Sistema → Privacy e sicurezza** → consenti l’apertura dell’app appena bloccata.
+6. Verifica download web: Impostazioni → Libreria & Download → stato yt-dlp; se YouTube richiede login, usa **Accedi a YouTube** (o lascia che la finestra appaia al primo download).
+
+> Senza il passo `xattr`, Gatekeeper può impedire l’esecuzione dei binari helper (`yt-dlp` / `ffmpeg`) anche se l’app si apre.
 
 ### 🌐 Creazione Release per tutte le piattaforme
 ```bash
@@ -523,10 +540,11 @@ Press **`F1`** or **`?`** at any time to open the searchable interactive guide (
 - **Persistent Diagnostic Logger**: Disk-backed diagnostic logs with configurable levels (Debug, Info, Warn, Error, Off).
 
 ### ⚡ yt-dlp Engine & Zero-Dependency Standalone Executables
-- **Zero-Configuration Standalone Packaging**: In packaged executable releases (Windows `.exe`, Linux `.AppImage`/`.deb`, macOS `.dmg`), Karaoke Live Station is completely self-contained. It requires no manual pre-installation of `yt-dlp`, `ffmpeg`, or system PATH adjustments.
+- **Zero-Configuration Standalone Packaging**: In packaged executable releases (Windows `.exe`, Linux `.AppImage`/`.deb`, macOS `.dmg`/`.zip`), Karaoke Live Station is completely self-contained. It requires no manual pre-installation of `yt-dlp`, `ffmpeg`, or system PATH adjustments.
 - **Automatic Verification & Background Updates on Startup**: Upon launching, `YtDlpUpdater` checks for local executable availability and queries GitHub Releases API for the latest official build. If missing or outdated, it streams the compatible binary, verifies its checksum and integrity, and applies it in the background without freezing the UI or playback.
-- **Strict Relative Path Resolution & Safe Permissions**: Employs `BinaryResolver` to resolve runtime dependencies across relative locations. Updated binaries are saved to the user data directory (`userData/bin/`) and granted executable permissions (`chmod 0755` on POSIX), bypassing read-only application folders such as `Program Files` or `/opt`.
-- **Manual Control in Settings**: Live diagnostic card in Settings displaying the binary path, current version, operational status, and a manual "Check / Update" button.
+- **Automated YouTube cookie auth (v2.2.0)**: When cookies are missing/invalid or yt-dlp reports 401/403/expired auth, a dedicated Electron `BrowserWindow` opens (isolated session partition) for sign-in (2FA/CAPTCHA OK). Cookies are exported as Netscape `cookies.txt` under `<userData>/youtube/` and passed to yt-dlp via `--cookies` — no manual browser export. Controls live in Settings → Library & Download.
+- **Strict Relative Path Resolution & Safe Permissions**: Employs `BinaryResolver` to resolve runtime dependencies across relative locations. Updated binaries are saved to the user data directory (`userData/bin/`) and granted executable permissions (`chmod 0755` on POSIX), bypassing read-only application folders such as `Program Files` or `/opt`. On macOS, Gatekeeper quarantine xattrs are also cleared on helper binaries after seed/download.
+- **Manual Control in Settings**: Live diagnostic card in Settings displaying the binary path, current version, operational status, a manual "Check / Update" button, plus YouTube cookie status / Sign in / Clear.
 
 ---
 
@@ -594,7 +612,23 @@ The standalone portable executable `Karaoke Live Station 2.0.0.exe` (runs immedi
 ```bash
 npm run electron:build:mac
 ```
-The standalone `Karaoke Live Station-2.0.0-mac.zip` archive containing `Karaoke Live Station.app` will be generated in `release/`, with exclusive Darwin Mach-O binaries (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`).
+The standalone `Karaoke Live Station-2.2.0-arm64-mac.zip` archive containing `Karaoke Live Station.app` will be generated in `release/`, with exclusive Darwin Mach-O binaries (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`). The `verify-packaged-bins` step fails the build if `yt-dlp` or `ffmpeg` is missing from the bundle.
+
+#### Running the unsigned macOS build (Gatekeeper / quarantine)
+Official releases are **not** Developer ID–signed. After downloading from GitHub:
+
+1. Download `Karaoke.Live.Station-*-arm64-mac.zip` and unzip it (double-click or `unzip`).
+2. Move `Karaoke Live Station.app` to `/Applications` (recommended) or leave it where you prefer.
+3. Clear the quarantine attribute (Terminal):
+   ```bash
+   xattr -dr com.apple.quarantine "/Applications/Karaoke Live Station.app"
+   ```
+   If the app is not in Applications, use the full path to the `.app`.
+4. **First launch**: right-click (or Control-click) `Karaoke Live Station.app` → **Open** → confirm **Open** in the Gatekeeper dialog. Later launches can use a normal double-click.
+5. If macOS still blocks it: **System Settings → Privacy & Security** → allow the app that was just blocked.
+6. Verify web downloads: Settings → Library & Download → yt-dlp status; if YouTube requires login, use **Sign in to YouTube** (or let the window appear on the first download).
+
+> Without the `xattr` step, Gatekeeper may block helper binaries (`yt-dlp` / `ffmpeg`) even when the app window opens.
 
 ### 🌐 Build for all target platforms
 ```bash
@@ -628,6 +662,7 @@ KaraokeStation/
 │   │   ├── server/guestServer.ts   # Express + Socket.IO LAN mobile server
 │   │   ├── services/
 │   │   │   ├── DownloadManager.ts  # yt-dlp child process wrapper
+│   │   │   ├── youtubeCookies/     # YouTube login window + Netscape cookies.txt
 │   │   │   └── Logger.ts           # Rotating diagnostic logger
 │   │   └── index.ts                # App lifecycle & HTTP 206 protocol handler
 │   ├── preload/

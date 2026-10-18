@@ -10,6 +10,7 @@ import { GuestPortalServer } from './server/guestServer';
 import { DownloadManager } from './services/DownloadManager';
 import { Logger } from './services/Logger';
 import { resolveFfmpegPath, resolveYtDlpPath } from './services/BinaryResolver';
+import { YouTubeCookieAuth } from './services/youtubeCookies';
 import { YtDlpUpdater } from './services/YtDlpUpdater';
 import { AppUpdateChecker } from './services/AppUpdateChecker';
 import { FirewallHelper } from './services/FirewallHelper';
@@ -175,6 +176,7 @@ class KaraokeMainProcess {
   private logger: Logger;
   private db: DatabaseManager;
   private downloadManager: DownloadManager;
+  private youtubeCookieAuth: YouTubeCookieAuth;
   private ytDlpUpdater: YtDlpUpdater;
   private appUpdateChecker: AppUpdateChecker;
   private vocalModelManager: OfflineVocalModelManager;
@@ -261,6 +263,7 @@ class KaraokeMainProcess {
       resolveFfmpegPath(),
       this.logger
     );
+    this.youtubeCookieAuth = new YouTubeCookieAuth(this.logger);
     this.ytDlpUpdater = new YtDlpUpdater(userDataPath, this.logger);
     this.appUpdateChecker = new AppUpdateChecker(app.getVersion(), this.logger);
     this.vocalModelManager = new OfflineVocalModelManager(this.logger);
@@ -271,6 +274,7 @@ class KaraokeMainProcess {
       ortWasmManager: this.ortWasmManager,
       logger: this.logger
     });
+    this.downloadManager.setYouTubeCookieBridge(this.youtubeCookieAuth);
 
     this.setupAppLifecycle();
     this.setupCustomProtocol();
@@ -485,6 +489,11 @@ class KaraokeMainProcess {
       } catch {
         /* ignore dispose errors on quit */
       }
+      try {
+        this.youtubeCookieAuth.dispose();
+      } catch {
+        /* ignore */
+      }
       if (this.guestServer) {
         await this.guestServer.stop();
       }
@@ -525,9 +534,12 @@ class KaraokeMainProcess {
       setTimeout(() => {
         this.ensureLocalThumbnails();
       }, 1500);
+      // Prefer an early yt-dlp seed/download when the managed binary is missing
+      // (e.g. macOS release zip that omitted Resources/bin/yt-dlp). Delay lightly
+      // so window creation stays responsive, but do not wait several seconds.
       setTimeout(() => {
-        this.ytDlpUpdater.checkAndAutoUpdateOnStartup();
-      }, 4000);
+        void this.ytDlpUpdater.checkAndAutoUpdateOnStartup();
+      }, 800);
       setTimeout(() => {
         this.appUpdateChecker.startBackgroundCheck((info) => {
           if (this.controlWindow && !this.controlWindow.isDestroyed()) {
@@ -968,7 +980,7 @@ class KaraokeMainProcess {
     });
 
     ipcMain.handle('system:get-app-version', () => {
-      return app.getVersion() || '2.1.0';
+      return app.getVersion() || '2.2.0';
     });
 
     /**
@@ -1663,6 +1675,34 @@ class KaraokeMainProcess {
       return await this.ytDlpUpdater.checkForUpdates(true);
     });
 
+    ipcMain.handle('ytdlp:get-cookie-status', () => {
+      return this.youtubeCookieAuth.getStatus();
+    });
+
+    ipcMain.handle('ytdlp:login-youtube', async () => {
+      const result = await this.youtubeCookieAuth.loginFromSettings();
+      if (result.success) {
+        return {
+          success: true as const,
+          cookiesPath: result.cookiesPath,
+          cookieCount: result.cookieCount
+        };
+      }
+      if ('cancelled' in result && result.cancelled) {
+        return { success: false as const, cancelled: true as const };
+      }
+      return {
+        success: false as const,
+        cancelled: false as const,
+        error: 'error' in result ? result.error : 'YouTube login failed'
+      };
+    });
+
+    ipcMain.handle('ytdlp:clear-cookies', async () => {
+      const ok = await this.youtubeCookieAuth.clearAll();
+      return { success: ok };
+    });
+
     ipcMain.handle('app:check-for-updates', async (_event, force?: boolean) => {
       return await this.appUpdateChecker.checkForUpdates(Boolean(force));
     });
@@ -2324,6 +2364,8 @@ class KaraokeMainProcess {
       let child: ChildProcess;
       try {
         // yt-dlp search is a synthetic playlist of N items; window with playlist-start/end.
+        // Reuse YouTube cookies when present (no login prompt on search — downloads own that).
+        const cookieArgs = this.youtubeCookieAuth.getYtDlpCookieArgs();
         child = spawn(
           ytdlpPath,
           [
@@ -2334,7 +2376,8 @@ class KaraokeMainProcess {
             String(playlistEnd),
             '--dump-json',
             '--flat-playlist',
-            '--no-warnings'
+            '--no-warnings',
+            ...cookieArgs
           ],
           {
             stdio: ['ignore', 'pipe', 'pipe'],

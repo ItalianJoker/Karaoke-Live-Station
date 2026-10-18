@@ -359,7 +359,19 @@
     "downloadUpdate": "Download update",
     "releaseNotes": "Release notes",
     "updateError": "Unable to check for updates: {{error}}",
-    "updateLater": "Later"
+    "updateLater": "Later",
+    "youtubeCookiesTitle": "YouTube login (cookies for yt-dlp)",
+    "youtubeCookiesDesc": "When YouTube asks for a login or cookies expire, a dedicated window opens so you can sign in (2FA/CAPTCHA supported). Cookies are saved under the app userData folder and passed to yt-dlp automatically — no manual cookies.txt export.",
+    "youtubeCookiesReady": "Signed in (cookies ready)",
+    "youtubeCookiesMissing": "Not signed in",
+    "youtubeCookiesLogin": "Sign in to YouTube",
+    "youtubeCookiesLoggingIn": "Waiting for login…",
+    "youtubeCookiesClear": "Clear cookies",
+    "youtubeCookiesClearConfirm": "Clear saved YouTube cookies and sign out of the login session?",
+    "youtubeCookiesLoginSuccess": "YouTube cookies saved. Downloads will use them automatically.",
+    "youtubeCookiesLoginCancelled": "YouTube login cancelled.",
+    "youtubeCookiesLoginFailed": "YouTube login failed: {{error}}",
+    "youtubeCookiesCleared": "YouTube cookies cleared."
   },
   "history": {
     "title": "Playback History",
