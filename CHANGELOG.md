@@ -8,17 +8,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
-### Added
-- None yet.
+Post-**2.2.0** documentation audit remediation (no package version bump). Aligns operator docs with shipped Signalsmith DSP, Studio Desk default Regia, cookie-required YouTube downloads, download-completion UX, and honest GPU capability vs session backend.
 
 ### Changed
-- None yet.
+- **IT:** Manuali utente (it/en/es/fr + `USER_MANUAL.md`): §4.3 → **Signalsmith Stretch Hi-Fi** default (`signalsmith`; legacy `bungee` migra); tempo via media `playbackRate` + `preservesPitch`; SoundTouch = fallback leggero/emergenza; MIDI/KAR = SpessaSynth. §6.4: completamenti solo nel menu Download header (`library.downloadCompleted`), niente badge/toast fullscreen «Download completato». §13.1: **10** temi; Studio Desk = default Regia; altri temi Regia Legacy; Palco default Dark Stage. Cookie v2.2.0 in §2.2 / §9.1 / §14.2 (path `<userData>/youtube/cookies.txt`; Accedi/Cancella; obbligatori per ogni download YT; search usa cookie solo se già validi). Honesty GPU: badge Impostazioni = probe capacità; chip Download = backend sessione WebGPU/WASM in rimozione AI.
+- **EN:** User manuals (it/en/es/fr + `USER_MANUAL.md`): §4.3 → **Signalsmith Stretch Hi-Fi** default (`signalsmith`; legacy `bungee` migrates); tempo via media `playbackRate` + `preservesPitch`; SoundTouch = light/emergency fallback; MIDI/KAR = SpessaSynth. §6.4: completions only in header Downloads menu (`library.downloadCompleted`); no dismissible fullscreen «Download completato» badge/toast. §13.1: **10** themes; Studio Desk = default Control; other Control themes Legacy; Stage default Dark Stage. Cookie v2.2.0 in §2.2 / §9.1 / §14.2 (`<userData>/youtube/cookies.txt`; Sign-in/Clear; required for all YT downloads; search uses cookies only if already valid). GPU honesty: Settings badge = capability probe; Downloads chip = session WebGPU/WASM during AI removal.
+- **IT/EN README:** Heading «9 Temi» / «9 Color Themes» → **10**; Studio Desk = default Regia (non opt-in); cookie obbligatori per download YT; AI GPU senza «fallback trasparente/seamless» silenzioso.
+- **IT/EN RELEASE_NOTES:** nota di remediation post-2.2.0 (senza bump versione).
 
 ### Fixed
-- None yet.
+- **IT/EN:** Disallineamenti doc↔codice emersi dall’audit v2.2.0 (Bungee morto in prosa operatore, badge download obsoleto, temi/cookie/GPU).
+- **IT/EN:** Doc↔code mismatches from the v2.2.0 audit (dead operator-facing Bungee naming, obsolete download badge, themes/cookies/GPU).
 
 ### Breaking Changes
-- None yet.
+- None (documentation-only remediation; package remains **2.2.0**).
 
 ## [2.2.0] — YouTube Cookie Auth + macOS yt-dlp Packaging — 2026-10-18
 
