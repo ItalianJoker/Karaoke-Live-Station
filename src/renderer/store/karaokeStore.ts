@@ -1215,7 +1215,9 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
       partialize: (state) => ({
         settings: state.settings,
         singers: state.singers,
-        queue: state.queue
+        queue: state.queue,
+        // Persist red “file missing” marks across Control Room refresh.
+        missingTrackIds: state.missingTrackIds
       }),
       merge: (persisted, current) => {
         const p = (persisted || {}) as Partial<KaraokeStoreState>;
@@ -1269,12 +1271,16 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         const firstItem = restoredQueue[0];
         const engine = coerceDspPitchEngine(mergedSettings.dspEngine);
         const initialPitch = firstItem ? clampPitchForEngine(firstItem.pitchOffset, engine) : 0;
+        const restoredMissing = Array.isArray(p.missingTrackIds)
+          ? p.missingTrackIds.filter((id): id is string => typeof id === 'string' && Boolean(id))
+          : current.missingTrackIds;
         return {
           ...current,
           ...p,
           settings: mergedSettings,
           singers: p.singers ?? current.singers,
           queue: restoredQueue,
+          missingTrackIds: restoredMissing,
           playback: {
             ...current.playback,
             currentTrackId: firstItem?.track?.id,

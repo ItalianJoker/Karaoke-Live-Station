@@ -29,23 +29,26 @@ export const GuestRequestsModal: React.FC<GuestRequestsModalProps> = ({ isOpen, 
   const handleApprove = async (req: GuestSongRequest) => {
     let trackToQueue: KaraokeMediaTrack | undefined;
 
+    // Prefer targeted IPC (getTrackById / searchTracks) — never dump the full catalog.
     if (typeof window !== 'undefined' && window.karaokeApi?.db) {
       try {
-        const tracks = await window.karaokeApi.db.getTracks();
-        if (req.trackId) {
-          trackToQueue = tracks.find((t) => t.id === req.trackId);
+        if (req.trackId && window.karaokeApi.db.getTrackById) {
+          const byId = await window.karaokeApi.db.getTrackById(req.trackId);
+          if (byId) trackToQueue = byId;
         }
-        if (!trackToQueue) {
-          trackToQueue = tracks.find(
-            (t) =>
-              t.title.toLowerCase() === req.trackTitle.toLowerCase() &&
-              t.artist.toLowerCase() === req.trackArtist.toLowerCase()
-          );
-        }
-        if (!trackToQueue) {
-          trackToQueue = tracks.find(
-            (t) => t.title.toLowerCase() === req.trackTitle.toLowerCase()
-          );
+        if (!trackToQueue && window.karaokeApi.db.searchTracks) {
+          const seed = `${req.trackTitle || ''} ${req.trackArtist || ''}`.trim();
+          if (seed) {
+            const matches = await window.karaokeApi.db.searchTracks(seed, 40);
+            trackToQueue =
+              matches.find(
+                (t) =>
+                  t.title.toLowerCase() === req.trackTitle.toLowerCase() &&
+                  t.artist.toLowerCase() === req.trackArtist.toLowerCase()
+              ) ||
+              matches.find((t) => t.title.toLowerCase() === req.trackTitle.toLowerCase()) ||
+              matches[0];
+          }
         }
       } catch (err) {
         console.error('Failed to query catalog for guest request:', err);

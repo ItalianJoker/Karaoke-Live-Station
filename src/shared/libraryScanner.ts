@@ -87,12 +87,29 @@ export type DiscoverLibraryMediaOptions = {
    * (caller already stamped mtime/size from async walk).
    */
   skipStatInBuild?: boolean;
+  /**
+   * Optional structured warn sink (Main wires Logger). Shared module must not
+   * import Electron Logger — keeps scanner usable in tests/CLI.
+   */
+  onWarn?: (message: string, err?: unknown) => void;
 };
 
 export type LibraryScanProgressCallback = (info: {
   scanned: number;
   found: number;
 }) => void;
+
+function emitWarn(
+  options: Pick<DiscoverLibraryMediaOptions, 'onWarn'> | undefined,
+  message: string,
+  err?: unknown
+): void {
+  if (options?.onWarn) {
+    options.onWarn(message, err);
+    return;
+  }
+  console.warn(message, err);
+}
 
 function shouldSkipDirectoryName(name: string): boolean {
   const lower = name.toLowerCase();
@@ -342,7 +359,7 @@ function mapBasenamesInDirectory(
       filesMap.get(base)!.push(ext);
     }
   } catch (err) {
-    console.warn(`Error reading directory ${dir}:`, err);
+    emitWarn(undefined, `Error reading directory ${dir}:`, err);
   }
   return filesMap;
 }
@@ -396,7 +413,7 @@ export function discoverLibraryMedia(
         if (track) discovered.push(track);
       }
     } catch (err) {
-      console.warn(`Error scanning directory ${dir}:`, err);
+      emitWarn(options, `Error scanning directory ${dir}:`, err);
     }
   };
 
@@ -446,7 +463,7 @@ export async function discoverLibraryMediaAsync(
     try {
       handle = await fs.promises.opendir(dir);
     } catch (err) {
-      console.warn(`Error opening directory ${dir}:`, err);
+      emitWarn(options, `Error opening directory ${dir}:`, err);
       return;
     }
 
@@ -619,7 +636,7 @@ export function findMediaMatchInTree(
     try {
       entries = fsImpl.readdirSync(dir, { withFileTypes: true });
     } catch (err) {
-      console.warn('Failed scanning directory for existing media:', dir, err);
+      emitWarn(options, `Failed scanning directory for existing media: ${dir}`, err);
       return null;
     }
 

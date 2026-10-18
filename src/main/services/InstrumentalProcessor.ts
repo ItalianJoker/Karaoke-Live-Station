@@ -108,7 +108,19 @@ export type InstrumentalProcessOptions = {
   algorithm?: string;
   /** Optional .srt / .ass / .vtt for burn-in */
   subtitlePath?: string | null;
-  onProgress?: (phase: InstrumentalProcessPhase, percent: number) => void;
+  /**
+   * Progress callback. Optional `meta` carries session ORT backend telemetry
+   * during AI vocal removal (UI chip / honesty disclosure).
+   */
+  onProgress?: (
+    phase: InstrumentalProcessPhase,
+    percent: number,
+    meta?: {
+      ortBackend?: 'webgpu' | 'wasm' | 'pending';
+      ortNumThreads?: number;
+      ortFallbackReason?: string;
+    }
+  ) => void;
   /**
    * Optional ETA (seconds remaining) during AI vocal removal, derived from
    * observed chunk progress — Download menu binds this to `payload.eta`.
@@ -327,7 +339,15 @@ async function removeVocalsAi(
   instrumentalWav: string,
   method: AiVocalRemoverMethod,
   options: InstrumentalProcessOptions,
-  report: (phase: InstrumentalProcessPhase, percent: number) => void,
+  report: (
+    phase: InstrumentalProcessPhase,
+    percent: number,
+    meta?: {
+      ortBackend?: 'webgpu' | 'wasm' | 'pending';
+      ortNumThreads?: number;
+      ortFallbackReason?: string;
+    }
+  ) => void,
   stageClock: { mark: (stage: string, data?: Record<string, unknown>) => void }
 ): Promise<void> {
   const { vocalModelManager, ortWasmManager, logger } = options;
@@ -497,7 +517,18 @@ async function removeVocalsAi(
             break;
         }
         lastAiPct = Math.max(lastAiPct, mapped);
-        report('removing_vocals', lastAiPct);
+        const ortMeta = {
+          ortBackend:
+            lastOrtBackend === 'webgpu' || lastOrtBackend === 'wasm' || lastOrtBackend === 'pending'
+              ? (lastOrtBackend as 'webgpu' | 'wasm' | 'pending')
+              : undefined,
+          ortNumThreads:
+            typeof lastOrtNumThreads === 'number' && Number.isFinite(lastOrtNumThreads)
+              ? lastOrtNumThreads
+              : undefined,
+          ortFallbackReason: lastOrtFallbackReason
+        };
+        report('removing_vocals', lastAiPct, ortMeta);
 
         // Debug: phase transitions + ~10% separate buckets (avoid flooding every chunk).
         const pctBucket = Math.floor(ratio * 10);
@@ -593,9 +624,17 @@ export async function processInstrumentalVideo(
     }
   };
 
-  const report = (phase: InstrumentalProcessPhase, percent: number) => {
+  const report = (
+    phase: InstrumentalProcessPhase,
+    percent: number,
+    meta?: {
+      ortBackend?: 'webgpu' | 'wasm' | 'pending';
+      ortNumThreads?: number;
+      ortFallbackReason?: string;
+    }
+  ) => {
     try {
-      options.onProgress?.(phase, percent);
+      options.onProgress?.(phase, percent, meta);
     } catch {
       /* ignore listener errors */
     }

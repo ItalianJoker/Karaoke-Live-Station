@@ -132,36 +132,39 @@ export class InstrumentalAiHiddenRenderer {
     return this.lastProbe;
   }
 
+  /** Stable handler so dispose can removeListener (anonymous on() would leak). */
+  private readonly messageHandler = (_event: Electron.IpcMainEvent, raw: unknown): void => {
+    const msg = raw as
+      | InstrumentalAiOutMessage
+      | (AiGpuRendererProbeResult & { type: 'probe-result' })
+      | null;
+    if (!msg || typeof msg !== 'object' || !('type' in msg)) return;
+
+    if (msg.type === 'probe-result') {
+      const probe: AiGpuRendererProbeResult = {
+        available: msg.available === true,
+        adapterOk: msg.adapterOk === true,
+        reason: msg.reason,
+        navigatorType: msg.navigatorType || 'object'
+      };
+      this.lastProbe = probe;
+      this.jobHandler?.onMessage({ type: 'probe-result', ...probe });
+      return;
+    }
+
+    if (msg.type === 'progress' && msg.requestId === 0) {
+      this.ready = true;
+      const waiters = this.readyWaiters.splice(0);
+      for (const w of waiters) w();
+    }
+
+    this.jobHandler?.onMessage(msg as InstrumentalAiOutMessage);
+  };
+
   private ensureIpc(): void {
     if (this.ipcBound) return;
     this.ipcBound = true;
-    ipcMain.on(AI_GPU_RENDERER_CHANNELS.message, (_event, raw: unknown) => {
-      const msg = raw as
-        | InstrumentalAiOutMessage
-        | (AiGpuRendererProbeResult & { type: 'probe-result' })
-        | null;
-      if (!msg || typeof msg !== 'object' || !('type' in msg)) return;
-
-      if (msg.type === 'probe-result') {
-        const probe: AiGpuRendererProbeResult = {
-          available: msg.available === true,
-          adapterOk: msg.adapterOk === true,
-          reason: msg.reason,
-          navigatorType: msg.navigatorType || 'object'
-        };
-        this.lastProbe = probe;
-        this.jobHandler?.onMessage({ type: 'probe-result', ...probe });
-        return;
-      }
-
-      if (msg.type === 'progress' && msg.requestId === 0) {
-        this.ready = true;
-        const waiters = this.readyWaiters.splice(0);
-        for (const w of waiters) w();
-      }
-
-      this.jobHandler?.onMessage(msg as InstrumentalAiOutMessage);
-    });
+    ipcMain.on(AI_GPU_RENDERER_CHANNELS.message, this.messageHandler);
   }
 
   private async ensureWindow(): Promise<BrowserWindow> {
@@ -397,6 +400,14 @@ export class InstrumentalAiHiddenRenderer {
     this.readyWaiters = [];
     this.lastProbe = null;
     this.gpuScriptLoaded = false;
+    if (this.ipcBound) {
+      try {
+        ipcMain.removeListener(AI_GPU_RENDERER_CHANNELS.message, this.messageHandler);
+      } catch {
+        /* ignore */
+      }
+      this.ipcBound = false;
+    }
     if (this.win && !this.win.isDestroyed()) {
       try {
         this.win.destroy();

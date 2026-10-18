@@ -25,7 +25,8 @@
     "bgmDucking": "Auto-Ducking BGM",
     "nowPlaying": "En Lecture",
     "noTrackLoaded": "Aucun morceau chargé",
-    "transitionCountdown": "Prochain morceau dans {{count}}s..."
+    "transitionCountdown": "Prochain morceau dans {{count}}s...",
+    "dspFallbackToast": "Moteur pitch Hi-Fi indisponible — bascule vers SoundTouch (±4 ST, 0,75–1,25×). Vérifiez Réglages → Audio."
   },
   "midi": {
     "title": "Table de Mixage Canaux MIDI",
@@ -65,7 +66,9 @@
     "confirmRemove": "Retirer ce titre de la file ?",
     "dropToImport": "Déposez des fichiers média pour les importer et les ajouter à la file",
     "importDropped": "{{count}} morceau(x) importé(s) et mis en file",
-    "revealInLibrary": "Afficher dans la Bibliothèque Locale"
+    "revealInLibrary": "Afficher dans la Bibliothèque Locale",
+    "assignSingerTitle": "Assigner un chanteur",
+    "editSingerTitle": "Modifier le chanteur"
   },
   "singers": {
     "title": "Gestion des Chanteurs",
@@ -169,7 +172,13 @@
     "clearDownloads": "Vider les téléchargements",
     "confirmClearDownloads": "Annuler tous les téléchargements en cours et vider la liste ?",
     "scanProgress": "Analyse… {{scanned}} vérifiés, {{found}} trouvés",
-    "scanWarm": "Bibliothèque prête (cache)"
+    "scanWarm": "Bibliothèque prête (cache)",
+    "awaitingAuth": "En attente de la connexion YouTube…",
+    "ortBackendWebgpu": "WebGPU",
+    "ortBackendWasm": "WASM/CPU",
+    "ortBackendPending": "EP…",
+    "ortThreads": "{{n}} threads",
+    "ortFallbackNotice": "Basculé vers WASM/CPU : {{reason}}"
   },
   "settings": {
     "title": "Paramètres Système",
@@ -324,11 +333,11 @@
     "demucsOverlap": "Chevauchement",
     "demucsOverlapDesc": "Chevauchement fractionnaire entre fenêtres Demucs (0,10–0,50). Plus de chevauchement améliore la continuité mais augmente l’ETA.",
     "aiEnableGpu": "Accélération GPU IA",
-    "aiEnableGpuDesc": "Si activée, l’IA instrumentale préfère WebGPU via un renderer Chromium masqué lorsqu’un adaptateur GPU est disponible. Si le GPU est désactivé ou indisponible, la séparation utilise WASM CPU avec les cœurs ci-dessous. Le badge n’est vert que lorsque WebGPU est réellement actif.",
+    "aiEnableGpuDesc": "Si activé, l’IA instrumentale préfère WebGPU via un renderer Chromium caché lorsqu’un adaptateur GPU est disponible. Si le GPU est désactivé ou indisponible, la séparation utilise WASM CPU avec le nombre de threads ci-dessous. Ce badge indique la capacité du probe (pas le backend du job actif — voir la puce du menu Téléchargements pendant la suppression IA).",
     "aiGpuBadgeSupported": "GPU disponible",
     "aiGpuBadgeCpuFallback": "Repli CPU multithread",
-    "aiGpuBadgeGpu": "GPU : WebGPU Active ({{name}})",
-    "aiGpuBadgeCpu": "CPU : {{detail}}",
+    "aiGpuBadgeGpu": "Capacité : WebGPU prêt ({{name}})",
+    "aiGpuBadgeCpu": "Capacité : CPU / WASM ({{detail}})",
     "aiGpuBadgeWasmWorker": "WASM CPU",
     "aiGpuBadgeHardwareOnly": "GPU matériel détecté : {{name}} — l’IA utilise quand même WASM (pas d’adaptateur WebGPU)",
     "dspEngineHiFiLabel": "Signalsmith Stretch (Hi-Fi)",
@@ -371,7 +380,8 @@
     "youtubeCookiesLoginSuccess": "Cookies YouTube enregistrés. Les téléchargements les utiliseront automatiquement.",
     "youtubeCookiesLoginCancelled": "Connexion YouTube annulée.",
     "youtubeCookiesLoginFailed": "Échec de la connexion YouTube : {{error}}",
-    "youtubeCookiesCleared": "Cookies YouTube effacés."
+    "youtubeCookiesCleared": "Cookies YouTube effacés.",
+    "aiGpuSessionNote": "Le backend de session est indiqué par téléchargement dans le menu Téléchargements (WebGPU vs WASM/CPU)."
   },
   "history": {
     "title": "Historique de Lecture",
@@ -405,7 +415,11 @@
     "downloadFailed": "Échec du téléchargement: {{error}}",
     "libraryPathRequired": "Définissez le dossier bibliothèque dans les paramètres avant de télécharger.",
     "alreadyRunningTitle": "Karaoke Live Station",
-    "alreadyRunning": "Logiciel déjà en cours d’exécution"
+    "alreadyRunning": "Logiciel déjà en cours d’exécution",
+    "youtubeLoginCancelled": "Connexion YouTube annulée — les cookies sont requis pour ce téléchargement",
+    "youtubeLoginFailed": "Échec de la connexion YouTube — impossible de télécharger sans cookies{{error}}",
+    "youtubeLoginRequiredAfterAuth": "Connexion YouTube requise après une erreur d’auth, mais la connexion n’a pas abouti",
+    "youtubeSignInToSearch": "Connectez-vous à YouTube pour rechercher (Réglages → Bibliothèque → Se connecter à YouTube)"
   },
   "firewall": {
     "title": "Assistant Pare-feu et Réseau LAN",

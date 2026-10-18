@@ -121,6 +121,11 @@ export interface KaraokeAPI {
     ) => Promise<KaraokeMediaTrack[]>;
     /** Aborts an in-flight YouTube/web search (safe no-op when idle) */
     cancelYouTubeSearch: () => Promise<boolean>;
+    /**
+     * Fired when yt-dlp search fails for YouTube auth (cookies missing/expired).
+     * Search never opens the login window — UI should toast Sign-in guidance.
+     */
+    onSearchAuthRequired: (callback: () => void) => () => void;
     /** Generates or retrieves a cached video thumbnail for a local video file */
     getTrackThumbnail: (filePath: string) => Promise<string | undefined>;
     /**
@@ -167,6 +172,8 @@ export interface KaraokeAPI {
     cancel: (downloadId: string) => Promise<boolean>;
     /** Cancels all queued/in-flight downloads (Download menu clear) */
     cancelAll: () => Promise<{ cancelledIds: string[] }>;
+    /** Snapshot of queued/in-flight downloads for Control Room remount */
+    getActiveSnapshot: () => Promise<DownloadProgressPayload[]>;
     /** Looks up an existing local library/cache copy before downloading (Watchlist: used by main DownloadManager; keep surface) */
     findExisting: (options: {
       url?: string;
@@ -444,6 +451,13 @@ const karaokeApi: KaraokeAPI = {
     searchYouTube: (query: string, options?: { offset?: number; limit?: number }) =>
       ipcRenderer.invoke('search:youtube', query, options),
     cancelYouTubeSearch: () => ipcRenderer.invoke('search:youtube:cancel'),
+    onSearchAuthRequired: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('youtube:search-auth-required', handler);
+      return () => {
+        ipcRenderer.removeListener('youtube:search-auth-required', handler);
+      };
+    },
     getTrackThumbnail: (filePath: string) => ipcRenderer.invoke('library:get-track-thumbnail', filePath),
     /**
      * Disk existence probe. Main returns `{ exists, path }`; renderer only needs the boolean.
@@ -475,6 +489,7 @@ const karaokeApi: KaraokeAPI = {
     start: (options) => ipcRenderer.invoke('download:start', options),
     cancel: (downloadId) => ipcRenderer.invoke('download:cancel', downloadId),
     cancelAll: () => ipcRenderer.invoke('download:cancel-all'),
+    getActiveSnapshot: () => ipcRenderer.invoke('download:get-active-snapshot'),
     findExisting: (options) => ipcRenderer.invoke('download:find-existing', options),
     saveToLibrary: (payload) => ipcRenderer.invoke('download:save-to-library', payload),
     saveToQueueCache: (payload) => ipcRenderer.invoke('download:save-to-queue-cache', payload),

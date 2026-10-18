@@ -51,6 +51,7 @@ import {
 import { canSaveTrackToPermanentLibrary } from '../../shared/libraryMembership';
 import { ToastHost } from './ToastHost';
 import { showToast, confirmAsync } from '../utils/toast';
+import { localizeDownloadErrorMessage } from '../utils/downloadErrorI18n';
 import { SingersModal } from './SingersModal';
 import { GuestRequestsModal } from './GuestRequestsModal';
 import { FirewallGuideCard } from './FirewallGuideCard';
@@ -113,6 +114,56 @@ export const ControlWindow: React.FC = () => {
     {}
   );
   const downloadsMenuRef = useRef<HTMLDivElement>(null);
+
+  /** Active (cancellable) download phases including cookie login wait. */
+  const DOWNLOAD_ACTIVE_STATUSES = new Set([
+    'queued',
+    'awaiting_auth',
+    'downloading',
+    'converting',
+    'processing',
+    'downloading_model',
+    'removing_vocals',
+    'remuxing'
+  ]);
+
+  const formatDownloadStatusLabel = (dl: DownloadProgressPayload): string => {
+    if (dl.alreadyExists) {
+      return t('library.alreadyLocal', {
+        path: dl.outputFilePath || '',
+        defaultValue:
+          'Track already available locally. Linked existing file without re-downloading:\n{{path}}'
+      }).replace(/\n+/g, ' ');
+    }
+    if (dl.status === 'awaiting_auth') return t('library.awaitingAuth');
+    if (dl.status === 'downloading_model') return t('library.downloadingModel');
+    if (dl.status === 'queued') return t('library.queued');
+    if (dl.status === 'removing_vocals') return t('library.removingVocals');
+    if (dl.status === 'remuxing') return t('library.remuxingInstrumental');
+    if (dl.status === 'processing' || (dl.status === 'converting' && dl.instrumental)) {
+      return t('library.convertingInstrumental');
+    }
+    if (dl.status === 'converting') return t('library.converting');
+    if (dl.status === 'downloading') return t('library.downloading');
+    if (dl.status === 'completed') return t('library.downloadCompleted');
+    if (dl.status === 'error') {
+      const localized = localizeDownloadErrorMessage(dl.errorMessage, t as (key: string, options?: unknown) => string);
+      return localized
+        ? t('errors.downloadFailed', { error: localized })
+        : t('common.error', 'Error');
+    }
+    if (dl.status === 'cancelled') return t('common.cancelled', 'Cancelled');
+    return String(dl.status);
+  };
+
+  const formatOrtBackendChip = (dl: DownloadProgressPayload): string | null => {
+    if (dl.status !== 'removing_vocals' && !dl.ortBackend) return null;
+    if (dl.ortBackend === 'webgpu') return t('library.ortBackendWebgpu');
+    if (dl.ortBackend === 'wasm') return t('library.ortBackendWasm');
+    if (dl.ortBackend === 'pending') return t('library.ortBackendPending');
+    return null;
+  };
+
 
   // View tabs on right panel: 'queue' | 'library' | 'history'
   const [activeRightTab, setActiveRightTab] = useState<'queue' | 'library' | 'history'>(() => {
@@ -416,6 +467,8 @@ export const ControlWindow: React.FC = () => {
       store.updateSettings({ dspEngine: engine });
       store.setLivePitch(store.playback.livePitchOffset);
       store.setPlaybackSpeed(store.playback.playbackSpeed);
+      // Honesty: operator must know Hi-Fi bounds (±8) collapsed to SoundTouch (±4).
+      showToast(t('player.dspFallbackToast'), 'warning', 8000);
     });
     manager.setAudioNormalization(useKaraokeStore.getState().settings.enableAudioNormalization ?? true);
 
@@ -529,6 +582,19 @@ export const ControlWindow: React.FC = () => {
         }
       });
 
+
+      // Rehydrate Download menu after remount (Main may still have active jobs).
+      void window.karaokeApi.downloads.getActiveSnapshot?.().then((rows) => {
+        if (!Array.isArray(rows) || rows.length === 0) return;
+        setHeaderDownloads((prev) => {
+          const next = { ...prev };
+          for (const row of rows) {
+            if (row?.downloadId) next[row.downloadId] = row;
+          }
+          return next;
+        });
+      }).catch(() => { /* ignore */ });
+
       const unSubDownloads = window.karaokeApi.downloads.onProgress((payload) => {
         setHeaderDownloads((prev) => {
           const next = { ...prev, [payload.downloadId]: payload };
@@ -550,7 +616,12 @@ export const ControlWindow: React.FC = () => {
           return next;
         });
         // Open Downloads menu for operator-facing notices that used to toast outside the queue
-        if (payload.alreadyExists || payload.status === 'error' || payload.status === 'queued') {
+        if (
+          payload.alreadyExists ||
+          payload.status === 'error' ||
+          payload.status === 'queued' ||
+          payload.status === 'awaiting_auth'
+        ) {
           setShowDownloadsMenu(true);
         }
         if (payload.status === 'downloading') {
@@ -1009,7 +1080,7 @@ export const ControlWindow: React.FC = () => {
       searchInputRef={searchInputRef}
       webSearchNonce={studioWebSearchNonce}
       localSearchNonce={studioLocalSearchNonce}
-      embedded
+      embedded={isStudioDesk}
     />
   );
 
@@ -1030,11 +1101,11 @@ export const ControlWindow: React.FC = () => {
         setEditingSingerText(item.assignedSingerName || '');
       }}
       onRevealInLibrary={handleRevealInLibrary}
-      embedded
+      embedded={isStudioDesk}
     />
   );
 
-  const historyPanelNode = <HistoryPanel embedded />;
+  const historyPanelNode = <HistoryPanel embedded={isStudioDesk} />;
 
   const getMidiChannelActivity = useCallback(
     () => audioGraphRef.current?.getMidiChannelLevels() ?? null,
@@ -1282,15 +1353,7 @@ export const ControlWindow: React.FC = () => {
             onClick={async (e) => {
               e.preventDefault();
               e.stopPropagation();
-              const activeStatuses = new Set([
-                'queued',
-                'downloading',
-                'converting',
-                'processing',
-                'downloading_model',
-                'removing_vocals',
-                'remuxing'
-              ]);
+              const activeStatuses = DOWNLOAD_ACTIVE_STATUSES;
               const hasActive = Object.values(headerDownloads).some((d) =>
                 activeStatuses.has(d.status)
               );
@@ -1338,41 +1401,12 @@ export const ControlWindow: React.FC = () => {
             Boolean(dl.eta) &&
             dl.eta !== '--:--' &&
             !/^n\/?a$/i.test(dl.eta);
-          const reuseNotice = dl.alreadyExists
-            ? t('library.alreadyLocal', {
-                path: dl.outputFilePath || '',
-                defaultValue:
-                  'Track already available locally. Linked existing file without re-downloading:\n{{path}}'
-              }).replace(/\n+/g, ' ')
-            : null;
-          const statusLabel = reuseNotice
-            ? reuseNotice
-            : dl.status === 'downloading_model'
-              ? t('library.downloadingModel')
-              : dl.status === 'queued'
-                ? t('library.queued')
-                : dl.status === 'removing_vocals'
-                  ? t('library.removingVocals')
-                  : dl.status === 'remuxing'
-                    ? t('library.remuxingInstrumental')
-                    : dl.status === 'processing' ||
-                        (dl.status === 'converting' && dl.instrumental)
-                      ? t('library.convertingInstrumental')
-                      : dl.status === 'converting'
-                        ? t('library.converting')
-                        : dl.status === 'downloading'
-                          ? t('library.downloading')
-                          : dl.status === 'completed'
-                            ? t('library.downloadCompleted')
-                            : dl.status === 'error'
-                              ? dl.errorMessage
-                                ? t('errors.downloadFailed', {
-                                    error: dl.errorMessage
-                                  })
-                                : t('common.error', 'Error')
-                              : dl.status === 'cancelled'
-                                ? t('common.cancelled', 'Cancelled')
-                                : String(dl.status);
+          const statusLabel = formatDownloadStatusLabel(dl);
+          const ortChip = formatOrtBackendChip(dl);
+          const ortThreads =
+            typeof dl.ortNumThreads === 'number' && Number.isFinite(dl.ortNumThreads)
+              ? t('library.ortThreads', { n: dl.ortNumThreads })
+              : null;
           const statusTone =
             dl.alreadyExists || dl.status === 'error' ? 'text-amber-400' : 'text-slate-500';
           return (
@@ -1389,6 +1423,17 @@ export const ControlWindow: React.FC = () => {
                     {statusLabel}
                     {showSpeed ? ` · ${dl.speed}` : ''}
                     {showEta ? ` · ETA ${dl.eta}` : ''}
+                    {ortChip ? (
+                      <span className="ml-1 inline-flex items-center gap-1 rounded border border-slate-600/70 bg-slate-800/80 px-1 py-0.5 text-[9px] text-cyan-300">
+                        {ortChip}
+                        {ortThreads ? ` · ${ortThreads}` : ''}
+                      </span>
+                    ) : null}
+                    {dl.ortFallbackReason ? (
+                      <span className="block text-[9px] text-amber-400/90 mt-0.5">
+                        {t('library.ortFallbackNotice', { reason: dl.ortFallbackReason })}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="shrink-0">{dl.percent.toFixed(0)}%</span>
                 </div>
@@ -1407,13 +1452,7 @@ export const ControlWindow: React.FC = () => {
                   />
                 </div>
               </div>
-              {(dl.status === 'queued' ||
-                dl.status === 'downloading' ||
-                dl.status === 'converting' ||
-                dl.status === 'processing' ||
-                dl.status === 'downloading_model' ||
-                dl.status === 'removing_vocals' ||
-                dl.status === 'remuxing') && (
+              {DOWNLOAD_ACTIVE_STATUSES.has(dl.status) && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1622,15 +1661,7 @@ export const ControlWindow: React.FC = () => {
                       onClick={async (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        const activeStatuses = new Set([
-                          'queued',
-                          'downloading',
-                          'converting',
-                          'processing',
-                          'downloading_model',
-                          'removing_vocals',
-                          'remuxing'
-                        ]);
+                        const activeStatuses = DOWNLOAD_ACTIVE_STATUSES;
                         const hasActive = Object.values(headerDownloads).some((d) =>
                           activeStatuses.has(d.status)
                         );
@@ -1678,41 +1709,12 @@ export const ControlWindow: React.FC = () => {
                       Boolean(dl.eta) &&
                       dl.eta !== '--:--' &&
                       !/^n\/?a$/i.test(dl.eta);
-                    const reuseNotice = dl.alreadyExists
-                      ? t('library.alreadyLocal', {
-                          path: dl.outputFilePath || '',
-                          defaultValue:
-                            'Track already available locally. Linked existing file without re-downloading:\n{{path}}'
-                        }).replace(/\n+/g, ' ')
-                      : null;
-                    const statusLabel = reuseNotice
-                      ? reuseNotice
-                      : dl.status === 'downloading_model'
-                        ? t('library.downloadingModel')
-                        : dl.status === 'queued'
-                          ? t('library.queued')
-                          : dl.status === 'removing_vocals'
-                            ? t('library.removingVocals')
-                            : dl.status === 'remuxing'
-                              ? t('library.remuxingInstrumental')
-                              : dl.status === 'processing' ||
-                                  (dl.status === 'converting' && dl.instrumental)
-                                ? t('library.convertingInstrumental')
-                                : dl.status === 'converting'
-                                  ? t('library.converting')
-                                  : dl.status === 'downloading'
-                                    ? t('library.downloading')
-                                    : dl.status === 'completed'
-                                      ? t('library.downloadCompleted')
-                                      : dl.status === 'error'
-                                        ? dl.errorMessage
-                                          ? t('errors.downloadFailed', {
-                                              error: dl.errorMessage
-                                            })
-                                          : t('common.error', 'Error')
-                                        : dl.status === 'cancelled'
-                                          ? t('common.cancelled', 'Cancelled')
-                                          : String(dl.status);
+                    const statusLabel = formatDownloadStatusLabel(dl);
+                    const ortChip = formatOrtBackendChip(dl);
+                    const ortThreads =
+                      typeof dl.ortNumThreads === 'number' && Number.isFinite(dl.ortNumThreads)
+                        ? t('library.ortThreads', { n: dl.ortNumThreads })
+                        : null;
                     const statusTone =
                       dl.alreadyExists || dl.status === 'error'
                         ? 'text-amber-400'
@@ -1731,6 +1733,17 @@ export const ControlWindow: React.FC = () => {
                             {statusLabel}
                             {showSpeed ? ` · ${dl.speed}` : ''}
                             {showEta ? ` · ETA ${dl.eta}` : ''}
+                            {ortChip ? (
+                              <span className="ml-1 inline-flex items-center gap-1 rounded border border-slate-600/70 bg-slate-800/80 px-1 py-0.5 text-[9px] text-cyan-300">
+                                {ortChip}
+                                {ortThreads ? ` · ${ortThreads}` : ''}
+                              </span>
+                            ) : null}
+                            {dl.ortFallbackReason ? (
+                              <span className="block text-[9px] text-amber-400/90 mt-0.5">
+                                {t('library.ortFallbackNotice', { reason: dl.ortFallbackReason })}
+                              </span>
+                            ) : null}
                           </span>
                           <span className="shrink-0">{dl.percent.toFixed(0)}%</span>
                         </div>
@@ -1749,13 +1762,7 @@ export const ControlWindow: React.FC = () => {
                           />
                         </div>
                       </div>
-                      {(dl.status === 'queued' ||
-                        dl.status === 'downloading' ||
-                        dl.status === 'converting' ||
-                        dl.status === 'processing' ||
-                        dl.status === 'downloading_model' ||
-                        dl.status === 'removing_vocals' ||
-                        dl.status === 'remuxing') && (
+                      {DOWNLOAD_ACTIVE_STATUSES.has(dl.status) && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -2063,7 +2070,9 @@ export const ControlWindow: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-100">
-                    {editingSingerItem.assignedSingerName ? 'Modifica Cantante' : 'Assegna Cantante'}
+                    {editingSingerItem.assignedSingerName
+                      ? t('queue.editSingerTitle')
+                      : t('queue.assignSingerTitle')}
                   </h3>
                   <p className="text-xs text-slate-400 truncate max-w-[280px]">
                     {editingSingerItem.track.artist} - {editingSingerItem.track.title}

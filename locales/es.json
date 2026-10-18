@@ -25,7 +25,8 @@
     "bgmDucking": "Atenuación Automática BGM",
     "nowPlaying": "En Reproducción",
     "noTrackLoaded": "Ninguna pista cargada",
-    "transitionCountdown": "Siguiente pista en {{count}}s..."
+    "transitionCountdown": "Siguiente pista en {{count}}s...",
+    "dspFallbackToast": "Motor de pitch Hi-Fi no disponible — cambiado a SoundTouch (±4 ST, 0,75–1,25×). Revisa Ajustes → Audio."
   },
   "midi": {
     "title": "Mezclador Canales MIDI",
@@ -65,7 +66,9 @@
     "confirmRemove": "¿Quitar este tema de la cola?",
     "dropToImport": "Suelta archivos multimedia para importarlos y añadirlos a la cola",
     "importDropped": "Importadas y encoladas {{count}} pista(s)",
-    "revealInLibrary": "Mostrar en Biblioteca Local"
+    "revealInLibrary": "Mostrar en Biblioteca Local",
+    "assignSingerTitle": "Asignar cantante",
+    "editSingerTitle": "Editar cantante"
   },
   "singers": {
     "title": "Gestión de Cantantes",
@@ -169,7 +172,13 @@
     "clearDownloads": "Vaciar descargas",
     "confirmClearDownloads": "¿Cancelar todas las descargas en curso y vaciar la lista?",
     "scanProgress": "Escaneando… {{scanned}} revisados, {{found}} encontrados",
-    "scanWarm": "Biblioteca lista (caché)"
+    "scanWarm": "Biblioteca lista (caché)",
+    "awaitingAuth": "Esperando inicio de sesión de YouTube…",
+    "ortBackendWebgpu": "WebGPU",
+    "ortBackendWasm": "WASM/CPU",
+    "ortBackendPending": "EP…",
+    "ortThreads": "{{n}} hilos",
+    "ortFallbackNotice": "Fallback a WASM/CPU: {{reason}}"
   },
   "settings": {
     "title": "Ajustes del Sistema",
@@ -324,11 +333,11 @@
     "demucsOverlap": "Solapamiento",
     "demucsOverlapDesc": "Solapamiento fraccionario entre ventanas Demucs (0,10–0,50). Más solapamiento mejora continuidad pero aumenta el ETA.",
     "aiEnableGpu": "Aceleración GPU AI",
-    "aiEnableGpuDesc": "Si está activada, la IA instrumental prefiere WebGPU mediante un renderizador Chromium oculto cuando hay un adaptador GPU. Si la GPU está desactivada o no disponible, la separación usa WASM CPU con los núcleos de abajo. La insignia es verde solo cuando WebGPU está realmente activo.",
+    "aiEnableGpuDesc": "Si está activo, la IA instrumental prefiere WebGPU mediante un renderer Chromium oculto cuando hay un adaptador GPU. Si la GPU está apagada o no disponible, la separación usa WASM CPU con el número de hilos inferior. Este badge muestra la capacidad del probe (no el backend del trabajo activo — ver el chip en el menú Descargas durante la eliminación IA).",
     "aiGpuBadgeSupported": "GPU disponible",
     "aiGpuBadgeCpuFallback": "Reserva CPU multithread",
-    "aiGpuBadgeGpu": "GPU: WebGPU Activa ({{name}})",
-    "aiGpuBadgeCpu": "CPU: {{detail}}",
+    "aiGpuBadgeGpu": "Capacidad: WebGPU listo ({{name}})",
+    "aiGpuBadgeCpu": "Capacidad: CPU / WASM ({{detail}})",
     "aiGpuBadgeWasmWorker": "WASM CPU",
     "aiGpuBadgeHardwareOnly": "GPU de hardware detectada: {{name}} — la IA sigue usando WASM (sin adaptador WebGPU)",
     "dspEngineHiFiLabel": "Signalsmith Stretch (Hi-Fi)",
@@ -371,7 +380,8 @@
     "youtubeCookiesLoginSuccess": "Cookies de YouTube guardadas. Las descargas las usarán automáticamente.",
     "youtubeCookiesLoginCancelled": "Inicio de sesión de YouTube cancelado.",
     "youtubeCookiesLoginFailed": "Error al iniciar sesión en YouTube: {{error}}",
-    "youtubeCookiesCleared": "Cookies de YouTube borradas."
+    "youtubeCookiesCleared": "Cookies de YouTube borradas.",
+    "aiGpuSessionNote": "El backend de sesión se informa por descarga en el menú Descargas (WebGPU vs WASM/CPU)."
   },
   "history": {
     "title": "Historial de Reproducción",
@@ -405,7 +415,11 @@
     "downloadFailed": "Descarga fallida: {{error}}",
     "libraryPathRequired": "Configura la carpeta de biblioteca en ajustes antes de descargar.",
     "alreadyRunningTitle": "Karaoke Live Station",
-    "alreadyRunning": "Software ya en ejecución"
+    "alreadyRunning": "Software ya en ejecución",
+    "youtubeLoginCancelled": "Inicio de sesión de YouTube cancelado — se requieren cookies para esta descarga",
+    "youtubeLoginFailed": "Falló el inicio de sesión de YouTube — no se puede descargar sin cookies{{error}}",
+    "youtubeLoginRequiredAfterAuth": "Se requiere iniciar sesión en YouTube tras un error de autenticación, pero el login no se completó",
+    "youtubeSignInToSearch": "Inicia sesión en YouTube para buscar (Ajustes → Biblioteca → Iniciar sesión en YouTube)"
   },
   "firewall": {
     "title": "Asistente de Firewall y Red LAN",

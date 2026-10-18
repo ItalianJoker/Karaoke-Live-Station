@@ -39,6 +39,10 @@ export interface YouTubeCookieBridge {
    * @returns true when a fresh cookies file was written
    */
   refreshAfterAuthFailure(url: string): Promise<boolean>;
+  /** Close an open login window so Cancel can unblock ensure/refresh. */
+  cancelLogin(): void;
+  /** Focus / bring-to-front the login window when already open. */
+  focusLoginWindow(): void;
 }
 
 export class YouTubeCookieAuth implements YouTubeCookieBridge {
@@ -116,6 +120,16 @@ export class YouTubeCookieAuth implements YouTubeCookieBridge {
     this.loginWindow.dispose();
   }
 
+  /** Cancel interactive login (Download Cancel during awaiting_auth). */
+  public cancelLogin(): void {
+    this.loginWindow.cancel();
+  }
+
+  /** Bring login BrowserWindow above the Regia (no-op if closed). */
+  public focusLoginWindow(): void {
+    this.loginWindow.focus();
+  }
+
   private async ensureInternal(forceLogin: boolean): Promise<YouTubeCookieEnsureResult> {
     if (!forceLogin) {
       const existing = this.getValidCookiesPath();
@@ -142,6 +156,7 @@ export class YouTubeCookieAuth implements YouTubeCookieBridge {
       forceLogin
     });
 
+    // Open (or focus) login; concurrent ensure callers share one window via inFlight.
     const result = await this.loginWindow.loginInteractively({
       skipExistingSession: forceLogin
     });

@@ -48,23 +48,32 @@ export function computeVirtualWindow(
 }
 
 /**
- * Variable-height windowing (Studio Desk library cards grow with tags / wrap).
+ * Build prefix sums for variable-height rows (O(N) once; reuse across scroll frames).
  * `rowHeights[i]` is the full stride including the row's bottom margin.
  */
-export function computeVirtualWindowVariable(
-  scrollTop: number,
-  viewportHeight: number,
-  rowHeights: number[],
-  overscan = 8
-): VirtualWindow {
+export function buildRowHeightPrefix(rowHeights: number[]): number[] {
   const itemCount = rowHeights.length;
-  if (itemCount <= 0 || viewportHeight < 0) {
-    return { startIndex: 0, endIndex: 0, paddingTop: 0, paddingBottom: 0 };
-  }
   const prefix = new Array<number>(itemCount + 1);
   prefix[0] = 0;
   for (let i = 0; i < itemCount; i++) {
     prefix[i + 1] = prefix[i] + Math.max(1, rowHeights[i] || 1);
+  }
+  return prefix;
+}
+
+/**
+ * Variable-height windowing from a precomputed prefix (Studio Desk cards).
+ * Prefer memoizing {@link buildRowHeightPrefix} in the consumer.
+ */
+export function computeVirtualWindowVariableFromPrefix(
+  scrollTop: number,
+  viewportHeight: number,
+  prefix: number[],
+  overscan = 8
+): VirtualWindow {
+  const itemCount = Math.max(0, prefix.length - 1);
+  if (itemCount <= 0 || viewportHeight < 0) {
+    return { startIndex: 0, endIndex: 0, paddingTop: 0, paddingBottom: 0 };
   }
   const total = prefix[itemCount];
   const safeScroll = Math.max(0, Math.min(scrollTop, Math.max(0, total - 1)));
@@ -88,4 +97,23 @@ export function computeVirtualWindowVariable(
     paddingTop: prefix[startIndex],
     paddingBottom: Math.max(0, total - prefix[endIndex])
   };
+}
+
+/**
+ * Variable-height windowing (Studio Desk library cards grow with tags / wrap).
+ * `rowHeights[i]` is the full stride including the row's bottom margin.
+ * Prefer {@link computeVirtualWindowVariableFromPrefix} when prefix is memoized.
+ */
+export function computeVirtualWindowVariable(
+  scrollTop: number,
+  viewportHeight: number,
+  rowHeights: number[],
+  overscan = 8
+): VirtualWindow {
+  return computeVirtualWindowVariableFromPrefix(
+    scrollTop,
+    viewportHeight,
+    buildRowHeightPrefix(rowHeights),
+    overscan
+  );
 }

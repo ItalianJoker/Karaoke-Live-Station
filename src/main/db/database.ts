@@ -31,6 +31,23 @@ export class DatabaseManager {
   /** Prepared once — reused by upsertTrack / upsertTracksBatch. */
   private upsertTrackStmt: Database.Statement | null = null;
   private deleteByPathExceptStmt: Database.Statement | null = null;
+  /** Optional structured logger (Main Process). */
+  private logger?: { warn: (source: string, message: string, data?: unknown) => void };
+
+  /** Wire structured Logger after construction (keeps constructor signature stable). */
+  public setLogger(logger: { warn: (source: string, message: string, data?: unknown) => void }): void {
+    this.logger = logger;
+  }
+
+  private warn(message: string, err?: unknown): void {
+    const detail = err instanceof Error ? err.message : err != null ? String(err) : undefined;
+    if (this.logger) {
+      this.logger.warn('Database', message, detail != null ? { err: detail } : undefined);
+      return;
+    }
+    // Fallback when Logger not yet wired (early bootstrap / tests).
+    console.warn(`[Database] ${message}`, err);
+  }
 
   /**
    * Initializes the SQLite database connection and sets PRAGMA modes.
@@ -143,7 +160,7 @@ export class DatabaseManager {
         );
     } catch (err) {
       // FTS optional on very old SQLite builds — LIKE fallback still works.
-      console.warn('tracks_fts sync notice:', err);
+      this.warn('tracks_fts sync notice', err);
     }
   }
 
@@ -205,7 +222,7 @@ export class DatabaseManager {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_singers_name_nocase ON singers(LOWER(TRIM(name)));
       `);
     } catch (err) {
-      console.warn('Singer deduplication or unique index setup notice:', err);
+      this.warn('Singer deduplication or unique index setup notice', err);
     }
 
     // Safely migrate existing tables that might lack the thumbnailUrl column
@@ -270,7 +287,7 @@ export class DatabaseManager {
       `);
       this.rebuildTracksFtsIfEmpty();
     } catch (err) {
-      console.warn('tracks_fts setup notice (LIKE fallback remains):', err);
+      this.warn('tracks_fts setup notice (LIKE fallback remains)', err);
     }
   }
 
@@ -297,7 +314,7 @@ export class DatabaseManager {
       );
       run(tracks);
     } catch (err) {
-      console.warn('tracks_fts rebuild notice:', err);
+      this.warn('tracks_fts rebuild notice', err);
     }
   }
 
@@ -324,7 +341,7 @@ export class DatabaseManager {
       });
       run(missing);
     } catch (err) {
-      console.warn('Normalized search column backfill notice:', err);
+      this.warn('Normalized search column backfill notice', err);
     }
   }
 

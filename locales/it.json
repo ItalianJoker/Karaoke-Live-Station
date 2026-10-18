@@ -25,7 +25,8 @@
     "bgmDucking": "Auto-Ducking BGM",
     "nowPlaying": "In Riproduzione",
     "noTrackLoaded": "Nessun brano caricato",
-    "transitionCountdown": "Prossimo brano tra {{count}}s..."
+    "transitionCountdown": "Prossimo brano tra {{count}}s...",
+    "dspFallbackToast": "Motore pitch Hi-Fi non disponibile — passato a SoundTouch (±4 ST, 0,75–1,25×). Controlla Impostazioni → Audio."
   },
   "midi": {
     "title": "Mixer Canali MIDI",
@@ -65,7 +66,9 @@
     "confirmRemove": "Rimuovere questo brano dalla coda?",
     "dropToImport": "Trascina qui i file media per importarli e metterli in coda",
     "importDropped": "Importati e messi in coda {{count}} brano/i",
-    "revealInLibrary": "Mostra in Libreria Locale"
+    "revealInLibrary": "Mostra in Libreria Locale",
+    "assignSingerTitle": "Assegna Cantante",
+    "editSingerTitle": "Modifica Cantante"
   },
   "singers": {
     "title": "Gestione Cantanti",
@@ -169,7 +172,13 @@
     "clearDownloads": "Pulisci coda",
     "confirmClearDownloads": "Annullare tutti i download in corso e svuotare l’elenco?",
     "scanProgress": "Scansione… {{scanned}} controllati, {{found}} trovati",
-    "scanWarm": "Libreria pronta (cache)"
+    "scanWarm": "Libreria pronta (cache)",
+    "awaitingAuth": "In attesa del login YouTube…",
+    "ortBackendWebgpu": "WebGPU",
+    "ortBackendWasm": "WASM/CPU",
+    "ortBackendPending": "EP…",
+    "ortThreads": "{{n}} thread",
+    "ortFallbackNotice": "Fallback a WASM/CPU: {{reason}}"
   },
   "settings": {
     "title": "Impostazioni di Sistema",
@@ -325,11 +334,11 @@
     "demucsOverlap": "Overlap",
     "demucsOverlapDesc": "Sovrapposizione frazionaria tra finestre Demucs successive (0,10–0,50). Più overlap migliora la continuità ma aumenta l’ETA.",
     "aiEnableGpu": "Accelerazione GPU AI",
-    "aiEnableGpuDesc": "Se attiva, l’AI strumentale preferisce WebGPU tramite un renderer Chromium nascosto quando c’è un adapter GPU. Se la GPU è disattivata o non disponibile, la separazione usa WASM CPU con i core sotto. Il badge è verde solo quando WebGPU è davvero attivo.",
+    "aiEnableGpuDesc": "Se attivo, l’AI strumentale preferisce WebGPU tramite un renderer Chromium nascosto quando è disponibile un adapter GPU. Se la GPU è spenta o non disponibile, la separazione usa WASM CPU con il numero di thread sotto. Questo badge mostra la capacità del probe (non il backend del job attivo — vedi il chip nel menu Download durante la rimozione AI).",
     "aiGpuBadgeSupported": "GPU disponibile",
     "aiGpuBadgeCpuFallback": "Fallback CPU multithread",
-    "aiGpuBadgeGpu": "GPU: WebGPU Attiva ({{name}})",
-    "aiGpuBadgeCpu": "CPU: {{detail}}",
+    "aiGpuBadgeGpu": "Capacità: WebGPU pronto ({{name}})",
+    "aiGpuBadgeCpu": "Capacità: CPU / WASM ({{detail}})",
     "aiGpuBadgeWasmWorker": "WASM CPU",
     "aiGpuBadgeHardwareOnly": "GPU hardware rilevata: {{name}} — l’AI usa comunque WASM (nessun adapter WebGPU)",
     "dspEngineSignalsmith": "Signalsmith Stretch (Hi-Fi predefinito) — ±8 ST, pitch+speed",
@@ -371,7 +380,8 @@
     "youtubeCookiesLoginSuccess": "Cookie YouTube salvati. I download li useranno automaticamente.",
     "youtubeCookiesLoginCancelled": "Accesso YouTube annullato.",
     "youtubeCookiesLoginFailed": "Accesso YouTube non riuscito: {{error}}",
-    "youtubeCookiesCleared": "Cookie YouTube cancellati."
+    "youtubeCookiesCleared": "Cookie YouTube cancellati.",
+    "aiGpuSessionNote": "Il backend di sessione è riportato per ogni download nel menu Download (WebGPU vs WASM/CPU)."
   },
   "history": {
     "title": "Storico Esecuzioni",
@@ -405,7 +415,11 @@
     "downloadFailed": "Download fallito: {{error}}",
     "libraryPathRequired": "Imposta la cartella libreria nelle impostazioni prima di scaricare.",
     "alreadyRunningTitle": "Karaoke Live Station",
-    "alreadyRunning": "Software già in esecuzione"
+    "alreadyRunning": "Software già in esecuzione",
+    "youtubeLoginCancelled": "Login YouTube annullato — i cookie sono obbligatori per questo download",
+    "youtubeLoginFailed": "Login YouTube non riuscito — impossibile scaricare senza cookie{{error}}",
+    "youtubeLoginRequiredAfterAuth": "Login YouTube richiesto dopo errore di autenticazione, ma il login non è stato completato",
+    "youtubeSignInToSearch": "Accedi a YouTube per cercare (Impostazioni → Libreria → Accedi a YouTube)"
   },
   "firewall": {
     "title": "Assistente Firewall & Connessione LAN",

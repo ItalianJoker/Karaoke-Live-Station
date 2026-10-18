@@ -103,9 +103,12 @@ export class AlgorithmicVocalRemoverNode {
     this.outLFromSide.gain.value = 1;
     this.outRFromSide.gain.value = -1; // R = mid − side
 
-    // Input splits into bypass + effect
+    // Bypass always connected; effect (M/S) branch connects only when enabled
+    // so disabled remover does not burn CPU on filters (honest idle cost).
     this.inputGain.connect(this.bypassGain);
-    this.inputGain.connect(this.splitter);
+    if (this.enabled) {
+      this.inputGain.connect(this.splitter);
+    }
 
     // Encode M/S
     this.splitter.connect(this.midFromL, 0);
@@ -170,11 +173,25 @@ export class AlgorithmicVocalRemoverNode {
     this.enabled = enabled;
     // Short crossfade avoids clicks; setValueAtTime+ramp so Chromium actually applies it.
     if (enabled) {
+      try {
+        this.inputGain.connect(this.splitter);
+      } catch {
+        /* already connected */
+      }
       rampAudioParam(this.bypassGain.gain, 0, 0.05, this.ctx);
       rampAudioParam(this.effectGain.gain, 1, 0.05, this.ctx);
     } else {
       rampAudioParam(this.bypassGain.gain, 1, 0.05, this.ctx);
       rampAudioParam(this.effectGain.gain, 0, 0.05, this.ctx);
+      // After crossfade, disconnect wet branch so M/S graph idles.
+      window.setTimeout(() => {
+        if (this.enabled) return;
+        try {
+          this.inputGain.disconnect(this.splitter);
+        } catch {
+          /* ignore */
+        }
+      }, 60);
     }
   }
 

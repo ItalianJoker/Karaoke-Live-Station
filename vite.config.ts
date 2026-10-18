@@ -78,6 +78,22 @@ export default defineConfig({
         }
       },
       {
+        // Key/BPM FFT off Electron main (worker_threads)
+        entry: path.resolve(__dirname, 'src/main/workers/trackAnalysisFftWorker.ts'),
+        vite: {
+          build: {
+            outDir: path.resolve(__dirname, 'dist-electron/main'),
+            emptyOutDir: false,
+            rollupOptions: {
+              output: {
+                entryFileNames: 'trackAnalysisFftWorker.js'
+              },
+              external: ['fft.js', 'electron']
+            }
+          }
+        }
+      },
+      {
         entry: path.resolve(__dirname, 'src/preload/index.ts'),
         vite: {
           build: {

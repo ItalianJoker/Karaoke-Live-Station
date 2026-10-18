@@ -8,20 +8,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
-Post-**2.2.0** documentation audit remediation (no package version bump). Aligns operator docs with shipped Signalsmith DSP, Studio Desk default Regia, cookie-required YouTube downloads, download-completion UX, and honest GPU capability vs session backend.
-
-### Changed
-- **IT:** Manuali utente (it/en/es/fr + `USER_MANUAL.md`): §4.3 → **Signalsmith Stretch Hi-Fi** default (`signalsmith`; legacy `bungee` migra); tempo via media `playbackRate` + `preservesPitch`; SoundTouch = fallback leggero/emergenza; MIDI/KAR = SpessaSynth. §6.4: completamenti solo nel menu Download header (`library.downloadCompleted`), niente badge/toast fullscreen «Download completato». §13.1: **10** temi; Studio Desk = default Regia; altri temi Regia Legacy; Palco default Dark Stage. Cookie v2.2.0 in §2.2 / §9.1 / §14.2 (path `<userData>/youtube/cookies.txt`; Accedi/Cancella; obbligatori per ogni download YT; search usa cookie solo se già validi). Honesty GPU: badge Impostazioni = probe capacità; chip Download = backend sessione WebGPU/WASM in rimozione AI.
-- **EN:** User manuals (it/en/es/fr + `USER_MANUAL.md`): §4.3 → **Signalsmith Stretch Hi-Fi** default (`signalsmith`; legacy `bungee` migrates); tempo via media `playbackRate` + `preservesPitch`; SoundTouch = light/emergency fallback; MIDI/KAR = SpessaSynth. §6.4: completions only in header Downloads menu (`library.downloadCompleted`); no dismissible fullscreen «Download completato» badge/toast. §13.1: **10** themes; Studio Desk = default Control; other Control themes Legacy; Stage default Dark Stage. Cookie v2.2.0 in §2.2 / §9.1 / §14.2 (`<userData>/youtube/cookies.txt`; Sign-in/Clear; required for all YT downloads; search uses cookies only if already valid). GPU honesty: Settings badge = capability probe; Downloads chip = session WebGPU/WASM during AI removal.
-- **IT/EN README:** Heading «9 Temi» / «9 Color Themes» → **10**; Studio Desk = default Regia (non opt-in); cookie obbligatori per download YT; AI GPU senza «fallback trasparente/seamless» silenzioso.
-- **IT/EN RELEASE_NOTES:** nota di remediation post-2.2.0 (senza bump versione).
+Post-**2.2.0** audit remediation (code + docs; no package version bump). Aligns operator docs and runtime UX with Signalsmith DSP, Studio Desk default Regia, cookie-required YouTube downloads, download Cancel during login, and honest GPU capability vs session backend.
 
 ### Fixed
-- **IT/EN:** Disallineamenti doc↔codice emersi dall’audit v2.2.0 (Bungee morto in prosa operatore, badge download obsoleto, temi/cookie/GPU).
-- **IT/EN:** Doc↔code mismatches from the v2.2.0 audit (dead operator-facing Bungee naming, obsolete download badge, themes/cookies/GPU).
+- **IT:** Cancel/Clear durante login cookie YouTube non era più no-op: job registrato pre-spawn con status `awaiting_auth`; Cancel chiude la finestra login e la porta in primo piano.
+- **EN:** Cancel/Clear during YouTube cookie login is no longer a no-op: job registered pre-spawn with `awaiting_auth`; Cancel closes the login window and brings it to front.
+- **IT/EN:** Disallineamenti doc↔codice (Bungee morto in prosa operatore, badge download obsoleto, temi/cookie/GPU) + i18n errori cookie / modal Assegna Cantante.
+- **IT/EN:** Doc↔code mismatches (dead operator-facing Bungee naming, obsolete download badge, themes/cookies/GPU) + i18n cookie errors / Assign Singer modal.
+
+### Changed
+- **IT:** Manuali (it/en/es/fr + `USER_MANUAL.md`): §4.3 Signalsmith + media-rate tempo; §6.4 solo menu Download; §13.1 **10** temi / Studio Desk default Regia; cookie path + troubleshooting; honesty GPU.
+- **EN:** Manuals (it/en/es/fr + `USER_MANUAL.md`): §4.3 Signalsmith + media-rate tempo; §6.4 Downloads menu only; §13.1 **10** themes / Studio Desk default Control; cookie path + troubleshooting; GPU honesty.
+- **IT/EN:** Badge GPU Impostazioni = capacità (probe); chip Download = backend sessione (`ortBackend` / thread) durante rimozione AI; toast fallback Hi-Fi→SoundTouch; `embedded={isStudioDesk}`; persist `missingTrackIds` + snapshot download IPC; toast Accedi su search auth fail; Loader su delete busy.
+- **IT/EN:** Settings GPU badge = capability (probe); Downloads chip = session backend (`ortBackend` / threads) during AI removal; Hi-Fi→SoundTouch fallback toast; `embedded={isStudioDesk}`; persist `missingTrackIds` + download snapshot IPC; Sign-in toast on search auth fail; Loader on destructive delete busy.
+
+### ⚡ Performance & Concurrency
+- **IT/EN:** Guest approve → `getTrackById` / `searchTracks` (no full catalog dump); Key/BPM FFT in `worker_threads` + ZIP analysis async inflate; MIDI parse Web Worker; vocal-remover disconnect-when-off; virt prefix memo; Hidden Renderer `removeListener` on dispose.
+
+### 🧹 Refactoring & Cleanup
+- **IT/EN:** Removed unused `BungeePitchShifterNode` alias; Database/LibraryScanner warn → Logger/`onWarn` (GuestPortal port-probe stderr kept intentional).
 
 ### Breaking Changes
-- None (documentation-only remediation; package remains **2.2.0**).
+- None (package remains **2.2.0**).
 
 ## [2.2.0] — YouTube Cookie Auth + macOS yt-dlp Packaging — 2026-10-18
 

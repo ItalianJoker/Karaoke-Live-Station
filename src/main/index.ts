@@ -10,7 +10,7 @@ import { GuestPortalServer } from './server/guestServer';
 import { DownloadManager } from './services/DownloadManager';
 import { Logger } from './services/Logger';
 import { resolveFfmpegPath, resolveYtDlpPath } from './services/BinaryResolver';
-import { YouTubeCookieAuth } from './services/youtubeCookies';
+import { YouTubeCookieAuth, isYtDlpYouTubeAuthError } from './services/youtubeCookies';
 import { YtDlpUpdater } from './services/YtDlpUpdater';
 import { AppUpdateChecker } from './services/AppUpdateChecker';
 import { FirewallHelper } from './services/FirewallHelper';
@@ -255,6 +255,7 @@ class KaraokeMainProcess {
     this.setupGlobalAnomalyHandlers();
 
     this.db = new DatabaseManager(userDataPath);
+    this.db.setLogger(this.logger);
     this.downloadManager = new DownloadManager(tempDownloadDir, queueCacheDir);
     this.zipCdgCache = new ZipCdgCache(tempDownloadDir, this.logger);
     this.trackAnalysis = new TrackAnalysisService(
@@ -1558,6 +1559,11 @@ class KaraokeMainProcess {
       return this.downloadManager.cancelAllDownloads();
     });
 
+    /** Rehydrate Download menu after Control Room remount / refresh. */
+    ipcMain.handle('download:get-active-snapshot', () => {
+      return this.downloadManager.getActiveDownloadSnapshot();
+    });
+
     ipcMain.handle('download:find-existing', (_event, options: {
       url?: string;
       trackId?: string;
@@ -1818,6 +1824,11 @@ class KaraokeMainProcess {
     const found = await discoverLibraryMediaAsync(root, {
       onProgress: ({ scanned, found: foundCount }) => {
         sendProgress(scanned, foundCount, 'walk');
+      },
+      onWarn: (message, err) => {
+        this.logger.warn('LibraryScanner', message, {
+          err: err instanceof Error ? err.message : err != null ? String(err) : undefined
+        });
       }
     });
 
@@ -2393,6 +2404,7 @@ class KaraokeMainProcess {
 
       this.youtubeSearchChild = child;
       let stdout = '';
+      let stderr = '';
       let settled = false;
       const finish = (tracks: KaraokeMediaTrack[]) => {
         if (settled) return;
@@ -2406,6 +2418,11 @@ class KaraokeMainProcess {
       child.stdout?.on('data', (chunk: Buffer) => {
         stdout += chunk.toString('utf8');
       });
+      child.stderr?.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString('utf8');
+        // Cap stderr buffer — only used for auth-error detection.
+        if (stderr.length > 8000) stderr = stderr.slice(-8000);
+      });
 
       child.on('close', (code: number | null) => {
         if (this.youtubeSearchCancelled) {
@@ -2413,6 +2430,15 @@ class KaraokeMainProcess {
           return;
         }
         if (code !== 0 || !stdout.trim()) {
+          // Search never forces login; surface a Sign-in toast when yt-dlp reports auth.
+          if (
+            !this.youtubeSearchCancelled &&
+            (isYtDlpYouTubeAuthError(stderr) || isYtDlpYouTubeAuthError(`exit ${code}`))
+          ) {
+            if (this.controlWindow && !this.controlWindow.isDestroyed()) {
+              this.controlWindow.webContents.send('youtube:search-auth-required');
+            }
+          }
           finish([]);
           return;
         }

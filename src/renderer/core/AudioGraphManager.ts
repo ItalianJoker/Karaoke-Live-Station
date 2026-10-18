@@ -925,13 +925,68 @@ export class AudioGraphManager {
       this.onLyricCallback(null);
     }
 
-    const { song, events } = MidiParser.parse(midiBuffer);
+    // Parse off the UI thread when Workers are available (fallback: sync parse).
+    const { song, events } = await this.parseMidiBuffer(midiBuffer);
     this.midiSong = song;
     this.midiEvents = events;
     this.midiEventIndex = 0;
     this.midiPlaybackOffsetMs = 0;
 
     return song;
+  }
+
+  /**
+   * Prefer Web Worker MIDI parse so large KAR files do not hitch Regia.
+   * Falls back to sync {@link MidiParser.parse} when Worker construction fails.
+   */
+  private parseMidiBuffer(
+    midiBuffer: ArrayBuffer
+  ): Promise<ReturnType<typeof MidiParser.parse>> {
+    if (typeof Worker === 'undefined') {
+      return Promise.resolve(MidiParser.parse(midiBuffer));
+    }
+    return new Promise((resolve) => {
+      let settled = false;
+      const requestId = Date.now() ^ Math.floor(Math.random() * 1e9);
+      try {
+        const worker = new Worker(new URL('./midiParse.worker.ts', import.meta.url), {
+          type: 'module'
+        });
+        const finish = (result: ReturnType<typeof MidiParser.parse>) => {
+          if (settled) return;
+          settled = true;
+          try {
+            worker.terminate();
+          } catch {
+            /* ignore */
+          }
+          resolve(result);
+        };
+        worker.onmessage = (ev: MessageEvent) => {
+          const msg = ev.data as {
+            requestId: number;
+            ok: boolean;
+            song?: ReturnType<typeof MidiParser.parse>['song'];
+            events?: ReturnType<typeof MidiParser.parse>['events'];
+          };
+          if (msg.requestId !== requestId) return;
+          if (msg.ok && msg.song && msg.events) {
+            finish({ song: msg.song, events: msg.events });
+            return;
+          }
+          // Worker failed — sync fallback (Zero Regression for play-start).
+          finish(MidiParser.parse(midiBuffer));
+        };
+        worker.onerror = () => {
+          finish(MidiParser.parse(midiBuffer));
+        };
+        // Transfer ownership of a copy so the caller buffer remains usable if needed.
+        const copy = midiBuffer.slice(0);
+        worker.postMessage({ requestId, buffer: copy }, [copy]);
+      } catch {
+        resolve(MidiParser.parse(midiBuffer));
+      }
+    });
   }
 
   /**
