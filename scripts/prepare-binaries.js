@@ -99,13 +99,24 @@ function resolveTargets(arg) {
   return mapped ? [mapped.folder] : ['linux'];
 }
 
+/** Prefer Actions tokens so CI is not blocked by anonymous GitHub API rate limits. */
+function githubAuthHeaders(extra = {}) {
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
+  const headers = {
+    'User-Agent': 'KaraokeLiveStation-Packager/1.0',
+    ...extra
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+    headers['X-GitHub-Api-Version'] = '2022-11-28';
+  }
+  return headers;
+}
+
 async function fetchLatestYtDlpRelease() {
   const url = 'https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest';
   const response = await fetch(url, {
-    headers: {
-      'User-Agent': 'KaraokeLiveStation-Packager/1.0',
-      Accept: 'application/vnd.github.v3+json'
-    },
+    headers: githubAuthHeaders({ Accept: 'application/vnd.github+json' }),
     signal: AbortSignal.timeout(15000)
   });
 
@@ -114,6 +125,90 @@ async function fetchLatestYtDlpRelease() {
   }
 
   return await response.json();
+}
+
+/**
+ * Download a yt-dlp release asset into destFile.
+ * Tries authenticated API asset URL first, then the public
+ * `/releases/latest/download/<name>` redirect (works without API quota).
+ */
+async function downloadYtDlpAsset(assetName, destFile, releaseData) {
+  const candidates = [];
+  if (releaseData && Array.isArray(releaseData.assets)) {
+    const asset = releaseData.assets.find(
+      (a) => a.name.toLowerCase() === assetName.toLowerCase()
+    );
+    if (asset?.browser_download_url) {
+      candidates.push(asset.browser_download_url);
+    }
+  }
+  // Direct latest/download URL — no releases API call required.
+  candidates.push(
+    `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${assetName}`
+  );
+
+  const tempFile = `${destFile}.tmp.${Date.now()}`;
+  let lastErr = null;
+
+  for (const url of candidates) {
+    try {
+      console.log(`[prepare-binaries] Downloading yt-dlp (${assetName}) from ${url}...`);
+      const res = await fetch(url, {
+        headers: githubAuthHeaders({ Accept: 'application/octet-stream' }),
+        redirect: 'follow',
+        signal: AbortSignal.timeout(180000)
+      });
+      if (!res.ok || !res.body) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const outStream = fs.createWriteStream(tempFile);
+      await pipeline(Readable.fromWeb(res.body), outStream);
+
+      if (fs.existsSync(destFile)) {
+        try {
+          fs.unlinkSync(destFile);
+        } catch {
+          /* ignore */
+        }
+      }
+      fs.renameSync(tempFile, destFile);
+      return;
+    } catch (err) {
+      lastErr = err;
+      try {
+        if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+      } catch {
+        /* ignore */
+      }
+      console.warn(
+        `[prepare-binaries] yt-dlp download candidate failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  }
+
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error(`Failed to download yt-dlp asset ${assetName}`);
+}
+
+function assertYtDlpPresent(platformKey) {
+  const cfg = PLATFORM_MAP[platformKey];
+  if (!cfg) return;
+  const destFile = path.join(BIN_DIR, cfg.folder, cfg.ytdlpName);
+  if (!fs.existsSync(destFile)) {
+    throw new Error(
+      `yt-dlp binary missing after prepare for ${cfg.folder}: ${destFile}. ` +
+        `Cannot package a release without it.`
+    );
+  }
+  const stat = fs.statSync(destFile);
+  if (stat.size < 5 * 1024 * 1024) {
+    throw new Error(
+      `yt-dlp binary too small for ${cfg.folder}: ${destFile} (${stat.size} bytes)`
+    );
+  }
 }
 
 async function prepareYtDlp(platformKey, releaseData) {
@@ -142,40 +237,7 @@ async function prepareYtDlp(platformKey, releaseData) {
     }
   }
 
-  if (!releaseData) return;
-
-  const asset = releaseData.assets.find(
-    (a) => a.name.toLowerCase() === cfg.ytdlpAsset.toLowerCase()
-  );
-
-  if (!asset) {
-    console.warn(`[prepare-binaries] Warning: Could not find asset '${cfg.ytdlpAsset}' in GitHub release.`);
-    return;
-  }
-
-  console.log(`[prepare-binaries] Downloading yt-dlp (${cfg.ytdlpAsset}) for ${cfg.folder}...`);
-  const tempFile = path.join(targetDir, `${cfg.ytdlpName}.tmp.${Date.now()}`);
-
-  const res = await fetch(asset.browser_download_url, {
-    headers: {
-      'User-Agent': 'KaraokeLiveStation-Packager/1.0',
-      Accept: 'application/octet-stream'
-    },
-    redirect: 'follow',
-    signal: AbortSignal.timeout(180000)
-  });
-
-  if (!res.ok || !res.body) {
-    throw new Error(`Failed to download asset: HTTP ${res.status}`);
-  }
-
-  const outStream = fs.createWriteStream(tempFile);
-  await pipeline(Readable.fromWeb(res.body), outStream);
-
-  if (fs.existsSync(destFile)) {
-    try { fs.unlinkSync(destFile); } catch {}
-  }
-  fs.renameSync(tempFile, destFile);
+  await downloadYtDlpAsset(cfg.ytdlpAsset, destFile, releaseData);
 
   if (cfg.isPosix && process.platform !== 'win32') {
     fs.chmodSync(destFile, 0o755);
@@ -311,20 +373,35 @@ function prepareSqlite(platformKey) {
 async function main() {
   const targetPlatforms = resolveTargets(targetArg);
   console.log(`[prepare-binaries] Preparing platform-exclusive binaries for: ${targetPlatforms.join(', ')}`);
+  if (process.env.GITHUB_TOKEN || process.env.GH_TOKEN) {
+    console.log('[prepare-binaries] Using authenticated GitHub token for yt-dlp release lookups');
+  } else {
+    console.warn(
+      '[prepare-binaries] No GITHUB_TOKEN/GH_TOKEN — anonymous API may hit rate limits; ' +
+        'will fall back to /releases/latest/download/'
+    );
+  }
 
   let releaseData = null;
   try {
     releaseData = await fetchLatestYtDlpRelease();
   } catch (err) {
-    console.warn(`[prepare-binaries] Warning: Unable to query GitHub releases (${err.message}). Using existing local binaries.`);
+    console.warn(
+      `[prepare-binaries] Warning: Unable to query GitHub releases API (${err.message}). ` +
+        `Will try direct latest/download URLs.`
+    );
   }
 
+  const errors = [];
   for (const plat of targetPlatforms) {
     try {
       await prepareYtDlp(plat, releaseData);
       await prepareFfmpeg(plat);
+      assertYtDlpPresent(plat);
     } catch (err) {
-      console.warn(`[prepare-binaries] Warning: Failed to prepare binaries for ${plat}: ${err.message}`);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[prepare-binaries] ERROR preparing ${plat}: ${msg}`);
+      errors.push(`${plat}: ${msg}`);
     }
   }
 
@@ -333,10 +410,18 @@ async function main() {
     prepareSqlite(targetPlatforms[0]);
   }
 
+  if (errors.length > 0) {
+    throw new Error(
+      `prepare-binaries failed for: ${errors.join('; ')}. ` +
+        `Refusing to continue with a package missing yt-dlp.`
+    );
+  }
+
   console.log('[prepare-binaries] Preparation complete.');
 }
 
 main().catch((err) => {
   console.error('[prepare-binaries] Unexpected failure:', err);
-  process.exit(0);
+  // Must fail the release build — silent exit(0) previously shipped mac/linux without yt-dlp.
+  process.exit(1);
 });

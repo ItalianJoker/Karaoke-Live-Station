@@ -2376,6 +2376,14 @@ assert(
       fs.existsSync(path.resolve(__dirname, 'verify-packaged-bins.js')),
     'electron:build runs verify-packaged-bins.js after electron-builder'
   );
+  const prepareBinsSrc = fs.readFileSync(path.resolve(__dirname, 'prepare-binaries.js'), 'utf8');
+  assert(
+    prepareBinsSrc.includes('GITHUB_TOKEN') &&
+      prepareBinsSrc.includes('releases/latest/download') &&
+      prepareBinsSrc.includes('assertYtDlpPresent') &&
+      prepareBinsSrc.includes('process.exit(1)'),
+    'prepare-binaries authenticates GitHub, falls back to direct download, fails hard without yt-dlp'
+  );
   assert(
     Array.isArray(buildCfg.asarUnpack) &&
       !buildCfg.asarUnpack.some((p) => String(p).includes('soundfonts')),
