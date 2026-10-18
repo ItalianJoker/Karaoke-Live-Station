@@ -613,6 +613,24 @@ export interface YtDlpStatus {
 }
 
 /**
+ * On-disk Netscape cookies.txt status for yt-dlp `--cookies` (YouTube auth).
+ * Never includes cookie values — path + validity only.
+ */
+export interface YouTubeCookieStatus {
+  path: string;
+  present: boolean;
+  valid: boolean;
+  lastSavedAt?: number;
+  sizeBytes?: number;
+}
+
+/** Result of the interactive YouTube login BrowserWindow flow. */
+export type YouTubeLoginIpcResult =
+  | { success: true; cookiesPath: string; cookieCount: number }
+  | { success: false; cancelled: true }
+  | { success: false; cancelled: false; error?: string };
+
+/**
  * Supported host operating systems.
  */
 export type OperatingSystem = 'win32' | 'darwin' | 'linux';

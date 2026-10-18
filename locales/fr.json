@@ -359,7 +359,19 @@
     "downloadUpdate": "Télécharger la mise à jour",
     "releaseNotes": "Nouveautés de la version",
     "updateError": "Impossible de vérifier les mises à jour : {{error}}",
-    "updateLater": "Plus tard"
+    "updateLater": "Plus tard",
+    "youtubeCookiesTitle": "Connexion YouTube (cookies pour yt-dlp)",
+    "youtubeCookiesDesc": "Lorsque YouTube demande une connexion ou que les cookies expirent, une fenêtre dédiée s’ouvre pour vous connecter (2FA/CAPTCHA pris en charge). Les cookies sont enregistrés dans le userData de l’app et transmis automatiquement à yt-dlp — aucun export manuel de cookies.txt.",
+    "youtubeCookiesReady": "Connecté (cookies prêts)",
+    "youtubeCookiesMissing": "Non connecté",
+    "youtubeCookiesLogin": "Se connecter à YouTube",
+    "youtubeCookiesLoggingIn": "En attente de connexion…",
+    "youtubeCookiesClear": "Effacer les cookies",
+    "youtubeCookiesClearConfirm": "Effacer les cookies YouTube enregistrés et déconnecter la session ?",
+    "youtubeCookiesLoginSuccess": "Cookies YouTube enregistrés. Les téléchargements les utiliseront automatiquement.",
+    "youtubeCookiesLoginCancelled": "Connexion YouTube annulée.",
+    "youtubeCookiesLoginFailed": "Échec de la connexion YouTube : {{error}}",
+    "youtubeCookiesCleared": "Cookies YouTube effacés."
   },
   "history": {
     "title": "Historique de Lecture",

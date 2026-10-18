@@ -71,9 +71,14 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
   isCheckingYtdlp,
   ytdlpStatus,
   ytdlpMessage,
+  youtubeCookieStatus,
+  isYoutubeLoginBusy,
+  youtubeCookieMessage,
   setShowAutoArchiveConfirm,
   handleSelectLibraryPath,
   handleCheckYtDlpUpdate,
+  handleYouTubeLogin,
+  handleClearYouTubeCookies,
 }) => {
   return (
               <div className="space-y-4">
@@ -690,6 +695,53 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                           {ytdlpMessage}
                         </div>
                       )}
+
+                      <div className="pt-2 mt-1 border-t border-slate-800/80 space-y-2">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="text-slate-400 font-medium text-xs">
+                            {t('settings.youtubeCookiesTitle')}
+                          </span>
+                          {youtubeCookieStatus?.valid ? (
+                            <span className="text-emerald-400 font-semibold flex items-center gap-1 bg-emerald-950/30 px-2 py-0.5 rounded-lg border border-emerald-800/40 text-[11px]">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              {t('settings.youtubeCookiesReady')}
+                            </span>
+                          ) : (
+                            <span className="text-amber-400 font-semibold flex items-center gap-1 bg-amber-950/30 px-2 py-0.5 rounded-lg border border-amber-800/40 text-[11px]">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              {t('settings.youtubeCookiesMissing')}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          {t('settings.youtubeCookiesDesc')}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleYouTubeLogin()}
+                            disabled={isYoutubeLoginBusy}
+                            className="px-3 py-1.5 bg-rose-950/40 hover:bg-rose-900/50 text-rose-200 rounded-xl flex items-center gap-1.5 font-semibold border border-rose-800/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                          >
+                            {isYoutubeLoginBusy
+                              ? t('settings.youtubeCookiesLoggingIn')
+                              : t('settings.youtubeCookiesLogin')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleClearYouTubeCookies()}
+                            disabled={isYoutubeLoginBusy || !youtubeCookieStatus?.present}
+                            className="px-3 py-1.5 bg-slate-900/80 hover:bg-slate-800 text-slate-300 rounded-xl font-semibold border border-slate-700/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                          >
+                            {t('settings.youtubeCookiesClear')}
+                          </button>
+                        </div>
+                        {youtubeCookieMessage && (
+                          <div className="text-[11px] p-2 rounded-lg border leading-relaxed bg-slate-900/80 border-slate-700/50 text-slate-300">
+                            {youtubeCookieMessage}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}

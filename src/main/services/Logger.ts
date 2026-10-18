@@ -136,7 +136,11 @@ export class Logger {
     if (typeof value === 'object') {
       const out: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-        if (/pass(word)?|token|secret|api[_-]?key|authorization|credential/i.test(k)) {
+        if (
+          /pass(word)?|token|secret|api[_-]?key|authorization|credential|cookies?|netscape/i.test(
+            k
+          )
+        ) {
           out[k] = '[REDACTED]';
         } else {
           out[k] = Logger.maskSensitive(v, depth + 1);

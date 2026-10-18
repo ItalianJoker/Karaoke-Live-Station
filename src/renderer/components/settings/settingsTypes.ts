@@ -1,5 +1,10 @@
 import type { TFunction, i18n as I18nInstance } from 'i18next';
-import type { AppSettings, AppTheme, YtDlpStatus } from '../../../shared/types';
+import type {
+  AppSettings,
+  AppTheme,
+  YouTubeCookieStatus,
+  YtDlpStatus
+} from '../../../shared/types';
 import type { SoundFontCatalogEntry } from '../../../shared/soundFontPath';
 import type { GpuStatus } from '../../../shared/gpuStatus';
 
@@ -110,9 +115,14 @@ export interface SettingsTabSharedProps {
   isCheckingYtdlp: boolean;
   ytdlpStatus: YtDlpStatus | null;
   ytdlpMessage: string | null;
+  youtubeCookieStatus: YouTubeCookieStatus | null;
+  isYoutubeLoginBusy: boolean;
+  youtubeCookieMessage: string | null;
   setShowAutoArchiveConfirm: (show: boolean) => void;
   handleSelectLibraryPath: () => void | Promise<void>;
   handleCheckYtDlpUpdate: () => void | Promise<void>;
+  handleYouTubeLogin: () => void | Promise<void>;
+  handleClearYouTubeCookies: () => void | Promise<void>;
 
   // --- Audio local / handlers ---
   audioDevices: MediaDeviceInfo[];
@@ -170,9 +180,14 @@ export type SettingsLibraryTabProps = Pick<
   | 'isCheckingYtdlp'
   | 'ytdlpStatus'
   | 'ytdlpMessage'
+  | 'youtubeCookieStatus'
+  | 'isYoutubeLoginBusy'
+  | 'youtubeCookieMessage'
   | 'setShowAutoArchiveConfirm'
   | 'handleSelectLibraryPath'
   | 'handleCheckYtDlpUpdate'
+  | 'handleYouTubeLogin'
+  | 'handleClearYouTubeCookies'
 >;
 
 /** Props for {@link SettingsAudioTab}. */

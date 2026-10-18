@@ -6,6 +6,7 @@ import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import { Logger } from './Logger';
 import {
+  clearMacQuarantine,
   ensureDir,
   ensureExecutable,
   ensureManagedYtDlpFromBundle,
@@ -467,11 +468,14 @@ export class YtDlpUpdater {
 
     fs.renameSync(tempPath, targetPath);
     ensureExecutable(targetPath);
+    // macOS: downloads via fetch are usually clean, but clear xattrs defensively.
+    clearMacQuarantine(targetPath);
 
     const finalCheck = validateYtDlpBinaryIntegrity(targetPath, { requireExecutableBit: true });
     if (!finalCheck.ok && process.platform !== 'win32') {
       // Retry chmod then re-check size only — some mounts lack exec bit semantics
       ensureExecutable(targetPath);
+      clearMacQuarantine(targetPath);
       const retry = validateYtDlpBinaryIntegrity(targetPath);
       if (!retry.ok) {
         throw new Error(`Installed binary failed final integrity check: ${retry.reason}`);

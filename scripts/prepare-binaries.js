@@ -58,8 +58,15 @@ const PLATFORM_MAP = {
     ytdlpName: 'yt-dlp',
     ytdlpAsset: 'yt-dlp_macos',
     ffmpegName: 'ffmpeg',
-    ffmpegAsset: 'ffmpeg-darwin-x64.gz',
-    sqliteArch: 'darwin-x64',
+    // Prefer host arch when packaging on macOS CI (macos-latest = arm64).
+    ffmpegAsset:
+      process.platform === 'darwin' && process.arch === 'arm64'
+        ? 'ffmpeg-darwin-arm64.gz'
+        : 'ffmpeg-darwin-x64.gz',
+    sqliteArch:
+      process.platform === 'darwin' && process.arch === 'arm64'
+        ? 'darwin-arm64'
+        : 'darwin-x64',
     isPosix: true
   },
   darwin: {
@@ -67,8 +74,14 @@ const PLATFORM_MAP = {
     ytdlpName: 'yt-dlp',
     ytdlpAsset: 'yt-dlp_macos',
     ffmpegName: 'ffmpeg',
-    ffmpegAsset: 'ffmpeg-darwin-x64.gz',
-    sqliteArch: 'darwin-x64',
+    ffmpegAsset:
+      process.platform === 'darwin' && process.arch === 'arm64'
+        ? 'ffmpeg-darwin-arm64.gz'
+        : 'ffmpeg-darwin-x64.gz',
+    sqliteArch:
+      process.platform === 'darwin' && process.arch === 'arm64'
+        ? 'darwin-arm64'
+        : 'darwin-x64',
     isPosix: true
   }
 };

@@ -20,6 +20,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ### Breaking Changes
 - None yet.
 
+## [2.2.0] — YouTube Cookie Auth + macOS yt-dlp Packaging — 2026-10-18
+
+Release **v2.2.0** with automated YouTube cookie login for yt-dlp, macOS packaging/runtime hardening for downloads, and unsigned Mac Gatekeeper docs. Package **2.2.0**.
+
+### 🔐 YouTube / yt-dlp Auth
+- **IT:** Login YouTube automatico in una `BrowserWindow` Electron con session partition dedicata; export Netscape `cookies.txt` in `<userData>/youtube/` e passaggio trasparente a yt-dlp via `--cookies`. Riapertura login su 401/403/cookie scaduti. Pulsanti in Impostazioni → Libreria & Download.
+- **EN:** Automated YouTube login in a dedicated Electron `BrowserWindow` with a partitioned session; Netscape `cookies.txt` export under `<userData>/youtube/` and transparent yt-dlp `--cookies`. Re-opens login on 401/403/expired cookies. Settings → Library & Download controls.
+
+### 🍎 macOS Downloads
+- **IT:** La zip macOS pubblicata in **v2.1.0** risultava priva di `Contents/Resources/bin/yt-dlp` (l’artifact CI era corretto). Aggiunto gate `scripts/verify-packaged-bins.js` post-`electron-builder`, filtri `extraResources` espliciti, clear quarantena macOS (`xattr`) dopo seed/download, avvio più rapido di `YtDlpUpdater` se il binario manca. README: procedura build unsigned / Gatekeeper.
+- **EN:** The published **v2.1.0** macOS zip was missing `Contents/Resources/bin/yt-dlp` (CI artifact was correct). Added post-`electron-builder` gate `scripts/verify-packaged-bins.js`, explicit `extraResources` filters, macOS quarantine clearing (`xattr`) after seed/download, faster `YtDlpUpdater` startup when the binary is missing. README: unsigned build / Gatekeeper procedure.
+
+### Changed
+- App version **2.2.0** in `package.json` / CHANGELOG / RELEASE_NOTES / Settings footer.
+
+### Breaking Changes
+- None.
+
 ## [2.1.0] — Update Checker + Pitch Restore + MIDI Gating & Search Fixes — 2026-09-21
 
 Release **v2.1.0** with software update checker, queue pitch restoration on restart, Studio DSP typography polish, MIDI library gating, and local search reveal fixes. Package **2.1.0**.
