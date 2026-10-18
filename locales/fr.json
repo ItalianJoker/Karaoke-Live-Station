@@ -154,10 +154,10 @@
     "remuxingInstrumental": "Création de la vidéo instrumentale…",
     "instrumentalDownloadWarning": "Télécharger Instrumental prend plus de temps qu’un téléchargement normal et peut utiliser plus de CPU/RAM pendant la séparation vocale.",
     "instrumentalSubtitlesTitle": "Télécharger la base instrumentale",
-    "instrumentalSubtitlesAsk": "Télécharger aussi les sous-titres automatiques YouTube pour graver les paroles sur la vidéo instrumentale ?",
+    "instrumentalSubtitlesAsk": "Choose how to handle lyrics on Download Instrumental: no subtitles, YouTube subtitles, or generate word-level karaoke text via offline STT.",
     "instrumentalSubtitlesWarning": "Attention : les sous-titres YouTube sont souvent ASR/automatiques et peuvent être imprécis ou incomplets.",
-    "instrumentalSubtitlesWith": "Télécharger avec sous-titres",
-    "instrumentalSubtitlesWithout": "Base instrumentale seule",
+    "instrumentalSubtitlesWith": "Sous-titres YouTube",
+    "instrumentalSubtitlesWithout": "Aucun sous-titre",
     "instrumentalSubtitlesCancel": "Annuler",
     "instrumentalSubtitlesRemember": "Mémoriser mon choix",
     "downloadsMenu": "Téléchargements",
@@ -178,7 +178,13 @@
     "ortBackendWasm": "WASM/CPU",
     "ortBackendPending": "EP…",
     "ortThreads": "{{n}} threads",
-    "ortFallbackNotice": "Basculé vers WASM/CPU : {{reason}}"
+    "ortFallbackNotice": "Basculé vers WASM/CPU : {{reason}}",
+    "instrumentalSubtitlesStt": "Générer texte karaoké (STT)",
+    "instrumentalSttWarning": "Active STT model: {{model}} (~{{size}}). Model download (if missing) goes to persistent app storage — never the installer.",
+    "instrumentalSttHonesty": "Automatic transcription of singing is weaker than speech (melisma, chorus, vibrato). Not official lyrics and does not replace CD+G. Offline job — not for live show use.",
+    "instrumentalSttRememberHint": "ne s’applique pas au STT",
+    "sttEnsuring": "Préparation du moteur STT…",
+    "sttTranscribing": "Transcription karaoké STT…"
   },
   "settings": {
     "title": "Paramètres Système",
@@ -381,7 +387,18 @@
     "youtubeCookiesLoginCancelled": "Connexion YouTube annulée.",
     "youtubeCookiesLoginFailed": "Échec de la connexion YouTube : {{error}}",
     "youtubeCookiesCleared": "Cookies YouTube effacés.",
-    "aiGpuSessionNote": "Le backend de session est indiqué par téléchargement dans le menu Téléchargements (WebGPU vs WASM/CPU)."
+    "aiGpuSessionNote": "Le backend de session est indiqué par téléchargement dans le menu Téléchargements (WebGPU vs WASM/CPU).",
+    "sttModelTitle": "Modèles Whisper (Karaoké STT)",
+    "sttModelDesc": "Default = medium. Models live only under userData/models/whisper (e.g. AppData) — never in the installer. Remove to reclaim space; next use reopens the download confirmation dialog.",
+    "sttModelDefaultBadge": "Par défaut",
+    "sttPreferVocalStem": "Prefer AI vocal stem for STT when available (best-effort)",
+    "sttModelReady": "Ready — {{size}} on disk",
+    "sttModelNotDownloaded": "Not downloaded — ~{{size}}",
+    "sttDelete": "Supprimer",
+    "sttDeleteConfirm": "Delete Whisper model {{model}} and free about {{size}}?",
+    "sttDeleteAll": "Supprimer tous les modèles Whisper",
+    "sttDeleteAllConfirm": "Delete ALL downloaded Whisper models? ONNX vocal AI models are not touched.",
+    "sttHonesty": "Singing STT: even medium/large-v3 stay weak on melisma/chorus. Offline only; no cloud."
   },
   "history": {
     "title": "Historique de Lecture",
@@ -492,5 +509,36 @@
     "midiMixerShortShow": "MIDI",
     "midiMixerShortHide": "MIDI",
     "midiMixerDisabled": "Mixeur MIDI (pistes MIDI/KAR uniquement)"
+  },
+  "stt": {
+    "downloadDialogTitle": "Téléchargement du modèle Whisper requis",
+    "downloadDialogIntro": "Karaoke STT needs the selected model on disk (network + storage). Honest list of size, singing quality, and HW expectations:",
+    "downloadDialogPathNote": "Models are not in the installer or next to the exe — only in persistent app storage (userData / AppData / Application Support).",
+    "downloadDialogSelected": "selected",
+    "downloadDialogDownloading": "Downloading…",
+    "downloadDialogCancel": "Annuler",
+    "downloadDialogConfirm": "Télécharger et continuer",
+    "modelDownloadFailed": "Whisper model download failed: {{error}}",
+    "modelQuality": {
+      "poor": "Singing quality: poor",
+      "low": "Singing quality: low",
+      "medium": "Singing quality: medium",
+      "good": "Singing quality: good",
+      "best": "Singing quality: best among options"
+    },
+    "modelSpeed": {
+      "fastest": "fastest",
+      "fast": "fast",
+      "moderate": "moderate",
+      "slow": "slow",
+      "slowest": "slowest"
+    },
+    "modelHw": {
+      "tiny": "little RAM; smoke only",
+      "base": "light; still weak on singing",
+      "small": "CPU multithread OK",
+      "medium": "~2–4+ GB useful RAM; slower offline job; not live",
+      "large": "more RAM/CPU; several minutes on long tracks; opt-in"
+    }
   }
 }

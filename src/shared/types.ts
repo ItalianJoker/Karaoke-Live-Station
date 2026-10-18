@@ -201,8 +201,19 @@ export interface AppSettings {
    * - `ask` (default): show InstrumentalSubtitlesModal before starting
    * - `always` / `never`: skip modal and apply `includeSubtitles` accordingly
    * Same meaning as the modal “Remember my choice”; editable later in Settings → Library.
+   * STT (`generate-stt`) is never remembered silently — always confirm (model may be ~1.5 GB).
    */
   instrumentalSubtitlesPolicy: 'ask' | 'always' | 'never';
+  /**
+   * Whisper.cpp model for karaoke STT overlay (default `medium` / Predefinito).
+   * Models download on-demand under `<userData>/models/whisper/` — never in installer.
+   */
+  sttModelId: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3';
+  /**
+   * When true (default), Karaoke STT prefers an AI vocal stem when available;
+   * falls back to the full mix without failing the job.
+   */
+  sttPreferVocalStem: boolean;
 
   /** Duration (seconds) of the "Now Singing" intro banner */
   bannerIntroDurationSec: number;
@@ -425,6 +436,8 @@ export interface DownloadProgressPayload {
     | 'downloading_model'
     | 'removing_vocals'
     | 'remuxing'
+    | 'stt_ensuring'
+    | 'stt_transcribing'
     | 'completed'
     | 'error'
     | 'cancelled';
@@ -497,6 +510,15 @@ export interface StartDownloadOptions {
    * Omitted / false → no `--write-auto-sub`. Missing subs never fail the download.
    */
   includeSubtitles?: boolean;
+  /**
+   * When true (instrumental video only): after instrumental remux, run offline whisper.cpp
+   * karaoke STT → TimedKaraokeScript sidecar for Stage word overlay.
+   * Mutually exclusive with includeSubtitles in v1 (modal choices 2 vs 3).
+   * STT uses the original mix / vocal stem — never the instrumental-only audio.
+   */
+  generateKaraokeStt?: boolean;
+  /** Whisper model id for this job (default settings.sttModelId → medium). */
+  sttModelId?: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3';
 }
 
 /**

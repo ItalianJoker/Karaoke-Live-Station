@@ -11,6 +11,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 ### Breaking Changes
 - None.
 
+## [2.3.0] — Karaoke STT Overlay (whisper.cpp) — 2026-10-18
+
+Release **v2.3.0** adds offline word-level karaoke STT via **whisper.cpp** for Download Strumentale and Stage overlay. Models download on-demand under `<userData>/models/whisper/` only (never in the installer); default model **`medium`** (Predefinito). Package **2.3.0**.
+
+### 🎤 Karaoke STT
+- **IT:** Terza scelta nel modal Download Strumentale: nessun sottotitolo / sottotitoli YouTube / **genera testo karaoke (STT)**. Job offline whisper.cpp → sidecar `TimedKaraokeScript` + overlay Stage parola-per-parola. Burn-in ASS rimandato (v1.1). Stem vocale AI best-effort.
+- **EN:** Third choice in Download Instrumental modal: no subs / YouTube subs / **generate karaoke text (STT)**. Offline whisper.cpp job → `TimedKaraokeScript` sidecar + Stage word overlay. ASS burn-in deferred (v1.1). AI vocal stem best-effort.
+- **IT/EN:** Settings → Libreria: picker `tiny`→`large-v3`, size on disk, **Rimuovi** per-modello + elimina tutti (conferma); post-delete riapre dialog HW/size. Dialog attivazione obbligatorio se modello assente. Warning honesty sul canto.
+
+### Changed
+- App version **2.3.0** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer.
+- Manuals IT/EN/ES/FR + README: STT path, model storage, Stage overlay.
+
+### Breaking Changes
+- None.
+
 ## [2.2.1] — Audit Remediation (UX / Docs / Perf) — 2026-10-18
 
 Release **v2.2.1** shipping the post-**2.2.0** audit remediation already on `main` (#83). Aligns operator docs and runtime UX with Signalsmith DSP, Studio Desk default Regia, cookie-required YouTube downloads, download Cancel during login, and honest GPU capability vs session backend. Package **2.2.1**.

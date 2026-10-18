@@ -16,6 +16,13 @@ import { AppUpdateChecker } from './services/AppUpdateChecker';
 import { FirewallHelper } from './services/FirewallHelper';
 import { OfflineVocalModelManager } from './services/OfflineVocalModelManager';
 import { OrtWasmManager } from './services/OrtWasmManager';
+import { WhisperCppManager } from './services/WhisperCppManager';
+import {
+  findKaraokeScriptForTrack,
+  loadKaraokeScript,
+  processKaraokeSttOverlay
+} from './services/KaraokeSttProcessor';
+import { coerceWhisperModelId, type WhisperModelId } from '../shared/whisperStt';
 import {
   SoundFontManager,
   isEphemeralSoundFontPath
@@ -180,6 +187,7 @@ class KaraokeMainProcess {
   private ytDlpUpdater: YtDlpUpdater;
   private appUpdateChecker: AppUpdateChecker;
   private vocalModelManager: OfflineVocalModelManager;
+  private whisperManager: WhisperCppManager;
   private ortWasmManager: OrtWasmManager;
   private soundFontManager: SoundFontManager;
   private guestServer: GuestPortalServer | null = null;
@@ -268,12 +276,14 @@ class KaraokeMainProcess {
     this.ytDlpUpdater = new YtDlpUpdater(userDataPath, this.logger);
     this.appUpdateChecker = new AppUpdateChecker(app.getVersion(), this.logger);
     this.vocalModelManager = new OfflineVocalModelManager(this.logger);
+    this.whisperManager = new WhisperCppManager(this.logger);
     this.ortWasmManager = new OrtWasmManager(this.logger);
     this.soundFontManager = new SoundFontManager(this.logger);
     this.downloadManager.setInstrumentalAiDeps({
       vocalModelManager: this.vocalModelManager,
       ortWasmManager: this.ortWasmManager,
-      logger: this.logger
+      logger: this.logger,
+      whisperManager: this.whisperManager
     });
     this.downloadManager.setYouTubeCookieBridge(this.youtubeCookieAuth);
 
@@ -981,7 +991,7 @@ class KaraokeMainProcess {
     });
 
     ipcMain.handle('system:get-app-version', () => {
-      return app.getVersion() || '2.2.1';
+      return app.getVersion() || '2.3.0';
     });
 
     /**
@@ -1448,6 +1458,9 @@ class KaraokeMainProcess {
           aiEnableGpu?: boolean;
           /** Opt-in yt-dlp auto-subs for instrumental lyric burn-in */
           includeSubtitles?: boolean;
+          /** Opt-in offline whisper.cpp karaoke STT after instrumental remux */
+          generateKaraokeStt?: boolean;
+          sttModelId?: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3';
         }
       ) => {
         const libraryPath =
@@ -1545,6 +1558,11 @@ class KaraokeMainProcess {
           aiCpuThreads: isAi ? resolveAiCpuThreads(configuredThreads, totalCpus) : undefined,
           aiEnableGpu: isAi ? aiEnableGpu : undefined,
           aiGpuSupported: isAi ? aiGpuSupported : undefined,
+          generateKaraokeStt: options.generateKaraokeStt === true,
+          sttModelId: coerceWhisperModelId(
+            options.sttModelId ||
+              (this.currentSettings as { sttModelId?: string } | undefined)?.sttModelId
+          ),
           libraryPath,
           catalogTracks
         });
@@ -1772,6 +1790,120 @@ class KaraokeMainProcess {
       );
       return entries;
     });
+
+    // --- Karaoke STT (whisper.cpp) — models under userData/models/whisper only ---
+    ipcMain.handle('karaoke-stt:status', async () => {
+      return this.whisperManager.getStatus();
+    });
+
+    ipcMain.handle('karaoke-stt:ensure-model', async (_event, modelId: WhisperModelId) => {
+      try {
+        const id = coerceWhisperModelId(modelId);
+        const modelPath = await this.whisperManager.ensureModel(id);
+        return { success: true, modelPath };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error('App', `karaoke-stt:ensure-model failed: ${message}`);
+        return { success: false, error: message };
+      }
+    });
+
+    ipcMain.handle('karaoke-stt:ensure-binary', async () => {
+      try {
+        const binaryPath = await this.whisperManager.ensureBinary();
+        return { success: true, binaryPath };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { success: false, error: message };
+      }
+    });
+
+    ipcMain.handle('karaoke-stt:delete-model', async (_event, modelId: WhisperModelId) => {
+      try {
+        await this.whisperManager.deleteModel(coerceWhisperModelId(modelId));
+        return { success: true, status: this.whisperManager.getStatus() };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { success: false, error: message };
+      }
+    });
+
+    ipcMain.handle('karaoke-stt:delete-all-models', async () => {
+      try {
+        await this.whisperManager.deleteAllModels();
+        return { success: true, status: this.whisperManager.getStatus() };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { success: false, error: message };
+      }
+    });
+
+    ipcMain.handle(
+      'karaoke-stt:get-script',
+      async (
+        _event,
+        opts: { trackId: string; mediaPath?: string; libraryPath?: string }
+      ) => {
+        const scriptPath = findKaraokeScriptForTrack({
+          trackId: opts.trackId,
+          mediaPath: opts.mediaPath,
+          libraryPath:
+            opts.libraryPath?.trim() || this.currentSettings?.libraryPath?.trim() || undefined
+        });
+        if (!scriptPath) return { success: true, script: null, scriptPath: null };
+        const script = loadKaraokeScript(scriptPath);
+        return { success: true, script, scriptPath };
+      }
+    );
+
+    ipcMain.handle(
+      'karaoke-stt:start',
+      async (
+        _event,
+        opts: {
+          trackId: string;
+          localFilePath: string;
+          modelId?: WhisperModelId;
+          language?: string;
+        }
+      ) => {
+        try {
+          if (!opts.localFilePath || !fs.existsSync(opts.localFilePath)) {
+            return { success: false, error: 'Local media file not found' };
+          }
+          const modelId = coerceWhisperModelId(
+            opts.modelId ||
+              (this.currentSettings as { sttModelId?: string } | undefined)?.sttModelId
+          );
+          const result = await processKaraokeSttOverlay({
+            inputVideoPath: opts.localFilePath,
+            trackId: opts.trackId,
+            libraryPath: this.currentSettings?.libraryPath,
+            modelId,
+            language: opts.language,
+            whisperManager: this.whisperManager,
+            logger: this.logger,
+            onProgress: (phase, percent) => {
+              for (const win of BrowserWindow.getAllWindows()) {
+                try {
+                  win.webContents.send('karaoke-stt:progress', {
+                    trackId: opts.trackId,
+                    phase,
+                    percent
+                  });
+                } catch {
+                  /* ignore */
+                }
+              }
+            }
+          });
+          return result;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          return { success: false, error: message, usedVocalStem: false };
+        }
+      }
+    );
 
     ipcMain.handle('ort-wasm:ensure', async () => {
       try {

@@ -3241,8 +3241,8 @@ assert(
     settingsModalSrcV13.includes('aiCpuThreads') &&
     settingsModalSrcV13.includes('autoMaximizeControlOnLaunch') &&
     settingsModalSrcV13.includes('autoOpenStageOnLaunch') &&
-    settingsModalShellV13.includes("useState('2.2.1')"),
-  'SettingsModal wider sidebar layout + launch/AI cores + v2.2.1 footer state'
+    settingsModalShellV13.includes("useState('2.3.0')"),
+  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.0 footer state'
 );
 
 // Instrumental block lives under Library tab component (shell still orders library before audio)
@@ -3262,10 +3262,14 @@ assert(
 const pkgV13 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
 const changelogV13 = fs.readFileSync(path.resolve(__dirname, '../CHANGELOG.md'), 'utf8');
 const releaseNotesV13 = fs.readFileSync(path.resolve(__dirname, '../RELEASE_NOTES.md'), 'utf8');
-assert(pkgV13.version === '2.2.1', 'package.json version is 2.2.1');
+assert(pkgV13.version === '2.3.0', 'package.json version is 2.3.0');
+assert(
+  changelogV13.includes('## [2.3.0]') || changelogV13.includes('## [2.3.0] '),
+  'CHANGELOG has ## [2.3.0] section'
+);
 assert(
   changelogV13.includes('## [2.2.1]') || changelogV13.includes('## [2.2.1] '),
-  'CHANGELOG has ## [2.2.1] section'
+  'CHANGELOG retains ## [2.2.1] section'
 );
 assert(
   changelogV13.includes('## [2.2.0]') || changelogV13.includes('## [2.2.0] '),
@@ -3292,8 +3296,8 @@ assert(
   'CHANGELOG retains ## [1.3.0] section'
 );
 assert(
-  /v2\.2\.1|Version 2\.2\.1|Versione 2\.2\.1/.test(releaseNotesV13),
-  'RELEASE_NOTES mentions 2.2.1'
+  /v2\.3\.0|Version 2\.3\.0|Versione 2\.3\.0/.test(releaseNotesV13),
+  'RELEASE_NOTES mentions 2.3.0'
 );
 
 for (const lang of ['it', 'en', 'es', 'fr']) {
@@ -4134,7 +4138,7 @@ console.log('\n\x1b[36m▶ Suite: Safety-First modularization, virtualization, i
   );
 
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert(pkg.version === '2.2.1', 'package.json is 2.2.1 (new release cycle)');
+  assert(pkg.version === '2.3.0', 'package.json is 2.3.0 (new release cycle)');
 
   // Manual chapter parity markers (DnD / recursive scan / Bungee / AppImage SoundFont)
   for (const manual of [
@@ -5338,6 +5342,143 @@ console.log('\n\x1b[36m▶ Suite: YouTube Cookie Auth & Packaged yt-dlp Contract
       /* ignore */
     }
   }
+}
+
+// -------------------------------------------------------------
+// Suite: Karaoke STT overlay (v2.3.0)
+// -------------------------------------------------------------
+console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
+{
+  const timedSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/shared/timedKaraoke.ts'),
+    'utf8'
+  );
+  assert(
+    timedSrc.includes('export function wordHighlightState') &&
+      timedSrc.includes('export function whisperJsonToTimedScript') &&
+      timedSrc.includes("engine: 'whisper.cpp'"),
+    'timedKaraoke exports word highlight + whisper JSON mapper'
+  );
+
+  // Pure JS reimplementation smoke for highlight math (mirrors shared helper)
+  function wordHighlightState(line, timeMs) {
+    return line.words.map((w) => {
+      if (timeMs < w.startMs) return { text: w.text, state: 'future', progress: 0 };
+      if (timeMs >= w.endMs) return { text: w.text, state: 'past', progress: 1 };
+      const dur = Math.max(1, w.endMs - w.startMs);
+      return {
+        text: w.text,
+        state: 'current',
+        progress: Math.max(0, Math.min(1, (timeMs - w.startMs) / dur))
+      };
+    });
+  }
+  const line = {
+    startMs: 0,
+    endMs: 3000,
+    words: [
+      { text: 'Hello', startMs: 0, endMs: 1000 },
+      { text: 'world', startMs: 1000, endMs: 2000 }
+    ]
+  };
+  const mid = wordHighlightState(line, 1500);
+  assert(mid[0].state === 'past' && mid[1].state === 'current', 'wordHighlightState mid-line');
+  assert(mid[1].progress > 0.4 && mid[1].progress < 0.6, 'wordHighlightState progress ~0.5');
+
+  const whisperSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/shared/whisperStt.ts'),
+    'utf8'
+  );
+  assert(
+    whisperSrc.includes("DEFAULT_WHISPER_MODEL_ID: WhisperModelId = 'medium'") ||
+      whisperSrc.includes("DEFAULT_WHISPER_MODEL_ID = 'medium'") ||
+      /DEFAULT_WHISPER_MODEL_ID[^=]*=\s*'medium'/.test(whisperSrc),
+    'default Whisper model is medium'
+  );
+  assert(
+    /models\/whisper|userData/.test(whisperSrc),
+    'whisper catalog documents userData / models/whisper storage rule'
+  );
+
+  const mgrSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/WhisperCppManager.ts'),
+    'utf8'
+  );
+  assert(
+    mgrSrc.includes("path.join(app.getPath('userData'), 'models', 'whisper')") &&
+      mgrSrc.includes('deleteModel') &&
+      mgrSrc.includes('deleteAllModels'),
+    'WhisperCppManager uses userData/models/whisper + delete APIs'
+  );
+
+  const modalSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/InstrumentalSubtitlesModal.tsx'),
+    'utf8'
+  );
+  assert(
+    modalSrc.includes("'generate-stt'") &&
+      modalSrc.includes('instrumental-subtitles-stt') &&
+      modalSrc.includes('instrumental-stt-warning'),
+    'InstrumentalSubtitlesModal has third STT choice + honesty warning'
+  );
+
+  const libSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  assert(
+    libSrc.includes('generateKaraokeStt') && libSrc.includes('SttModelDownloadDialog'),
+    'LibraryPanel wires generateKaraokeStt + model download dialog'
+  );
+
+  const stageSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/StageWindow.tsx'),
+    'utf8'
+  );
+  assert(
+    stageSrc.includes('KaraokeWordOverlay') && stageSrc.includes('karaokeStt'),
+    'StageWindow mounts KaraokeWordOverlay via karaokeStt API'
+  );
+
+  const settingsLib = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/settings/SettingsLibraryTab.tsx'),
+    'utf8'
+  );
+  assert(
+    settingsLib.includes('settings-stt-whisper') &&
+      settingsLib.includes('deleteModel') &&
+      settingsLib.includes('deleteAllModels'),
+    'SettingsLibraryTab has Whisper model picker + delete'
+  );
+
+  const itLoc = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../locales/it.json'), 'utf8'));
+  assert(
+    itLoc.library?.instrumentalSubtitlesStt &&
+      itLoc.settings?.sttModelTitle &&
+      itLoc.stt?.downloadDialogTitle,
+    'it.json has STT modal/settings/dialog keys'
+  );
+  for (const lang of ['en', 'es', 'fr']) {
+    const loc = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+    );
+    assert(
+      loc.library?.instrumentalSubtitlesStt && loc.stt?.downloadDialogConfirm,
+      `${lang}.json has STT keys`
+    );
+  }
+
+  const dmSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
+    'utf8'
+  );
+  assert(
+    dmSrc.includes('generateKaraokeStt') && dmSrc.includes('processKaraokeSttOverlay'),
+    'DownloadManager hooks KaraokeSttProcessor after instrumental'
+  );
+
+  const pkg230 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
+  assert(pkg230.version === '2.3.0', 'package.json is 2.3.0 for STT release');
 }
 
 // Summary

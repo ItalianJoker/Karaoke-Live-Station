@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Library,
   Folder,
@@ -9,7 +9,15 @@ import {
   AlertCircle,
   AlertTriangle,
   Cpu,
+  Trash2,
 } from 'lucide-react';
+import {
+  WHISPER_MODEL_IDS,
+  WHISPER_MODELS,
+  coerceWhisperModelId,
+  formatBytesApprox,
+  type WhisperModelId,
+} from '../../../shared/whisperStt';
 import {
   clampAiCpuThreadsForUi,
   coerceAiCpuThreads,
@@ -80,6 +88,32 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
   handleYouTubeLogin,
   handleClearYouTubeCookies,
 }) => {
+  const [sttStatus, setSttStatus] = useState<{
+    binaryReady: boolean;
+    modelsDir: string;
+    models: Array<{ modelId: string; present: boolean; bytesOnDisk: number }>;
+  } | null>(null);
+  const [sttBusyId, setSttBusyId] = useState<string | null>(null);
+
+  const refreshSttStatus = useCallback(async () => {
+    try {
+      const status = await window.karaokeApi?.karaokeStt?.getStatus();
+      if (status) setSttStatus(status);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshSttStatus();
+    const unsub = window.karaokeApi?.karaokeStt?.onModelProgress?.(() => {
+      void refreshSttStatus();
+    });
+    return () => {
+      unsub?.();
+    };
+  }, [refreshSttStatus]);
+
   return (
               <div className="space-y-4">
                 <h3 className="font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -466,6 +500,143 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                         {t('settings.instrumentalSubtitlesPolicyNever')}
                       </option>
                     </select>
+                  </div>
+                )}
+
+                {(!isSearching || matchInstrumentalSubtitles) && (
+                  <div
+                    className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-3"
+                    data-testid="settings-stt-whisper"
+                  >
+                    <div>
+                      <label
+                        className="block font-semibold text-white text-xs"
+                        htmlFor="settings-stt-model"
+                      >
+                        {t('settings.sttModelTitle')}
+                      </label>
+                      <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
+                        {t('settings.sttModelDesc')}
+                      </p>
+                      {sttStatus?.modelsDir ? (
+                        <p className="text-[10px] font-mono text-slate-500 break-all mt-1">
+                          {sttStatus.modelsDir}
+                        </p>
+                      ) : null}
+                    </div>
+                    <select
+                      id="settings-stt-model"
+                      value={coerceWhisperModelId(settings.sttModelId)}
+                      onChange={(e) =>
+                        updateSettings({
+                          sttModelId: coerceWhisperModelId(e.target.value)
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs"
+                      data-testid="settings-stt-model-select"
+                    >
+                      {WHISPER_MODEL_IDS.map((id) => (
+                        <option key={id} value={id}>
+                          {id}
+                          {WHISPER_MODELS[id].isDefault
+                            ? ` (${t('settings.sttModelDefaultBadge')})`
+                            : ''}{' '}
+                          — {formatBytesApprox(WHISPER_MODELS[id].approxBytes)}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="flex items-start gap-2 text-xs text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.sttPreferVocalStem !== false}
+                        onChange={(e) =>
+                          updateSettings({ sttPreferVocalStem: e.target.checked })
+                        }
+                        className="mt-0.5 rounded border-slate-600"
+                      />
+                      <span>{t('settings.sttPreferVocalStem')}</span>
+                    </label>
+                    <ul className="space-y-2">
+                      {WHISPER_MODEL_IDS.map((id) => {
+                        const info = sttStatus?.models?.find((m) => m.modelId === id);
+                        const present = Boolean(info?.present);
+                        const bytes = info?.bytesOnDisk || 0;
+                        return (
+                          <li
+                            key={id}
+                            className="flex items-center justify-between gap-2 rounded-lg border border-slate-800/80 bg-slate-950/50 px-2.5 py-2 text-[11px]"
+                            data-testid={`settings-stt-row-${id}`}
+                          >
+                            <div className="min-w-0">
+                              <span className="font-semibold text-slate-200">{id}</span>
+                              {WHISPER_MODELS[id].isDefault ? (
+                                <span className="ml-1 text-sky-400">
+                                  ({t('settings.sttModelDefaultBadge')})
+                                </span>
+                              ) : null}
+                              <span className="block text-slate-500 truncate">
+                                {present
+                                  ? t('settings.sttModelReady', {
+                                      size: formatBytesApprox(bytes)
+                                    })
+                                  : t('settings.sttModelNotDownloaded', {
+                                      size: formatBytesApprox(
+                                        WHISPER_MODELS[id].approxBytes
+                                      )
+                                    })}
+                              </span>
+                            </div>
+                            {present ? (
+                              <button
+                                type="button"
+                                disabled={sttBusyId === id}
+                                className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-rose-800/60 text-rose-300 hover:bg-rose-950/40 disabled:opacity-50"
+                                data-testid={`settings-stt-delete-${id}`}
+                                onClick={() => {
+                                  const sizeLabel = formatBytesApprox(bytes);
+                                  if (
+                                    !window.confirm(
+                                      t('settings.sttDeleteConfirm', {
+                                        model: id,
+                                        size: sizeLabel
+                                      })
+                                    )
+                                  ) {
+                                    return;
+                                  }
+                                  setSttBusyId(id);
+                                  void window.karaokeApi?.karaokeStt
+                                    ?.deleteModel(id as WhisperModelId)
+                                    .then(() => refreshSttStatus())
+                                    .finally(() => setSttBusyId(null));
+                                }}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                {t('settings.sttDelete')}
+                              </button>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <button
+                      type="button"
+                      className="text-[11px] text-rose-300/90 hover:text-rose-200 underline-offset-2 hover:underline"
+                      data-testid="settings-stt-delete-all"
+                      onClick={() => {
+                        if (!window.confirm(t('settings.sttDeleteAllConfirm'))) return;
+                        setSttBusyId('all');
+                        void window.karaokeApi?.karaokeStt
+                          ?.deleteAllModels()
+                          .then(() => refreshSttStatus())
+                          .finally(() => setSttBusyId(null));
+                      }}
+                    >
+                      {t('settings.sttDeleteAll')}
+                    </button>
+                    <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                      {t('settings.sttHonesty')}
+                    </p>
                   </div>
                 )}
 

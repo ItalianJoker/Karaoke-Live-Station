@@ -30,6 +30,8 @@ import { useKaraokeStore } from '../store/karaokeStore';
 import { useScopedLibrarySearch } from '../hooks/useScopedLibrarySearch';
 import { VideoPreviewModal, extractVersionTags } from './VideoPreviewModal';
 import { InstrumentalSubtitlesModal } from './InstrumentalSubtitlesModal';
+import { SttModelDownloadDialog } from './SttModelDownloadDialog';
+import { coerceWhisperModelId } from '../../shared/whisperStt';
 import { dataTransferHasFiles, resolveDroppedAbsolutePaths, dispatchOsFileDragEnd, OS_FILE_DRAG_END_EVENT } from '../utils/fsDragDrop';
 import {
   checkTrackLocalFileExists,
@@ -247,6 +249,12 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
   /** Pending Download Instrumental track waiting for subtitle-policy modal */
   const [instrumentalSubtitlesTrack, setInstrumentalSubtitlesTrack] =
     useState<KaraokeMediaTrack | null>(null);
+  /** Pending STT download after model activation dialog */
+  const [pendingSttDownload, setPendingSttDownload] = useState<KaraokeMediaTrack | null>(null);
+  const [sttModelDialogOpen, setSttModelDialogOpen] = useState(false);
+  const [sttModelDownloading, setSttModelDownloading] = useState(false);
+  const [sttModelProgressLabel, setSttModelProgressLabel] = useState<string | undefined>();
+  const [sttModelsDirHint, setSttModelsDirHint] = useState<string | undefined>();
   const [trackPendingDelete, setTrackPendingDelete] = useState<KaraokeMediaTrack | null>(null);
   const [isDeletingTrack, setIsDeletingTrack] = useState(false);
   // When auto-archive is on, YouTube→queue waits for library file before enqueue (no remote/temp pointer).
@@ -1120,7 +1128,11 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
 
   const handleStartDownload = async (
     track: KaraokeMediaTrack,
-    opts?: { instrumental?: boolean; includeSubtitles?: boolean }
+    opts?: {
+      instrumental?: boolean;
+      includeSubtitles?: boolean;
+      generateKaraokeStt?: boolean;
+    }
   ) => {
     if (!window.karaokeApi) return;
     if (settings.autoArchiveWebTracks && !settings.libraryPath?.trim()) {
@@ -1144,6 +1156,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
       const isAi = isMdx || isDemucs;
       const includeSubtitles =
         instrumental && opts?.includeSubtitles === true ? true : undefined;
+      const generateKaraokeStt =
+        instrumental && opts?.generateKaraokeStt === true ? true : undefined;
       const result = await window.karaokeApi.downloads.start({
         url: track.uri,
         titleHint,
@@ -1174,7 +1188,13 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
               aiEnableGpu: settings.aiEnableGpu
             }
           : {}),
-        ...(includeSubtitles ? { includeSubtitles: true } : {})
+        ...(includeSubtitles ? { includeSubtitles: true } : {}),
+        ...(generateKaraokeStt
+          ? {
+              generateKaraokeStt: true,
+              sttModelId: settings.sttModelId || 'medium'
+            }
+          : {})
       });
 
       const mappedTrack: KaraokeMediaTrack = instrumental
@@ -1960,11 +1980,35 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
       <InstrumentalSubtitlesModal
         isOpen={instrumentalSubtitlesTrack !== null}
         track={instrumentalSubtitlesTrack}
+        sttModelId={settings.sttModelId}
         onClose={() => setInstrumentalSubtitlesTrack(null)}
         onConfirm={(choice, remember) => {
           const track = instrumentalSubtitlesTrack;
           setInstrumentalSubtitlesTrack(null);
           if (!track) return;
+          if (choice === 'generate-stt') {
+            void (async () => {
+              const modelId = coerceWhisperModelId(settings.sttModelId);
+              try {
+                const status = await window.karaokeApi?.karaokeStt?.getStatus();
+                setSttModelsDirHint(status?.modelsDir);
+                const cached = status?.models?.find((m) => m.modelId === modelId)?.present;
+                if (cached) {
+                  void handleStartDownload(track, {
+                    instrumental: true,
+                    includeSubtitles: false,
+                    generateKaraokeStt: true
+                  });
+                  return;
+                }
+              } catch {
+                /* fall through to dialog */
+              }
+              setPendingSttDownload(track);
+              setSttModelDialogOpen(true);
+            })();
+            return;
+          }
           const includeSubtitles = choice === 'with-subs';
           if (remember) {
             updateSettings({
@@ -1972,6 +2016,55 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
             });
           }
           void handleStartDownload(track, { instrumental: true, includeSubtitles });
+        }}
+      />
+
+      <SttModelDownloadDialog
+        isOpen={sttModelDialogOpen}
+        selectedModelId={settings.sttModelId || 'medium'}
+        modelsDirHint={sttModelsDirHint}
+        downloading={sttModelDownloading}
+        progressLabel={sttModelProgressLabel}
+        onCancel={() => {
+          if (sttModelDownloading) return;
+          setSttModelDialogOpen(false);
+          setPendingSttDownload(null);
+        }}
+        onConfirm={() => {
+          const track = pendingSttDownload;
+          if (!track || !window.karaokeApi?.karaokeStt) return;
+          const modelId = coerceWhisperModelId(settings.sttModelId);
+          setSttModelDownloading(true);
+          setSttModelProgressLabel(undefined);
+          const unsub = window.karaokeApi.karaokeStt.onModelProgress?.((p) => {
+            if (p.modelId === modelId && p.message) setSttModelProgressLabel(p.message);
+          });
+          void window.karaokeApi.karaokeStt
+            .ensureModel(modelId)
+            .then((res) => {
+              unsub?.();
+              setSttModelDownloading(false);
+              if (!res.success) {
+                showToast(t('stt.modelDownloadFailed', { error: res.error || 'unknown' }), 'error');
+                setSttModelDialogOpen(false);
+                setPendingSttDownload(null);
+                return;
+              }
+              setSttModelDialogOpen(false);
+              setPendingSttDownload(null);
+              void handleStartDownload(track, {
+                instrumental: true,
+                includeSubtitles: false,
+                generateKaraokeStt: true
+              });
+            })
+            .catch((err) => {
+              unsub?.();
+              setSttModelDownloading(false);
+              showToast(t('stt.modelDownloadFailed', { error: String(err) }), 'error');
+              setSttModelDialogOpen(false);
+              setPendingSttDownload(null);
+            });
         }}
       />
 

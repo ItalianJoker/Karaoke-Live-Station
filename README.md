@@ -186,6 +186,7 @@ Premi **`F1`** o **`?`** in qualsiasi momento per aprire la guida interattiva co
 - **Rilevamento e Download Automatico all'Avvio**: All'avvio, il servizio `YtDlpUpdater` controlla la presenza dell'eseguibile sul sistema e interroga in background l'API GitHub di `yt-dlp`. Se l'eseguibile non è presente, viene scaricato automaticamente il binario ufficiale compatibile con il sistema operativo e l'architettura in uso (x86_64 o ARM64).
 - **Aggiornamento Trasparente in Background**: Qualora sia disponibile una nuova release di `yt-dlp`, il sistema scarica e valida il nuovo file in una cartella dati utente scrivibile (`userData/bin/`), impostando i permessi di esecuzione (`chmod 0755` su Linux e macOS) e sostituendolo in modo atomico, garantendo che i download web continuino a funzionare anche a fronte di cambi API da parte di YouTube.
 - **Accesso YouTube automatico (cookie, v2.2.0)**: I **cookie sono obbligatori per ogni download YouTube** (nessun tentativo anonimo). Se mancano o non sono validi, si apre una `BrowserWindow` dedicata (session partition isolata) per il login (2FA/CAPTCHA ok). I cookie vengono esportati in Netscape `<userData>/youtube/cookies.txt` e usati da yt-dlp con `--cookies` — nessuna esportazione manuale dal browser. Controlli **Accedi / Cancella** in Impostazioni → Libreria & Download. La ricerca Web usa i cookie solo se già validi (può toastare Accedi senza aprire il login).
+- **Karaoke STT overlay (whisper.cpp, v2.3.0)**: Nel Download Strumentale, terza scelta **Genera testo karaoke (STT)** → job offline whisper.cpp → overlay Stage parola-per-parola. Modelli **solo** in `<userData>/models/whisper/` (on-demand; default **medium** / Predefinito; Rimuovi in Impostazioni). Mai nell’installer. Warning honesty sul canto; burn-in ASS rimandato.
 - **Risoluzione Relativa delle Risorse (`BinaryResolver`)**: Tutti i path dei binari e delle risorse sono risolti dinamicamente con percorsi relativi conformi ad Electron, prevenendo errori di permessi di sola lettura tipici delle directory di installazione (`C:\Program Files`, `/opt`). Su macOS viene anche rimossa la quarantena Gatekeeper (`xattr`) dai binari helper dopo seed/download.
 - **Pannello di Controllo Dedicato nelle Impostazioni**: Mostra lo stato di operatività, la versione corrente e il percorso del binario, con pulsante manuale per forzare la verifica e l'aggiornamento, più stato cookie YouTube / Accedi / Cancella.
 
@@ -255,7 +256,7 @@ Verranno generati in `release/` l'eseguibile portatile autonomo `Karaoke Live St
 ```bash
 npm run electron:build:mac
 ```
-L'archivio `Karaoke Live Station-2.2.1-arm64-mac.zip` contenente l'applicazione `.app` pronta all'uso verrà generato in `release/`, con binari esclusivi Darwin Mach-O (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`). Il passo `verify-packaged-bins` fallisce se `yt-dlp` o `ffmpeg` mancano nel bundle.
+L'archivio `Karaoke Live Station-2.3.0-arm64-mac.zip` contenente l'applicazione `.app` pronta all'uso verrà generato in `release/`, con binari esclusivi Darwin Mach-O (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`). Il passo `verify-packaged-bins` fallisce se `yt-dlp` o `ffmpeg` mancano nel bundle.
 
 #### Aprire la build macOS unsigned (Gatekeeper / quarantena)
 Le release ufficiali **non sono firmate** con Developer ID. Dopo il download da GitHub:
@@ -543,6 +544,7 @@ Press **`F1`** or **`?`** at any time to open the searchable interactive guide (
 - **Zero-Configuration Standalone Packaging**: In packaged executable releases (Windows `.exe`, Linux `.AppImage`/`.deb`, macOS `.dmg`/`.zip`), Karaoke Live Station is completely self-contained. It requires no manual pre-installation of `yt-dlp`, `ffmpeg`, or system PATH adjustments.
 - **Automatic Verification & Background Updates on Startup**: Upon launching, `YtDlpUpdater` checks for local executable availability and queries GitHub Releases API for the latest official build. If missing or outdated, it streams the compatible binary, verifies its checksum and integrity, and applies it in the background without freezing the UI or playback.
 - **Automated YouTube cookie auth (v2.2.0)**: **Cookies are required for every YouTube download** (no anonymous attempt). When missing or invalid, a dedicated Electron `BrowserWindow` opens (isolated session partition) for sign-in (2FA/CAPTCHA OK). Cookies are exported as Netscape `<userData>/youtube/cookies.txt` and passed to yt-dlp via `--cookies` — no manual browser export. **Sign in / Clear** controls live in Settings → Library & Download. Web search uses cookies only if already valid (may toast Sign in without opening login).
+- **Karaoke STT overlay (whisper.cpp, v2.3.0)**: Download Instrumental third choice **Generate karaoke text (STT)** → offline whisper.cpp job → Stage word overlay. Models **only** under `<userData>/models/whisper/` (on-demand; default **medium**; Remove in Settings). Never in the installer. Singing honesty warnings; ASS burn-in deferred.
 - **Strict Relative Path Resolution & Safe Permissions**: Employs `BinaryResolver` to resolve runtime dependencies across relative locations. Updated binaries are saved to the user data directory (`userData/bin/`) and granted executable permissions (`chmod 0755` on POSIX), bypassing read-only application folders such as `Program Files` or `/opt`. On macOS, Gatekeeper quarantine xattrs are also cleared on helper binaries after seed/download.
 - **Manual Control in Settings**: Live diagnostic card in Settings displaying the binary path, current version, operational status, a manual "Check / Update" button, plus YouTube cookie status / Sign in / Clear.
 
@@ -612,7 +614,7 @@ The standalone portable executable `Karaoke Live Station 2.0.0.exe` (runs immedi
 ```bash
 npm run electron:build:mac
 ```
-The standalone `Karaoke Live Station-2.2.1-arm64-mac.zip` archive containing `Karaoke Live Station.app` will be generated in `release/`, with exclusive Darwin Mach-O binaries (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`). The `verify-packaged-bins` step fails the build if `yt-dlp` or `ffmpeg` is missing from the bundle.
+The standalone `Karaoke Live Station-2.3.0-arm64-mac.zip` archive containing `Karaoke Live Station.app` will be generated in `release/`, with exclusive Darwin Mach-O binaries (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`). The `verify-packaged-bins` step fails the build if `yt-dlp` or `ffmpeg` is missing from the bundle.
 
 #### Running the unsigned macOS build (Gatekeeper / quarantine)
 Official releases are **not** Developer ID–signed. After downloading from GitHub:

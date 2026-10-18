@@ -17,6 +17,9 @@ import { killProcessTree } from './processKill';
 import type { OfflineVocalModelManager } from './OfflineVocalModelManager';
 import type { OrtWasmManager } from './OrtWasmManager';
 import type { Logger } from './Logger';
+import type { WhisperCppManager } from './WhisperCppManager';
+import { processKaraokeSttOverlay } from './KaraokeSttProcessor';
+import { coerceWhisperModelId } from '../../shared/whisperStt';
 import { buildKaraokeLocalUri } from '../../shared/karaokeLocalPath';
 import { findMediaMatchInTree } from '../../shared/libraryScanner';
 import {
@@ -100,6 +103,12 @@ export interface DownloadOptions {
    * Default / omitted = false (no `--write-auto-sub`). Missing subs never fail the job.
    */
   includeSubtitles?: boolean;
+  /**
+   * When true: after instrumental remux, run karaoke STT (whisper.cpp) on the original mix.
+   * Failure is best-effort — does not invalidate the instrumental file.
+   */
+  generateKaraokeStt?: boolean;
+  sttModelId?: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3';
 }
 
 /**
@@ -147,6 +156,7 @@ export class DownloadManager {
   private pendingById = new Map<string, PendingDownloadJob>();
   private vocalModelManager?: OfflineVocalModelManager;
   private ortWasmManager?: OrtWasmManager;
+  private whisperManager?: WhisperCppManager;
   private logger?: Logger;
   /** Optional YouTube cookie auth (login window + Netscape cookies.txt for yt-dlp). */
   private youtubeCookies?: YouTubeCookieBridge;
@@ -176,10 +186,16 @@ export class DownloadManager {
     vocalModelManager: OfflineVocalModelManager;
     ortWasmManager: OrtWasmManager;
     logger: Logger;
+    whisperManager?: WhisperCppManager;
   }): void {
     this.vocalModelManager = deps.vocalModelManager;
     this.ortWasmManager = deps.ortWasmManager;
     this.logger = deps.logger;
+    if (deps.whisperManager) this.whisperManager = deps.whisperManager;
+  }
+
+  public setWhisperManager(manager: WhisperCppManager): void {
+    this.whisperManager = manager;
   }
 
   /**
@@ -1176,6 +1192,83 @@ export class DownloadManager {
               this.activeJobs.delete(downloadId);
               this.activeUrls.delete(dedupUrlKey);
               return;
+            }
+
+            // Optional karaoke STT on the ORIGINAL mix (vocals present) before temp cleanup.
+            // Failure is best-effort — instrumental remux already succeeded.
+            if (
+              options.generateKaraokeStt === true &&
+              this.whisperManager &&
+              options.trackId &&
+              originalVideoPath &&
+              fs.existsSync(originalVideoPath)
+            ) {
+              try {
+                const sttSignal = job?.abortController.signal;
+                if ((payload.status as DownloadProgressPayload['status']) !== 'cancelled') {
+                  payload.status = 'stt_ensuring';
+                  payload.percent = 0;
+                  payload.speed = '';
+                  payload.eta = '--:--';
+                  this.emitProgress({ ...payload });
+                }
+                const sttResult = await processKaraokeSttOverlay({
+                  inputVideoPath: originalVideoPath,
+                  trackId: String(options.trackId),
+                  libraryPath: options.libraryPath,
+                  modelId: coerceWhisperModelId(options.sttModelId),
+                  whisperManager: this.whisperManager,
+                  signal: sttSignal,
+                  logger: this.logger,
+                  onProgress: (phase, percent) => {
+                    if (payload.status === 'cancelled') return;
+                    if (phase === 'ensuring_engine') {
+                      payload.status = 'stt_ensuring';
+                    } else {
+                      payload.status = 'stt_transcribing';
+                    }
+                    payload.percent = Math.max(0, Math.min(100, percent));
+                    payload.speed = '';
+                    this.emitProgress({ ...payload });
+                  }
+                });
+                if (sttResult.cancelled) {
+                  cleanupInstrumentalRunTemps(false);
+                  payload.status = 'cancelled';
+                  payload.errorMessage = 'Download cancelled by user';
+                  this.emitProgress({ ...payload });
+                  this.activeJobs.delete(downloadId);
+                  this.activeUrls.delete(dedupUrlKey);
+                  return;
+                }
+                if (!sttResult.success) {
+                  this.logger?.warn(
+                    'DownloadManager',
+                    `Karaoke STT failed (instrumental kept): ${sttResult.error || 'unknown'}`,
+                    { downloadId }
+                  );
+                } else if (
+                  sttResult.scriptPath &&
+                  result.outputPath &&
+                  fs.existsSync(sttResult.scriptPath)
+                ) {
+                  // Also place a sibling sidecar next to the instrumental remux for Stage lookup.
+                  try {
+                    const sibling = `${result.outputPath}.karaoke.json`;
+                    fs.copyFileSync(sttResult.scriptPath, sibling);
+                  } catch {
+                    /* ignore sibling copy races */
+                  }
+                }
+              } catch (sttErr) {
+                this.logger?.warn(
+                  'DownloadManager',
+                  `Karaoke STT threw (instrumental kept): ${
+                    sttErr instanceof Error ? sttErr.message : String(sttErr)
+                  }`,
+                  { downloadId }
+                );
+              }
             }
 
             // Success: keep `${downloadId}.instrumental.mp4`; drop source MP4 + WAV temps.
