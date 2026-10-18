@@ -8,7 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
-Post-**2.2.0** audit remediation (code + docs; no package version bump). Aligns operator docs and runtime UX with Signalsmith DSP, Studio Desk default Regia, cookie-required YouTube downloads, download Cancel during login, and honest GPU capability vs session backend.
+### Breaking Changes
+- None.
+
+## [2.2.1] — Audit Remediation (UX / Docs / Perf) — 2026-10-18
+
+Release **v2.2.1** shipping the post-**2.2.0** audit remediation already on `main` (#83). Aligns operator docs and runtime UX with Signalsmith DSP, Studio Desk default Regia, cookie-required YouTube downloads, download Cancel during login, and honest GPU capability vs session backend. Package **2.2.1**.
 
 ### Fixed
 - **IT:** Cancel/Clear durante login cookie YouTube non era più no-op: job registrato pre-spawn con status `awaiting_auth`; Cancel chiude la finestra login e la porta in primo piano.
@@ -21,6 +26,7 @@ Post-**2.2.0** audit remediation (code + docs; no package version bump). Aligns 
 - **EN:** Manuals (it/en/es/fr + `USER_MANUAL.md`): §4.3 Signalsmith + media-rate tempo; §6.4 Downloads menu only; §13.1 **10** themes / Studio Desk default Control; cookie path + troubleshooting; GPU honesty.
 - **IT/EN:** Badge GPU Impostazioni = capacità (probe); chip Download = backend sessione (`ortBackend` / thread) durante rimozione AI; toast fallback Hi-Fi→SoundTouch; `embedded={isStudioDesk}`; persist `missingTrackIds` + snapshot download IPC; toast Accedi su search auth fail; Loader su delete busy.
 - **IT/EN:** Settings GPU badge = capability (probe); Downloads chip = session backend (`ortBackend` / threads) during AI removal; Hi-Fi→SoundTouch fallback toast; `embedded={isStudioDesk}`; persist `missingTrackIds` + download snapshot IPC; Sign-in toast on search auth fail; Loader on destructive delete busy.
+- App version **2.2.1** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer.
 
 ### ⚡ Performance & Concurrency
 - **IT/EN:** Guest approve → `getTrackById` / `searchTracks` (no full catalog dump); Key/BPM FFT in `worker_threads` + ZIP analysis async inflate; MIDI parse Web Worker; vocal-remover disconnect-when-off; virt prefix memo; Hidden Renderer `removeListener` on dispose.
@@ -29,7 +35,7 @@ Post-**2.2.0** audit remediation (code + docs; no package version bump). Aligns 
 - **IT/EN:** Removed unused `BungeePitchShifterNode` alias; Database/LibraryScanner warn → Logger/`onWarn` (GuestPortal port-probe stderr kept intentional).
 
 ### Breaking Changes
-- None (package remains **2.2.0**).
+- None.
 
 ## [2.2.0] — YouTube Cookie Auth + macOS yt-dlp Packaging — 2026-10-18
 

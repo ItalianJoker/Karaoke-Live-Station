@@ -3241,8 +3241,8 @@ assert(
     settingsModalSrcV13.includes('aiCpuThreads') &&
     settingsModalSrcV13.includes('autoMaximizeControlOnLaunch') &&
     settingsModalSrcV13.includes('autoOpenStageOnLaunch') &&
-    settingsModalShellV13.includes("useState('2.2.0')"),
-  'SettingsModal wider sidebar layout + launch/AI cores + v2.2.0 footer state'
+    settingsModalShellV13.includes("useState('2.2.1')"),
+  'SettingsModal wider sidebar layout + launch/AI cores + v2.2.1 footer state'
 );
 
 // Instrumental block lives under Library tab component (shell still orders library before audio)
@@ -3262,10 +3262,14 @@ assert(
 const pkgV13 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
 const changelogV13 = fs.readFileSync(path.resolve(__dirname, '../CHANGELOG.md'), 'utf8');
 const releaseNotesV13 = fs.readFileSync(path.resolve(__dirname, '../RELEASE_NOTES.md'), 'utf8');
-assert(pkgV13.version === '2.2.0', 'package.json version is 2.2.0');
+assert(pkgV13.version === '2.2.1', 'package.json version is 2.2.1');
+assert(
+  changelogV13.includes('## [2.2.1]') || changelogV13.includes('## [2.2.1] '),
+  'CHANGELOG has ## [2.2.1] section'
+);
 assert(
   changelogV13.includes('## [2.2.0]') || changelogV13.includes('## [2.2.0] '),
-  'CHANGELOG has ## [2.2.0] section'
+  'CHANGELOG retains ## [2.2.0] section'
 );
 assert(
   changelogV13.includes('## [2.1.0]') || changelogV13.includes('## [2.1.0] '),
@@ -3288,8 +3292,8 @@ assert(
   'CHANGELOG retains ## [1.3.0] section'
 );
 assert(
-  /v2\.2\.0|Version 2\.2\.0|Versione 2\.2\.0/.test(releaseNotesV13),
-  'RELEASE_NOTES mentions 2.2.0'
+  /v2\.2\.1|Version 2\.2\.1|Versione 2\.2\.1/.test(releaseNotesV13),
+  'RELEASE_NOTES mentions 2.2.1'
 );
 
 for (const lang of ['it', 'en', 'es', 'fr']) {
@@ -4130,7 +4134,7 @@ console.log('\n\x1b[36m▶ Suite: Safety-First modularization, virtualization, i
   );
 
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert(pkg.version === '2.2.0', 'package.json is 2.2.0 (new release cycle)');
+  assert(pkg.version === '2.2.1', 'package.json is 2.2.1 (new release cycle)');
 
   // Manual chapter parity markers (DnD / recursive scan / Bungee / AppImage SoundFont)
   for (const manual of [
