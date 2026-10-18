@@ -25,7 +25,8 @@
     "bgmDucking": "Auto-Ducking BGM",
     "nowPlaying": "Now Playing",
     "noTrackLoaded": "No track loaded",
-    "transitionCountdown": "Next track in {{count}}s..."
+    "transitionCountdown": "Next track in {{count}}s...",
+    "dspFallbackToast": "Hi-Fi pitch engine unavailable — switched to SoundTouch (±4 ST, 0.75–1.25×). Check Settings → Audio."
   },
   "midi": {
     "title": "MIDI Channels Mixer",
@@ -65,7 +66,9 @@
     "confirmRemove": "Remove this track from the queue?",
     "dropToImport": "Drop media files to import and add to the queue",
     "importDropped": "Imported and queued {{count}} track(s)",
-    "revealInLibrary": "Show in Local Library"
+    "revealInLibrary": "Show in Local Library",
+    "assignSingerTitle": "Assign Singer",
+    "editSingerTitle": "Edit Singer"
   },
   "singers": {
     "title": "Singers Management",
@@ -169,7 +172,13 @@
     "clearDownloads": "Clear downloads",
     "confirmClearDownloads": "Cancel all in-progress downloads and clear the list?",
     "scanProgress": "Scanning… {{scanned}} checked, {{found}} found",
-    "scanWarm": "Library ready (cached)"
+    "scanWarm": "Library ready (cached)",
+    "awaitingAuth": "Waiting for YouTube login…",
+    "ortBackendWebgpu": "WebGPU",
+    "ortBackendWasm": "WASM/CPU",
+    "ortBackendPending": "EP…",
+    "ortThreads": "{{n}} threads",
+    "ortFallbackNotice": "Fell back to WASM/CPU: {{reason}}"
   },
   "settings": {
     "title": "System Settings",
@@ -325,11 +334,11 @@
     "demucsOverlap": "Overlap",
     "demucsOverlapDesc": "Fractional overlap between successive Demucs windows (0.10–0.50). Higher overlap improves continuity but increases ETA.",
     "aiEnableGpu": "AI GPU acceleration",
-    "aiEnableGpuDesc": "When on, Instrumental AI prefers WebGPU via a hidden Chromium renderer when a GPU adapter is available. If GPU is off or unavailable, separation uses WASM CPU with the thread count below. The badge is green only when WebGPU is really active.",
+    "aiEnableGpuDesc": "When on, Instrumental AI prefers WebGPU via a hidden Chromium renderer when a GPU adapter is available. If GPU is off or unavailable, separation uses WASM CPU with the thread count below. This badge shows probe capability (not the active job backend — see the Downloads chip during AI removal).",
     "aiGpuBadgeSupported": "GPU available",
     "aiGpuBadgeCpuFallback": "CPU multithread fallback",
-    "aiGpuBadgeGpu": "GPU: WebGPU Active ({{name}})",
-    "aiGpuBadgeCpu": "CPU: {{detail}}",
+    "aiGpuBadgeGpu": "Capability: WebGPU ready ({{name}})",
+    "aiGpuBadgeCpu": "Capability: CPU / WASM ({{detail}})",
     "aiGpuBadgeWasmWorker": "WASM CPU",
     "aiGpuBadgeHardwareOnly": "Hardware GPU detected: {{name}} — AI still uses WASM (no WebGPU adapter)",
     "dspEngineSignalsmith": "Signalsmith Stretch (Hi-Fi default) — ±8 ST, pitch+speed",
@@ -371,7 +380,8 @@
     "youtubeCookiesLoginSuccess": "YouTube cookies saved. Downloads will use them automatically.",
     "youtubeCookiesLoginCancelled": "YouTube login cancelled.",
     "youtubeCookiesLoginFailed": "YouTube login failed: {{error}}",
-    "youtubeCookiesCleared": "YouTube cookies cleared."
+    "youtubeCookiesCleared": "YouTube cookies cleared.",
+    "aiGpuSessionNote": "Session backend is reported per download in the Downloads menu (WebGPU vs WASM/CPU)."
   },
   "history": {
     "title": "Playback History",
@@ -405,7 +415,11 @@
     "downloadFailed": "Download failed: {{error}}",
     "libraryPathRequired": "Set the library folder in settings before downloading.",
     "alreadyRunningTitle": "Karaoke Live Station",
-    "alreadyRunning": "Software already running"
+    "alreadyRunning": "Software already running",
+    "youtubeLoginCancelled": "YouTube login cancelled — cookies are required for this download",
+    "youtubeLoginFailed": "YouTube login failed — cannot download without cookies{{error}}",
+    "youtubeLoginRequiredAfterAuth": "YouTube login required after auth error, but login did not complete",
+    "youtubeSignInToSearch": "Sign in to YouTube to search (Settings → Library → Sign in to YouTube)"
   },
   "firewall": {
     "title": "Firewall & LAN Connection Assistant",

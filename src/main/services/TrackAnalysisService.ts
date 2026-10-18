@@ -12,6 +12,8 @@
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
+import { Worker } from 'worker_threads';
+import { app } from 'electron';
 import FFT from 'fft.js';
 import {
   estimateBpmFromOnsetStrength,
@@ -20,8 +22,16 @@ import {
 import { peekMidiKeyAndBpm } from '../../shared/midiKeyBpmPeek';
 import type { KaraokeMediaTrack } from '../../shared/types';
 import type { DatabaseManager } from '../db/database';
-import { inspectZipForCdgPair, extractZipEntryToFile, readZipCentralDirectoryFromFile } from '../../shared/zipCdg';
+import {
+  inspectZipForCdgPair,
+  extractZipEntryToFileAsync,
+  readZipCentralDirectoryFromFile
+} from '../../shared/zipCdg';
 import type { Logger } from './Logger';
+import type {
+  TrackAnalysisFftRequest,
+  TrackAnalysisFftResponse
+} from '../workers/trackAnalysisFftWorker';
 
 export type TrackAnalysisResult = {
   initialKey?: string;
@@ -145,7 +155,8 @@ export class TrackAnalysisService {
       if (!audioEntry) return {};
       if (!fs.existsSync(this.tempDir)) fs.mkdirSync(this.tempDir, { recursive: true });
       cleanup = path.join(this.tempDir, `${job.trackId.replace(/[^a-zA-Z0-9_-]/g, '_')}${pair.audioExt}`);
-      extractZipEntryToFile(job.localFilePath, audioEntry, cleanup);
+      // Async inflate — same play-path helper; keeps analysis off sync zlib on main.
+      await extractZipEntryToFileAsync(job.localFilePath, audioEntry, cleanup);
       audioPath = cleanup;
     } else if (!['.mp3', '.wav', '.mp4', '.webm', '.mkv', '.avi', '.m4a', '.ogg'].includes(ext)) {
       return {};
@@ -221,10 +232,87 @@ export class TrackAnalysisService {
 
   /**
    * Chromagram + onset flux over PCM.
+   * Prefers worker_threads (off main); falls back to cooperative in-process FFT.
    * Time ≈ O((N/HOP)·FFT_SIZE); space O(FFT_SIZE + frames).
-   * Yields every {@link YIELD_EVERY_FRAMES} hops so main stays responsive.
    */
   private async computeChromaAndOnset(samples: Float32Array): Promise<{
+    chroma: number[];
+    onset: number[];
+  }> {
+    try {
+      return await this.computeChromaAndOnsetInWorker(samples);
+    } catch (err) {
+      this.logger?.warn('TrackAnalysisService', 'FFT worker unavailable — in-process fallback', {
+        err: err instanceof Error ? err.message : String(err)
+      });
+      return this.computeChromaAndOnsetInProcess(samples);
+    }
+  }
+
+  private resolveFftWorkerScript(): string | null {
+    const candidates = [
+      path.join(__dirname, 'trackAnalysisFftWorker.js'),
+      path.join(__dirname, 'workers', 'trackAnalysisFftWorker.js'),
+      path.join(app.getAppPath(), 'dist-electron', 'main', 'trackAnalysisFftWorker.js'),
+      path.join(process.cwd(), 'dist-electron', 'main', 'trackAnalysisFftWorker.js')
+    ];
+    for (const c of candidates) {
+      if (fs.existsSync(c)) return c;
+    }
+    return null;
+  }
+
+  private computeChromaAndOnsetInWorker(samples: Float32Array): Promise<{
+    chroma: number[];
+    onset: number[];
+  }> {
+    const script = this.resolveFftWorkerScript();
+    if (!script) {
+      return Promise.reject(new Error('trackAnalysisFftWorker.js not found'));
+    }
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const requestId = Date.now() ^ (Math.random() * 1e9);
+      // Copy buffer for transfer — caller may reuse `samples`.
+      const copy = samples.slice();
+      const worker = new Worker(script, {
+        workerData: null
+      });
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        try {
+          void worker.terminate();
+        } catch {
+          /* ignore */
+        }
+        fn();
+      };
+      worker.on('message', (msg: TrackAnalysisFftResponse) => {
+        if (msg.requestId !== requestId) return;
+        if (msg.error) {
+          finish(() => reject(new Error(msg.error)));
+          return;
+        }
+        finish(() => resolve({ chroma: msg.chroma, onset: msg.onset }));
+      });
+      worker.on('error', (err) => {
+        finish(() => reject(err));
+      });
+      worker.on('exit', (code) => {
+        if (!settled && code !== 0) {
+          finish(() => reject(new Error(`FFT worker exited with code ${code}`)));
+        }
+      });
+      const payload: TrackAnalysisFftRequest = { requestId, samples: copy };
+      worker.postMessage(payload, [copy.buffer]);
+    });
+  }
+
+  /**
+   * In-process fallback: yields every {@link YIELD_EVERY_FRAMES} hops.
+   */
+  private async computeChromaAndOnsetInProcess(samples: Float32Array): Promise<{
     chroma: number[];
     onset: number[];
   }> {
@@ -263,7 +351,6 @@ export class TrackAnalysisService {
         if (k === 0) continue;
         const freq = (k * SAMPLE_RATE) / FFT_SIZE;
         if (freq < 50 || freq > 5000) continue;
-        // MIDI pitch class
         const midi = 69 + 12 * Math.log2(freq / 440);
         const pc = ((Math.round(midi) % 12) + 12) % 12;
         chroma[pc] += mag;

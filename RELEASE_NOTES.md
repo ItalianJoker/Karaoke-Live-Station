@@ -6,6 +6,30 @@
 
 ---
 
+## [Unreleased] — Audit remediation (code + docs, no version bump)
+
+### 🇮🇹
+Remediation post-**v2.2.0** (pacchetto resta **2.2.0**):
+- **Cancel** durante login cookie YouTube funziona (`awaiting_auth`; chiude/porta avanti la finestra auth).
+- DSP pitch/speed docs: default **Signalsmith Stretch Hi-Fi**; tempo via `playbackRate` + `preservesPitch`; toast su fallback SoundTouch.
+- Download: completamenti solo nel menu Download header; chip backend AI (WebGPU/WASM); snapshot job attivi dopo refresh; persist marchi file mancante.
+- Temi: **10**; **Studio Desk** = default Regia; `embedded` solo su Studio Desk.
+- Cookie YouTube: obbligatori per ogni download; path `<userData>/youtube/cookies.txt`; toast Accedi su search auth fail.
+- GPU AI: badge Impostazioni = probe capacità; chip Download = backend sessione.
+- Perf: Guest `getTrackById`, FFT worker, ZIP analysis async, MIDI Worker, vocal-remover disconnect-when-off, virt prefix memo.
+
+### 🇬🇧
+Post-**v2.2.0** remediation (package remains **2.2.0**):
+- **Cancel** during YouTube cookie login works (`awaiting_auth`; closes/brings auth window front).
+- Pitch/speed docs: default **Signalsmith Stretch Hi-Fi**; tempo via `playbackRate` + `preservesPitch`; toast on SoundTouch fallback.
+- Downloads: completions only in header Downloads menu; AI backend chip (WebGPU/WASM); active-job snapshot after refresh; persist missing-file marks.
+- Themes: **10**; **Studio Desk** = default Control; `embedded` only for Studio Desk.
+- YouTube cookies: required for every download; path `<userData>/youtube/cookies.txt`; Sign-in toast on search auth fail.
+- AI GPU: Settings badge = capability probe; Downloads chip = session backend.
+- Perf: Guest `getTrackById`, FFT worker, ZIP analysis async, MIDI Worker, vocal-remover disconnect-when-off, virt prefix memo.
+
+---
+
 <a name="v220-italiano"></a>
 # 🇮🇹 Note di Rilascio — Versione 2.2.0
 
@@ -24,9 +48,9 @@ Nuova release GitHub **v2.2.0**. Autenticazione cookie YouTube automatica per yt
 ## 🌟 Novità di questa versione
 
 ### 🔐 Accesso YouTube automatico per yt-dlp
-- Se i cookie mancano, non sono validi o yt-dlp segnala 401/403/scadenza, si apre una finestra Electron dedicata (session partition isolata) per il login (2FA e CAPTCHA supportati).
+- I **cookie sono obbligatori per ogni download YouTube** (nessun tentativo anonimo). Se mancano o non sono validi, si apre una finestra Electron dedicata (session partition isolata) per il login (2FA e CAPTCHA supportati).
 - I cookie vengono convertiti in formato Netscape e salvati in `<userData>/youtube/cookies.txt`, poi usati da yt-dlp con `--cookies`.
-- Controlli manuali in **Impostazioni → Libreria & Download**: Accedi a YouTube / Cancella cookie.
+- Controlli manuali in **Impostazioni → Libreria & Download**: Accedi a YouTube / Cancella cookie. La ricerca Web usa i cookie solo se già validi (può toastare Accedi senza aprire il login).
 
 ### 🍎 Download macOS affidabili
 - La release **v2.1.0** pubblicava una zip macOS senza `yt-dlp` nel bundle (l’artifact CI lo conteneva). Da **v2.2.0** il build fallisce se manca `yt-dlp`/`ffmpeg` nel pacchetto.
@@ -53,9 +77,9 @@ New GitHub release **v2.2.0**. Automated YouTube cookie authentication for yt-dl
 ## 🌟 What’s new in this version
 
 ### 🔐 Automated YouTube login for yt-dlp
-- When cookies are missing/invalid or yt-dlp reports 401/403/expired auth, a dedicated Electron window opens (isolated session partition) for sign-in (2FA and CAPTCHA supported).
+- **Cookies are required for every YouTube download** (no anonymous attempt). When missing or invalid, a dedicated Electron window opens (isolated session partition) for sign-in (2FA and CAPTCHA supported).
 - Cookies are converted to Netscape format, saved under `<userData>/youtube/cookies.txt`, and passed to yt-dlp via `--cookies`.
-- Manual controls in **Settings → Library & Download**: Sign in to YouTube / Clear cookies.
+- Manual controls in **Settings → Library & Download**: Sign in to YouTube / Clear cookies. Web search uses cookies only if already valid (may toast Sign in without opening login).
 
 ### 🍎 Reliable macOS downloads
 - The published **v2.1.0** macOS zip was missing bundled `yt-dlp` (the CI artifact had it). From **v2.2.0** the build fails if `yt-dlp`/`ffmpeg` are absent from the package.

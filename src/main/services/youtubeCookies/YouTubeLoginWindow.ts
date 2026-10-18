@@ -73,12 +73,30 @@ export class YouTubeLoginWindow {
     return this.inFlight;
   }
 
-  /** Focus an already-open login window (no-op if none). */
+  /**
+   * Bring an already-open login window to the front (no-op if none).
+   * Restores minimized windows and calls moveTop so Regia cannot bury auth UI.
+   */
   public focus(): void {
     if (this.win && !this.win.isDestroyed()) {
       if (this.win.isMinimized()) this.win.restore();
+      this.win.show();
+      this.win.moveTop();
       this.win.focus();
     }
+  }
+
+  /**
+   * Cancel an in-flight interactive login by closing the BrowserWindow.
+   * The `closed` handler settles the pending promise as `{ cancelled: true }`.
+   */
+  public cancel(): void {
+    if (this.win && !this.win.isDestroyed()) {
+      this.win.close();
+      return;
+    }
+    // No window yet / already closed — drop in-flight so callers unblock.
+    this.clearTimers();
   }
 
   /** Close login UI and clear timers (app quit / dispose). */

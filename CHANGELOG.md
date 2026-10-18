@@ -8,17 +8,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
-### Added
-- None yet.
-
-### Changed
-- None yet.
+Post-**2.2.0** audit remediation (code + docs; no package version bump). Aligns operator docs and runtime UX with Signalsmith DSP, Studio Desk default Regia, cookie-required YouTube downloads, download Cancel during login, and honest GPU capability vs session backend.
 
 ### Fixed
-- None yet.
+- **IT:** Cancel/Clear durante login cookie YouTube non era più no-op: job registrato pre-spawn con status `awaiting_auth`; Cancel chiude la finestra login e la porta in primo piano.
+- **EN:** Cancel/Clear during YouTube cookie login is no longer a no-op: job registered pre-spawn with `awaiting_auth`; Cancel closes the login window and brings it to front.
+- **IT/EN:** Disallineamenti doc↔codice (Bungee morto in prosa operatore, badge download obsoleto, temi/cookie/GPU) + i18n errori cookie / modal Assegna Cantante.
+- **IT/EN:** Doc↔code mismatches (dead operator-facing Bungee naming, obsolete download badge, themes/cookies/GPU) + i18n cookie errors / Assign Singer modal.
+
+### Changed
+- **IT:** Manuali (it/en/es/fr + `USER_MANUAL.md`): §4.3 Signalsmith + media-rate tempo; §6.4 solo menu Download; §13.1 **10** temi / Studio Desk default Regia; cookie path + troubleshooting; honesty GPU.
+- **EN:** Manuals (it/en/es/fr + `USER_MANUAL.md`): §4.3 Signalsmith + media-rate tempo; §6.4 Downloads menu only; §13.1 **10** themes / Studio Desk default Control; cookie path + troubleshooting; GPU honesty.
+- **IT/EN:** Badge GPU Impostazioni = capacità (probe); chip Download = backend sessione (`ortBackend` / thread) durante rimozione AI; toast fallback Hi-Fi→SoundTouch; `embedded={isStudioDesk}`; persist `missingTrackIds` + snapshot download IPC; toast Accedi su search auth fail; Loader su delete busy.
+- **IT/EN:** Settings GPU badge = capability (probe); Downloads chip = session backend (`ortBackend` / threads) during AI removal; Hi-Fi→SoundTouch fallback toast; `embedded={isStudioDesk}`; persist `missingTrackIds` + download snapshot IPC; Sign-in toast on search auth fail; Loader on destructive delete busy.
+
+### ⚡ Performance & Concurrency
+- **IT/EN:** Guest approve → `getTrackById` / `searchTracks` (no full catalog dump); Key/BPM FFT in `worker_threads` + ZIP analysis async inflate; MIDI parse Web Worker; vocal-remover disconnect-when-off; virt prefix memo; Hidden Renderer `removeListener` on dispose.
+
+### 🧹 Refactoring & Cleanup
+- **IT/EN:** Removed unused `BungeePitchShifterNode` alias; Database/LibraryScanner warn → Logger/`onWarn` (GuestPortal port-probe stderr kept intentional).
 
 ### Breaking Changes
-- None yet.
+- None (package remains **2.2.0**).
 
 ## [2.2.0] — YouTube Cookie Auth + macOS yt-dlp Packaging — 2026-10-18
 

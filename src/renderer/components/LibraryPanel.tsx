@@ -44,7 +44,11 @@ import {
   createMissingTrackResolver,
   reconcileMissingTrackFlags
 } from '../utils/reconcileMissingTracks';
-import { computeVirtualWindow, computeVirtualWindowVariable } from '../utils/listVirtualization';
+import {
+  buildRowHeightPrefix,
+  computeVirtualWindow,
+  computeVirtualWindowVariableFromPrefix
+} from '../utils/listVirtualization';
 import { TrackKeyBpmBadges } from './TrackKeyBpmBadges';
 
 function logLibrary(level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown): void {
@@ -168,6 +172,34 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
     if (localSearchNonce == null || localSearchNonce <= 0) return;
     setSearchMode('local');
   }, [localSearchNonce, setSearchMode]);
+
+  // Search never opens login — toast Sign-in guidance when yt-dlp reports auth failure.
+  useEffect(() => {
+    const unSub = window.karaokeApi?.library?.onSearchAuthRequired?.(() => {
+      showToast(t('errors.youtubeSignInToSearch'), 'warning', 8000);
+    });
+    return () => {
+      unSub?.();
+    };
+  }, [t]);
+
+  // Rehydrate in-flight download map after remount (pairs with header Downloads snapshot).
+  useEffect(() => {
+    void window.karaokeApi?.downloads?.getActiveSnapshot?.()
+      .then((rows) => {
+        if (!Array.isArray(rows) || rows.length === 0) return;
+        setActiveDownloads((prev) => {
+          const next = { ...prev };
+          for (const row of rows) {
+            if (row?.downloadId) next[row.downloadId] = row;
+          }
+          return next;
+        });
+      })
+      .catch(() => {
+        /* ignore */
+      });
+  }, []);
 
   const [isScanning, setIsScanning] = useState(false);
   /** OS file drag overlay — only when dataTransfer.types includes Files. */
@@ -1048,11 +1080,17 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
     return displayedTracks.map((t) => estimateStudioLibraryRowStride(t));
   }, [embedded, displayedTracks]);
 
-  const virtWindow = embedded && studioRowStrides
-    ? computeVirtualWindowVariable(
+  // Prefix sums keyed on strides — avoid O(N) rebuild on every scroll frame.
+  const studioRowPrefix = useMemo(
+    () => (studioRowStrides ? buildRowHeightPrefix(studioRowStrides) : null),
+    [studioRowStrides]
+  );
+
+  const virtWindow = embedded && studioRowPrefix
+    ? computeVirtualWindowVariableFromPrefix(
         listScrollTop,
         listViewportH,
-        studioRowStrides,
+        studioRowPrefix,
         8
       )
     : computeVirtualWindow(
@@ -1766,7 +1804,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
                 <div className="p-2 bg-indigo-950/60 rounded-xl border border-indigo-800/50">
                   <UserPlus className="w-4 h-4 text-indigo-400" />
                 </div>
-                <h3 className="font-bold text-sm text-white">Assegna Cantante al Brano</h3>
+                <h3 className="font-bold text-sm text-white">{t('queue.assignSingerTitle')}</h3>
               </div>
               <button
                 type="button"
@@ -2016,8 +2054,9 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
                     setTrackPendingDelete(null);
                   }
                 }}
-                className="px-4 py-2 rounded-full text-xs font-semibold text-white bg-rose-700 hover:bg-rose-600 transition-all"
+                className="px-4 py-2 rounded-full text-xs font-semibold text-white bg-rose-700 hover:bg-rose-600 transition-all inline-flex items-center gap-1.5 disabled:opacity-60"
               >
+                {isDeletingTrack ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                 {t('library.confirmDeleteConfirm')}
               </button>
             </div>

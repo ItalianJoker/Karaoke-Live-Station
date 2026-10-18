@@ -331,12 +331,14 @@ export const QueueList: React.FC<QueueListProps> = ({
                         }}
                         onDoubleClick={(e) => e.stopPropagation()}
                         className="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800/90 hover:bg-indigo-900/60 border border-slate-700/60 hover:border-indigo-500/60 text-indigo-300 hover:text-indigo-100 font-medium transition-colors text-[11px] group/singer max-w-[170px]"
-                        title="Clicca per assegnare o modificare il cantante"
+                        title={t('queue.assignSingerTitle')}
                       >
                         <Mic className="w-3 h-3 text-indigo-400 group-hover/singer:text-indigo-200 shrink-0" />
                         <span className="truncate">
                           {item.assignedSingerName || (
-                            <span className="text-amber-400/90 italic font-normal">+ Assegna cantante</span>
+                            <span className="text-amber-400/90 italic font-normal">
+                              + {t('queue.assignSingerTitle')}
+                            </span>
                           )}
                         </span>
                         <Edit2 className="w-2.5 h-2.5 opacity-60 group-hover/singer:opacity-100 text-slate-400 group-hover/singer:text-white shrink-0 ml-0.5" />

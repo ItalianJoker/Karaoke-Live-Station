@@ -418,6 +418,7 @@ export interface DownloadProgressPayload {
   /** Current download phase */
   status:
     | 'queued'
+    | 'awaiting_auth'
     | 'downloading'
     | 'converting'
     | 'processing'
@@ -439,6 +440,15 @@ export interface DownloadProgressPayload {
   instrumental?: boolean;
   /** Display title hint for the Download menu */
   titleHint?: string;
+  /**
+   * Effective ORT backend for AI instrumental (session truth).
+   * Distinct from Settings GPU capability badge (probe / toggle).
+   */
+  ortBackend?: 'webgpu' | 'wasm' | 'pending';
+  /** Resolved ORT WASM/CPU thread count when known */
+  ortNumThreads?: number;
+  /** Why WebGPU fell back to WASM/CPU (one-shot disclosure for UI) */
+  ortFallbackReason?: string;
 }
 
 /**

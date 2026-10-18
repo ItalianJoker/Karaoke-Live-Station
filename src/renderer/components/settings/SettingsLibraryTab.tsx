@@ -529,6 +529,9 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                               {t('settings.aiGpuBadgeHardwareOnly', { name: hwName })}
                             </p>
                           ) : null}
+                          <p className="mt-1.5 text-[10px] text-slate-500 leading-relaxed">
+                            {t('settings.aiGpuSessionNote')}
+                          </p>
                         </div>
                       </label>
                     </div>

@@ -104,6 +104,7 @@ Contenuti rilevanti:
 | `queue_cache/` | File web non archiviati in libreria, persistenti finché in coda |
 | `thumbnails/` | Miniature generate |
 | `logs/` | Log diagnostici |
+| `youtube/cookies.txt` | Cookie Netscape YouTube per yt-dlp (`--cookies`); obbligatori per ogni download YouTube |
 
 ### 2.3 Binari gestiti in `<userData>/bin/`
 
@@ -235,8 +236,8 @@ Esempi: 100% → guadagno pieno; 50% → guadagno 0,25 (−12 dB circa, dimezzam
 - Accanto al tempo compare il valore BPM con etichetta **BPM** (o «— BPM» se sconosciuto).
 - Il pitch è legato **all’istanza in coda** (e alla memoria tonalità del cantante): resta memorizzato per quella esecuzione.
 - A 0 semitoni il motore può bypassare lo shifter (latenza/CPU minime).
-- **Velocità:** dipende dal motore (default **Bungee** ~0,50×–1,50×; **SoundTouch** ~0,75×–1,25× in UI). `Ctrl+←` / `Ctrl+→` regolano di ±5%. Clic sull’indicatore numerico ripristina spesso 1,00×.
-- **Motore DSP (Impostazioni → Audio):** **Bungee** (predefinito) — pitch + time-stretch di qualità via Wasm AudioWorklet; `playbackRate` del media resta 1,0 mentre Bungee allunga. **SoundTouch** — WSOLA classico; il `playbackRate` dell’elemento guida il tempo. A **0 ST e 1,00×** il grafo bypassa lo shifter (latenza minima). MIDI/KAR usa sempre la trasposizione note SpessaSynth (non Bungee/SoundTouch).
+- **Velocità:** dipende dal motore (default **Signalsmith Stretch Hi-Fi** ~0,50×–1,50×; **SoundTouch** fallback leggero/emergenza ~0,75×–1,25× in UI). `Ctrl+←` / `Ctrl+→` regolano di ±5%. Clic sull’indicatore numerico ripristina spesso 1,00×.
+- **Motore DSP (Impostazioni → Audio):** **Signalsmith Stretch Hi-Fi** (predefinito, id impostazioni `signalsmith`; i valori legacy `bungee` migrano automaticamente) — pitch via Wasm AudioWorklet; il **tempo** usa il `playbackRate` del media con `preservesPitch` (il Wasm non gestisce il tempo a `playbackRate=1.0`). **SoundTouch** — WSOLA classico, fallback leggero/emergenza (±4 ST, ~0,75–1,25×). A **0 ST e 1,00×** il grafo bypassa lo shifter (latenza minima). MIDI/KAR usa sempre la trasposizione note SpessaSynth (non Signalsmith/SoundTouch). *(Nota storica: un motore Wasm “Bungee” è stato sostituito da Signalsmith; non compare più come scelta operatore.)*
 - MIDI: la trasposizione agisce sui numeri di nota in tempo reale.
 
 ### 4.4 Rimozione voce guida (Algoritmo Base)
@@ -247,7 +248,7 @@ Il tasto **`V`** / il controllo **Rimuovi Voce Guida (Algoritmo Base)** attiva i
 | --- | --- |
 | `centerCancelBassKeep` / `centerCancel` / `softMid` | DSP mid/side **in tempo reale** — leggero, nessun download |
 
-Nella ricerca YouTube, **Scarica strumentale** (se il titolo non contiene già “Karaoke” o “instrumental”) scarica il video, poi applica il **Metodo Download Strumentale** da **Impostazioni → Libreria & Download** (AI offline come UVR-MDX-NET Karaoke 2) e salva un MP4 strumentale (sottotitoli bruciati se disponibili). Prima di ogni download l’app può chiedere se scaricare i sottotitoli automatici YouTube; spunta **Ricorda la mia scelta** per saltare la domanda la volta successiva. Puoi cambiare o azzerare quella preferenza in qualsiasi momento in **Impostazioni → Libreria & Download → Sottotitoli Download Strumentale** (`Chiedi ogni volta` / `Sempre` / `Mai`). Con UVR-MDX-NET selezionato compare **Impostazioni Avanzate UVR-MDX-NET (Ottimizzazione ETA)** sotto il menu: dimensione segmento, overlap e accelerazione CPU ONNX Runtime — solo per quel percorso MDX.
+Nella ricerca YouTube, **Scarica strumentale** (se il titolo non contiene già “Karaoke” o “instrumental”) scarica il video, poi applica il **Metodo Download Strumentale** da **Impostazioni → Libreria & Download** (AI offline come UVR-MDX-NET Karaoke 2) e salva un MP4 strumentale (sottotitoli bruciati se disponibili). Prima di ogni download l’app può chiedere se scaricare i sottotitoli automatici YouTube; spunta **Ricorda la mia scelta** per saltare la domanda la volta successiva. Puoi cambiare o azzerare quella preferenza in qualsiasi momento in **Impostazioni → Libreria & Download → Sottotitoli Download Strumentale** (`Chiedi ogni volta` / `Sempre` / `Mai`). Con UVR-MDX-NET selezionato compare **Impostazioni Avanzate UVR-MDX-NET (Ottimizzazione ETA)** sotto il menu: dimensione segmento, overlap e accelerazione CPU ONNX Runtime — solo per quel percorso MDX. Il badge GPU in Impostazioni indica la **capacità** rilevata (probe); durante la rimozione AI il chip nel menu **Download** mostra il backend di sessione effettivo (**WebGPU** o **WASM**).
 
 ### 4.5 Auto-ducking BGM
 
@@ -349,6 +350,7 @@ Scheda **Libreria & Ricerca** (`2` o `Ctrl+F`).
 - Motore: **yt-dlp** da `<userData>/bin/`
 - Placeholder: **«Cerca brano su YouTube Karaoke...»**
 - Vuoto: **«Nessun risultato web. Digita e premi Invio per cercare su YouTube.»**
+- **Cookie:** la ricerca usa i cookie YouTube solo se sono già validi; in caso di auth fallita può mostrare un toast **Accedi a YouTube** senza aprire automaticamente la finestra di login. I **download** YouTube invece richiedono sempre cookie validi (nessun tentativo anonimo) — vedi §14.2.
 
 ### 6.3 Anteprima YouTube (anti errore 153)
 
@@ -367,15 +369,11 @@ Questo riduce l’errore embed **153** tipico degli iframe YouTube restrittivi.
 
 Con **archiviazione automatica** ON, **Metti in coda** da YouTube attende download + salvataggio in libreria, poi esegue un **reindicizzazione completa Local** (inclusa thumbnail ffmpeg) **prima** di accodare il file locale — così il brano compare in Locale con la copertina corretta senza «Aggiorna libreria» manuale.
 
-### 6.4 Download e badge «Download completato»
+### 6.4 Download e menu Download (header)
 
-1. Avvia il download dal risultato web.
-2. Progresso in **Download in Corso**.
-3. A completamento (dopo un breve ritardo ~450 ms dalla lista progressi) compare il badge dismissibile:
-
-> **Download completato**
-
-Chiudilo con la **X** manuale.
+1. Avvia il download dal risultato web (richiede cookie YouTube validi — vedi §14.2).
+2. Progresso in **Download in Corso** (menu **Download** nell’header Regia).
+3. A completamento l’esito compare **solo** nel menu Download dell’header (`library.downloadCompleted`). Non c’è badge fullscreen dismissibile né toast di successo a tutto schermo.
 
 4. Se auto-archive è ON e `libraryPath` è valido → file in libreria + reindicizzazione immediata.  
 5. Se auto-archive è OFF → file in `queue_cache` (promuovibile con **Salva in Libreria**).  
@@ -480,7 +478,7 @@ Apri **Impostazioni di Sistema** (ingranaggio). In alto: campo **«Cerca imposta
 | Tab | Contenuti tipici |
 | :--- | :--- |
 | **Generale** | Temi Regia/Palco, lingua, Fair Queue, Guest Portal, SIAE, supporto progetto |
-| **Libreria & Download** | `libraryPath`, archiviazione automatica (+ warning), yt-dlp stato/aggiornamento |
+| **Libreria & Download** | `libraryPath`, archiviazione automatica (+ warning), yt-dlp stato/aggiornamento, **cookie YouTube** (stato / **Accedi** / **Cancella**), metodo Download Strumentale, badge capacità GPU (probe) e opzioni AI (core CPU, MDX/Demucs) |
 | **Audio & Riproduzione** | SoundFont, Master/CUE, sync A/V, normalizzazione, **algoritmo rimozione voce (sperimentale)**, vocal remover/ducking di default, auto-advance, `transitionPauseSec` |
 | **Schermo Stage** | Banner intro/outro, titolo overlay, prossimo cantante in intro, **`showPitchOnStage`**, **`showSpeedOnStage`**, **sfondi personalizzati messaggi Stage** |
 | **Scorciatoie** | Elenco completo delle scorciatoie live (stesso inventario del pannello **?** / F1), ricercabile |
@@ -610,16 +608,18 @@ Attiva/disattiva la raccolta con **Registro SIAE Automatico** nelle Impostazioni
 
 Temi indipendenti per Regia (`themeHost`) e Palco (`themeStage`):
 
-1. Dark Stage (Predefinito)  
-2. Midnight Neon (Cyberpunk)  
-3. Club Gold (VIP Lounge)  
-4. Ocean Breeze (Deep Cyan)  
-5. Sunset Crimson (Warm Red)  
-6. Emerald Matrix (Live Green)  
-7. Royal Amethyst (Deep Purple)  
-8. High Contrast (Accessibile)  
-9. Light Studio (Clean)  
-10. Studio Desk (Layout Regia) — **opt-in**: selezionandolo come tema Regia attiva lo shell Studio; qualsiasi altro tema Regia ripristina il layout classico.  
+1. **Studio Desk** — **predefinito Regia** (`themeHost`): layout Studio (logo+menu, player, MIDI on-demand)  
+2. Dark Stage — **predefinito Palco** (`themeStage`); in picker Regia compare come Legacy  
+3. Midnight Neon (Cyberpunk) — Legacy in picker Regia  
+4. Club Gold (VIP Lounge) — Legacy in picker Regia  
+5. Ocean Breeze (Deep Cyan) — Legacy in picker Regia  
+6. Sunset Crimson (Warm Red) — Legacy in picker Regia  
+7. Emerald Matrix (Live Green) — Legacy in picker Regia  
+8. Royal Amethyst (Deep Purple) — Legacy in picker Regia  
+9. High Contrast (Accessibile) — Legacy in picker Regia  
+10. Light Studio (Clean) — Legacy in picker Regia  
+
+Su installazioni nuove / impostazioni fresche la Regia usa **Studio Desk**; gli altri temi Regia sono etichettati **(Legacy)** nel selettore. Il Palco resta su **Dark Stage** di default. Un `themeHost` già salvato dall’utente non viene sovrascritto.
 
 ### 13.2 Lingue
 
@@ -647,13 +647,15 @@ I file di traduzione sono in `locales/it.json`, `en.json`, `es.json`, `fr.json`.
 5. Verifica **Isolamento AP** del router = OFF.
 6. Stessa subnet Wi‑Fi tra PC e telefoni; prova l’URL mostrato nel QR da un browser sul telefono.
 
-### 14.2 yt-dlp / download web non funzionano
+### 14.2 yt-dlp / download web / cookie YouTube
 
 1. Controlla che esista `<userData>/bin/yt-dlp` (o `.exe`).
 2. In Impostazioni → Libreria & Download: stato motore e **Verifica / Aggiorna**.
-3. Non spostare yt-dlp in `/tmp` o fuori da `userData/bin/`: l’app gestisce solo il percorso managed.
-4. Controlla i log in `<userData>/logs/`.
-5. Se vedi «Non installato (verrà scaricato automaticamente)», attendi il bootstrap o forza l’aggiornamento con rete disponibile.
+3. **Cookie obbligatori per ogni download YouTube** (nessun tentativo anonimo): verifica lo stato cookie e usa **Accedi a YouTube** / **Cancella cookie** nella stessa scheda. I cookie Netscape stanno in `<userData>/youtube/cookies.txt` e vengono passati a yt-dlp con `--cookies`. Senza login valido il download non parte (si apre la finestra di autenticazione).
+4. La **ricerca** Web usa i cookie solo se già validi; può mostrare un toast Accedi senza aprire automaticamente il login.
+5. Non spostare yt-dlp in `/tmp` o fuori da `userData/bin/`: l’app gestisce solo il percorso managed.
+6. Controlla i log in `<userData>/logs/`.
+7. Se vedi «Non installato (verrà scaricato automaticamente)», attendi il bootstrap o forza l’aggiornamento con rete disponibile.
 
 ### 14.3 Libreria non configurata
 
@@ -702,7 +704,7 @@ Impostazioni → Diagnostica & File di Log: livello, apri cartella/file, cancell
 | Contesto | Stringa |
 | :--- | :--- |
 | Hint coda | Doppio click o Play per avviare |
-| Download | Download completato |
+| Download (menu header) | Completato / messaggi in menu Download (`library.downloadCompleted`) |
 | Warning auto-archive (titolo) | Attenzione disattivazione archiviazione automatica |
 | Warning auto-archive (corpo) | Attenzione: disattivando l'archiviazione automatica, i brani scaricati non verranno salvati nella libreria permanente. Rimarranno disponibili nella cache temporanea solo finché sono presenti in coda (anche riavviando l'app) e verranno eliminati dal disco solo quando saranno scodati o la coda verrà svuotata. |
 | Errore libreria | Imposta la cartella libreria nelle impostazioni prima di scaricare. |
@@ -726,8 +728,10 @@ Impostazioni → Diagnostica & File di Log: livello, apri cartella/file, cancell
 | Porta Guest Portal | 3000 |
 | Soglia log SIAE | ≥ 120 s oppure fine naturale |
 | Range pitch Regia | −8 … +8 ST |
-| Range velocità | 0,50× … 1,50× |
-| Tema | dark-stage |
+| Range velocità (Signalsmith) | 0,50× … 1,50× |
+| Range velocità (SoundTouch) | 0,75× … 1,25× |
+| Tema Regia (`themeHost`) | studio-desk |
+| Tema Palco (`themeStage`) | dark-stage |
 
 ---
 

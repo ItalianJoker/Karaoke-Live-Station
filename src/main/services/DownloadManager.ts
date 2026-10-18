@@ -226,6 +226,26 @@ export class DownloadManager {
     };
   }
 
+  /**
+   * Snapshot of queued + in-flight download payloads for Control Room remount.
+   * Terminal statuses (completed/error/cancelled) are not retained in maps.
+   */
+  public getActiveDownloadSnapshot(): DownloadProgressPayload[] {
+    const out: DownloadProgressPayload[] = [];
+    const seen = new Set<string>();
+    for (const job of this.pendingQueue) {
+      if (seen.has(job.downloadId)) continue;
+      seen.add(job.downloadId);
+      out.push({ ...job.payload });
+    }
+    for (const job of this.activeJobs.values()) {
+      if (seen.has(job.payload.downloadId)) continue;
+      seen.add(job.payload.downloadId);
+      out.push({ ...job.payload });
+    }
+    return out;
+  }
+
   private emitProgress(payload: DownloadProgressPayload): void {
     for (const listener of this.progressListeners) {
       try {
@@ -594,6 +614,9 @@ export class DownloadManager {
    * Spawns yt-dlp for a download that already owns a pool slot (or was just dequeued).
    * For YouTube URLs: ensures cookies.txt (login window if needed) and passes `--cookies`.
    * On auth errors, refreshes cookies once and retries.
+   *
+   * Registers the job in {@link activeJobs} *before* cookie ensure so Cancel works
+   * during `awaiting_auth` (process is null until yt-dlp spawns).
    */
   private async launchDownload(
     downloadId: string,
@@ -607,29 +630,59 @@ export class DownloadManager {
     // Windows drive-letter / TYPES: colon edge cases on absolute -o paths.
     const outputTemplate = buildYtDlpOutputTemplate(downloadId);
 
+    // Pre-register so Cancel / Clear-all can find this job during cookie login.
+    const abortController = new AbortController();
+    this.activeJobs.set(downloadId, {
+      process: null,
+      payload,
+      url: dedupUrlKey,
+      abortController
+    });
+
     // YouTube: open login when cookies missing/invalid before the first spawn.
     if (this.youtubeCookies && isYouTubeUrl(options.url)) {
+      const cookiesReady = Boolean(this.youtubeCookies.getValidCookiesPath());
+      if (!cookiesReady) {
+        payload.status = 'awaiting_auth';
+        this.emitProgress({ ...payload });
+        // Bring auth UI forward if a sibling download already opened it.
+        this.youtubeCookies.focusLoginWindow();
+      }
+
       const ensured = await this.youtubeCookies.ensureForYouTubeDownload(options.url);
       if (!ensured.ok) {
         // Cancel may have raced while the login window was open.
         if (payload.status === 'cancelled') {
+          this.activeJobs.delete(downloadId);
           this.activeUrls.delete(dedupUrlKey);
           this.pumpQueue();
           return;
         }
         payload.status = 'error';
+        // Stable i18n keys — renderer maps via t(); raw text kept for log/fallback.
         payload.errorMessage = ensured.cancelled
-          ? 'YouTube login cancelled — cookies are required for this download'
-          : ensured.error || 'YouTube login failed — cannot download without cookies';
+          ? 'errors.youtubeLoginCancelled'
+          : ensured.error
+            ? `errors.youtubeLoginFailed:${ensured.error}`
+            : 'errors.youtubeLoginFailed';
         this.logDownloadFailure(
-          payload.errorMessage,
+          ensured.cancelled
+            ? 'YouTube login cancelled — cookies are required for this download'
+            : ensured.error || 'YouTube login failed — cannot download without cookies',
           { downloadId, instrumental, url: options.url, cancelled: ensured.cancelled },
           undefined
         );
         this.emitProgress({ ...payload });
+        this.activeJobs.delete(downloadId);
         this.activeUrls.delete(dedupUrlKey);
         this.pumpQueue();
         return;
+      }
+
+      // Login succeeded (or cookies were already valid) — resume download phase.
+      if (payload.status === 'awaiting_auth') {
+        payload.status = 'downloading';
+        this.emitProgress({ ...payload });
       }
     }
 
@@ -701,13 +754,27 @@ export class DownloadManager {
       args: debugArgs
     });
 
-    const abortController = new AbortController();
-    this.activeJobs.set(downloadId, {
-      process: child,
-      payload,
-      url: dedupUrlKey,
-      abortController
-    });
+    // Attach yt-dlp to the pre-registered job (created before cookie ensure).
+    const activeJob = this.activeJobs.get(downloadId);
+    if (activeJob) {
+      // Cancel raced after ensure but before spawn — do not keep the child.
+      if (activeJob.payload.status === 'cancelled' || activeJob.abortController.signal.aborted) {
+        killProcessTree(child);
+        this.activeJobs.delete(downloadId);
+        this.activeUrls.delete(dedupUrlKey);
+        this.pumpQueue();
+        return;
+      }
+      activeJob.process = child;
+      activeJob.payload = payload;
+    } else {
+      this.activeJobs.set(downloadId, {
+        process: child,
+        payload,
+        url: dedupUrlKey,
+        abortController: new AbortController()
+      });
+    }
 
     let detectedOutputFile: string | null = null;
     // Chunk boundaries can split mid-line — buffer until newline/CR
@@ -1036,7 +1103,7 @@ export class DownloadManager {
               aiCpuThreads: options.aiCpuThreads,
               aiEnableGpu: options.aiEnableGpu,
               aiGpuSupported: options.aiGpuSupported,
-              onProgress: (phase, percent) => {
+              onProgress: (phase, percent, meta) => {
                 if (payload.status === 'cancelled') return;
                 if (phase === 'ensuring_model') {
                   payload.status = 'downloading_model';
@@ -1052,6 +1119,16 @@ export class DownloadManager {
                 const p = Number.isFinite(percent) ? percent : 0;
                 payload.percent = Math.max(0, Math.min(100, p));
                 payload.speed = '';
+                // Session-truth ORT backend (distinct from Settings capability badge).
+                if (meta?.ortBackend === 'webgpu' || meta?.ortBackend === 'wasm' || meta?.ortBackend === 'pending') {
+                  payload.ortBackend = meta.ortBackend;
+                }
+                if (typeof meta?.ortNumThreads === 'number' && Number.isFinite(meta.ortNumThreads)) {
+                  payload.ortNumThreads = meta.ortNumThreads;
+                }
+                if (typeof meta?.ortFallbackReason === 'string' && meta.ortFallbackReason) {
+                  payload.ortFallbackReason = meta.ortFallbackReason;
+                }
                 this.emitProgress({ ...payload });
               },
               onAiEta: (etaSec) => {
@@ -1160,22 +1237,36 @@ export class DownloadManager {
               'yt-dlp YouTube auth failure — opening login and retrying once',
               { downloadId, exitCode: code }
             );
-            payload.status = 'downloading';
+            // Keep job registered (process null) so Cancel works during re-login.
+            const retryJob = this.activeJobs.get(downloadId);
+            if (retryJob) {
+              retryJob.process = null;
+            } else {
+              this.activeJobs.set(downloadId, {
+                process: null,
+                payload,
+                url: dedupUrlKey,
+                abortController: new AbortController()
+              });
+            }
+            payload.status = 'awaiting_auth';
             payload.percent = 0;
             payload.speed = '';
             payload.eta = '--:--';
             payload.errorMessage = undefined;
             this.emitProgress({ ...payload });
-            this.activeJobs.delete(downloadId);
+            this.youtubeCookies.focusLoginWindow();
 
             const refreshed = await this.youtubeCookies.refreshAfterAuthFailure(options.url);
             if ((payload.status as DownloadProgressPayload['status']) === 'cancelled') {
+              this.activeJobs.delete(downloadId);
               this.activeUrls.delete(dedupUrlKey);
               this.pumpQueue();
               return;
             }
             if (refreshed) {
-              // Reclaim the pool slot for the retry (pumpQueue already ran above).
+              // Drop pre-retry placeholder; launchDownload re-registers before spawn.
+              this.activeJobs.delete(downloadId);
               void this.launchDownload(
                 downloadId,
                 options,
@@ -1187,10 +1278,9 @@ export class DownloadManager {
             }
 
             payload.status = 'error';
-            payload.errorMessage =
-              'YouTube login required after auth error, but login did not complete';
+            payload.errorMessage = 'errors.youtubeLoginRequiredAfterAuth';
             this.logDownloadFailure(
-              payload.errorMessage,
+              'YouTube login required after auth error, but login did not complete',
               {
                 downloadId,
                 exitCode: code,
@@ -1201,6 +1291,7 @@ export class DownloadManager {
               debugSpawnExtras()
             );
             this.emitProgress({ ...payload });
+            this.activeJobs.delete(downloadId);
             this.activeUrls.delete(dedupUrlKey);
             return;
           }
@@ -1322,6 +1413,7 @@ export class DownloadManager {
     if (!active) return false;
     if (active.payload.status === 'cancelled') return true;
 
+    const wasAwaitingAuth = active.payload.status === 'awaiting_auth';
     active.payload.status = 'cancelled';
     active.payload.errorMessage = 'Download cancelled by user';
     this.emitProgress({ ...active.payload });
@@ -1330,6 +1422,24 @@ export class DownloadManager {
       active.abortController.abort();
     } catch {
       /* ignore */
+    }
+
+    // Close YouTube login only when no sibling job still needs the auth window.
+    if (wasAwaitingAuth) {
+      let othersAwaiting = false;
+      for (const [id, job] of this.activeJobs) {
+        if (id !== downloadId && job.payload.status === 'awaiting_auth') {
+          othersAwaiting = true;
+          break;
+        }
+      }
+      if (!othersAwaiting) {
+        try {
+          this.youtubeCookies?.cancelLogin();
+        } catch {
+          /* ignore */
+        }
+      }
     }
 
     if (active.process) {

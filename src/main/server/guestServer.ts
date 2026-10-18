@@ -610,7 +610,8 @@ export class GuestPortalServer {
           srv.close();
           ioServer.close();
           if (err.code === 'EADDRINUSE' && port < 3020) {
-            // Main already logs start success; keep retry visible on stderr for operators.
+            // Port-probe retry before Logger is always available — stderr is intentional.
+            // Prefer Logger.warn when a host Logger is injected in a future soft-migration.
             console.warn(`[GuestPortal] Port ${port} in use, trying ${port + 1}...`);
             this.port = port + 1;
             this.qrCodeDataUrl = '';

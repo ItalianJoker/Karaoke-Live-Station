@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, FileX, Trash2, List } from 'lucide-react';
+import { AlertCircle, FileX, Trash2, List, Loader2 } from 'lucide-react';
 import { useKaraokeStore } from '../store/karaokeStore';
 import { confirmAsync, showToast } from '../utils/toast';
 
@@ -165,7 +165,7 @@ export const MissingFileModal: React.FC = () => {
             className="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white border border-rose-400/40 flex items-center gap-1.5 disabled:opacity-50"
             data-testid="missing-file-delete"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
             {t('errors.missingFileDelete')}
           </button>
         </div>
