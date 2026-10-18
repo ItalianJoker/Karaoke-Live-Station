@@ -239,6 +239,58 @@ export interface KaraokeAPI {
     onDownloadProgress: (callback: (progress: VocalModelDownloadProgress) => void) => () => void;
   };
 
+  // 6b2. Karaoke STT (whisper.cpp) — models under userData/models/whisper only
+  karaokeStt: {
+    getStatus: () => Promise<{
+      binaryReady: boolean;
+      binaryPath?: string;
+      modelsDir: string;
+      models: Array<{
+        modelId: string;
+        present: boolean;
+        bytesOnDisk: number;
+        path?: string;
+      }>;
+    }>;
+    ensureModel: (
+      modelId: string
+    ) => Promise<{ success: boolean; modelPath?: string; error?: string }>;
+    ensureBinary: () => Promise<{ success: boolean; binaryPath?: string; error?: string }>;
+    deleteModel: (
+      modelId: string
+    ) => Promise<{ success: boolean; status?: unknown; error?: string }>;
+    deleteAllModels: () => Promise<{ success: boolean; status?: unknown; error?: string }>;
+    getScript: (opts: {
+      trackId: string;
+      mediaPath?: string;
+      libraryPath?: string;
+    }) => Promise<{ success: boolean; script: unknown; scriptPath: string | null }>;
+    start: (opts: {
+      trackId: string;
+      localFilePath: string;
+      modelId?: string;
+      language?: string;
+    }) => Promise<{
+      success: boolean;
+      cancelled?: boolean;
+      scriptPath?: string;
+      error?: string;
+      usedVocalStem: boolean;
+    }>;
+    onModelProgress: (
+      callback: (progress: {
+        modelId: string;
+        phase: string;
+        loaded: number;
+        total: number;
+        message?: string;
+      }) => void
+    ) => () => void;
+    onProgress: (
+      callback: (payload: { trackId: string; phase: string; percent: number }) => void
+    ) => () => void;
+  };
+
   // 6c. ORT WASM under userData/ort (Watchlist: keep for renderer/diagnostics; main OrtWasmManager is primary)
   ortWasm: {
     ensure: () => Promise<{
@@ -534,6 +586,58 @@ const karaokeApi: KaraokeAPI = {
       ipcRenderer.on('vocal-model:download-progress', handler);
       return () => {
         ipcRenderer.removeListener('vocal-model:download-progress', handler);
+      };
+    }
+  },
+
+  karaokeStt: {
+    getStatus: () => ipcRenderer.invoke('karaoke-stt:status'),
+    ensureModel: (modelId: string) => ipcRenderer.invoke('karaoke-stt:ensure-model', modelId),
+    ensureBinary: () => ipcRenderer.invoke('karaoke-stt:ensure-binary'),
+    deleteModel: (modelId: string) => ipcRenderer.invoke('karaoke-stt:delete-model', modelId),
+    deleteAllModels: () => ipcRenderer.invoke('karaoke-stt:delete-all-models'),
+    getScript: (opts: { trackId: string; mediaPath?: string; libraryPath?: string }) =>
+      ipcRenderer.invoke('karaoke-stt:get-script', opts),
+    start: (opts: {
+      trackId: string;
+      localFilePath: string;
+      modelId?: string;
+      language?: string;
+    }) => ipcRenderer.invoke('karaoke-stt:start', opts),
+    onModelProgress: (
+      callback: (progress: {
+        modelId: string;
+        phase: string;
+        loaded: number;
+        total: number;
+        message?: string;
+      }) => void
+    ) => {
+      const handler = (
+        _event: IpcRendererEvent,
+        progress: {
+          modelId: string;
+          phase: string;
+          loaded: number;
+          total: number;
+          message?: string;
+        }
+      ) => callback(progress);
+      ipcRenderer.on('whisper-stt:model-progress', handler);
+      return () => {
+        ipcRenderer.removeListener('whisper-stt:model-progress', handler);
+      };
+    },
+    onProgress: (
+      callback: (payload: { trackId: string; phase: string; percent: number }) => void
+    ) => {
+      const handler = (
+        _event: IpcRendererEvent,
+        payload: { trackId: string; phase: string; percent: number }
+      ) => callback(payload);
+      ipcRenderer.on('karaoke-stt:progress', handler);
+      return () => {
+        ipcRenderer.removeListener('karaoke-stt:progress', handler);
       };
     }
   },

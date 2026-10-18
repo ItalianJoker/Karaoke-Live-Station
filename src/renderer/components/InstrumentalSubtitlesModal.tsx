@@ -1,17 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Music2 } from 'lucide-react';
+import { AlertTriangle, Mic2, Music2 } from 'lucide-react';
 import type { KaraokeMediaTrack } from '../../shared/types';
+import {
+  DEFAULT_WHISPER_MODEL_ID,
+  WHISPER_MODELS,
+  coerceWhisperModelId,
+  formatBytesApprox,
+  type WhisperModelId
+} from '../../shared/whisperStt';
 
-export type InstrumentalSubtitlesChoice = 'with-subs' | 'without-subs' | 'cancel';
+export type InstrumentalSubtitlesChoice =
+  | 'with-subs'
+  | 'without-subs'
+  | 'generate-stt'
+  | 'cancel';
 
 interface InstrumentalSubtitlesModalProps {
   isOpen: boolean;
   track: KaraokeMediaTrack | null;
+  /** Active Whisper model from Settings (default medium). */
+  sttModelId?: WhisperModelId | string;
   onClose: () => void;
   /**
    * Called when the operator picks an action.
    * `remember` true → persist policy as always (with-subs) or never (without-subs).
+   * Remember is ignored for generate-stt (STT always requires explicit confirm).
    */
   onConfirm: (choice: Exclude<InstrumentalSubtitlesChoice, 'cancel'>, remember: boolean) => void;
 }
@@ -20,18 +34,20 @@ interface InstrumentalSubtitlesModalProps {
  * InstrumentalSubtitlesModal
  *
  * Shown before Download Instrumental starts (when policy is `ask`).
- * Operator chooses whether yt-dlp should fetch YouTube auto-subs for lyric burn-in.
- * Amber warning: YT captions are often ASR/auto and imperfect.
+ * Three lyric paths: no subs · YouTube auto-subs · generate karaoke STT (whisper.cpp).
  * Esc / backdrop click / Annulla = no download.
  */
 export const InstrumentalSubtitlesModal: React.FC<InstrumentalSubtitlesModalProps> = ({
   isOpen,
   track,
+  sttModelId,
   onClose,
   onConfirm
 }) => {
   const { t } = useTranslation();
   const [remember, setRemember] = useState(false);
+  const modelId = coerceWhisperModelId(sttModelId || DEFAULT_WHISPER_MODEL_ID);
+  const catalog = WHISPER_MODELS[modelId];
 
   useEffect(() => {
     if (!isOpen) {
@@ -60,7 +76,7 @@ export const InstrumentalSubtitlesModal: React.FC<InstrumentalSubtitlesModalProp
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl p-5 space-y-4 animate-scale-in"
+        className="w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl p-5 space-y-4 animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3">
@@ -98,6 +114,25 @@ export const InstrumentalSubtitlesModal: React.FC<InstrumentalSubtitlesModalProp
           </p>
         </div>
 
+        <div
+          className="flex items-start gap-2 rounded-xl border border-sky-500/40 bg-sky-950/30 px-3 py-2.5 text-sky-100"
+          data-testid="instrumental-stt-warning"
+          role="note"
+        >
+          <Mic2 className="w-4 h-4 shrink-0 mt-0.5 text-sky-400" />
+          <div className="text-xs leading-relaxed space-y-1">
+            <p>
+              {t('library.instrumentalSttWarning', {
+                model: catalog.isDefault
+                  ? `${modelId} · ${t('settings.sttModelDefaultBadge')}`
+                  : modelId,
+                size: formatBytesApprox(catalog.approxBytes)
+              })}
+            </p>
+            <p className="text-sky-200/80">{t('library.instrumentalSttHonesty')}</p>
+          </div>
+        </div>
+
         <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
           <input
             type="checkbox"
@@ -107,21 +142,14 @@ export const InstrumentalSubtitlesModal: React.FC<InstrumentalSubtitlesModalProp
             data-testid="instrumental-subtitles-remember"
           />
           {t('library.instrumentalSubtitlesRemember')}
+          <span className="text-slate-500">({t('library.instrumentalSttRememberHint')})</span>
         </label>
 
-        <div className="flex flex-col sm:flex-row sm:flex-wrap justify-end gap-2 pt-1">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-full text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 transition-all order-3 sm:order-1"
-            data-testid="instrumental-subtitles-cancel"
-          >
-            {t('library.instrumentalSubtitlesCancel')}
-          </button>
+        <div className="flex flex-col gap-2 pt-1">
           <button
             type="button"
             onClick={() => onConfirm('without-subs', remember)}
-            className="px-4 py-2 rounded-full text-xs font-semibold text-slate-200 bg-slate-700 hover:bg-slate-600 border border-slate-600 transition-all order-2"
+            className="w-full px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-200 bg-slate-700 hover:bg-slate-600 border border-slate-600 transition-all text-left"
             data-testid="instrumental-subtitles-without"
           >
             {t('library.instrumentalSubtitlesWithout')}
@@ -129,10 +157,26 @@ export const InstrumentalSubtitlesModal: React.FC<InstrumentalSubtitlesModalProp
           <button
             type="button"
             onClick={() => onConfirm('with-subs', remember)}
-            className="px-4 py-2 rounded-full text-xs font-semibold text-emerald-50 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/60 transition-all order-1 sm:order-3"
+            className="w-full px-4 py-2.5 rounded-xl text-xs font-semibold text-emerald-50 bg-emerald-800/80 hover:bg-emerald-700 border border-emerald-500/60 transition-all text-left"
             data-testid="instrumental-subtitles-with"
           >
             {t('library.instrumentalSubtitlesWith')}
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm('generate-stt', false)}
+            className="w-full px-4 py-2.5 rounded-xl text-xs font-semibold text-sky-50 bg-sky-800/70 hover:bg-sky-700 border border-sky-500/50 transition-all text-left"
+            data-testid="instrumental-subtitles-stt"
+          >
+            {t('library.instrumentalSubtitlesStt')}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 bg-transparent hover:bg-slate-800/80 transition-all"
+            data-testid="instrumental-subtitles-cancel"
+          >
+            {t('library.instrumentalSubtitlesCancel')}
           </button>
         </div>
       </div>

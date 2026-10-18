@@ -37,6 +37,7 @@ import {
 import { coerceAiCpuThreads } from '../../shared/aiCpuThreads';
 import { coerceAiEnableGpu } from '../../shared/aiOrtProviders';
 import { clampPitchForEngine, clampSpeedForEngine, coerceDspPitchEngine } from '../../shared/dspPitch';
+import { coerceWhisperModelId } from '../../shared/whisperStt';
 import type {
   LibraryRevealRequest,
   LibraryRevealRequestInput
@@ -202,6 +203,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoArchiveWebTracks: true,
   /** Ask before fetching YouTube auto-subs on Download Instrumental */
   instrumentalSubtitlesPolicy: 'ask',
+  /** Default Whisper model for karaoke STT (Predefinito = medium) */
+  sttModelId: 'medium',
+  /** Prefer AI vocal stem for STT when available (best-effort) */
+  sttPreferVocalStem: true,
   showPitchOnStage: true,
   showSpeedOnStage: true,
   stageMessages: createDefaultStageMessages(),
@@ -405,6 +410,14 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
               raw === 'always' || raw === 'never' ? raw : 'ask';
           } else {
             updated.instrumentalSubtitlesPolicy = 'ask';
+          }
+          updated.sttModelId = coerceWhisperModelId(
+            partial.sttModelId !== undefined ? partial.sttModelId : updated.sttModelId
+          );
+          if (partial.sttPreferVocalStem !== undefined) {
+            updated.sttPreferVocalStem = Boolean(partial.sttPreferVocalStem);
+          } else if (typeof updated.sttPreferVocalStem !== 'boolean') {
+            updated.sttPreferVocalStem = true;
           }
           if (partial.dspEngine !== undefined) {
             updated.dspEngine = coerceDspPitchEngine(partial.dspEngine);
@@ -1264,6 +1277,11 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           mergedSettings.instrumentalSubtitlesPolicy =
             raw === 'always' || raw === 'never' ? raw : 'ask';
         }
+        mergedSettings.sttModelId = coerceWhisperModelId(mergedSettings.sttModelId);
+        mergedSettings.sttPreferVocalStem =
+          typeof mergedSettings.sttPreferVocalStem === 'boolean'
+            ? mergedSettings.sttPreferVocalStem
+            : true;
         const maxDl = Number(mergedSettings.maxSimultaneousDownloads);
         mergedSettings.maxSimultaneousDownloads =
           Number.isFinite(maxDl) && maxDl >= 1 ? Math.min(8, Math.floor(maxDl)) : 2;

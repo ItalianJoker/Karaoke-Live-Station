@@ -14,6 +14,8 @@ import { CdgParser } from '../core/CdgParser';
 import { useKaraokeStore } from '../store/karaokeStore';
 import appLogo from '../assets/logo.png';
 import { formatBpmTransition, formatKeyTransition } from '../../shared/musicalKeys';
+import { KaraokeWordOverlay } from './stage/KaraokeWordOverlay';
+import type { TimedKaraokeScript } from '../../shared/timedKaraoke';
 
 /**
  * StageWindow (Palco / Singer Display)
@@ -80,6 +82,8 @@ export const StageWindow: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [hasCdgLoaded, setHasCdgLoaded] = useState(false);
   const [isStageReady, setIsStageReady] = useState(false);
+  /** Word-level STT karaoke script (Stage overlay). CDG always wins when present. */
+  const [karaokeScript, setKaraokeScript] = useState<TimedKaraokeScript | null>(null);
 
   const lastToggleTimeRef = useRef(0);
   const clickCountRef = useRef(0);
@@ -314,6 +318,31 @@ export const StageWindow: React.FC = () => {
       setHasCdgLoaded(false);
     }
   }, [activeTrack?.id, activeTrack?.cdgFilePath, activeTrack?.localFilePath]);
+
+  // Load STT karaoke script sidecar for Stage word overlay (CDG takes priority when present)
+  useEffect(() => {
+    let cancelled = false;
+    setKaraokeScript(null);
+    if (!activeTrack?.id || !window.karaokeApi?.karaokeStt?.getScript) return;
+    void window.karaokeApi.karaokeStt
+      .getScript({
+        trackId: activeTrack.id,
+        mediaPath: activeTrack.localFilePath,
+        libraryPath: settings?.libraryPath
+      })
+      .then((res) => {
+        if (cancelled) return;
+        if (res?.success && res.script && typeof res.script === 'object') {
+          setKaraokeScript(res.script as TimedKaraokeScript);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setKaraokeScript(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTrack?.id, activeTrack?.localFilePath, settings?.libraryPath]);
 
   // Render CDG frame at current playback time
   useEffect(() => {
@@ -794,8 +823,17 @@ export const StageWindow: React.FC = () => {
           }`}
         />
 
-        {/* Centered Synchronized Lyrics Overlay (ONLY for non-video tracks without CDG) */}
-        {playback.activeLyricsText && !hasCdgLoaded && !isVideoTrack && (
+        {/* STT word-level overlay — works on video too; CDG always wins */}
+        {karaokeScript && !hasCdgLoaded && (
+          <KaraokeWordOverlay
+            script={karaokeScript}
+            currentTimeSec={playback.currentTime}
+            syncOffsetMs={settings?.audioVideoSyncOffsetMs ?? 0}
+          />
+        )}
+
+        {/* Centered Synchronized Lyrics Overlay (ONLY for non-video tracks without CDG / STT) */}
+        {playback.activeLyricsText && !hasCdgLoaded && !isVideoTrack && !karaokeScript && (
           <div className="absolute inset-0 flex items-center justify-center p-8 text-center pointer-events-none z-20">
             <div className="max-w-5xl text-4xl md:text-6xl lg:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-400 to-indigo-300 leading-tight drop-shadow-[0_6px_25px_rgba(0,0,0,0.98)]">
               {playback.activeLyricsText}

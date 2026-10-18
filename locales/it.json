@@ -154,10 +154,10 @@
     "remuxingInstrumental": "Creazione video strumentale…",
     "instrumentalDownloadWarning": "Il Download Strumentale richiede più tempo di un download normale e può usare più CPU/RAM durante la separazione della voce.",
     "instrumentalSubtitlesTitle": "Download Base Strumentale",
-    "instrumentalSubtitlesAsk": "Vuoi scaricare anche i sottotitoli automatici di YouTube per il burn-in dei testi sul video strumentale?",
+    "instrumentalSubtitlesAsk": "Scegli come gestire i testi sul Download Strumentale: nessun sottotitolo, sottotitoli YouTube, oppure genera testo karaoke word-level via STT offline.",
     "instrumentalSubtitlesWarning": "Attenzione: i sottotitoli YouTube sono spesso ASR/automatici e possono essere imprecisi o incompleti.",
-    "instrumentalSubtitlesWith": "Scarica con Sottotitoli",
-    "instrumentalSubtitlesWithout": "Solo Base Strumentale",
+    "instrumentalSubtitlesWith": "Sottotitoli YouTube",
+    "instrumentalSubtitlesWithout": "Nessun sottotitolo",
     "instrumentalSubtitlesCancel": "Annulla",
     "instrumentalSubtitlesRemember": "Ricorda la mia scelta",
     "downloadsMenu": "Download",
@@ -178,7 +178,13 @@
     "ortBackendWasm": "WASM/CPU",
     "ortBackendPending": "EP…",
     "ortThreads": "{{n}} thread",
-    "ortFallbackNotice": "Fallback a WASM/CPU: {{reason}}"
+    "ortFallbackNotice": "Fallback a WASM/CPU: {{reason}}",
+    "instrumentalSubtitlesStt": "Genera testo karaoke (STT)",
+    "instrumentalSttWarning": "Modello STT attivo: {{model}} (~{{size}}). Il download del modello (se assente) avviene nello storage persistente dell’app, non nell’installer.",
+    "instrumentalSttHonesty": "La trascrizione automatica sul canto è più debole del parlato (melisma, cori, vibrato). Non sono lyrics ufficiali e non sostituiscono CD+G. Job offline — non usare in serata live.",
+    "instrumentalSttRememberHint": "non vale per STT",
+    "sttEnsuring": "Preparazione motore STT…",
+    "sttTranscribing": "Trascrizione karaoke STT…"
   },
   "settings": {
     "title": "Impostazioni di Sistema",
@@ -381,7 +387,18 @@
     "youtubeCookiesLoginCancelled": "Accesso YouTube annullato.",
     "youtubeCookiesLoginFailed": "Accesso YouTube non riuscito: {{error}}",
     "youtubeCookiesCleared": "Cookie YouTube cancellati.",
-    "aiGpuSessionNote": "Il backend di sessione è riportato per ogni download nel menu Download (WebGPU vs WASM/CPU)."
+    "aiGpuSessionNote": "Il backend di sessione è riportato per ogni download nel menu Download (WebGPU vs WASM/CPU).",
+    "sttModelTitle": "Modelli Whisper (Karaoke STT)",
+    "sttModelDesc": "Default Predefinito = medium. I modelli vivono solo in userData/models/whisper (es. AppData) — mai nell’installer. Puoi rimuoverli per liberare spazio; al prossimo uso riparte il dialog di conferma download.",
+    "sttModelDefaultBadge": "Predefinito",
+    "sttPreferVocalStem": "Preferisci stem vocale AI per lo STT quando disponibile (best-effort)",
+    "sttModelReady": "Pronto — {{size}} su disco",
+    "sttModelNotDownloaded": "Non scaricato — ~{{size}}",
+    "sttDelete": "Rimuovi",
+    "sttDeleteConfirm": "Eliminare il modello Whisper {{model}} e liberare circa {{size}}?",
+    "sttDeleteAll": "Elimina tutti i modelli Whisper",
+    "sttDeleteAllConfirm": "Eliminare TUTTI i modelli Whisper scaricati? I modelli AI vocali ONNX non vengono toccati.",
+    "sttHonesty": "STT sul canto: anche medium/large-v3 restano imprecisi su melisma/cori. Solo offline; niente cloud."
   },
   "history": {
     "title": "Storico Esecuzioni",
@@ -492,5 +509,36 @@
     "midiMixerShortShow": "MIDI",
     "midiMixerShortHide": "MIDI",
     "midiMixerDisabled": "Mixer MIDI (solo tracce MIDI/KAR)"
+  },
+  "stt": {
+    "downloadDialogTitle": "Download modello Whisper richiesto",
+    "downloadDialogIntro": "Per generare testo karaoke STT serve scaricare il modello selezionato (rete + disco). Elenco onesto di size, qualità sul canto e aspettative HW:",
+    "downloadDialogPathNote": "I modelli non sono nell’installer né accanto all’exe: solo nello storage persistente dell’app (userData / AppData / Application Support).",
+    "downloadDialogSelected": "selezionato",
+    "downloadDialogDownloading": "Download in corso…",
+    "downloadDialogCancel": "Annulla",
+    "downloadDialogConfirm": "Scarica e continua",
+    "modelDownloadFailed": "Download modello Whisper fallito: {{error}}",
+    "modelQuality": {
+      "poor": "Qualità canto: scarsa",
+      "low": "Qualità canto: bassa",
+      "medium": "Qualità canto: media",
+      "good": "Qualità canto: buona",
+      "best": "Qualità canto: massima tra le opzioni"
+    },
+    "modelSpeed": {
+      "fastest": "velocità massima",
+      "fast": "veloce",
+      "moderate": "moderata",
+      "slow": "lenta",
+      "slowest": "più lenta"
+    },
+    "modelHw": {
+      "tiny": "poca RAM; solo smoke",
+      "base": "leggero; ancora debole sul canto",
+      "small": "CPU multithread ok",
+      "medium": "~2–4+ GB RAM utili; job offline più lento; non live",
+      "large": "più RAM/CPU; diversi minuti su brani lunghi; opt-in"
+    }
   }
 }

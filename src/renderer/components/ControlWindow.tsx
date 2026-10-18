@@ -124,7 +124,9 @@ export const ControlWindow: React.FC = () => {
     'processing',
     'downloading_model',
     'removing_vocals',
-    'remuxing'
+    'remuxing',
+    'stt_ensuring',
+    'stt_transcribing'
   ]);
 
   const formatDownloadStatusLabel = (dl: DownloadProgressPayload): string => {
@@ -140,6 +142,8 @@ export const ControlWindow: React.FC = () => {
     if (dl.status === 'queued') return t('library.queued');
     if (dl.status === 'removing_vocals') return t('library.removingVocals');
     if (dl.status === 'remuxing') return t('library.remuxingInstrumental');
+    if (dl.status === 'stt_ensuring') return t('library.sttEnsuring');
+    if (dl.status === 'stt_transcribing') return t('library.sttTranscribing');
     if (dl.status === 'processing' || (dl.status === 'converting' && dl.instrumental)) {
       return t('library.convertingInstrumental');
     }
@@ -631,7 +635,9 @@ export const ControlWindow: React.FC = () => {
           payload.status === 'processing' ||
           payload.status === 'downloading_model' ||
           payload.status === 'removing_vocals' ||
-          payload.status === 'remuxing'
+          payload.status === 'remuxing' ||
+          payload.status === 'stt_ensuring' ||
+          payload.status === 'stt_transcribing'
         ) {
           // Conversion phase: keep percent for any legacy UI, clear speed
           setDownloadProgress({ percent: payload.percent, speed: '' });
