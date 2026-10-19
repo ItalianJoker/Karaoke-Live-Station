@@ -8,9 +8,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+### Breaking Changes
+- None.
+
+## [2.3.2] — STT Pipeline Order (Whisper Before Instrumental) — 2026-10-19
+
+Release **v2.3.2** shipping the #88 STT pipeline order fix already on `main` (`e7f7d5e`): Download Strumentale runs Whisper on the **original** video **before** vocal removal / remux, then promotes karaoke sidecars beside the final instrumental. Package **2.3.2**.
+
 ### Fixed
 - **IT:** Pipeline Download Strumentale + STT: Whisper sul video originale **prima** della rimozione voci / remux; sidecar `.karaoke.json` (e `.ass` se presente) promosso accanto allo strumentale finale e spostato con `saveToLibrary` / `saveToQueueCache` (Stage non orfano).
 - **EN:** Download Strumentale + STT pipeline: Whisper on the **original** video **before** vocal removal / remux; `.karaoke.json` sidecar (and `.ass` if present) promoted beside the final instrumental and moved with `saveToLibrary` / `saveToQueueCache` (Stage no longer orphaned).
+
+### Changed
+- App version **2.3.2** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer.
 
 ### Breaking Changes
 - None.
