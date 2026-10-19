@@ -259,7 +259,7 @@ Verranno generati in `release/` l'eseguibile portatile autonomo `Karaoke Live St
 ```bash
 npm run electron:build:mac
 ```
-L'archivio `Karaoke Live Station-2.3.0-arm64-mac.zip` contenente l'applicazione `.app` pronta all'uso verrà generato in `release/`, con binari esclusivi Darwin Mach-O (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`). Il passo `verify-packaged-bins` fallisce se `yt-dlp` o `ffmpeg` mancano nel bundle.
+L'archivio `Karaoke Live Station-2.3.1-arm64-mac.zip` contenente l'applicazione `.app` pronta all'uso verrà generato in `release/`, con binari esclusivi Darwin Mach-O (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`). Il passo `verify-packaged-bins` fallisce se `yt-dlp` o `ffmpeg` mancano nel bundle.
 
 #### Aprire la build macOS unsigned (Gatekeeper / quarantena)
 Le release ufficiali **non sono firmate** con Developer ID. Dopo il download da GitHub:
@@ -620,7 +620,7 @@ The standalone portable executable `Karaoke Live Station 2.0.0.exe` (runs immedi
 ```bash
 npm run electron:build:mac
 ```
-The standalone `Karaoke Live Station-2.3.0-arm64-mac.zip` archive containing `Karaoke Live Station.app` will be generated in `release/`, with exclusive Darwin Mach-O binaries (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`). The `verify-packaged-bins` step fails the build if `yt-dlp` or `ffmpeg` is missing from the bundle.
+The standalone `Karaoke Live Station-2.3.1-arm64-mac.zip` archive containing `Karaoke Live Station.app` will be generated in `release/`, with exclusive Darwin Mach-O binaries (`yt-dlp`, `ffmpeg`, `better_sqlite3.node`). The `verify-packaged-bins` step fails the build if `yt-dlp` or `ffmpeg` is missing from the bundle.
 
 #### Running the unsigned macOS build (Gatekeeper / quarantine)
 Official releases are **not** Developer ID–signed. After downloading from GitHub:
