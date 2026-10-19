@@ -10,6 +10,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 _(empty)_
 
+## [2.3.8] — Settings Whisper Model Download — 2026-10-19
+
+Release **v2.3.8** completes **Impostazioni → Libreria & Download** Whisper STT management: **Scarica / Download** for catalog sizes not yet on disk (tiny→large-v3), status/size, Remove, and **In use** vs factory **Default (medium)**. Same `WhisperCppManager` / userData path; offline after download; no cloud STT. Package **2.3.8**.
+
+### Added
+- **IT:** Pulsante **Scarica** per ogni modello Whisper non presente (conferma taglia → `ensureModel`); badge **In uso** sul modello STT corrente; progresso download in riga.
+- **EN:** **Download** action per missing Whisper STT model (size confirm → `ensureModel`); **In use** badge for current `sttModelId`; per-row download progress.
+- **IT/EN/ES/FR:** i18n keys `sttDownload*` / `sttModelCurrentBadge` (+ ES/FR catch-up for ready/delete strings).
+
+### Changed
+- App version **2.3.8** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer / manuals / README.
+- Settings Whisper copy clarifies on-demand download from Options (not only first STT job).
+
+### Fixed
+- Settings STT list was delete-only for missing sizes — download other catalog models from Options without inventing a second UI.
+
+### Breaking Changes
+- None. Factory default remains **medium**. DLL packaging, GPU ETA (#95), display-mode exclusivity, soft-fail, STT-before-instrumental unchanged.
+
 ## [2.3.7] — Fix STT ETA display + Windows CUDA companion — 2026-10-19
 
 Release **v2.3.7** fixes two STT regressions from v2.3.5: Downloads **ETA** now visible during `stt_transcribing`, and Windows **CUDA** STT no longer soft-falls back to CPU because `cublas64_11.dll` was missing from the official whisper zip. Soft-fail, pipeline order, display mode (#93), and #91 DLL packaging unchanged. Package **2.3.7**.

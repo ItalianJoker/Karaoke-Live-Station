@@ -1043,7 +1043,7 @@ class KaraokeMainProcess {
     });
 
     ipcMain.handle('system:get-app-version', () => {
-      return app.getVersion() || '2.3.7';
+      return app.getVersion() || '2.3.8';
     });
 
     /**
