@@ -25,4 +25,11 @@ export type AiGpuRendererProbeResult = {
   adapterOk: boolean;
   reason?: string;
   navigatorType: string;
+  /** Effective WebGPU adapter label when probe succeeded (honest badge). */
+  adapterLabel?: string;
+  adapterVendor?: string;
+  adapterDevice?: string;
+  adapterArchitecture?: string;
+  /** Class inferred from powerPreference outcome / label heuristics. */
+  adapterClass?: 'high-performance' | 'low-power' | 'unknown';
 };

@@ -8,6 +8,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+### Fixed
+- **IT:** Cancel mid-conversione AI strumentale non lascia più il Hidden Renderer ORT “appeso” fino al relaunch: `dispose()` della finestra nascosta + `requestId` monotono + single-flight.
+- **EN:** Cancel mid Instrumental AI no longer leaves the Hidden Renderer ORT job stuck until relaunch: dispose the hidden window + monotonic `requestId` + single-flight.
+- **IT:** STT karaoke non usa più audio strumentale: Whisper riceve mix originale / WAV demux (mai `*.instrumental*`); sidecar accanto allo strumentale; guard IPC; preferenza stem vocale onesta (mix finché l’export vocals non esiste).
+- **EN:** Karaoke STT no longer feeds instrumental-only audio: Whisper gets original mix / demux WAV (never `*.instrumental*`); sidecar beside instrumental; IPC guard; honest vocal-stem preference (mix until vocals export exists).
+- **IT/EN:** Preferenza GPU discreta / high-performance cross-platform (Win/macOS/Linux) via `force_high_performance_gpu` / `force_low_power_gpu` + lista adapter + badge adapter effettivo (non NVIDIA-only).
+
 ### Breaking Changes
 - None.
 

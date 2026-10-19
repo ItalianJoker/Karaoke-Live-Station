@@ -153,6 +153,14 @@ export type InstrumentalProcessOptions = {
   /** GPU-First toggle + probe snapshot. */
   aiEnableGpu?: boolean;
   aiGpuSupported?: boolean;
+  /** Discrete / high-performance preference for ORT/WebGPU hint. */
+  aiGpuPreference?: 'high-performance' | 'low-power' | 'system';
+  /**
+   * When true, leave demux/AI WAV temps on disk after the pipeline
+   * (caller must clean up). Used so karaoke STT can retain speech-bearing
+   * mix audio until Whisper finishes.
+   */
+  retainWorkWavs?: boolean;
 };
 
 export type InstrumentalProcessResult = {
@@ -475,6 +483,7 @@ async function removeVocalsAi(
       aiCpuThreads: options.aiCpuThreads,
       aiEnableGpu: options.aiEnableGpu,
       aiGpuSupported: options.aiGpuSupported,
+      aiGpuPreference: options.aiGpuPreference,
       // MDX knobs only when method is aiMdxKaraoke2; undefined for Demucs.
       ...mdxPayloadForMethod(method, {
         mdxSegmentSize: options.mdxSegmentSize,
@@ -940,7 +949,10 @@ export async function processInstrumentalVideo(
     });
     return { success: false, error: `Instrumental processing failed: ${message}` };
   } finally {
-    safeUnlink(extractedWav);
-    safeUnlink(instrumentalWav);
+    // When STT will reuse the speech-bearing mix WAV, caller owns cleanup.
+    if (!options.retainWorkWavs) {
+      safeUnlink(extractedWav);
+      safeUnlink(instrumentalWav);
+    }
   }
 }

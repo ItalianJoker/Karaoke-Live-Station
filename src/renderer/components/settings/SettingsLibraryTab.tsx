@@ -47,6 +47,7 @@ import {
   isDemucsInstrumentalMethod,
 } from '../../../shared/demucsAdvancedSettings';
 import { coerceAiEnableGpu } from '../../../shared/aiOrtProviders';
+import { coerceAiGpuPreference, type AiGpuPreference } from '../../../shared/aiGpuPreference';
 import type { SettingsLibraryTabProps } from './settingsTypes';
 
 /**
@@ -642,22 +643,34 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
 
                 {(!isSearching || matchAiThreads) && (() => {
                   const gpuOn = coerceAiEnableGpu(settings.aiEnableGpu);
+                  const gpuPref = coerceAiGpuPreference(settings.aiGpuPreference);
                   // Honest EP: green only when AI worker can actually host WebGPU.
                   const workerWebGpu =
                     gpuStatus?.workerWebGpuAvailable === true || gpuStatus?.isSupported === true;
                   const hardwareGpu =
                     gpuStatus?.hardwareGpuPresent === true ||
                     Boolean(gpuStatus?.gpuName && gpuStatus.gpuName.trim());
-                  const hwName =
-                    gpuStatus?.gpuName && gpuStatus.gpuName.trim()
-                      ? gpuStatus.gpuName.trim()
-                      : t('settings.aiGpuBadgeSupported');
+                  const effectiveLabel =
+                    gpuStatus?.effectiveAdapter?.label?.trim() ||
+                    (gpuStatus?.gpuName && gpuStatus.gpuName.trim()) ||
+                    '';
+                  const hwName = effectiveLabel || t('settings.aiGpuBadgeSupported');
                   const badgeActiveGpu = gpuOn && workerWebGpu;
                   const badgeDetail = badgeActiveGpu
                     ? hwName
                     : t('settings.aiGpuBadgeWasmWorker');
+                  const adapters = Array.isArray(gpuStatus?.adapters) ? gpuStatus.adapters : [];
+                  const preferDiscrete = gpuPref === 'high-performance';
+                  const effectiveClass = gpuStatus?.effectiveAdapter?.class;
+                  const mismatchLowPower =
+                    preferDiscrete &&
+                    badgeActiveGpu &&
+                    effectiveClass === 'low-power';
                   return (
-                    <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-3">
+                    <div
+                      className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-3"
+                      data-testid="settings-ai-gpu-card"
+                    >
                       <label className="flex items-start gap-3 cursor-pointer">
                         <input
                           type="checkbox"
@@ -685,6 +698,7 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                               gpuStatus?.vendor ||
                               undefined
                             }
+                            data-testid="settings-ai-gpu-badge"
                           >
                             <span
                               className={`w-1.5 h-1.5 rounded-full ${
@@ -705,6 +719,81 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                           </p>
                         </div>
                       </label>
+
+                      {gpuOn ? (
+                        <div className="space-y-2 pl-7">
+                          <label className="flex items-start gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={preferDiscrete}
+                              onChange={(e) => {
+                                const next: AiGpuPreference = e.target.checked
+                                  ? 'high-performance'
+                                  : 'low-power';
+                                updateSettings({ aiGpuPreference: next });
+                              }}
+                              className="w-4 h-4 accent-indigo-600 rounded mt-0.5"
+                              data-testid="settings-ai-gpu-prefer-discrete"
+                            />
+                            <span className="text-xs text-slate-200 leading-relaxed">
+                              <span className="font-semibold block">
+                                {t('settings.aiGpuPreferDiscrete')}
+                              </span>
+                              <span className="text-[11px] text-slate-400 block mt-0.5">
+                                {t('settings.aiGpuPreferDiscreteDesc')}
+                              </span>
+                            </span>
+                          </label>
+                          <p className="text-[10px] text-amber-200/80 leading-relaxed">
+                            {t('settings.aiGpuRestartHint')}
+                          </p>
+                          {mismatchLowPower ? (
+                            <p
+                              className="text-[10px] text-amber-300 leading-relaxed"
+                              data-testid="settings-ai-gpu-mismatch"
+                            >
+                              {t('settings.aiGpuMismatchWarning')}
+                            </p>
+                          ) : null}
+                          <div data-testid="settings-ai-gpu-adapters">
+                            <span className="block text-[11px] font-semibold text-slate-300 mb-1">
+                              {t('settings.aiGpuAdaptersTitle')}
+                            </span>
+                            {adapters.length === 0 ? (
+                              <p className="text-[10px] text-slate-500">
+                                {t('settings.aiGpuAdaptersEmpty')}
+                              </p>
+                            ) : adapters.length === 1 ? (
+                              <p className="text-[11px] text-slate-300 font-mono truncate">
+                                {adapters[0].label}
+                                {adapters[0].selected
+                                  ? ` — ${t('settings.aiGpuAdapterEffective')}`
+                                  : ''}
+                              </p>
+                            ) : (
+                              <ul className="space-y-1">
+                                {adapters.map((a) => (
+                                  <li
+                                    key={a.id}
+                                    className={`text-[11px] truncate ${
+                                      a.selected
+                                        ? 'text-emerald-200 font-semibold'
+                                        : 'text-slate-400'
+                                    }`}
+                                  >
+                                    {a.label}
+                                    {a.selected
+                                      ? ` — ${t('settings.aiGpuAdapterEffective')}`
+                                      : a.class !== 'unknown'
+                                        ? ` (${a.class})`
+                                        : ''}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })()}

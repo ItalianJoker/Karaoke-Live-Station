@@ -22,6 +22,26 @@ import {
 } from '../../shared/demucsAdvancedSettings';
 import type { InstrumentalAiSeparateRequest } from '../workers/instrumentalAiSeparateCore';
 import { resolveAiCpuThreads } from '../../shared/aiCpuThreads';
+import {
+  aiGpuPreferenceToPowerPreference,
+  coerceAiGpuPreference,
+  type AiGpuPreference
+} from '../../shared/aiGpuPreference';
+
+/**
+ * Process-wide monotonic requestId so orphaned Hidden Renderer IPC cannot
+ * collide with a new job after cancel (always-`1` caused sticky handler matches).
+ */
+let nextInstrumentalAiRequestId = 1;
+
+function allocInstrumentalAiRequestId(): number {
+  const id = nextInstrumentalAiRequestId;
+  nextInstrumentalAiRequestId += 1;
+  if (nextInstrumentalAiRequestId > 1_000_000_000) {
+    nextInstrumentalAiRequestId = 1;
+  }
+  return id;
+}
 
 export type InstrumentalAiProgress = {
   phase: 'model' | 'decode' | 'separate' | 'ready' | 'error';
@@ -66,6 +86,12 @@ export type InstrumentalAiSeparateOptions = {
   aiEnableGpu?: boolean;
   /** Main GPU probe snapshot. */
   aiGpuSupported?: boolean;
+  /**
+   * Discrete / high-performance vs integrated / low-power (Settings).
+   * Drives ORT/WebGPU `powerPreference` hint; process Chromium switches
+   * are applied at boot from launch-prefs.
+   */
+  aiGpuPreference?: AiGpuPreference;
 };
 
 /** Minimum hard ceiling so short tracks still get a full CPU WASM run. */
@@ -310,7 +336,10 @@ export async function separateInstrumentalWithAi(
   const totalCpus = Math.max(1, os.cpus()?.length || 1);
   const effectiveAiCpuThreads = resolveAiCpuThreads(options.aiCpuThreads, totalCpus);
   const worker = await resolveWorkerHandle(options, logger);
-  let requestId = 1;
+  const requestId = allocInstrumentalAiRequestId();
+  const powerPreference = aiGpuPreferenceToPowerPreference(
+    coerceAiGpuPreference(options.aiGpuPreference)
+  );
   let settled = false;
   let separateSent = false;
   let hardTimer: ReturnType<typeof setTimeout> | null = null;
@@ -350,10 +379,20 @@ export async function separateInstrumentalWithAi(
     });
   });
 
-  const kill = () => {
+  /**
+   * Stop the worker. Hidden Renderer: `dispose` tears down the window (ORT/WebGPU)
+   * so cancel does not leave a sticky orphan until app quit; `detach` only clears
+   * the IPC handler (warm window after successful jobs).
+   */
+  const kill = (mode: 'detach' | 'dispose' = 'detach') => {
     try {
       if (worker.kind === 'hidden-renderer') {
-        getInstrumentalAiHiddenRenderer(logger).clearJobHandler();
+        const hidden = getInstrumentalAiHiddenRenderer(logger);
+        if (mode === 'dispose') {
+          hidden.dispose();
+        } else {
+          hidden.clearJobHandler();
+        }
         return;
       }
       if (worker.kind === 'utility') worker.proc.kill();
@@ -396,7 +435,8 @@ export async function separateInstrumentalWithAi(
       settled = true;
       clearTimers();
       signal?.removeEventListener('abort', onAbort);
-      kill();
+      // Cancel / error: dispose Hidden Renderer so ORT cannot stick until relaunch.
+      kill(worker.kind === 'hidden-renderer' ? 'dispose' : 'detach');
       logger?.warn('InstrumentalAiSeparator', `AI separate end reason=${reason}`, {
         method,
         modelId,
@@ -444,7 +484,8 @@ export async function separateInstrumentalWithAi(
       settled = true;
       clearTimers();
       signal?.removeEventListener('abort', onAbort);
-      kill();
+      // Success: detach handler only — keep warm Hidden Renderer for next job.
+      kill('detach');
       logger?.info('InstrumentalAiSeparator', 'AI separate completed', {
         method,
         modelId,
@@ -499,12 +540,7 @@ export async function separateInstrumentalWithAi(
       // Detach Hidden Renderer job; keep outer promise open for utility re-run.
       clearTimers();
       signal?.removeEventListener('abort', onAbort);
-      kill();
-      if (disposeHiddenWindow) {
-        getInstrumentalAiHiddenRenderer(logger).dispose();
-      } else {
-        getInstrumentalAiHiddenRenderer(logger).clearJobHandler();
-      }
+      kill(disposeHiddenWindow ? 'dispose' : 'detach');
       void separateInstrumentalWithAi(
         {
           ...options,
@@ -609,6 +645,8 @@ export async function separateInstrumentalWithAi(
         // utility/fork path: false so worker skips doomed webgpu session.create.
         aiGpuSupported:
           worker.kind === 'hidden-renderer' ? true : options.aiGpuSupported === true,
+        // Align ORT/WebGPU powerPreference with Settings discrete preference.
+        aiGpuPowerPreference: powerPreference,
         // Never run multithreaded WASM inside the Hidden BrowserWindow.
         allowInProcessWasmFallback: worker.kind !== 'hidden-renderer',
         // Only attach MDX knobs for aiMdxKaraoke2 — Demucs must not receive them.

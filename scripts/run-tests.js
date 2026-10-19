@@ -3622,8 +3622,11 @@ console.log('\n\x1b[36m▶ Suite: Signalsmith pitch lab (-1..-4 ST)\x1b[0m');
       sepTimeoutSrc.includes('gpu-fallback-requested') &&
       sepTimeoutSrc.includes('allowInProcessWasmFallback') &&
       sepTimeoutSrc.includes('utilityProcess') &&
-      sepTimeoutSrc.includes('clearJobHandler'),
-    'AI separator: bounded timeout + Hidden Renderer gpu-fallback → utilityProcess'
+      sepTimeoutSrc.includes('clearJobHandler') &&
+      sepTimeoutSrc.includes("mode === 'dispose'") &&
+      sepTimeoutSrc.includes('allocInstrumentalAiRequestId') &&
+      sepTimeoutSrc.includes('hidden.dispose()'),
+    'AI separator: bounded timeout + Hidden Renderer dispose on cancel + monotonic requestId'
   );
 
   const mainQuitSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
@@ -5476,6 +5479,101 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
     dmSrc.includes('generateKaraokeStt') && dmSrc.includes('processKaraokeSttOverlay'),
     'DownloadManager hooks KaraokeSttProcessor after instrumental'
   );
+  assert(
+    dmSrc.includes('inputVideoPath: sttInputPath') &&
+      dmSrc.includes('never instrumentalOut') &&
+      dmSrc.includes('retainWorkWavs: willRunStt') &&
+      dmSrc.includes('vocalStemPath: null') &&
+      dmSrc.includes('attachScriptToMediaPath: result.outputPath'),
+    'DownloadManager STT uses original/mix (not instrumental) + retain temps + sidecar on instrumental'
+  );
+
+  const sttProcSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/services/KaraokeSttProcessor.ts'),
+    'utf8'
+  );
+  assert(
+    sttProcSrc.includes('isInstrumentalOnlySttPath') &&
+      sttProcSrc.includes('STT_INSTRUMENTAL_INPUT_REJECTED') &&
+      sttProcSrc.includes('attachScriptToMediaPath'),
+    'KaraokeSttProcessor rejects instrumental paths + attachScriptToMediaPath'
+  );
+
+  const sttPathsSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/shared/karaokeSttPaths.ts'),
+    'utf8'
+  );
+  assert(
+    sttPathsSrc.includes('isInstrumentalOnlySttPath') &&
+      sttPathsSrc.includes('.instrumental.'),
+    'shared karaokeSttPaths guards instrumental basenames'
+  );
+
+  // Runtime guard smoke (mirror shared/karaokeSttPaths — no TS require)
+  const rejectFn = (p) => {
+    const base = require('path').basename(String(p || '')).toLowerCase();
+    if (/\.instrumental\.extract\.(wav|mp4|mkv|webm|m4a|aac)$/i.test(base)) return true;
+    if (/\.instrumental\.(mp4|mkv|webm|wav|m4a|aac)$/i.test(base)) return true;
+    return false;
+  };
+  assert(rejectFn('song.instrumental.mp4'), 'reject instrumental remux');
+  assert(rejectFn('dl_1.instrumental.extract.wav'), 'reject instrumental extract wav');
+  assert(!rejectFn('dl_1.extract.wav'), 'allow demux mix extract wav');
+  assert(!rejectFn('original.mp4'), 'allow original video');
+
+  const mainGpuSrc = fs.readFileSync(path.resolve(__dirname, '../src/main/index.ts'), 'utf8');
+  assert(
+    mainGpuSrc.includes('force_high_performance_gpu') &&
+      mainGpuSrc.includes('force_low_power_gpu') &&
+      mainGpuSrc.includes('aiGpuPreferenceToCommandLine') &&
+      mainGpuSrc.includes('isInstrumentalOnlySttPath'),
+    'Main applies cross-platform GPU preference switches + STT instrumental IPC guard'
+  );
+
+  const gpuPrefSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/shared/aiGpuPreference.ts'),
+    'utf8'
+  );
+  assert(
+    gpuPrefSrc.includes('forceHighPerformance') &&
+      gpuPrefSrc.includes('coerceAiGpuPreference') &&
+      gpuPrefSrc.includes('Vendor-neutral') &&
+      gpuPrefSrc.includes('high-performance') &&
+      gpuPrefSrc.includes('low-power'),
+    'aiGpuPreference is vendor-neutral (high/low-power, not a single-vendor API)'
+  );
+
+  const probeSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/ai/probeGpuStatus.ts'),
+    'utf8'
+  );
+  assert(
+    probeSrc.includes('adapters') &&
+      probeSrc.includes('effectiveAdapter') &&
+      probeSrc.includes('for (const device of devices)'),
+    'probeGpuStatus lists all gpuDevice entries + effective adapter'
+  );
+
+  const settingsGpuUi = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/settings/SettingsLibraryTab.tsx'),
+    'utf8'
+  );
+  assert(
+    settingsGpuUi.includes('aiGpuPreferDiscrete') &&
+      settingsGpuUi.includes('settings-ai-gpu-adapters') &&
+      settingsGpuUi.includes('aiGpuRestartHint'),
+    'Settings GPU card has prefer-discrete + adapter list + restart hint'
+  );
+
+  for (const lang of ['en', 'it', 'es', 'fr']) {
+    const loc = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+    );
+    assert(
+      loc.settings?.aiGpuPreferDiscrete && loc.settings?.sttInstrumentalRejected,
+      `${lang}.json has GPU preference + STT instrumental reject keys`
+    );
+  }
 
   const pkg230 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
   assert(pkg230.version === '2.3.0', 'package.json is 2.3.0 for STT release');

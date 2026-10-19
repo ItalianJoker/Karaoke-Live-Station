@@ -145,7 +145,12 @@ export class InstrumentalAiHiddenRenderer {
         available: msg.available === true,
         adapterOk: msg.adapterOk === true,
         reason: msg.reason,
-        navigatorType: msg.navigatorType || 'object'
+        navigatorType: msg.navigatorType || 'object',
+        adapterLabel: msg.adapterLabel,
+        adapterVendor: msg.adapterVendor,
+        adapterDevice: msg.adapterDevice,
+        adapterArchitecture: msg.adapterArchitecture,
+        adapterClass: msg.adapterClass
       };
       this.lastProbe = probe;
       this.jobHandler?.onMessage({ type: 'probe-result', ...probe });
@@ -231,9 +236,14 @@ export class InstrumentalAiHiddenRenderer {
    * Probe WebGPU via executeJavaScript in the Hidden Renderer.
    * Requires requestAdapter + requestDevice (5s race) — adapter-only probes
    * are false positives for ORT WebGPU session.create.
+   * Tries high-performance then low-power when useful; returns adapter info
+   * for Settings inventory / honest effective badge.
    * Does not require the ORT worker bundle (fast + asar-safe).
    */
-  async probeWebGpu(opts?: { forceRefresh?: boolean }): Promise<AiGpuRendererProbeResult> {
+  async probeWebGpu(opts?: {
+    forceRefresh?: boolean;
+    powerPreference?: 'high-performance' | 'low-power';
+  }): Promise<AiGpuRendererProbeResult> {
     try {
       const win = await this.ensureWindow();
       if (this.lastProbe && opts?.forceRefresh !== true && this.lastProbe.adapterOk === true) {
@@ -241,6 +251,7 @@ export class InstrumentalAiHiddenRenderer {
       }
 
       const deviceTimeoutMs = WEBGPU_DEVICE_PROBE_TIMEOUT_MS;
+      const preferred = opts?.powerPreference || 'high-performance';
       const probePromise = win.webContents.executeJavaScript(
         `(async () => {
           const nav = typeof navigator !== 'undefined' ? navigator : undefined;
@@ -256,51 +267,86 @@ export class InstrumentalAiHiddenRenderer {
               navigatorType
             };
           }
-          try {
-            const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
-            if (!adapter) {
-              return {
-                available: true,
-                adapterOk: false,
-                reason: 'navigator.gpu.requestAdapter() returned null',
-                navigatorType
-              };
-            }
-            // Adapter alone is insufficient — ORT needs a real GPUDevice.
-            const deviceTimeoutMs = ${deviceTimeoutMs};
-            let device = null;
+          const preferred = ${JSON.stringify(preferred)};
+          const tryPrefs = preferred === 'low-power'
+            ? ['low-power', 'high-performance']
+            : ['high-performance', 'low-power'];
+          const readInfo = async (adapter) => {
+            let label = '';
+            let vendor = '';
+            let deviceName = '';
+            let architecture = '';
             try {
-              device = await Promise.race([
-                adapter.requestDevice(),
-                new Promise((_, reject) =>
-                  setTimeout(
-                    () => reject(new Error('requestDevice timed out after ' + deviceTimeoutMs + 'ms')),
-                    deviceTimeoutMs
-                  )
-                )
-              ]);
-            } catch (devErr) {
-              return {
-                available: true,
-                adapterOk: false,
-                reason: devErr && devErr.message
-                  ? String(devErr.message)
-                  : 'adapter.requestDevice() failed',
-                navigatorType
-              };
-            }
-            try {
-              if (device && typeof device.destroy === 'function') device.destroy();
+              if (adapter && adapter.info) {
+                label = String(adapter.info.description || adapter.info.device || '').trim();
+                vendor = String(adapter.info.vendor || '').trim();
+                deviceName = String(adapter.info.device || '').trim();
+                architecture = String(adapter.info.architecture || '').trim();
+              }
             } catch (_) { /* ignore */ }
-            return { available: true, adapterOk: true, navigatorType };
-          } catch (err) {
-            return {
-              available: true,
-              adapterOk: false,
-              reason: err && err.message ? String(err.message) : String(err),
-              navigatorType
-            };
+            try {
+              if ((!label || !vendor) && adapter && typeof adapter.requestAdapterInfo === 'function') {
+                const info = await adapter.requestAdapterInfo();
+                if (info) {
+                  label = label || String(info.description || info.device || '').trim();
+                  vendor = vendor || String(info.vendor || '').trim();
+                  deviceName = deviceName || String(info.device || '').trim();
+                  architecture = architecture || String(info.architecture || '').trim();
+                }
+              }
+            } catch (_) { /* ignore */ }
+            return { label, vendor, deviceName, architecture };
+          };
+          const deviceTimeoutMs = ${deviceTimeoutMs};
+          let lastReason = 'navigator.gpu.requestAdapter() returned null';
+          for (const powerPreference of tryPrefs) {
+            try {
+              const adapter = await gpu.requestAdapter({ powerPreference });
+              if (!adapter) {
+                lastReason = 'navigator.gpu.requestAdapter() returned null (' + powerPreference + ')';
+                continue;
+              }
+              let device = null;
+              try {
+                device = await Promise.race([
+                  adapter.requestDevice(),
+                  new Promise((_, reject) =>
+                    setTimeout(
+                      () => reject(new Error('requestDevice timed out after ' + deviceTimeoutMs + 'ms')),
+                      deviceTimeoutMs
+                    )
+                  )
+                ]);
+              } catch (devErr) {
+                lastReason = devErr && devErr.message
+                  ? String(devErr.message)
+                  : 'adapter.requestDevice() failed';
+                continue;
+              }
+              try {
+                if (device && typeof device.destroy === 'function') device.destroy();
+              } catch (_) { /* ignore */ }
+              const info = await readInfo(adapter);
+              return {
+                available: true,
+                adapterOk: true,
+                navigatorType,
+                adapterLabel: info.label || undefined,
+                adapterVendor: info.vendor || undefined,
+                adapterDevice: info.deviceName || undefined,
+                adapterArchitecture: info.architecture || undefined,
+                adapterClass: powerPreference === 'low-power' ? 'low-power' : 'high-performance'
+              };
+            } catch (err) {
+              lastReason = err && err.message ? String(err.message) : String(err);
+            }
           }
+          return {
+            available: true,
+            adapterOk: false,
+            reason: lastReason,
+            navigatorType
+          };
         })()`,
         true
       );
@@ -325,7 +371,12 @@ export class InstrumentalAiHiddenRenderer {
         available: result.available === true,
         adapterOk: result.adapterOk === true,
         reason: result.reason,
-        navigatorType: result.navigatorType || 'object'
+        navigatorType: result.navigatorType || 'object',
+        adapterLabel: result.adapterLabel,
+        adapterVendor: result.adapterVendor,
+        adapterDevice: result.adapterDevice,
+        adapterArchitecture: result.adapterArchitecture,
+        adapterClass: result.adapterClass
       };
       this.logger?.info('InstrumentalAiHiddenRenderer', 'WebGPU probe result', this.lastProbe);
       return this.lastProbe;
@@ -379,11 +430,20 @@ export class InstrumentalAiHiddenRenderer {
 
   /**
    * Send a separate job to the Hidden Renderer. Caller owns timeouts/abort.
+   * Single-flight: if a previous job handler is still attached, dispose the
+   * window first so orphaned ORT cannot collide with the new requestId.
    */
   async startSeparate(
     payload: InstrumentalAiSeparateRequest,
     handlers: HiddenRendererJobHandlers
   ): Promise<void> {
+    if (this.jobHandler) {
+      this.logger?.warn(
+        'InstrumentalAiHiddenRenderer',
+        'Previous AI job handler still set — disposing Hidden Renderer before new separate'
+      );
+      this.dispose();
+    }
     const win = await this.ensureWindow();
     await this.ensureGpuScriptLoaded(win);
     this.jobHandler = handlers;
@@ -392,6 +452,11 @@ export class InstrumentalAiHiddenRenderer {
 
   clearJobHandler(): void {
     this.jobHandler = null;
+  }
+
+  /** True when a separation job handler is currently attached. */
+  hasActiveJobHandler(): boolean {
+    return this.jobHandler != null;
   }
 
   /** Destroy the hidden window (e.g. on app quit). */

@@ -164,6 +164,12 @@ export interface AppSettings {
    */
   aiEnableGpu: boolean;
   /**
+   * Prefer discrete / high-performance GPU vs integrated / low-power (or system default).
+   * Cross-platform (Win/macOS/Linux). Applied as Chromium switches at boot (relaunch required)
+   * and as WebGPU/ORT `powerPreference` hint. Default: high-performance.
+   */
+  aiGpuPreference: 'high-performance' | 'low-power' | 'system';
+  /**
    * When true (default), maximize the Control (Regia) window on app launch
    * via BrowserWindow.maximize() — not exclusive fullscreen.
    */
@@ -212,6 +218,8 @@ export interface AppSettings {
   /**
    * When true (default), Karaoke STT prefers an AI vocal stem when available;
    * falls back to the full mix without failing the job.
+   * Honesty: vocals-stem export is not wired yet — STT uses original mix / demux WAV
+   * until a real vocals path exists (never the instrumental extract).
    */
   sttPreferVocalStem: boolean;
 
@@ -505,6 +513,8 @@ export interface StartDownloadOptions {
   aiEnableGpu?: boolean;
   /** Snapshot of main GPU probe at download start (optional). */
   aiGpuSupported?: boolean;
+  /** Discrete / high-performance preference for ORT/WebGPU (from Settings). */
+  aiGpuPreference?: 'high-performance' | 'low-power' | 'system';
   /**
    * When true (instrumental video only): yt-dlp fetches auto-subs for lyric burn-in.
    * Omitted / false → no `--write-auto-sub`. Missing subs never fail the download.
