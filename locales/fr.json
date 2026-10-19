@@ -406,7 +406,8 @@
     "sttDeleteConfirm": "Delete Whisper model {{model}} and free about {{size}}?",
     "sttDeleteAll": "Supprimer tous les modèles Whisper",
     "sttDeleteAllConfirm": "Delete ALL downloaded Whisper models? ONNX vocal AI models are not touched.",
-    "sttHonesty": "Singing STT: even medium/large-v3 stay weak on melisma/chorus. Offline only; no cloud."
+    "sttHonesty": "Singing STT: even medium/large-v3 stay weak on melisma/chorus. Offline only; no cloud.",
+    "sttGpuCpuNote": "Le STT utilise les mêmes réglages GPU, préférence discrète/intégrée et cœurs CPU que l’IA instrumentale ci-dessus. Backend : whisper.cpp (Windows : CUDA cuBLAS si GPU+discret ; sinon OpenBLAS CPU multi-thread) — pas ORT WebGPU. Le menu Téléchargements affiche l’ETA STT comme pour la conversion instrumentale."
   },
   "history": {
     "title": "Historique de Lecture",

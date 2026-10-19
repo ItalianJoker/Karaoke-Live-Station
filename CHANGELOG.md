@@ -10,6 +10,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 _(empty)_
 
+## [2.3.5] — STT ETA + GPU/CPU (whisper.cpp) — 2026-10-19
+
+Release **v2.3.5** aligns karaoke STT UX with Instrumental AI: Downloads **ETA** during transcription, and the same GPU toggle / discrete preference / CPU cores mapped to **whisper.cpp** backends (Windows CUDA cuBLAS vs OpenBLAS multi-thread). Does **not** use ORT WebGPU for STT. Package **2.3.5**.
+
+### Added
+- **IT:** ETA STT nel menu Download (progresso `whisper-cli -pp`, stessa formula velocità dell’AI strumentale).
+- **EN:** STT ETA in the Downloads menu (whisper-cli `-pp` progress, same velocity formula as Instrumental AI).
+- **IT:** STT riusa `aiEnableGpu` / preferenza discreta / `aiCpuThreads`: su Windows GPU+discreta → zip `whisper-cublas-11.8`; altrimenti BLAS CPU con `-t` / `-ng`. Fallback soft CUDA→BLAS. Marker `.whisper-backend.json`.
+- **EN:** STT reuses `aiEnableGpu` / discrete preference / `aiCpuThreads`: on Windows GPU+discrete → `whisper-cublas-11.8` zip; else BLAS CPU with `-t` / `-ng`. Soft CUDA→BLAS fallback. `.whisper-backend.json` marker.
+
+### Changed
+- App version **2.3.5** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer / manuals.
+- Settings STT honesty note: whisper.cpp backends ≠ ORT WebGPU.
+
+### Fixed
+- **IT/EN:** Progress STT era silenzioso (`-np` senza `-pp`) → niente %/ETA utili durante la trascrizione.
+
+### Breaking Changes
+- None. Soft-fail STT, pipeline order, medium default, and #91 Win DLL packaging preserved for BLAS **and** CUDA zips.
+
 ## [2.3.4] — Windows whisper-cli Runtime DLLs — 2026-10-19
 
 Release **v2.3.4** shipping the Windows whisper.cpp packaging fix: extract copies runtime DLLs next to `whisper-cli.exe`, install probe rejects `STATUS_DLL_NOT_FOUND`, and broken exe-only installs are auto-repaired. Package **2.3.4**.

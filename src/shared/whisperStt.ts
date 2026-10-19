@@ -1,9 +1,26 @@
 /**
  * Whisper.cpp STT catalog + settings helpers for karaoke word-level overlay.
  * Models live ONLY under `<userData>/models/whisper/` — never in the installer.
+ *
+ * GPU note: STT uses whisper.cpp backends (Windows CUDA cuBLAS / CPU OpenBLAS,
+ * optional Metal when a seeded binary supports it). It does **not** use ORT WebGPU
+ * (that stack is Instrumental AI only).
  */
 
+import type { AiGpuPreference } from './aiGpuPreference';
+import { coerceAiGpuPreference } from './aiGpuPreference';
+import { coerceAiEnableGpu } from './aiOrtProviders';
+
 export type WhisperModelId = 'tiny' | 'base' | 'small' | 'medium' | 'large-v3';
+
+/**
+ * Managed whisper-cli flavor under `<userData>/bin/`.
+ * - `blas` — official CPU OpenBLAS zip (all platforms’ default fallback)
+ * - `cublas-11.8` — official Windows CUDA 11.8 zip (NVIDIA discrete acceleration)
+ */
+export type WhisperCliBackend = 'blas' | 'cublas-11.8';
+
+export const WHISPER_CLI_BACKENDS: readonly WhisperCliBackend[] = ['blas', 'cublas-11.8'] as const;
 
 export const WHISPER_MODEL_IDS: readonly WhisperModelId[] = [
   'tiny',
@@ -126,6 +143,46 @@ export function coerceWhisperModelId(raw: unknown): WhisperModelId {
     return s as WhisperModelId;
   }
   return DEFAULT_WHISPER_MODEL_ID;
+}
+
+export function coerceWhisperCliBackend(raw: unknown): WhisperCliBackend {
+  const s = String(raw || '').trim().toLowerCase();
+  if (s === 'cublas-11.8' || s === 'cublas' || s === 'cuda' || s === 'cuda-11.8') {
+    return 'cublas-11.8';
+  }
+  return 'blas';
+}
+
+/**
+ * Pick whisper-cli backend from the same Settings knobs as Instrumental AI.
+ * Windows + GPU on + discrete/high-performance → CUDA 11.8 zip; otherwise CPU BLAS.
+ * macOS/Linux never select cuBLAS (no official desktop zip in v1.7.6).
+ */
+export function resolveWhisperCliBackend(opts: {
+  platform?: NodeJS.Platform;
+  aiEnableGpu?: boolean | null;
+  aiGpuPreference?: AiGpuPreference | string | null;
+}): WhisperCliBackend {
+  const platform = opts.platform || (typeof process !== 'undefined' ? process.platform : 'linux');
+  if (platform !== 'win32') return 'blas';
+  const gpuOn = coerceAiEnableGpu(opts.aiEnableGpu);
+  if (!gpuOn) return 'blas';
+  const pref = coerceAiGpuPreference(opts.aiGpuPreference);
+  // Prefer integrated / low-power → force CPU BLAS (CUDA targets discrete NVIDIA).
+  if (pref === 'low-power') return 'blas';
+  return 'cublas-11.8';
+}
+
+/**
+ * When true, whisper-cli gets `-ng` / `--no-gpu` (CPU path even if binary has GPU code).
+ * Mirrors Instrumental “GPU off” / “prefer integrated”.
+ */
+export function whisperForceNoGpu(opts: {
+  aiEnableGpu?: boolean | null;
+  aiGpuPreference?: AiGpuPreference | string | null;
+}): boolean {
+  if (!coerceAiEnableGpu(opts.aiEnableGpu)) return true;
+  return coerceAiGpuPreference(opts.aiGpuPreference) === 'low-power';
 }
 
 export function formatBytesApprox(bytes: number): string {
