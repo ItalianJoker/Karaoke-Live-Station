@@ -1,7 +1,7 @@
 /**
- * Offline karaoke STT job: extract WAV → whisper.cpp word timestamps → TimedKaraokeScript sidecar.
+ * Offline karaoke STT job: extract WAV → whisper.cpp word timestamps → TimedKaraokeScript sidecar
+ * (+ optional ASS for ffmpeg burn-in during instrumental remux).
  * Never runs on the Electron main event loop for inference (child process only).
- * Stage overlay is the v1 delivery path; ASS burn-in is deferred (v1.1).
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
@@ -16,7 +16,9 @@ import {
   DEFAULT_WHISPER_MODEL_ID
 } from '../../shared/whisperStt';
 import {
+  resolveKaraokeAssPath,
   resolveKaraokeScriptPath,
+  timedScriptToAss,
   whisperJsonToTimedScript,
   type TimedKaraokeScript
 } from '../../shared/timedKaraoke';
@@ -37,6 +39,8 @@ export type KaraokeSttResult = {
   success: boolean;
   cancelled?: boolean;
   scriptPath?: string;
+  /** ASS beside media when burn-in was requested (for InstrumentalProcessor subtitles=). */
+  assPath?: string;
   script?: TimedKaraokeScript;
   error?: string;
   usedVocalStem: boolean;
@@ -73,7 +77,10 @@ export async function processKaraokeSttOverlay(options: {
    * instrumental remux) for Stage overlay during instrumental playback.
    */
   attachScriptToMediaPath?: string | null;
-  /** When true, attempt burn-in ASS remux (deferred — ignored in v1). */
+  /**
+   * When true, also write an ASS sibling beside the attach/input media so
+   * `InstrumentalProcessor` can burn hardsubs via the existing `subtitles=` remux path.
+   */
   burnInAss?: boolean;
   whisperManager: WhisperCppManager;
   onProgress?: (phase: KaraokeSttPhase, percent: number) => void;
@@ -266,26 +273,34 @@ export async function processKaraokeSttOverlay(options: {
     fs.writeFileSync(tmpScript, JSON.stringify(script, null, 2), 'utf8');
     fs.renameSync(tmpScript, scriptPath);
 
-    // v1: Stage overlay only — burn-in ASS deferred (options.burnInAss ignored).
+    let assPath: string | undefined;
     if (options.burnInAss) {
-      options.logger?.info(
-        'KaraokeSttProcessor',
-        'ASS burn-in requested but deferred in v1 (Stage overlay only)',
-        corr
-      );
+      // Write ASS beside media for InstrumentalProcessor findSiblingSubtitle / explicit subtitlePath.
+      const assOut = resolveKaraokeAssPath(attachMedia);
+      const assBody = timedScriptToAss(script);
+      const tmpAss = `${assOut}.tmp`;
+      fs.writeFileSync(tmpAss, assBody, 'utf8');
+      fs.renameSync(tmpAss, assOut);
+      assPath = assOut;
+      options.logger?.info('KaraokeSttProcessor', 'ASS sidecar written for burn-in', {
+        ...corr,
+        assPath,
+        dialogueLines: script.lines.length
+      });
     }
 
     report('writing_script', 100);
     options.logger?.info('KaraokeSttProcessor', 'STT script written', {
       ...corr,
       scriptPath,
+      assPath: assPath || null,
       lines: script.lines.length,
       wordCount,
       usedVocalStem,
       attachMedia
     });
 
-    return { success: true, scriptPath, script, usedVocalStem };
+    return { success: true, scriptPath, assPath, script, usedVocalStem };
   } catch (err) {
     if (isAbortError(err) || options.signal?.aborted) {
       options.logger?.info('KaraokeSttProcessor', 'STT cancelled', {

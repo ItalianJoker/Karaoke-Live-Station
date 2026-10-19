@@ -451,6 +451,11 @@ export interface DownloadProgressPayload {
     | 'cancelled';
   /** Error details if status is 'error' */
   errorMessage?: string;
+  /**
+   * Non-fatal operator warning when status is still `completed`
+   * (e.g. Karaoke STT soft-fail — instrumental OK, no lyrics).
+   */
+  warningMessage?: string;
   /** Destination file path when download completes */
   outputFilePath?: string;
   /** True when an existing library/cache file was reused (no network I/O) */

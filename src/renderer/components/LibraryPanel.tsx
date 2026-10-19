@@ -472,6 +472,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
         // Download success status stays in the header Downloads menu only —
         // no overlay "Download completato" badge in the library panel.
 
+        // STT soft-fail toast lives in ControlWindow (Downloads menu owner) to avoid double toast.
+
         if (payload.status === 'completed' && payload.outputFilePath) {
           const associatedTrack = trackMap[payload.downloadId];
           if (associatedTrack) {

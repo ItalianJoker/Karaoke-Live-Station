@@ -1071,6 +1071,9 @@ export class DownloadManager {
             detectedOutputFile
           );
 
+          /** Soft-fail reason when STT was requested but no usable lyrics were produced. */
+          let sttSoftFailWarning: string | null = null;
+
           if (instrumental) {
             if (!detectedOutputFile || !fs.existsSync(detectedOutputFile)) {
               payload.status = 'error';
@@ -1102,7 +1105,8 @@ export class DownloadManager {
               this.tempDir,
               `${downloadId}.instrumental.extract.wav`
             );
-            const subtitlePath = findSiblingSubtitle(originalVideoPath);
+            // May be overridden after STT writes an ASS sibling for burn-in.
+            let subtitlePath = findSiblingSubtitle(originalVideoPath);
 
             // Delete only this downloadId's conversion temps (never wipe unrelated temp files).
             const cleanupInstrumentalRunTemps = (keepRemuxArtifact: boolean) => {
@@ -1171,6 +1175,8 @@ export class DownloadManager {
 
             if (options.generateKaraokeStt === true && !willRunStt) {
               // Soft-skip: operator asked for STT but gate failed — instrumental continues.
+              sttSoftFailWarning =
+                'Karaoke STT skipped (engine or track id missing) — instrumental saved without lyrics';
               this.logger?.warn(
                 'DownloadManager',
                 'Karaoke STT skipped (soft-fail gate); continuing instrumental without lyrics',
@@ -1179,7 +1185,8 @@ export class DownloadManager {
                   generateKaraokeStt: true,
                   hasWhisperManager: Boolean(this.whisperManager),
                   hasTrackId: Boolean(options.trackId),
-                  trackId: options.trackId || null
+                  trackId: options.trackId || null,
+                  outcome: 'soft-fail'
                 }
               );
             } else if (!options.generateKaraokeStt) {
@@ -1229,6 +1236,8 @@ export class DownloadManager {
                   // Vocal stem export not wired yet — do not pass instrumental extract.
                   vocalStemPath: null,
                   // Instrumental remux does not exist yet — promote sidecar after remux.
+                  // Write ASS beside original so remux can burn hardsubs into the MP4.
+                  burnInAss: true,
                   whisperManager: this.whisperManager,
                   signal: sttSignal,
                   logger: this.logger,
@@ -1260,6 +1269,9 @@ export class DownloadManager {
                 }
                 if (!sttResult.success) {
                   // Soft-fail: continue vocal removal + remux without lyrics (not a hard download error).
+                  sttSoftFailWarning =
+                    sttResult.error ||
+                    'Karaoke STT failed — instrumental saved without lyrics';
                   this.logger?.warn(
                     'DownloadManager',
                     'Karaoke STT soft-fail (continuing instrumental without lyrics)',
@@ -1273,14 +1285,25 @@ export class DownloadManager {
                   );
                 } else if (sttResult.scriptPath && fs.existsSync(sttResult.scriptPath)) {
                   sttScriptPath = sttResult.scriptPath;
+                  // Prefer STT ASS for burn-in (STT modal disables YouTube subs).
+                  if (sttResult.assPath && fs.existsSync(sttResult.assPath)) {
+                    subtitlePath = sttResult.assPath;
+                  } else {
+                    const siblingAss = findSiblingSubtitle(originalVideoPath);
+                    if (siblingAss) subtitlePath = siblingAss;
+                  }
                   this.logger?.info('DownloadManager', 'Karaoke STT hard-success (sidecar ready)', {
                     downloadId,
                     trackId: options.trackId,
                     scriptPath: sttScriptPath,
+                    assPath: sttResult.assPath || null,
+                    subtitlePathForBurnIn: subtitlePath || null,
                     lines: sttResult.script?.lines?.length ?? null,
                     outcome: 'success'
                   });
                 } else {
+                  sttSoftFailWarning =
+                    'Karaoke STT reported success but script missing on disk — instrumental without lyrics';
                   this.logger?.warn(
                     'DownloadManager',
                     'Karaoke STT reported success but scriptPath missing on disk (soft-fail)',
@@ -1293,6 +1316,10 @@ export class DownloadManager {
                   );
                 }
               } catch (sttErr) {
+                sttSoftFailWarning =
+                  sttErr instanceof Error
+                    ? sttErr.message
+                    : 'Karaoke STT failed — instrumental saved without lyrics';
                 this.logger?.warn(
                   'DownloadManager',
                   'Karaoke STT threw (soft-fail; continuing instrumental)',
@@ -1305,13 +1332,16 @@ export class DownloadManager {
                 );
               }
             } else if (willRunStt) {
+              sttSoftFailWarning =
+                'Karaoke STT skipped (original video missing) — instrumental without lyrics';
               this.logger?.warn(
                 'DownloadManager',
                 'Karaoke STT gated true but original missing — soft-fail skip',
                 {
                   downloadId,
                   originalVideoPath,
-                  originalExists: originalVideoPath ? fs.existsSync(originalVideoPath) : false
+                  originalExists: originalVideoPath ? fs.existsSync(originalVideoPath) : false,
+                  outcome: 'soft-fail'
                 }
               );
             }
@@ -1518,6 +1548,10 @@ export class DownloadManager {
           payload.speed = '';
           payload.eta = '00:00';
           payload.outputFilePath = detectedOutputFile || undefined;
+          // Surface STT soft-fail to the operator (instrumental OK, lyrics missing).
+          if (typeof sttSoftFailWarning === 'string' && sttSoftFailWarning) {
+            payload.warningMessage = sttSoftFailWarning;
+          }
           this.emitProgress({ ...payload });
           this.activeJobs.delete(downloadId);
           this.activeUrls.delete(dedupUrlKey);
@@ -1812,6 +1846,12 @@ export class DownloadManager {
     const destinationPath = path.join(targetLibraryDirectory, finalFileName);
 
     if (fs.existsSync(destinationPath) && path.resolve(tempFilePath) !== path.resolve(destinationPath)) {
+      // Promote sidecars BEFORE unlinking temp so STT lyrics are not orphaned when destination exists.
+      DownloadManager.promoteKaraokeSidecars(tempFilePath, destinationPath, {
+        logger: this.logger,
+        context: 'saveToLibrary-exist',
+        downloadId: trackMetadata.trackId
+      });
       // Prefer existing permanent file; drop temp/cache source when promoting
       try {
         if (tempFilePath.includes('queue_cache') || tempFilePath.includes(this.tempDir)) {
@@ -1827,14 +1867,20 @@ export class DownloadManager {
         await fs.promises.copyFile(tempFilePath, destinationPath);
         await fs.promises.unlink(tempFilePath);
       }
+      // Keep STT / ASS sidecars with the media so Stage finds lyrics after archive.
+      DownloadManager.promoteKaraokeSidecars(tempFilePath, destinationPath, {
+        logger: this.logger,
+        context: 'saveToLibrary',
+        downloadId: trackMetadata.trackId
+      });
+    } else {
+      // Same path — still attempt promote (no-op when source===dest) for logging consistency.
+      DownloadManager.promoteKaraokeSidecars(tempFilePath, destinationPath, {
+        logger: this.logger,
+        context: 'saveToLibrary-same',
+        downloadId: trackMetadata.trackId
+      });
     }
-
-    // Keep STT / ASS sidecars with the media so Stage finds lyrics after archive.
-    DownloadManager.promoteKaraokeSidecars(tempFilePath, destinationPath, {
-      logger: this.logger,
-      context: 'saveToLibrary',
-      downloadId: trackMetadata.trackId
-    });
     if (trackMetadata.trackId) {
       try {
         const sibling = `${destinationPath}.karaoke.json`;
@@ -1903,6 +1949,12 @@ export class DownloadManager {
     const destinationPath = path.join(this.queueCacheDir, cacheFileName);
 
     if (fs.existsSync(destinationPath) && path.resolve(tempFilePath) !== path.resolve(destinationPath)) {
+      // Promote sidecars BEFORE unlinking temp (same durability rule as saveToLibrary).
+      DownloadManager.promoteKaraokeSidecars(tempFilePath, destinationPath, {
+        logger: this.logger,
+        context: 'saveToQueueCache-exist',
+        downloadId: trackMetadata.trackId
+      });
       try {
         await fs.promises.unlink(tempFilePath);
       } catch {
@@ -1919,14 +1971,19 @@ export class DownloadManager {
           // ignore
         }
       }
+      // Sidecar must follow queue-cache media (Stage overlay beside cached instrumental).
+      DownloadManager.promoteKaraokeSidecars(tempFilePath, destinationPath, {
+        logger: this.logger,
+        context: 'saveToQueueCache',
+        downloadId: trackMetadata.trackId
+      });
+    } else {
+      DownloadManager.promoteKaraokeSidecars(tempFilePath, destinationPath, {
+        logger: this.logger,
+        context: 'saveToQueueCache-same',
+        downloadId: trackMetadata.trackId
+      });
     }
-
-    // Sidecar must follow queue-cache media (Stage overlay beside cached instrumental).
-    DownloadManager.promoteKaraokeSidecars(tempFilePath, destinationPath, {
-      logger: this.logger,
-      context: 'saveToQueueCache',
-      downloadId: trackMetadata.trackId
-    });
 
     return {
       localFilePath: destinationPath,

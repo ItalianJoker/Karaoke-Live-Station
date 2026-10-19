@@ -3241,8 +3241,8 @@ assert(
     settingsModalSrcV13.includes('aiCpuThreads') &&
     settingsModalSrcV13.includes('autoMaximizeControlOnLaunch') &&
     settingsModalSrcV13.includes('autoOpenStageOnLaunch') &&
-    settingsModalShellV13.includes("useState('2.3.2')"),
-  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.2 footer state'
+    settingsModalShellV13.includes("useState('2.3.3')"),
+  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.3 footer state'
 );
 
 // Instrumental block lives under Library tab component (shell still orders library before audio)
@@ -3262,10 +3262,14 @@ assert(
 const pkgV13 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
 const changelogV13 = fs.readFileSync(path.resolve(__dirname, '../CHANGELOG.md'), 'utf8');
 const releaseNotesV13 = fs.readFileSync(path.resolve(__dirname, '../RELEASE_NOTES.md'), 'utf8');
-assert(pkgV13.version === '2.3.2', 'package.json version is 2.3.2');
+assert(pkgV13.version === '2.3.3', 'package.json version is 2.3.3');
+assert(
+  changelogV13.includes('## [2.3.3]') || changelogV13.includes('## [2.3.3] '),
+  'CHANGELOG has ## [2.3.3] section'
+);
 assert(
   changelogV13.includes('## [2.3.2]') || changelogV13.includes('## [2.3.2] '),
-  'CHANGELOG has ## [2.3.2] section'
+  'CHANGELOG retains ## [2.3.2] section'
 );
 assert(
   changelogV13.includes('## [2.3.1]') || changelogV13.includes('## [2.3.1] '),
@@ -3304,8 +3308,8 @@ assert(
   'CHANGELOG retains ## [1.3.0] section'
 );
 assert(
-  /v2\.3\.2|Version 2\.3\.2|Versione 2\.3\.2/.test(releaseNotesV13),
-  'RELEASE_NOTES mentions 2.3.2'
+  /v2\.3\.3|Version 2\.3\.3|Versione 2\.3\.3/.test(releaseNotesV13),
+  'RELEASE_NOTES mentions 2.3.3'
 );
 
 for (const lang of ['it', 'en', 'es', 'fr']) {
@@ -4149,7 +4153,7 @@ console.log('\n\x1b[36m▶ Suite: Safety-First modularization, virtualization, i
   );
 
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert(pkg.version === '2.3.2', 'package.json is 2.3.2 (new release cycle)');
+  assert(pkg.version === '2.3.3', 'package.json is 2.3.3 (new release cycle)');
 
   // Manual chapter parity markers (DnD / recursive scan / Bungee / AppImage SoundFont)
   for (const manual of [
@@ -5542,6 +5546,50 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
       dmSrc.includes('correlationId: downloadId'),
     'DownloadManager correlates STT soft-fail/promote logs with downloadId'
   );
+  assert(
+    dmSrc.includes('burnInAss: true') &&
+      dmSrc.includes('warningMessage') &&
+      dmSrc.includes('sttSoftFailWarning') &&
+      dmSrc.includes('saveToLibrary-exist') &&
+      dmSrc.includes('saveToQueueCache-exist'),
+    'DownloadManager STT soft-fail warning + ASS burn-in + promote-before-unlink'
+  );
+  assert(
+    sttProcSrc.includes('timedScriptToAss') &&
+      sttProcSrc.includes('resolveKaraokeAssPath') &&
+      sttProcSrc.includes('ASS sidecar written for burn-in'),
+    'KaraokeSttProcessor writes ASS sidecar when burnInAss'
+  );
+
+  assert(
+    timedSrc.includes('timedScriptToAss') &&
+      timedSrc.includes('isMediaDirInsideLibrary') &&
+      timedSrc.includes('resolveKaraokeAssPath') &&
+      !timedSrc.includes('mediaDir.startsWith(opts.libraryPath)'),
+    'timedKaraoke ASS burn-in helper + hardened library path containment'
+  );
+  // ASS timestamp smoke
+  {
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const assTs = (ms) => {
+      const safe = Math.max(0, Math.round(ms));
+      const cs = Math.floor(safe / 10) % 100;
+      const totalSec = Math.floor(safe / 1000);
+      const s = totalSec % 60;
+      const totalMin = Math.floor(totalSec / 60);
+      const m = totalMin % 60;
+      const h = Math.floor(totalMin / 60);
+      return `${h}:${pad2(m)}:${pad2(s)}.${pad2(cs)}`;
+    };
+    assert(assTs(0) === '0:00:00.00', 'ASS ts 0');
+    assert(assTs(61234) === '0:01:01.23', 'ASS ts 61234ms');
+  }
+  for (const lang of ['en', 'it', 'es', 'fr']) {
+    const loc = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+    );
+    assert(loc.stt?.softFailDownloadWarning, `${lang}.json has stt.softFailDownloadWarning`);
+  }
 
   // Mapper smoke: -ojf tokens → non-empty lines; special tokens filtered
   {
@@ -5665,7 +5713,7 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
   }
 
   const pkg230 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert(pkg230.version === '2.3.2', 'package.json is 2.3.2 (includes STT + #86/#88 fixes)');
+  assert(pkg230.version === '2.3.3', 'package.json is 2.3.3 (includes STT + #86/#88/#90 fixes)');
 }
 
 // Summary

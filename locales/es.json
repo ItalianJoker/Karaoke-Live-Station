@@ -527,6 +527,7 @@
     "downloadDialogCancel": "Cancelar",
     "downloadDialogConfirm": "Descargar y continuar",
     "modelDownloadFailed": "Whisper model download failed: {{error}}",
+    "softFailDownloadWarning": "Instrumental listo, pero falló el STT karaoke (sin letra): {{error}}",
     "modelQuality": {
       "poor": "Singing quality: poor",
       "low": "Singing quality: low",
