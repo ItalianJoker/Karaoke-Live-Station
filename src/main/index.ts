@@ -19,6 +19,7 @@ import { OrtWasmManager } from './services/OrtWasmManager';
 import { WhisperCppManager } from './services/WhisperCppManager';
 import {
   findKaraokeScriptForTrack,
+  listKaraokeScriptCandidates,
   loadKaraokeScript,
   processKaraokeSttOverlay
 } from './services/KaraokeSttProcessor';
@@ -1899,14 +1900,43 @@ class KaraokeMainProcess {
         _event,
         opts: { trackId: string; mediaPath?: string; libraryPath?: string }
       ) => {
-        const scriptPath = findKaraokeScriptForTrack({
+        const libraryPath =
+          opts.libraryPath?.trim() || this.currentSettings?.libraryPath?.trim() || undefined;
+        const lookup = {
           trackId: opts.trackId,
           mediaPath: opts.mediaPath,
-          libraryPath:
-            opts.libraryPath?.trim() || this.currentSettings?.libraryPath?.trim() || undefined
-        });
-        if (!scriptPath) return { success: true, script: null, scriptPath: null };
+          libraryPath
+        };
+        const candidates = listKaraokeScriptCandidates(lookup);
+        const scriptPath = findKaraokeScriptForTrack(lookup);
+        if (!scriptPath) {
+          this.logger.debug('KaraokeStt', 'Stage script resolve miss', {
+            trackId: opts.trackId,
+            mediaPath: opts.mediaPath || null,
+            hasLibraryPath: Boolean(libraryPath),
+            candidates
+          });
+          return { success: true, script: null, scriptPath: null };
+        }
         const script = loadKaraokeScript(scriptPath);
+        if (!script) {
+          this.logger.warn('KaraokeStt', 'Stage script path hit but load failed (invalid/empty)', {
+            trackId: opts.trackId,
+            scriptPath,
+            candidates
+          });
+          return { success: true, script: null, scriptPath };
+        }
+        const wordCount = (script.lines || []).reduce(
+          (n, line) => n + (Array.isArray(line.words) ? line.words.length : 0),
+          0
+        );
+        this.logger.info('KaraokeStt', 'Stage script resolve hit', {
+          trackId: opts.trackId,
+          scriptPath,
+          lines: script.lines.length,
+          wordCount
+        });
         return { success: true, script, scriptPath };
       }
     );
@@ -1942,6 +1972,11 @@ class KaraokeMainProcess {
             opts.modelId ||
               (this.currentSettings as { sttModelId?: string } | undefined)?.sttModelId
           );
+          this.logger.info('KaraokeStt', 'Manual STT start', {
+            trackId: opts.trackId,
+            localFilePath: opts.localFilePath,
+            modelId
+          });
           const result = await processKaraokeSttOverlay({
             inputVideoPath: opts.localFilePath,
             trackId: opts.trackId,
@@ -1950,6 +1985,7 @@ class KaraokeMainProcess {
             language: opts.language,
             whisperManager: this.whisperManager,
             logger: this.logger,
+            correlationId: `manual-stt:${opts.trackId}`,
             onProgress: (phase, percent) => {
               for (const win of BrowserWindow.getAllWindows()) {
                 try {
@@ -1964,6 +2000,20 @@ class KaraokeMainProcess {
               }
             }
           });
+          if (!result.success && !result.cancelled) {
+            this.logger.warn('KaraokeStt', 'Manual STT failed', {
+              trackId: opts.trackId,
+              error: result.error || 'unknown',
+              outcome: 'hard-fail'
+            });
+          } else if (result.success) {
+            this.logger.info('KaraokeStt', 'Manual STT success', {
+              trackId: opts.trackId,
+              scriptPath: result.scriptPath,
+              lines: result.script?.lines?.length ?? null,
+              outcome: 'success'
+            });
+          }
           return result;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);

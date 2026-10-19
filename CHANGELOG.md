@@ -12,6 +12,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 - **IT:** Stage STT vuoto: `whisper-cli` riceveva il flag invalido `-ow` (exit 0 senza JSON) → nessun `.karaoke.json` e overlay Stage blank; ora `-ojf` + rifiuto transcript vuoto.
 - **EN:** Blank Stage STT: `whisper-cli` got invalid `-ow` (exit 0, no JSON) → no `.karaoke.json` and empty Stage overlay; now `-ojf` + reject empty transcripts.
 
+### Changed
+- **IT/EN:** Structured STT troubleshooting logs (DEBUG/INFO/WARN/ERROR) with `downloadId` correlation: whisper ensure/spawn/exit tails, JSON/word counts, soft-fail vs success, sidecar promote, Stage script hit/miss.
+
 ### Breaking Changes
 - None.
 

@@ -5504,7 +5504,7 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
     'DownloadManager calls processKaraokeSttOverlay before processInstrumentalVideo'
   );
   assert(
-    dmSrc.includes('promoteKaraokeSidecars(tempFilePath, destinationPath)') &&
+    dmSrc.includes('promoteKaraokeSidecars(tempFilePath, destinationPath') &&
       dmSrc.includes('saveToLibrary') &&
       dmSrc.includes('saveToQueueCache'),
     'saveToLibrary / saveToQueueCache promote karaoke sidecars with media'
@@ -5528,6 +5528,19 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
       sttProcSrc.includes('unknown argument') &&
       sttProcSrc.includes('Whisper produced empty transcription'),
     'KaraokeSttProcessor uses -ojf (not -oj/-ow) + rejects empty transcript'
+  );
+  assert(
+    sttProcSrc.includes('correlationId') &&
+      sttProcSrc.includes('whisper-cli spawn') &&
+      sttProcSrc.includes('stderrTail') &&
+      sttProcSrc.includes('listKaraokeScriptCandidates'),
+    'KaraokeSttProcessor emits structured STT logs + script candidate list'
+  );
+  assert(
+    dmSrc.includes("outcome: 'soft-fail'") &&
+      dmSrc.includes('Promoted karaoke sidecars') &&
+      dmSrc.includes('correlationId: downloadId'),
+    'DownloadManager correlates STT soft-fail/promote logs with downloadId'
   );
 
   // Mapper smoke: -ojf tokens → non-empty lines; special tokens filtered
