@@ -10,6 +10,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 _(empty)_
 
+## [2.3.4] — Windows whisper-cli Runtime DLLs — 2026-10-19
+
+Release **v2.3.4** shipping the Windows whisper.cpp packaging fix: extract copies runtime DLLs next to `whisper-cli.exe`, install probe rejects `STATUS_DLL_NOT_FOUND`, and broken exe-only installs are auto-repaired. Package **2.3.4**.
+
+### Fixed
+- **IT:** Windows STT: lo zip `whisper-blas-bin-x64` installava solo `whisper-cli.exe` senza le DLL (`libopenblas`, `ggml*`, `whisper.dll`) → exit `3221225781` (`STATUS_DLL_NOT_FOUND`) e Stage senza testo; ora tutte le DLL runtime vengono copiate in `<userData>/bin/` accanto all’exe.
+- **EN:** Windows STT: the `whisper-blas-bin-x64` zip installed only `whisper-cli.exe` without runtime DLLs (`libopenblas`, `ggml*`, `whisper.dll`) → exit `3221225781` (`STATUS_DLL_NOT_FOUND`) and blank Stage lyrics; all runtime DLLs are now copied into `<userData>/bin/` next to the exe.
+- **IT:** Il probe post-download non marca più “ready” un exe grande che fallisce con DLL mancanti; installazioni rotte (solo exe) vengono rimosse e riscaricate al prossimo STT.
+- **EN:** Post-download probe no longer marks a large exe “ready” when DLL load fails; broken exe-only installs are removed and re-fetched on the next STT run.
+
+### Changed
+- App version **2.3.4** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer / manuals.
+
+### Breaking Changes
+- None.
+
 ## [2.3.3] — STT Stage Sidecar + ASS Burn-in — 2026-10-19
 
 Release **v2.3.3** shipping Stage STT generation fix (`whisper-cli` `-ojf`), structured STT troubleshooting logs, soft-fail UX, hardened sidecar promote, and ASS hardsub burn-in on the instrumental MP4. Package **2.3.3**.
