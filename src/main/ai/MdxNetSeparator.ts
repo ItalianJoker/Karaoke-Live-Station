@@ -91,6 +91,8 @@ export type MdxRuntimeOptions = MdxAdvancedSettingsInput & {
   aiEnableGpu?: boolean;
   /** Main-process GPU probe snapshot. */
   aiGpuSupported?: boolean;
+  /** Settings discrete preference → ORT webgpu.powerPreference. */
+  aiGpuPowerPreference?: 'high-performance' | 'low-power';
   /**
    * When false (Hidden Renderer), WebGPU failure must NOT create a WASM session
    * in-process — throw {@link GpuFallbackRequestedError} so main re-routes to
@@ -152,6 +154,8 @@ export class MdxNetSeparator {
    * `navigator.gpu` exists in this process (usually false in utilityProcess).
    */
   private readonly preferWebGpu: boolean;
+  /** ORT/WebGPU powerPreference aligned with Settings aiGpuPreference. */
+  private readonly webgpuPowerPreference: 'high-performance' | 'low-power';
   /** Set when WebGPU was requested by Settings but skipped before session.create. */
   private readonly skipWebGpuReason?: string;
   /**
@@ -185,6 +189,8 @@ export class MdxNetSeparator {
       resolveProviders: resolveAiOrtExecutionProviders
     });
     this.preferWebGpu = resolved.preferWebGpu;
+    this.webgpuPowerPreference =
+      options?.aiGpuPowerPreference === 'low-power' ? 'low-power' : 'high-performance';
     this.skipWebGpuReason = resolved.skipWebGpuReason;
     this.allowInProcessWasmFallback = options?.allowInProcessWasmFallback !== false;
     if (resolved.skipWebGpuReason) {
@@ -260,7 +266,7 @@ export class MdxNetSeparator {
       currentOrt.env.wasm.wasmPaths = {
         wasm: jsepWasm
       };
-      currentOrt.env.webgpu.powerPreference = 'high-performance';
+      currentOrt.env.webgpu.powerPreference = this.webgpuPowerPreference;
       const webgpuThreads = 1;
       currentOrt.env.wasm.numThreads = webgpuThreads;
       try {

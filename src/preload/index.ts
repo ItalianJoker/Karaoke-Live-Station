@@ -358,8 +358,30 @@ export interface KaraokeAPI {
     /** GPU probe for Instrumental AI badge + WebGPU EP preference */
     getGpuStatus: () => Promise<{
       isSupported: boolean;
+      hardwareGpuPresent?: boolean;
+      workerWebGpuAvailable?: boolean;
+      workerOrtBackend?: 'webgpu' | 'wasm';
+      workerOrtNote?: string;
       gpuName?: string;
       vendor?: string;
+      adapters?: Array<{
+        id: string;
+        label: string;
+        vendor?: string;
+        device?: string;
+        architecture?: string;
+        class: 'high-performance' | 'low-power' | 'unknown';
+        source: 'webgpu' | 'gpuInfo';
+        selected?: boolean;
+      }>;
+      effectiveAdapter?: {
+        id: string;
+        label: string;
+        class: 'high-performance' | 'low-power' | 'unknown';
+        source: 'webgpu' | 'gpuInfo';
+        selected?: boolean;
+      };
+      preference?: 'high-performance' | 'low-power' | 'system';
     }>;
     /** App semver from Electron package.json (e.g. 2.1.0) */
     getAppVersion: () => Promise<string>;

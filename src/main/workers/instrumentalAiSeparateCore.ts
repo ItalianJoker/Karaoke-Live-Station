@@ -62,6 +62,8 @@ export type InstrumentalAiSeparateRequest = {
   aiCpuThreads?: number | null;
   aiEnableGpu?: boolean;
   aiGpuSupported?: boolean;
+  /** Settings discrete / high-performance vs low-power → ORT/WebGPU hint. */
+  aiGpuPowerPreference?: 'high-performance' | 'low-power';
   /**
    * Hidden Renderer only: forbid in-process WASM after WebGPU failure so main
    * can re-route to utilityProcess (avoids SharedArrayBuffer multithread deadlock).
@@ -148,6 +150,7 @@ async function separateMdx(
     aiCpuThreads?: number | null;
     aiEnableGpu?: boolean;
     aiGpuSupported?: boolean;
+    aiGpuPowerPreference?: 'high-performance' | 'low-power';
     allowInProcessWasmFallback?: boolean;
   }
 ): Promise<void> {
@@ -175,6 +178,7 @@ async function separateMdx(
     aiCpuThreads: mdxOpts?.aiCpuThreads,
     aiEnableGpu: mdxOpts?.aiEnableGpu,
     aiGpuSupported: mdxOpts?.aiGpuSupported,
+    aiGpuPowerPreference: mdxOpts?.aiGpuPowerPreference,
     allowInProcessWasmFallback: mdxOpts?.allowInProcessWasmFallback
   });
   separator.onProgress((info) => {
@@ -227,6 +231,7 @@ async function separateDemucs(
     aiCpuThreads?: number | null;
     aiEnableGpu?: boolean;
     aiGpuSupported?: boolean;
+    aiGpuPowerPreference?: 'high-performance' | 'low-power';
     allowInProcessWasmFallback?: boolean;
     demucsShifts?: number;
     demucsSegmentSize?: number;
@@ -274,7 +279,8 @@ async function separateDemucs(
     // Do NOT set mjs! When mjs is omitted, ort.all.bundle.min.mjs uses its embedded JSEP module
     // without triggering dynamic import(mjs) which crashes Blink under Node integration.
     targetOrt.env.wasm.wasmPaths = { wasm: ortAssets.jsepWasm };
-    targetOrt.env.webgpu.powerPreference = 'high-performance';
+    targetOrt.env.webgpu.powerPreference =
+      demucsOpts?.aiGpuPowerPreference === 'low-power' ? 'low-power' : 'high-performance';
     targetOrt.env.wasm.numThreads = 1;
     targetOrt.env.wasm.simd = true;
     targetOrt.env.wasm.proxy = false;
@@ -516,6 +522,7 @@ export async function runInstrumentalAiSeparate(
           aiCpuThreads: req.aiCpuThreads,
           aiEnableGpu: req.aiEnableGpu,
           aiGpuSupported: req.aiGpuSupported,
+          aiGpuPowerPreference: req.aiGpuPowerPreference,
           allowInProcessWasmFallback
         });
         break;
@@ -524,6 +531,7 @@ export async function runInstrumentalAiSeparate(
           aiCpuThreads: req.aiCpuThreads,
           aiEnableGpu: req.aiEnableGpu,
           aiGpuSupported: req.aiGpuSupported,
+          aiGpuPowerPreference: req.aiGpuPowerPreference,
           allowInProcessWasmFallback,
           demucsShifts: req.demucsShifts,
           demucsSegmentSize: req.demucsSegmentSize,

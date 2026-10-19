@@ -36,6 +36,7 @@ import {
 } from '../../shared/demucsAdvancedSettings';
 import { coerceAiCpuThreads } from '../../shared/aiCpuThreads';
 import { coerceAiEnableGpu } from '../../shared/aiOrtProviders';
+import { coerceAiGpuPreference } from '../../shared/aiGpuPreference';
 import { clampPitchForEngine, clampSpeedForEngine, coerceDspPitchEngine } from '../../shared/dspPitch';
 import { coerceWhisperModelId } from '../../shared/whisperStt';
 import type {
@@ -192,6 +193,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   aiCpuThreads: null,
   /** GPU-First default — prefer WebGPU when probe supports it. */
   aiEnableGpu: true,
+  /** Prefer discrete / high-performance GPU (cross-platform). */
+  aiGpuPreference: 'high-performance',
   autoMaximizeControlOnLaunch: true,
   autoOpenStageOnLaunch: true,
   maxSimultaneousDownloads: 2,
@@ -393,6 +396,9 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           }
           if (partial.aiEnableGpu !== undefined || updated.aiEnableGpu !== undefined) {
             updated.aiEnableGpu = coerceAiEnableGpu(updated.aiEnableGpu);
+          }
+          if (partial.aiGpuPreference !== undefined || updated.aiGpuPreference !== undefined) {
+            updated.aiGpuPreference = coerceAiGpuPreference(updated.aiGpuPreference);
           }
           if (partial.autoMaximizeControlOnLaunch !== undefined) {
             updated.autoMaximizeControlOnLaunch = Boolean(partial.autoMaximizeControlOnLaunch);
@@ -1263,6 +1269,7 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
         mergedSettings.demucsOverlap = coerceDemucsOverlap(mergedSettings.demucsOverlap);
         mergedSettings.aiCpuThreads = coerceAiCpuThreads(mergedSettings.aiCpuThreads);
         mergedSettings.aiEnableGpu = coerceAiEnableGpu(mergedSettings.aiEnableGpu);
+        mergedSettings.aiGpuPreference = coerceAiGpuPreference(mergedSettings.aiGpuPreference);
         mergedSettings.dspEngine = coerceDspPitchEngine(mergedSettings.dspEngine);
         mergedSettings.autoMaximizeControlOnLaunch =
           typeof mergedSettings.autoMaximizeControlOnLaunch === 'boolean'

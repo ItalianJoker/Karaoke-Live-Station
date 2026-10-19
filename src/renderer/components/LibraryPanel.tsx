@@ -1185,7 +1185,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
         ...(isAi
           ? {
               aiCpuThreads: settings.aiCpuThreads,
-              aiEnableGpu: settings.aiEnableGpu
+              aiEnableGpu: settings.aiEnableGpu,
+              aiGpuPreference: settings.aiGpuPreference
             }
           : {}),
         ...(includeSubtitles ? { includeSubtitles: true } : {}),

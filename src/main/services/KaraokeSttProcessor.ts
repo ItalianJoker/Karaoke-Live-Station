@@ -20,6 +20,10 @@ import {
   whisperJsonToTimedScript,
   type TimedKaraokeScript
 } from '../../shared/timedKaraoke';
+import {
+  isInstrumentalOnlySttPath,
+  STT_INSTRUMENTAL_INPUT_REJECTED
+} from '../../shared/karaokeSttPaths';
 
 export type KaraokeSttPhase =
   | 'ensuring_engine'
@@ -46,6 +50,11 @@ export async function processKaraokeSttOverlay(options: {
   modelId?: WhisperModelId;
   /** Best-effort: if a vocal WAV path is provided, prefer it over the mix. */
   vocalStemPath?: string | null;
+  /**
+   * When set, write the TimedKaraokeScript beside this media path (typically the
+   * instrumental remux) for Stage overlay during instrumental playback.
+   */
+  attachScriptToMediaPath?: string | null;
   /** When true, attempt burn-in ASS remux (deferred — ignored in v1). */
   burnInAss?: boolean;
   whisperManager: WhisperCppManager;
@@ -65,6 +74,30 @@ export async function processKaraokeSttOverlay(options: {
   };
 
   try {
+    // Hard guard: Whisper must never receive instrumental-only audio.
+    if (isInstrumentalOnlySttPath(options.inputVideoPath)) {
+      options.logger?.warn(
+        'KaraokeSttProcessor',
+        `Rejected instrumental STT input: ${options.inputVideoPath}`
+      );
+      return {
+        success: false,
+        error: STT_INSTRUMENTAL_INPUT_REJECTED,
+        usedVocalStem: false
+      };
+    }
+    if (options.vocalStemPath && isInstrumentalOnlySttPath(options.vocalStemPath)) {
+      options.logger?.warn(
+        'KaraokeSttProcessor',
+        `Rejected instrumental vocalStemPath: ${options.vocalStemPath}`
+      );
+      return {
+        success: false,
+        error: STT_INSTRUMENTAL_INPUT_REJECTED,
+        usedVocalStem: false
+      };
+    }
+
     throwIfAborted(options.signal);
     report('ensuring_engine', 2);
     const binPath = await options.whisperManager.ensureBinary(options.signal);
@@ -76,8 +109,8 @@ export async function processKaraokeSttOverlay(options: {
     throwIfAborted(options.signal);
     report('ensuring_engine', 15);
 
-    // Prefer explicit vocal stem when present; else extract 16 kHz mono from the source video
-    // (must be the ORIGINAL mix / vocals — never the instrumental remux).
+    // Prefer explicit vocal stem when present; else extract 16 kHz mono from the source
+    // (ORIGINAL mix / vocals / retained demux — never the instrumental remux).
     let audioForStt = options.vocalStemPath;
     if (audioForStt && fs.existsSync(audioForStt)) {
       usedVocalStem = true;
@@ -107,17 +140,21 @@ export async function processKaraokeSttOverlay(options: {
 
     report('writing_script', 94);
     const rawJson = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    const attachMedia =
+      options.attachScriptToMediaPath && fs.existsSync(options.attachScriptToMediaPath)
+        ? options.attachScriptToMediaPath
+        : options.inputVideoPath;
     const script = whisperJsonToTimedScript({
       raw: rawJson,
       sourceTrackId: options.trackId,
-      sourcePath: options.inputVideoPath,
+      sourcePath: attachMedia,
       modelId,
       language: options.language,
       usedVocalStem
     });
 
     const scriptPath = resolveKaraokeScriptPath({
-      mediaPath: options.inputVideoPath,
+      mediaPath: attachMedia,
       trackId: options.trackId,
       libraryPath: options.libraryPath
     });

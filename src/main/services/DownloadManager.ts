@@ -98,6 +98,8 @@ export interface DownloadOptions {
   /** GPU-First toggle + probe snapshot for AI instrumental. */
   aiEnableGpu?: boolean;
   aiGpuSupported?: boolean;
+  /** Discrete / high-performance preference for ORT/WebGPU hint. */
+  aiGpuPreference?: 'high-performance' | 'low-power' | 'system';
   /**
    * When true (and instrumental + video): request yt-dlp auto-subs for lyric burn-in.
    * Default / omitted = false (no `--write-auto-sub`). Missing subs never fail the job.
@@ -1101,6 +1103,8 @@ export class DownloadManager {
             this.emitProgress({ ...payload });
 
             const signal = job?.abortController.signal;
+            const willRunStt =
+              options.generateKaraokeStt === true && Boolean(this.whisperManager) && Boolean(options.trackId);
             const result = await processInstrumentalVideo({
               inputVideoPath: originalVideoPath,
               outputPath: instrumentalOut,
@@ -1119,6 +1123,9 @@ export class DownloadManager {
               aiCpuThreads: options.aiCpuThreads,
               aiEnableGpu: options.aiEnableGpu,
               aiGpuSupported: options.aiGpuSupported,
+              aiGpuPreference: options.aiGpuPreference,
+              // Keep mix WAV until STT finishes (speech-bearing audio for Whisper).
+              retainWorkWavs: willRunStt,
               onProgress: (phase, percent, meta) => {
                 if (payload.status === 'cancelled') return;
                 if (phase === 'ensuring_model') {
@@ -1195,9 +1202,10 @@ export class DownloadManager {
             }
 
             // Optional karaoke STT on the ORIGINAL mix (vocals present) before temp cleanup.
+            // Invariant: never pass instrumentalOut / aiOutputWavPath as Whisper audio.
             // Failure is best-effort — instrumental remux already succeeded.
             if (
-              options.generateKaraokeStt === true &&
+              willRunStt &&
               this.whisperManager &&
               options.trackId &&
               originalVideoPath &&
@@ -1212,11 +1220,30 @@ export class DownloadManager {
                   payload.eta = '--:--';
                   this.emitProgress({ ...payload });
                 }
+                // Prefer retained demux mix WAV when present (speech-bearing); else original MP4.
+                // Never use aiOutputWavPath (instrumental-only) as vocalStemPath — honesty.
+                const retainedMixWav =
+                  extractWavPath && fs.existsSync(extractWavPath) ? extractWavPath : null;
+                const sttInputPath = retainedMixWav || originalVideoPath;
+                this.logger?.info(
+                  'DownloadManager',
+                  `Karaoke STT input=${sttInputPath} (original=${originalVideoPath}; never instrumentalOut)`,
+                  {
+                    downloadId,
+                    instrumentalOut: result.outputPath,
+                    aiOutputWavPath,
+                    retainedMixWav: Boolean(retainedMixWav)
+                  }
+                );
                 const sttResult = await processKaraokeSttOverlay({
-                  inputVideoPath: originalVideoPath,
+                  inputVideoPath: sttInputPath,
                   trackId: String(options.trackId),
                   libraryPath: options.libraryPath,
                   modelId: coerceWhisperModelId(options.sttModelId),
+                  // Vocal stem export not wired yet — do not pass instrumental extract.
+                  vocalStemPath: null,
+                  // Attach sidecar beside the instrumental remux for Stage playback.
+                  attachScriptToMediaPath: result.outputPath,
                   whisperManager: this.whisperManager,
                   signal: sttSignal,
                   logger: this.logger,
@@ -1255,7 +1282,9 @@ export class DownloadManager {
                   // Also place a sibling sidecar next to the instrumental remux for Stage lookup.
                   try {
                     const sibling = `${result.outputPath}.karaoke.json`;
-                    fs.copyFileSync(sttResult.scriptPath, sibling);
+                    if (path.resolve(sttResult.scriptPath) !== path.resolve(sibling)) {
+                      fs.copyFileSync(sttResult.scriptPath, sibling);
+                    }
                   } catch {
                     /* ignore sibling copy races */
                   }

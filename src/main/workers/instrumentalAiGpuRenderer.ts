@@ -54,6 +54,7 @@ async function probeAdapter(): Promise<AiGpuRendererProbeResult> {
         };
       }
     ).navigator?.gpu;
+    // Default high-performance; separate jobs pass Settings preference via ORT env.
     const adapter = gpu?.requestAdapter
       ? await gpu.requestAdapter({ powerPreference: 'high-performance' })
       : null;

@@ -57,16 +57,28 @@ import { probeGpuStatus } from './ai/probeGpuStatus';
 import { coerceDemucsOverlap, coerceDemucsSegmentSize, coerceDemucsShifts } from '../shared/demucsAdvancedSettings';
 import { coerceMdxEnableOrt, coerceMdxOverlap, coerceMdxSegmentSize } from '../shared/mdxAdvancedSettings';
 import { coerceInstrumentalVocalRemoverMethod } from '../shared/vocalRemover';
+import {
+  aiGpuPreferenceToCommandLine,
+  coerceAiGpuPreference,
+  type AiGpuPreference
+} from '../shared/aiGpuPreference';
+import {
+  isInstrumentalOnlySttPath,
+  STT_INSTRUMENTAL_INPUT_REJECTED
+} from '../shared/karaokeSttPaths';
 
 /** Launch prefs persisted for main-process boot (before Control sync:settings). */
 type LaunchPrefs = {
   autoMaximizeControlOnLaunch: boolean;
   autoOpenStageOnLaunch: boolean;
+  /** Discrete / high-performance vs low-power — applied as Chromium switches at boot. */
+  aiGpuPreference: AiGpuPreference;
 };
 
 const DEFAULT_LAUNCH_PREFS: LaunchPrefs = {
   autoMaximizeControlOnLaunch: true,
-  autoOpenStageOnLaunch: true
+  autoOpenStageOnLaunch: true,
+  aiGpuPreference: 'high-performance'
 };
 /**
  * Returns the corresponding MIME content-type for audio/video media files.
@@ -174,6 +186,37 @@ if (process.platform === 'linux') {
 }
 
 /**
+ * Prefer discrete / high-performance GPU for AI WebGPU (Win / macOS / Linux).
+ * Must run before `app.ready`. Preference comes from launch-prefs.json
+ * (mirrored from Settings); default = high-performance. Not NVIDIA-only.
+ */
+(() => {
+  let pref: AiGpuPreference = DEFAULT_LAUNCH_PREFS.aiGpuPreference;
+  try {
+    const prefsPath = path.join(app.getPath('userData'), 'launch-prefs.json');
+    if (fs.existsSync(prefsPath)) {
+      const parsed = JSON.parse(fs.readFileSync(prefsPath, 'utf8')) as Partial<LaunchPrefs>;
+      pref = coerceAiGpuPreference(parsed.aiGpuPreference);
+    }
+  } catch {
+    /* missing prefs → product default */
+  }
+  const switches = aiGpuPreferenceToCommandLine(pref);
+  if (switches.forceHighPerformance) {
+    app.commandLine.appendSwitch('force_high_performance_gpu');
+  }
+  if (switches.forceLowPower) {
+    app.commandLine.appendSwitch('force_low_power_gpu');
+  }
+  if (switches.webgpuPowerPreference) {
+    app.commandLine.appendSwitch(
+      'use-webgpu-power-preference',
+      switches.webgpuPowerPreference
+    );
+  }
+})();
+
+/**
  * Main application coordinator orchestrating Electron windows, SQLite database,
  * embedded LAN guest server, background download processes, and zero-latency IPC relays.
  */
@@ -228,7 +271,8 @@ class KaraokeMainProcess {
         autoOpenStageOnLaunch:
           typeof parsed.autoOpenStageOnLaunch === 'boolean'
             ? parsed.autoOpenStageOnLaunch
-            : DEFAULT_LAUNCH_PREFS.autoOpenStageOnLaunch
+            : DEFAULT_LAUNCH_PREFS.autoOpenStageOnLaunch,
+        aiGpuPreference: coerceAiGpuPreference(parsed.aiGpuPreference)
       };
     } catch {
       return { ...DEFAULT_LAUNCH_PREFS };
@@ -245,7 +289,10 @@ class KaraokeMainProcess {
       autoOpenStageOnLaunch:
         typeof settings.autoOpenStageOnLaunch === 'boolean'
           ? settings.autoOpenStageOnLaunch
-          : true
+          : true,
+      aiGpuPreference: coerceAiGpuPreference(
+        (settings as AppSettings & { aiGpuPreference?: AiGpuPreference }).aiGpuPreference
+      )
     };
     try {
       fs.writeFileSync(this.getLaunchPrefsPath(), JSON.stringify(prefs, null, 2), 'utf8');
@@ -1456,6 +1503,7 @@ class KaraokeMainProcess {
           demucsOverlap?: number;
           aiCpuThreads?: number | null;
           aiEnableGpu?: boolean;
+          aiGpuPreference?: AiGpuPreference;
           /** Opt-in yt-dlp auto-subs for instrumental lyric burn-in */
           includeSubtitles?: boolean;
           /** Opt-in offline whisper.cpp karaoke STT after instrumental remux */
@@ -1558,6 +1606,13 @@ class KaraokeMainProcess {
           aiCpuThreads: isAi ? resolveAiCpuThreads(configuredThreads, totalCpus) : undefined,
           aiEnableGpu: isAi ? aiEnableGpu : undefined,
           aiGpuSupported: isAi ? aiGpuSupported : undefined,
+          aiGpuPreference: isAi
+            ? coerceAiGpuPreference(
+                options.aiGpuPreference ??
+                  (this.currentSettings as { aiGpuPreference?: AiGpuPreference } | undefined)
+                    ?.aiGpuPreference
+              )
+            : undefined,
           generateKaraokeStt: options.generateKaraokeStt === true,
           sttModelId: coerceWhisperModelId(
             options.sttModelId ||
@@ -1870,6 +1925,18 @@ class KaraokeMainProcess {
         try {
           if (!opts.localFilePath || !fs.existsSync(opts.localFilePath)) {
             return { success: false, error: 'Local media file not found' };
+          }
+          // Hard guard: never STT instrumental remux/extract (empty speech).
+          if (isInstrumentalOnlySttPath(opts.localFilePath)) {
+            this.logger.warn(
+              'App',
+              `karaoke-stt:start rejected instrumental path: ${opts.localFilePath}`
+            );
+            return {
+              success: false,
+              error: STT_INSTRUMENTAL_INPUT_REJECTED,
+              usedVocalStem: false
+            };
           }
           const modelId = coerceWhisperModelId(
             opts.modelId ||
