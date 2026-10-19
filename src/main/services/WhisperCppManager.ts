@@ -10,7 +10,9 @@ import {
   type WhisperModelDownloadProgress,
   type WhisperModelDiskInfo,
   type WhisperEngineStatus,
-  coerceWhisperModelId
+  type WhisperCliBackend,
+  coerceWhisperModelId,
+  coerceWhisperCliBackend
 } from '../../shared/whisperStt';
 
 type ModelInstallMeta = {
@@ -18,6 +20,12 @@ type ModelInstallMeta = {
   url: string;
   size: number;
   installedAt: string;
+};
+
+type WhisperBackendMeta = {
+  backend: WhisperCliBackend;
+  installedAt: string;
+  url: string;
 };
 
 /** Windows NTSTATUS STATUS_DLL_NOT_FOUND (0xC0000135) — unsigned and signed forms. */
@@ -38,7 +46,8 @@ const WIN_STATUS_DLL_NOT_FOUND_S = -1073741515;
 export class WhisperCppManager {
   private readonly logger: Logger;
   private readonly inFlight = new Map<WhisperModelId, Promise<string>>();
-  private binaryInFlight: Promise<string> | null = null;
+  /** Dedup concurrent ensureBinary for the same backend key. */
+  private binaryInFlight: Map<WhisperCliBackend, Promise<string>> = new Map();
 
   constructor(logger: Logger) {
     this.logger = logger;
@@ -61,6 +70,41 @@ export class WhisperCppManager {
   public getBinPath(): string {
     const name = process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli';
     return path.join(this.getBinDir(), name);
+  }
+
+  private getBackendMetaPath(): string {
+    return path.join(this.getBinDir(), '.whisper-backend.json');
+  }
+
+  private readBackendMeta(): WhisperBackendMeta | null {
+    try {
+      const p = this.getBackendMetaPath();
+      if (!fs.existsSync(p)) return null;
+      const raw = JSON.parse(fs.readFileSync(p, 'utf8')) as WhisperBackendMeta;
+      if (!raw || typeof raw !== 'object') return null;
+      return {
+        backend: coerceWhisperCliBackend(raw.backend),
+        installedAt: String(raw.installedAt || ''),
+        url: String(raw.url || '')
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private writeBackendMeta(backend: WhisperCliBackend, url: string): void {
+    const payload: WhisperBackendMeta = {
+      backend,
+      url,
+      installedAt: new Date().toISOString()
+    };
+    fs.mkdirSync(this.getBinDir(), { recursive: true });
+    fs.writeFileSync(this.getBackendMetaPath(), JSON.stringify(payload, null, 2), 'utf8');
+  }
+
+  /** Effective installed whisper-cli backend (marker), if any. */
+  public getInstalledBackend(): WhisperCliBackend | null {
+    return this.readBackendMeta()?.backend ?? null;
   }
 
   private getInstallMetaPath(modelId: WhisperModelId): string {
@@ -154,25 +198,43 @@ export class WhisperCppManager {
   }
 
   /**
-   * Ensure whisper-cli exists under userData/bin.
-   * Prefer existing managed binary; optionally seed from bundled `bin/<platform>/`;
-   * otherwise download platform zip from whisper.cpp GitHub releases when available.
+   * Ensure whisper-cli exists under userData/bin for the requested backend.
+   * Prefer existing managed binary when healthy + backend marker matches;
+   * optionally seed from bundled `bin/<platform>/` (CPU/BLAS only);
+   * otherwise download platform zip from whisper.cpp GitHub releases.
    *
    * Broken Windows installs (exe without runtime DLLs / STATUS_DLL_NOT_FOUND probe)
    * are removed and re-fetched so upgrades repair without manual delete.
+   * Switching Settings GPU preference (BLAS ↔ cuBLAS) also reinstalls.
    */
-  public async ensureBinary(signal?: AbortSignal): Promise<string> {
+  public async ensureBinary(
+    signal?: AbortSignal,
+    preferredBackend: WhisperCliBackend = 'blas'
+  ): Promise<string> {
     if (signal?.aborted) {
       const err = new Error('Aborted');
       err.name = 'AbortError';
       throw err;
     }
+    const backend = coerceWhisperCliBackend(preferredBackend);
     const target = this.getBinPath();
+    const installed = this.readBackendMeta()?.backend;
+
     if (fs.existsSync(target)) {
       try {
-        if (fs.statSync(target).size > 100_000 && this.isBinaryInstallHealthy(target)) {
+        const healthy = fs.statSync(target).size > 100_000 && this.isBinaryInstallHealthy(target);
+        // Unmarked installs (pre-backend-marker) are treated as blas.
+        const markerOk = installed ? installed === backend : backend === 'blas';
+        if (healthy && markerOk) {
           this.ensureExecutable(target);
+          if (!installed) this.writeBackendMeta('blas', 'legacy-or-seed');
           return target;
+        }
+        if (healthy && !markerOk) {
+          this.logger.info('WhisperCppManager', 'whisper-cli backend mismatch — reinstalling', {
+            installed: installed || 'unmarked',
+            requested: backend
+          });
         }
       } catch {
         /* fall through to repair */
@@ -180,15 +242,37 @@ export class WhisperCppManager {
       this.removeBrokenBinaryInstall(target);
     }
 
-    // Optional seed from package resources (same pattern as yt-dlp/ffmpeg).
-    const seeded = this.trySeedFromBundle();
-    if (seeded) return seeded;
+    // Bundle seed is CPU-oriented — only for blas requests.
+    if (backend === 'blas') {
+      const seeded = this.trySeedFromBundle();
+      if (seeded) {
+        this.writeBackendMeta('blas', 'bundle-seed');
+        return seeded;
+      }
+    }
 
-    if (this.binaryInFlight) return this.binaryInFlight;
-    this.binaryInFlight = this.downloadBinary(signal).finally(() => {
-      this.binaryInFlight = null;
-    });
-    return this.binaryInFlight;
+    const existing = this.binaryInFlight.get(backend);
+    if (existing) return existing;
+    const work = this.downloadBinary(signal, backend)
+      .catch(async (err) => {
+        // CUDA zip missing / probe fail → soft-fallback to BLAS so STT can still run.
+        if (backend === 'cublas-11.8') {
+          this.logger.warn(
+            'WhisperCppManager',
+            `CUDA whisper-cli unavailable — falling back to CPU BLAS (${
+              err instanceof Error ? err.message : String(err)
+            })`
+          );
+          this.removeBrokenBinaryInstall(this.getBinPath());
+          return this.ensureBinary(signal, 'blas');
+        }
+        throw err;
+      })
+      .finally(() => {
+        this.binaryInFlight.delete(backend);
+      });
+    this.binaryInFlight.set(backend, work);
+    return work;
   }
 
   public async ensureModel(
@@ -252,16 +336,19 @@ export class WhisperCppManager {
     return null;
   }
 
-  private async downloadBinary(signal?: AbortSignal): Promise<string> {
+  private async downloadBinary(
+    signal: AbortSignal | undefined,
+    backend: WhisperCliBackend
+  ): Promise<string> {
     const dest = this.getBinPath();
     fs.mkdirSync(path.dirname(dest), { recursive: true });
-    const asset = this.selectBinaryAsset();
+    const asset = this.selectBinaryAsset(backend);
     if (!asset) {
       throw new Error(
         'No prebuilt whisper-cli asset for this platform. Place whisper-cli under userData/bin or bin/<platform>/.'
       );
     }
-    this.logger.info('WhisperCppManager', `Downloading whisper-cli from ${asset.url}`);
+    this.logger.info('WhisperCppManager', `Downloading whisper-cli (${backend}) from ${asset.url}`);
     const zipPath = path.join(this.getBinDir(), `whisper-cli.download.${Date.now()}.zip`);
     await this.downloadUrlToFile(asset.url, zipPath, signal);
     try {
@@ -274,7 +361,7 @@ export class WhisperCppManager {
       this.ensureExecutable(dest);
       if (process.platform === 'win32' && !this.hasWindowsRuntimeDlls(dest)) {
         throw new Error(
-          'Downloaded whisper-cli is missing runtime DLLs (libopenblas / ggml / whisper). Zip extract incomplete.'
+          'Downloaded whisper-cli is missing runtime DLLs (OpenBLAS / CUDA / ggml / whisper). Zip extract incomplete.'
         );
       }
       // Probe -h (whisper-cli has no stable --version on all builds).
@@ -296,7 +383,8 @@ export class WhisperCppManager {
           `whisper-cli -h probe inconclusive (${probe.reason}); accepting large binary`
         );
       }
-      this.logger.info('WhisperCppManager', 'whisper-cli ready', { dest });
+      this.writeBackendMeta(backend, asset.url);
+      this.logger.info('WhisperCppManager', 'whisper-cli ready', { dest, backend });
       return dest;
     } finally {
       try {
@@ -307,30 +395,41 @@ export class WhisperCppManager {
     }
   }
 
-  private selectBinaryAsset(): { url: string; memberHint: string } | null {
-    // Official whisper.cpp Windows x64 zip (contains whisper-cli.exe).
-    // macOS/Linux: no guaranteed official zip in every release — rely on seed/PATH,
-    // but try known release assets when present.
+  private selectBinaryAsset(
+    backend: WhisperCliBackend
+  ): { url: string; memberHint: string; backend: WhisperCliBackend } | null {
+    // Official whisper.cpp release assets (v1.7.6).
+    // Win: BLAS (CPU) or cuBLAS 11.8 (NVIDIA CUDA). cuBLAS 12.4 zip is ~443 MB — not default.
+    // macOS/Linux: no official CUDA/Vulkan desktop zip here — seed/PATH / platform-tagged try.
     const tag = 'v1.7.6';
     const base = `https://github.com/ggerganov/whisper.cpp/releases/download/${tag}`;
     if (process.platform === 'win32') {
+      if (backend === 'cublas-11.8') {
+        return {
+          url: `${base}/whisper-cublas-11.8.0-bin-x64.zip`,
+          memberHint: 'whisper-cli.exe',
+          backend: 'cublas-11.8'
+        };
+      }
       return {
         url: `${base}/whisper-blas-bin-x64.zip`,
-        memberHint: 'whisper-cli.exe'
+        memberHint: 'whisper-cli.exe',
+        backend: 'blas'
       };
     }
-    // Community-friendly fallback: try platform-tagged assets if maintainers attach them.
-    // When missing, ensureBinary throws and UI shows honesty message.
+    // Non-Windows: only blas/CPU assets (cuBLAS zip is Win/NVIDIA-only).
     if (process.platform === 'darwin' && process.arch === 'arm64') {
       return {
         url: `${base}/whisper-macos-arm64.zip`,
-        memberHint: 'whisper-cli'
+        memberHint: 'whisper-cli',
+        backend: 'blas'
       };
     }
     if (process.platform === 'linux' && process.arch === 'x64') {
       return {
         url: `${base}/whisper-linux-x64.zip`,
-        memberHint: 'whisper-cli'
+        memberHint: 'whisper-cli',
+        backend: 'blas'
       };
     }
     return null;
@@ -410,11 +509,30 @@ export class WhisperCppManager {
     }
   }
 
-  /** True when at least one known whisper.cpp Windows runtime DLL sits beside the exe. */
+  /**
+   * True when at least one known whisper.cpp Windows runtime DLL sits beside the exe.
+   * Covers BLAS (libopenblas) and CUDA (cudart / cublas) official zips — #91 packaging.
+   */
   private hasWindowsRuntimeDlls(binPath: string): boolean {
     const dir = path.dirname(binPath);
-    const markers = ['libopenblas.dll', 'whisper.dll', 'ggml.dll'];
-    return markers.some((name) => fs.existsSync(path.join(dir, name)));
+    const exact = ['libopenblas.dll', 'whisper.dll', 'ggml.dll', 'ggml-cuda.dll'];
+    if (exact.some((name) => fs.existsSync(path.join(dir, name)))) return true;
+    try {
+      for (const name of fs.readdirSync(dir)) {
+        const lower = name.toLowerCase();
+        if (
+          lower.startsWith('cudart') ||
+          lower.startsWith('cublas') ||
+          lower.startsWith('ggml') ||
+          lower === 'whisper.dll'
+        ) {
+          if (lower.endsWith('.dll')) return true;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    return false;
   }
 
   private static isDllNotFoundExit(status: unknown): boolean {
@@ -508,6 +626,12 @@ export class WhisperCppManager {
     } catch (err) {
       this.logger.warn('WhisperCppManager', `Failed to delete broken binary ${binPath}`, err);
     }
+    try {
+      const meta = this.getBackendMetaPath();
+      if (fs.existsSync(meta)) fs.unlinkSync(meta);
+    } catch {
+      /* ignore */
+    }
     if (process.platform === 'win32') {
       try {
         for (const name of fs.readdirSync(dir)) {
@@ -517,7 +641,11 @@ export class WhisperCppManager {
             lower === 'libopenblas.dll' ||
             lower === 'whisper.dll' ||
             lower.startsWith('ggml') ||
-            lower.startsWith('whisper')
+            lower.startsWith('whisper') ||
+            lower.startsWith('cudart') ||
+            lower.startsWith('cublas') ||
+            lower.startsWith('cufft') ||
+            lower.startsWith('cuda')
           ) {
             try {
               fs.unlinkSync(path.join(dir, name));

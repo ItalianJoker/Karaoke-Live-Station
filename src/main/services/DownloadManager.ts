@@ -1242,7 +1242,11 @@ export class DownloadManager {
                   signal: sttSignal,
                   logger: this.logger,
                   correlationId: downloadId,
-                  onProgress: (phase, percent) => {
+                  // Same Settings knobs as Instrumental AI → whisper.cpp backends (not ORT WebGPU).
+                  aiEnableGpu: options.aiEnableGpu,
+                  aiGpuPreference: options.aiGpuPreference,
+                  aiCpuThreads: options.aiCpuThreads,
+                  onProgress: (phase, percent, meta) => {
                     if (payload.status === 'cancelled') return;
                     if (phase === 'ensuring_engine') {
                       payload.status = 'stt_ensuring';
@@ -1251,6 +1255,10 @@ export class DownloadManager {
                     }
                     payload.percent = Math.max(0, Math.min(100, percent));
                     payload.speed = '';
+                    // Mirror Instrumental onAiEta → Downloads menu ETA during STT.
+                    if (typeof meta?.etaSec === 'number' && Number.isFinite(meta.etaSec)) {
+                      payload.eta = DownloadManager.formatEtaSeconds(meta.etaSec);
+                    }
                     this.emitProgress({ ...payload });
                   }
                 });

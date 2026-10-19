@@ -638,6 +638,12 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                     <p className="text-[11px] text-amber-200/80 leading-relaxed">
                       {t('settings.sttHonesty')}
                     </p>
+                    <p
+                      className="text-[11px] text-slate-400 leading-relaxed"
+                      data-testid="settings-stt-gpu-cpu-note"
+                    >
+                      {t('settings.sttGpuCpuNote')}
+                    </p>
                   </div>
                 )}
 

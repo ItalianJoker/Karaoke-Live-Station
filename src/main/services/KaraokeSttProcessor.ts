@@ -12,9 +12,17 @@ import type { Logger } from './Logger';
 import type { WhisperCppManager } from './WhisperCppManager';
 import {
   coerceWhisperModelId,
+  resolveWhisperCliBackend,
+  whisperForceNoGpu,
   type WhisperModelId,
+  type WhisperCliBackend,
   DEFAULT_WHISPER_MODEL_ID
 } from '../../shared/whisperStt';
+import type { AiGpuPreference } from '../../shared/aiGpuPreference';
+import { coerceAiGpuPreference } from '../../shared/aiGpuPreference';
+import { coerceAiEnableGpu } from '../../shared/aiOrtProviders';
+import { resolveAiCpuThreads } from '../../shared/aiCpuThreads';
+import os from 'os';
 import {
   resolveKaraokeAssPath,
   resolveKaraokeScriptPath,
@@ -44,6 +52,16 @@ export type KaraokeSttResult = {
   script?: TimedKaraokeScript;
   error?: string;
   usedVocalStem: boolean;
+  /** Effective whisper-cli backend after ensure + optional CUDA→BLAS fallback. */
+  sttBackend?: WhisperCliBackend;
+  sttThreads?: number;
+};
+
+/** Optional telemetry on STT progress (ETA / backend) for DownloadManager. */
+export type KaraokeSttProgressMeta = {
+  etaSec?: number;
+  sttBackend?: WhisperCliBackend;
+  sttThreads?: number;
 };
 
 /** Clip process stdout/stderr for structured logs (no secrets expected; keep tails short). */
@@ -83,11 +101,18 @@ export async function processKaraokeSttOverlay(options: {
    */
   burnInAss?: boolean;
   whisperManager: WhisperCppManager;
-  onProgress?: (phase: KaraokeSttPhase, percent: number) => void;
+  onProgress?: (phase: KaraokeSttPhase, percent: number, meta?: KaraokeSttProgressMeta) => void;
   signal?: AbortSignal;
   logger?: Logger;
   /** Correlation id (typically `downloadId`) for joining DownloadManager → STT → promote logs. */
   correlationId?: string;
+  /**
+   * Same Settings knobs as Instrumental AI (GPU toggle / discrete preference / CPU threads).
+   * STT maps these to whisper.cpp backends — never ORT WebGPU.
+   */
+  aiEnableGpu?: boolean | null;
+  aiGpuPreference?: AiGpuPreference | string | null;
+  aiCpuThreads?: number | null;
 }): Promise<KaraokeSttResult> {
   const modelId = coerceWhisperModelId(options.modelId || DEFAULT_WHISPER_MODEL_ID);
   const workDir = path.dirname(path.resolve(options.inputVideoPath));
@@ -95,14 +120,33 @@ export async function processKaraokeSttOverlay(options: {
   const sttWav = path.join(workDir, `${stem}.stt.16k.wav`);
   const jsonOutBase = path.join(workDir, `${stem}.stt`);
   let usedVocalStem = false;
+  const totalCpus = Math.max(1, os.cpus()?.length || 1);
+  const sttThreads = resolveAiCpuThreads(options.aiCpuThreads, totalCpus);
+  const gpuOn = coerceAiEnableGpu(options.aiEnableGpu);
+  const gpuPref = coerceAiGpuPreference(options.aiGpuPreference);
+  const requestedBackend = resolveWhisperCliBackend({
+    aiEnableGpu: gpuOn,
+    aiGpuPreference: gpuPref
+  });
+  let sttBackend: WhisperCliBackend = requestedBackend;
+  const forceNoGpu = whisperForceNoGpu({ aiEnableGpu: gpuOn, aiGpuPreference: gpuPref });
   const corr = {
     downloadId: options.correlationId || undefined,
     trackId: options.trackId,
-    modelId
+    modelId,
+    sttBackend,
+    sttThreads,
+    aiEnableGpu: gpuOn,
+    aiGpuPreference: gpuPref,
+    requestedBackend
   };
 
-  const report = (phase: KaraokeSttPhase, percent: number) => {
-    options.onProgress?.(phase, Math.max(0, Math.min(100, percent)));
+  const report = (phase: KaraokeSttPhase, percent: number, meta?: KaraokeSttProgressMeta) => {
+    options.onProgress?.(phase, Math.max(0, Math.min(100, percent)), {
+      sttBackend,
+      sttThreads,
+      ...meta
+    });
   };
 
   try {
@@ -141,11 +185,19 @@ export async function processKaraokeSttOverlay(options: {
 
     throwIfAborted(options.signal);
     report('ensuring_engine', 2);
-    options.logger?.debug('KaraokeSttProcessor', 'Ensuring whisper-cli binary', corr);
-    const binPath = await options.whisperManager.ensureBinary(options.signal);
+    options.logger?.debug('KaraokeSttProcessor', 'Ensuring whisper-cli binary', {
+      ...corr,
+      forceNoGpu
+    });
+    let binPath = await options.whisperManager.ensureBinary(options.signal, requestedBackend);
+    // ensureBinary may soft-fallback CUDA → BLAS; refresh marker for logs / flags.
+    const installed = options.whisperManager.getInstalledBackend();
+    if (installed) sttBackend = installed;
+    corr.sttBackend = sttBackend;
     options.logger?.info('KaraokeSttProcessor', 'Whisper binary ready', {
       ...corr,
-      binaryPath: binPath
+      binaryPath: binPath,
+      installedBackend: installed || null
     });
     throwIfAborted(options.signal);
     report('ensuring_engine', 8);
@@ -159,6 +211,11 @@ export async function processKaraokeSttOverlay(options: {
     });
     throwIfAborted(options.signal);
     report('ensuring_engine', 15);
+
+    // -ng when Settings say CPU/integrated, or when we wanted CUDA but only BLAS is installed.
+    // Do NOT force -ng merely because the backend marker is "blas" on macOS/Linux (Metal).
+    const effectiveNoGpu =
+      forceNoGpu || (requestedBackend === 'cublas-11.8' && sttBackend === 'blas');
 
     // Prefer explicit vocal stem when present; else extract 16 kHz mono from the source
     // (ORIGINAL mix / vocals / retained demux — never the instrumental remux).
@@ -204,20 +261,74 @@ export async function processKaraokeSttOverlay(options: {
       usedVocalStem
     });
 
-    report('transcribing', 40);
-    const jsonPath = await runWhisperCli({
-      binPath,
-      modelPath,
-      wavPath: sttWav,
-      outputBase: jsonOutBase,
-      language: options.language,
-      signal: options.signal,
-      logger: options.logger,
-      correlation: corr,
-      onProgress: (p) => report('transcribing', 40 + Math.round(p * 0.5))
-    });
+    report('transcribing', 40, { etaSec: undefined });
+    const transcribeStartedAt = Date.now();
+    let jsonPath: string;
+    try {
+      jsonPath = await runWhisperCli({
+        binPath,
+        modelPath,
+        wavPath: sttWav,
+        outputBase: jsonOutBase,
+        language: options.language,
+        threads: sttThreads,
+        noGpu: effectiveNoGpu,
+        signal: options.signal,
+        logger: options.logger,
+        correlation: corr,
+        onProgress: (p) => {
+          const mapped = 40 + Math.round(p * 0.5);
+          let etaSec: number | undefined;
+          if (p > 0.02) {
+            const elapsed = (Date.now() - transcribeStartedAt) / 1000;
+            const remaining = elapsed * ((1 - p) / p);
+            if (Number.isFinite(remaining) && remaining >= 0) etaSec = remaining;
+          }
+          report('transcribing', mapped, { etaSec });
+        }
+      });
+    } catch (whisperErr) {
+      // Runtime CUDA failure after a successful -h probe → one BLAS retry (soft).
+      if (sttBackend === 'cublas-11.8' && !options.signal?.aborted) {
+        options.logger?.warn(
+          'KaraokeSttProcessor',
+          'CUDA whisper-cli failed at runtime — retrying with CPU BLAS',
+          {
+            ...corr,
+            error: whisperErr instanceof Error ? whisperErr.message : String(whisperErr)
+          }
+        );
+        binPath = await options.whisperManager.ensureBinary(options.signal, 'blas');
+        sttBackend = options.whisperManager.getInstalledBackend() || 'blas';
+        corr.sttBackend = sttBackend;
+        jsonPath = await runWhisperCli({
+          binPath,
+          modelPath,
+          wavPath: sttWav,
+          outputBase: jsonOutBase,
+          language: options.language,
+          threads: sttThreads,
+          noGpu: true,
+          signal: options.signal,
+          logger: options.logger,
+          correlation: corr,
+          onProgress: (p) => {
+            const mapped = 40 + Math.round(p * 0.5);
+            let etaSec: number | undefined;
+            if (p > 0.02) {
+              const elapsed = (Date.now() - transcribeStartedAt) / 1000;
+              const remaining = elapsed * ((1 - p) / p);
+              if (Number.isFinite(remaining) && remaining >= 0) etaSec = remaining;
+            }
+            report('transcribing', mapped, { etaSec, sttBackend });
+          }
+        });
+      } else {
+        throw whisperErr;
+      }
+    }
     throwIfAborted(options.signal);
-    report('transcribing', 92);
+    report('transcribing', 92, { etaSec: 0 });
 
     report('writing_script', 94);
     let jsonBytes = 0;
@@ -300,14 +411,29 @@ export async function processKaraokeSttOverlay(options: {
       attachMedia
     });
 
-    return { success: true, scriptPath, assPath, script, usedVocalStem };
+    return {
+      success: true,
+      scriptPath,
+      assPath,
+      script,
+      usedVocalStem,
+      sttBackend,
+      sttThreads
+    };
   } catch (err) {
     if (isAbortError(err) || options.signal?.aborted) {
       options.logger?.info('KaraokeSttProcessor', 'STT cancelled', {
         ...corr,
         usedVocalStem
       });
-      return { success: false, cancelled: true, usedVocalStem, error: 'Cancelled' };
+      return {
+        success: false,
+        cancelled: true,
+        usedVocalStem,
+        error: 'Cancelled',
+        sttBackend,
+        sttThreads
+      };
     }
     const message = err instanceof Error ? err.message : String(err);
     options.logger?.error('KaraokeSttProcessor', `STT failed: ${message}`, {
@@ -315,7 +441,7 @@ export async function processKaraokeSttOverlay(options: {
       usedVocalStem,
       error: message
     });
-    return { success: false, error: message, usedVocalStem };
+    return { success: false, error: message, usedVocalStem, sttBackend, sttThreads };
   } finally {
     // Cleanup work temps (keep script)
     for (const p of [
@@ -421,15 +547,25 @@ async function runWhisperCli(opts: {
   wavPath: string;
   outputBase: string;
   language?: string;
+  /** whisper `-t` / `--threads` (Settings aiCpuThreads). */
+  threads?: number;
+  /** When true, pass `-ng` (CPU even on CUDA/Metal builds). */
+  noGpu?: boolean;
   signal?: AbortSignal;
   onProgress?: (fraction0to1: number) => void;
   logger?: Logger;
-  correlation?: { downloadId?: string; trackId?: string; modelId?: string };
+  correlation?: Record<string, unknown>;
 }): Promise<string> {
   // whisper.cpp CLI (v1.7.x): `-ojf` writes JSON *with* token/word timestamps.
   // Do NOT use `-oj` alone (no tokens) or `-ow` (invalid; real flag is `-owts` for .wts karaoke
   // scripts). Unknown args make whisper-cli `exit(0)` after printing usage — no JSON written —
   // which previously soft-failed the download and left Stage with nothing to overlay.
+  // `-pp` enables `progress = N%` on stderr (needed for Downloads ETA). `-np` still quiets
+  // other chatter; the two flags are independent in whisper.cpp v1.7.x.
+  const threads =
+    typeof opts.threads === 'number' && Number.isFinite(opts.threads) && opts.threads >= 1
+      ? Math.floor(opts.threads)
+      : undefined;
   const args = [
     '-m',
     opts.modelPath,
@@ -438,8 +574,15 @@ async function runWhisperCli(opts: {
     '-of',
     opts.outputBase,
     '-ojf',
-    '-np'
+    '-np',
+    '-pp'
   ];
+  if (threads != null) {
+    args.push('-t', String(threads));
+  }
+  if (opts.noGpu) {
+    args.push('-ng');
+  }
   if (opts.language && opts.language !== 'auto') {
     args.push('-l', opts.language);
   }
@@ -447,7 +590,9 @@ async function runWhisperCli(opts: {
   opts.logger?.info('KaraokeSttProcessor', 'whisper-cli spawn', {
     ...opts.correlation,
     binPath: opts.binPath,
-    args
+    args,
+    threads: threads ?? null,
+    noGpu: opts.noGpu === true
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -469,9 +614,13 @@ async function runWhisperCli(opts: {
     child.stderr?.on('data', (chunk: Buffer) => {
       stderr += chunk.toString('utf8');
       if (stderr.length > 64 * 1024) stderr = stderr.slice(-32 * 1024);
-      // Best-effort progress from "progress = N%" lines
-      const m = stderr.match(/progress\s*=\s*(\d+)/i);
-      if (m) opts.onProgress?.(Math.min(1, parseInt(m[1], 10) / 100));
+      // Last "progress = N%" wins (buffer may contain many steps).
+      const matches = stderr.match(/progress\s*=\s*(\d+)/gi);
+      if (matches && matches.length > 0) {
+        const last = matches[matches.length - 1];
+        const num = last.match(/(\d+)/);
+        if (num) opts.onProgress?.(Math.min(1, parseInt(num[1], 10) / 100));
+      }
     });
     child.on('error', (err) => {
       opts.signal?.removeEventListener('abort', onAbort);

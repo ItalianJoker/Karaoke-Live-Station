@@ -1039,7 +1039,7 @@ class KaraokeMainProcess {
     });
 
     ipcMain.handle('system:get-app-version', () => {
-      return app.getVersion() || '2.3.4';
+      return app.getVersion() || '2.3.5';
     });
 
     /**
@@ -1603,17 +1603,23 @@ class KaraokeMainProcess {
           demucsOverlap: isDemucs
             ? coerceDemucsOverlap(options.demucsOverlap ?? this.currentSettings?.demucsOverlap)
             : undefined,
-          // AI paths (MDX + Demucs) get resolved thread count; DSP ignores it.
-          aiCpuThreads: isAi ? resolveAiCpuThreads(configuredThreads, totalCpus) : undefined,
-          aiEnableGpu: isAi ? aiEnableGpu : undefined,
+          // AI instrumental and/or karaoke STT share GPU/CPU Settings knobs.
+          // DSP-only instrumental without STT ignores them. STT maps to whisper.cpp
+          // (CUDA/BLAS), not ORT WebGPU — see KaraokeSttProcessor / WhisperCppManager.
+          aiCpuThreads:
+            isAi || options.generateKaraokeStt === true
+              ? resolveAiCpuThreads(configuredThreads, totalCpus)
+              : undefined,
+          aiEnableGpu: isAi || options.generateKaraokeStt === true ? aiEnableGpu : undefined,
           aiGpuSupported: isAi ? aiGpuSupported : undefined,
-          aiGpuPreference: isAi
-            ? coerceAiGpuPreference(
-                options.aiGpuPreference ??
-                  (this.currentSettings as { aiGpuPreference?: AiGpuPreference } | undefined)
-                    ?.aiGpuPreference
-              )
-            : undefined,
+          aiGpuPreference:
+            isAi || options.generateKaraokeStt === true
+              ? coerceAiGpuPreference(
+                  options.aiGpuPreference ??
+                    (this.currentSettings as { aiGpuPreference?: AiGpuPreference } | undefined)
+                      ?.aiGpuPreference
+                )
+              : undefined,
           generateKaraokeStt: options.generateKaraokeStt === true,
           sttModelId: coerceWhisperModelId(
             options.sttModelId ||
@@ -1986,13 +1992,22 @@ class KaraokeMainProcess {
             whisperManager: this.whisperManager,
             logger: this.logger,
             correlationId: `manual-stt:${opts.trackId}`,
-            onProgress: (phase, percent) => {
+            aiEnableGpu: coerceAiEnableGpu(this.currentSettings?.aiEnableGpu),
+            aiGpuPreference: coerceAiGpuPreference(
+              (this.currentSettings as { aiGpuPreference?: AiGpuPreference } | undefined)
+                ?.aiGpuPreference
+            ),
+            aiCpuThreads: coerceAiCpuThreads(this.currentSettings?.aiCpuThreads),
+            onProgress: (phase, percent, meta) => {
               for (const win of BrowserWindow.getAllWindows()) {
                 try {
                   win.webContents.send('karaoke-stt:progress', {
                     trackId: opts.trackId,
                     phase,
-                    percent
+                    percent,
+                    etaSec: meta?.etaSec,
+                    sttBackend: meta?.sttBackend,
+                    sttThreads: meta?.sttThreads
                   });
                 } catch {
                   /* ignore */
