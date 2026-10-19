@@ -216,6 +216,12 @@ export interface AppSettings {
    */
   sttModelId: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3';
   /**
+   * Where STT lyrics are shown for new instrumental downloads (mutually exclusive).
+   * Default `burn-in` (Parole su video). Legacy sidecars without `displayMode` keep dual display.
+   * Mirrored by InstrumentalSubtitlesModal “Salva scelta”.
+   */
+  sttDisplayMode: 'burn-in' | 'stage';
+  /**
    * When true (default), Karaoke STT prefers an AI vocal stem when available;
    * falls back to the full mix without failing the job.
    * Honesty: vocals-stem export is not wired yet — STT uses original mix / demux WAV
@@ -534,6 +540,17 @@ export interface StartDownloadOptions {
   generateKaraokeStt?: boolean;
   /** Whisper model id for this job (default settings.sttModelId → medium). */
   sttModelId?: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3';
+  /**
+   * Mutually exclusive STT display target (required when generateKaraokeStt).
+   * `burn-in` → ASS hardsubs in MP4, Stage overlay suppressed;
+   * `stage` → sidecar overlay only, no ASS burn-in.
+   */
+  sttDisplayMode?: 'burn-in' | 'stage';
+  /**
+   * Whisper `-l` language hint (ISO-639-1). Omit / `auto` → auto-detect.
+   * Prefer per-track metadata when known; else UI language heuristic.
+   */
+  sttLanguage?: string;
 }
 
 /**

@@ -111,6 +111,10 @@ export interface DownloadOptions {
    */
   generateKaraokeStt?: boolean;
   sttModelId?: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3';
+  /** Mutually exclusive STT display: burn-in ASS vs Stage overlay only. */
+  sttDisplayMode?: 'burn-in' | 'stage';
+  /** Whisper `-l` language hint; omit for auto-detect. */
+  sttLanguage?: string;
 }
 
 /**
@@ -1228,16 +1232,24 @@ export class DownloadManager {
                     sttModelId: coerceWhisperModelId(options.sttModelId)
                   }
                 );
+                // Mutually exclusive display: burn-in ASS vs Stage overlay only (default burn-in).
+                const sttDisplayMode =
+                  options.sttDisplayMode === 'stage' ? 'stage' : 'burn-in';
                 const sttResult = await processKaraokeSttOverlay({
                   inputVideoPath: sttInputPath,
                   trackId: String(options.trackId),
                   libraryPath: options.libraryPath,
                   modelId: coerceWhisperModelId(options.sttModelId),
+                  language:
+                    options.sttLanguage && options.sttLanguage !== 'auto'
+                      ? options.sttLanguage
+                      : undefined,
+                  displayMode: sttDisplayMode,
                   // Vocal stem export not wired yet — do not pass instrumental extract.
                   vocalStemPath: null,
                   // Instrumental remux does not exist yet — promote sidecar after remux.
-                  // Write ASS beside original so remux can burn hardsubs into the MP4.
-                  burnInAss: true,
+                  // ASS only when burn-in mode (Stage-only must not hardsub the MP4).
+                  burnInAss: sttDisplayMode === 'burn-in',
                   whisperManager: this.whisperManager,
                   signal: sttSignal,
                   logger: this.logger,
@@ -1279,7 +1291,7 @@ export class DownloadManager {
                   // Soft-fail: continue vocal removal + remux without lyrics (not a hard download error).
                   sttSoftFailWarning =
                     sttResult.error ||
-                    'Karaoke STT failed — instrumental saved without lyrics';
+                    `Karaoke STT failed (${sttDisplayMode}) — instrumental saved without lyrics`;
                   this.logger?.warn(
                     'DownloadManager',
                     'Karaoke STT soft-fail (continuing instrumental without lyrics)',
@@ -1287,24 +1299,31 @@ export class DownloadManager {
                       downloadId,
                       trackId: options.trackId,
                       sttError: sttResult.error || 'unknown',
+                      sttDisplayMode,
                       usedVocalStem: sttResult.usedVocalStem,
                       outcome: 'soft-fail'
                     }
                   );
                 } else if (sttResult.scriptPath && fs.existsSync(sttResult.scriptPath)) {
                   sttScriptPath = sttResult.scriptPath;
-                  // Prefer STT ASS for burn-in (STT modal disables YouTube subs).
-                  if (sttResult.assPath && fs.existsSync(sttResult.assPath)) {
-                    subtitlePath = sttResult.assPath;
+                  if (sttDisplayMode === 'burn-in') {
+                    // Prefer STT ASS for burn-in (STT modal disables YouTube subs).
+                    if (sttResult.assPath && fs.existsSync(sttResult.assPath)) {
+                      subtitlePath = sttResult.assPath;
+                    } else {
+                      const siblingAss = findSiblingSubtitle(originalVideoPath);
+                      if (siblingAss) subtitlePath = siblingAss;
+                    }
                   } else {
-                    const siblingAss = findSiblingSubtitle(originalVideoPath);
-                    if (siblingAss) subtitlePath = siblingAss;
+                    // Stage-only: never burn STT (or leftover YT) hardsubs into the remux.
+                    subtitlePath = null;
                   }
                   this.logger?.info('DownloadManager', 'Karaoke STT hard-success (sidecar ready)', {
                     downloadId,
                     trackId: options.trackId,
                     scriptPath: sttScriptPath,
                     assPath: sttResult.assPath || null,
+                    sttDisplayMode,
                     subtitlePathForBurnIn: subtitlePath || null,
                     lines: sttResult.script?.lines?.length ?? null,
                     outcome: 'success'

@@ -184,7 +184,15 @@
     "instrumentalSttHonesty": "Automatic transcription of singing is weaker than speech (melisma, chorus, vibrato). Not official lyrics and does not replace CD+G. Offline job — not for live show use.",
     "instrumentalSttRememberHint": "ne s’applique pas au STT",
     "sttEnsuring": "Préparation du moteur STT…",
-    "sttTranscribing": "Transcription karaoké STT…"
+    "sttTranscribing": "Transcription karaoké STT…",
+    "instrumentalSttDisplayTitle": "Où afficher le texte STT",
+    "instrumentalSttDisplayAsk": "Choisissez une seule destination (exclusive) : paroles incrustées dans la vidéo, ou overlay Stage seulement.",
+    "instrumentalSttDisplayBurnIn": "Paroles sur la vidéo",
+    "instrumentalSttDisplayBurnInHint": "Karaoké ASS permanent dans le MP4 instrumental. Le Stage ne superpose pas un second texte.",
+    "instrumentalSttDisplayStage": "Stage uniquement (overlay)",
+    "instrumentalSttDisplayStageHint": "Sidecar word-level uniquement dans Karaoke Live Station — pas de hardsub STT dans la vidéo.",
+    "instrumentalSttDisplayRemember": "Enregistrer le choix",
+    "instrumentalSttDisplayBack": "Retour"
   },
   "settings": {
     "title": "Paramètres Système",
@@ -407,7 +415,11 @@
     "sttDeleteAll": "Supprimer tous les modèles Whisper",
     "sttDeleteAllConfirm": "Delete ALL downloaded Whisper models? ONNX vocal AI models are not touched.",
     "sttHonesty": "Singing STT: even medium/large-v3 stay weak on melisma/chorus. Offline only; no cloud.",
-    "sttGpuCpuNote": "Le STT utilise les mêmes réglages GPU, préférence discrète/intégrée et cœurs CPU que l’IA instrumentale ci-dessus. Backend : whisper.cpp (Windows : CUDA cuBLAS si GPU+discret ; sinon OpenBLAS CPU multi-thread) — pas ORT WebGPU. Le menu Téléchargements affiche l’ETA STT comme pour la conversion instrumentale."
+    "sttGpuCpuNote": "Le STT utilise les mêmes réglages GPU, préférence discrète/intégrée et cœurs CPU que l’IA instrumentale ci-dessus. Backend : whisper.cpp (Windows : CUDA cuBLAS si GPU+discret ; sinon OpenBLAS CPU multi-thread) — pas ORT WebGPU. Le menu Téléchargements affiche l’ETA STT comme pour la conversion instrumentale.",
+    "sttDisplayMode": "Affichage texte STT",
+    "sttDisplayModeDesc": "Défaut pour les nouveaux Télécharger instrumental + STT (même choix que « Enregistrer le choix »). burn-in = paroles sur vidéo ; stage = overlay seulement. Les fichiers legacy sans displayMode gardent le double affichage.",
+    "sttDisplayModeBurnIn": "Paroles sur la vidéo (burn-in)",
+    "sttDisplayModeStage": "Stage uniquement (overlay)"
   },
   "history": {
     "title": "Historique de Lecture",

@@ -823,8 +823,10 @@ export const StageWindow: React.FC = () => {
           }`}
         />
 
-        {/* STT word-level overlay — works on video too; CDG always wins */}
-        {karaokeScript && !hasCdgLoaded && (
+        {/* STT word-level overlay — CDG always wins; suppress when burn-in displayMode */}
+        {karaokeScript &&
+          !hasCdgLoaded &&
+          karaokeScript.displayMode !== 'burn-in' && (
           <KaraokeWordOverlay
             script={karaokeScript}
             currentTimeSec={playback.currentTime}

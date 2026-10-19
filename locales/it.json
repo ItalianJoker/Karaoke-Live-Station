@@ -184,7 +184,15 @@
     "instrumentalSttHonesty": "La trascrizione automatica sul canto è più debole del parlato (melisma, cori, vibrato). Non sono lyrics ufficiali e non sostituiscono CD+G. Job offline — non usare in serata live.",
     "instrumentalSttRememberHint": "non vale per STT",
     "sttEnsuring": "Preparazione motore STT…",
-    "sttTranscribing": "Trascrizione karaoke STT…"
+    "sttTranscribing": "Trascrizione karaoke STT…",
+    "instrumentalSttDisplayTitle": "Dove mostrare il testo STT",
+    "instrumentalSttDisplayAsk": "Scegli una sola destinazione (mutuamente esclusiva): parole bruciate nel video, oppure solo overlay Stage.",
+    "instrumentalSttDisplayBurnIn": "Parole su video",
+    "instrumentalSttDisplayBurnInHint": "Karaoke ASS permanente nell’MP4 strumentale. Lo Stage non sovrappone un secondo testo.",
+    "instrumentalSttDisplayStage": "Solo Stage (overlay)",
+    "instrumentalSttDisplayStageHint": "Sidecar word-level solo in Karaoke Live Station — niente hardsub STT nel video.",
+    "instrumentalSttDisplayRemember": "Salva scelta",
+    "instrumentalSttDisplayBack": "Indietro"
   },
   "settings": {
     "title": "Impostazioni di Sistema",
@@ -407,7 +415,11 @@
     "sttDeleteAll": "Elimina tutti i modelli Whisper",
     "sttDeleteAllConfirm": "Eliminare TUTTI i modelli Whisper scaricati? I modelli AI vocali ONNX non vengono toccati.",
     "sttHonesty": "STT sul canto: anche medium/large-v3 restano imprecisi su melisma/cori. Solo offline; niente cloud.",
-    "sttGpuCpuNote": "Lo STT usa gli stessi controlli GPU, preferenza discreta/integrata e core CPU dell’AI strumentale sopra. Backend: whisper.cpp (Windows: CUDA cuBLAS con GPU+discreta; altrimenti OpenBLAS CPU multi-thread) — non ORT WebGPU. Il menu Download mostra l’ETA dello STT come per la conversione strumentale."
+    "sttGpuCpuNote": "Lo STT usa gli stessi controlli GPU, preferenza discreta/integrata e core CPU dell’AI strumentale sopra. Backend: whisper.cpp (Windows: CUDA cuBLAS con GPU+discreta; altrimenti OpenBLAS CPU multi-thread) — non ORT WebGPU. Il menu Download mostra l’ETA dello STT come per la conversione strumentale.",
+    "sttDisplayMode": "Visualizzazione testo STT",
+    "sttDisplayModeDesc": "Predefinito per nuovi Download Strumentale con STT (stessa scelta di “Salva scelta” nel dialogo). burn-in = parole su video; stage = solo overlay. I file legacy senza displayMode restano a doppia visualizzazione.",
+    "sttDisplayModeBurnIn": "Parole su video (burn-in)",
+    "sttDisplayModeStage": "Solo Stage (overlay)"
   },
   "history": {
     "title": "Storico Esecuzioni",

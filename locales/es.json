@@ -184,7 +184,15 @@
     "instrumentalSttHonesty": "Automatic transcription of singing is weaker than speech (melisma, chorus, vibrato). Not official lyrics and does not replace CD+G. Offline job — not for live show use.",
     "instrumentalSttRememberHint": "no aplica a STT",
     "sttEnsuring": "Preparando motor STT…",
-    "sttTranscribing": "Transcripción karaoke STT…"
+    "sttTranscribing": "Transcripción karaoke STT…",
+    "instrumentalSttDisplayTitle": "Dónde mostrar la letra STT",
+    "instrumentalSttDisplayAsk": "Elige un solo destino (excluyente): palabras quemadas en el vídeo, o solo overlay del Stage.",
+    "instrumentalSttDisplayBurnIn": "Palabras en el vídeo",
+    "instrumentalSttDisplayBurnInHint": "Karaoke ASS permanente en el MP4 instrumental. El Stage no dibuja una segunda capa de letra.",
+    "instrumentalSttDisplayStage": "Solo Stage (overlay)",
+    "instrumentalSttDisplayStageHint": "Sidecar word-level solo en Karaoke Live Station — sin hardsubs STT en el vídeo.",
+    "instrumentalSttDisplayRemember": "Guardar elección",
+    "instrumentalSttDisplayBack": "Atrás"
   },
   "settings": {
     "title": "Ajustes del Sistema",
@@ -407,7 +415,11 @@
     "sttDeleteAll": "Eliminar todos los modelos Whisper",
     "sttDeleteAllConfirm": "Delete ALL downloaded Whisper models? ONNX vocal AI models are not touched.",
     "sttHonesty": "Singing STT: even medium/large-v3 stay weak on melisma/chorus. Offline only; no cloud.",
-    "sttGpuCpuNote": "STT usa el mismo interruptor GPU, preferencia discreta/integrada y núcleos CPU que la IA instrumental arriba. Backend: whisper.cpp (Windows: CUDA cuBLAS con GPU+discreta; si no, OpenBLAS CPU multi-hilo) — no ORT WebGPU. Descargas muestra ETA de STT como en la conversión instrumental."
+    "sttGpuCpuNote": "STT usa el mismo interruptor GPU, preferencia discreta/integrada y núcleos CPU que la IA instrumental arriba. Backend: whisper.cpp (Windows: CUDA cuBLAS con GPU+discreta; si no, OpenBLAS CPU multi-hilo) — no ORT WebGPU. Descargas muestra ETA de STT como en la conversión instrumental.",
+    "sttDisplayMode": "Visualización letra STT",
+    "sttDisplayModeDesc": "Predeterminado para nuevos Descargar instrumental + STT (igual que “Guardar elección” en el diálogo). burn-in = palabras en vídeo; stage = solo overlay. Los archivos legacy sin displayMode mantienen doble visualización.",
+    "sttDisplayModeBurnIn": "Palabras en el vídeo (burn-in)",
+    "sttDisplayModeStage": "Solo Stage (overlay)"
   },
   "history": {
     "title": "Historial de Reproducción",
