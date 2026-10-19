@@ -352,7 +352,7 @@ export const SettingsGeneralTab: React.FC<SettingsGeneralTabProps> = ({
                               {t('settings.currentVersion', 'Versione attuale')}:
                             </span>
                             <span className="font-mono font-bold text-white bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/60">
-                              v{appUpdateInfo?.currentVersion || '2.3.1'}
+                              v{appUpdateInfo?.currentVersion || '2.3.2'}
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-400 leading-relaxed">
