@@ -1189,7 +1189,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
               demucsOverlap: settings.demucsOverlap
             }
           : {}),
-        ...(isAi
+        // Instrumental AI and/or karaoke STT share GPU/CPU Settings knobs (STT → whisper.cpp).
+        ...(isAi || generateKaraokeStt
           ? {
               aiCpuThreads: settings.aiCpuThreads,
               aiEnableGpu: settings.aiEnableGpu,

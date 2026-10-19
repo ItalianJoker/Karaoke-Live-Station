@@ -3241,8 +3241,8 @@ assert(
     settingsModalSrcV13.includes('aiCpuThreads') &&
     settingsModalSrcV13.includes('autoMaximizeControlOnLaunch') &&
     settingsModalSrcV13.includes('autoOpenStageOnLaunch') &&
-    settingsModalShellV13.includes("useState('2.3.6')"),
-  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.6 footer state'
+    settingsModalShellV13.includes("useState('2.3.7')"),
+  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.7 footer state'
 );
 
 // Instrumental block lives under Library tab component (shell still orders library before audio)
@@ -3262,10 +3262,10 @@ assert(
 const pkgV13 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
 const changelogV13 = fs.readFileSync(path.resolve(__dirname, '../CHANGELOG.md'), 'utf8');
 const releaseNotesV13 = fs.readFileSync(path.resolve(__dirname, '../RELEASE_NOTES.md'), 'utf8');
-assert(pkgV13.version === '2.3.6', 'package.json version is 2.3.6');
+assert(pkgV13.version === '2.3.7', 'package.json version is 2.3.7');
 assert(
-  changelogV13.includes('## [2.3.6]') || changelogV13.includes('## [2.3.5] '),
-  'CHANGELOG has ## [2.3.6] section'
+  changelogV13.includes('## [2.3.7]') || changelogV13.includes('## [2.3.6]'),
+  'CHANGELOG has ## [2.3.7] section'
 );
 assert(
   changelogV13.includes('## [2.3.4]') || changelogV13.includes('## [2.3.4] '),
@@ -3316,8 +3316,8 @@ assert(
   'CHANGELOG retains ## [1.3.0] section'
 );
 assert(
-  /v2\.3\.6|Version 2\.3\.6|Versione 2\.3\.6/.test(releaseNotesV13),
-  'RELEASE_NOTES mentions 2.3.6'
+  /v2\.3\.7|Version 2\.3\.7|Versione 2\.3\.7/.test(releaseNotesV13),
+  'RELEASE_NOTES mentions 2.3.7'
 );
 
 for (const lang of ['it', 'en', 'es', 'fr']) {
@@ -4161,7 +4161,7 @@ console.log('\n\x1b[36m▶ Suite: Safety-First modularization, virtualization, i
   );
 
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert(pkg.version === '2.3.6', 'package.json is 2.3.6 (new release cycle)');
+  assert(pkg.version === '2.3.7', 'package.json is 2.3.7 (new release cycle)');
 
   // Manual chapter parity markers (DnD / recursive scan / Bungee / AppImage SoundFont)
   for (const manual of [
@@ -5800,8 +5800,8 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
 
   const pkg230 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
   assert(
-    pkg230.version === '2.3.6',
-    'package.json is 2.3.6 (STT display mode + word merge + ASS karaoke)'
+    pkg230.version === '2.3.7',
+    'package.json is 2.3.7 (STT ETA UI + CUDA cublas companion)'
   );
 
   // v2.3.5 — STT ETA + GPU/CPU (whisper.cpp, not ORT WebGPU)
@@ -5827,8 +5827,11 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
       sttGpuEtaMgr.includes('whisper-blas-bin-x64.zip') &&
       sttGpuEtaMgr.includes('.whisper-backend.json') &&
       sttGpuEtaMgr.includes('cudart') &&
-      sttGpuEtaMgr.includes('copyRuntimeLibraries'),
-    'WhisperCppManager selects CUDA vs BLAS zip + DLL copy + backend marker'
+      sttGpuEtaMgr.includes('copyRuntimeLibraries') &&
+      sttGpuEtaMgr.includes('ensureWindowsCublasCompanion') &&
+      sttGpuEtaMgr.includes('cublas64_11.dll') &&
+      sttGpuEtaMgr.includes('ntvlibs.cuda11.cublas64_11.runtime.win-x64'),
+    'WhisperCppManager selects CUDA vs BLAS zip + DLL copy + cublas companion'
   );
   const sttGpuEtaDm = fs.readFileSync(
     path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
@@ -5854,6 +5857,31 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
   assert(
     settingsGpuUi.includes('sttGpuCpuNote') && settingsGpuUi.includes('settings-stt-gpu-cpu-note'),
     'Settings STT card documents GPU/CPU reuse honesty'
+  );
+  // v2.3.7 — Downloads UI must show ETA during stt_transcribing; DSP+STT passes GPU knobs
+  assert(
+    controlSource.includes("dl.status === 'stt_transcribing'") &&
+      /showEta[\s\S]*stt_transcribing/.test(controlSource),
+    'ControlWindow showEta includes stt_transcribing (STT ETA visible)'
+  );
+  const libraryPanelSttGpu = fs.readFileSync(
+    path.resolve(__dirname, '../src/renderer/components/LibraryPanel.tsx'),
+    'utf8'
+  );
+  assert(
+    libraryPanelSttGpu.includes('isAi || generateKaraokeStt') &&
+      libraryPanelSttGpu.includes('aiEnableGpu: settings.aiEnableGpu'),
+    'LibraryPanel passes GPU/CPU knobs for STT even when instrumental method is DSP'
+  );
+  const indexSttEnsure = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/index.ts'),
+    'utf8'
+  );
+  assert(
+    indexSttEnsure.includes('resolveWhisperCliBackend') &&
+      indexSttEnsure.includes("karaoke-stt:ensure-binary") &&
+      indexSttEnsure.includes('ensureBinary(undefined, backend)'),
+    'karaoke-stt:ensure-binary uses Settings-resolved whisper backend'
   );
   for (const lang of ['en', 'it', 'es', 'fr']) {
     const loc = JSON.parse(

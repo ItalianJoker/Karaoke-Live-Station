@@ -1429,8 +1429,11 @@ export const ControlWindow: React.FC = () => {
               dl.status === 'remuxing' ||
               dl.status === 'converting');
           const showSpeed = dl.status === 'downloading' && Boolean(dl.speed);
+          // Include stt_transcribing — DownloadManager sets payload.eta from whisper -pp velocity.
           const showEta =
-            (dl.status === 'downloading' || dl.status === 'removing_vocals') &&
+            (dl.status === 'downloading' ||
+              dl.status === 'removing_vocals' ||
+              dl.status === 'stt_transcribing') &&
             Boolean(dl.eta) &&
             dl.eta !== '--:--' &&
             !/^n\/?a$/i.test(dl.eta);
@@ -1739,8 +1742,11 @@ export const ControlWindow: React.FC = () => {
                         dl.status === 'remuxing' ||
                         dl.status === 'converting');
                     const showSpeed = dl.status === 'downloading' && Boolean(dl.speed);
+                    // Include stt_transcribing — DownloadManager sets payload.eta from whisper -pp velocity.
                     const showEta =
-                      (dl.status === 'downloading' || dl.status === 'removing_vocals') &&
+                      (dl.status === 'downloading' ||
+                        dl.status === 'removing_vocals' ||
+                        dl.status === 'stt_transcribing') &&
                       Boolean(dl.eta) &&
                       dl.eta !== '--:--' &&
                       !/^n\/?a$/i.test(dl.eta);
