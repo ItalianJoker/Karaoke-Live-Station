@@ -255,7 +255,12 @@ export interface KaraokeAPI {
     ensureModel: (
       modelId: string
     ) => Promise<{ success: boolean; modelPath?: string; error?: string }>;
-    ensureBinary: () => Promise<{ success: boolean; binaryPath?: string; error?: string }>;
+    ensureBinary: () => Promise<{
+      success: boolean;
+      binaryPath?: string;
+      backend?: string;
+      error?: string;
+    }>;
     deleteModel: (
       modelId: string
     ) => Promise<{ success: boolean; status?: unknown; error?: string }>;

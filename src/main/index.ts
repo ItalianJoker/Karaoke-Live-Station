@@ -23,7 +23,11 @@ import {
   loadKaraokeScript,
   processKaraokeSttOverlay
 } from './services/KaraokeSttProcessor';
-import { coerceWhisperModelId, type WhisperModelId } from '../shared/whisperStt';
+import {
+  coerceWhisperModelId,
+  resolveWhisperCliBackend,
+  type WhisperModelId
+} from '../shared/whisperStt';
 import {
   SoundFontManager,
   isEphemeralSoundFontPath
@@ -1039,7 +1043,7 @@ class KaraokeMainProcess {
     });
 
     ipcMain.handle('system:get-app-version', () => {
-      return app.getVersion() || '2.3.6';
+      return app.getVersion() || '2.3.8';
     });
 
     /**
@@ -1890,8 +1894,20 @@ class KaraokeMainProcess {
 
     ipcMain.handle('karaoke-stt:ensure-binary', async () => {
       try {
-        const binaryPath = await this.whisperManager.ensureBinary();
-        return { success: true, binaryPath };
+        // Honor Settings GPU knobs — do not default-prefetch CPU BLAS when CUDA is requested.
+        const backend = resolveWhisperCliBackend({
+          aiEnableGpu: coerceAiEnableGpu(this.currentSettings?.aiEnableGpu),
+          aiGpuPreference: coerceAiGpuPreference(
+            (this.currentSettings as { aiGpuPreference?: AiGpuPreference } | undefined)
+              ?.aiGpuPreference
+          )
+        });
+        const binaryPath = await this.whisperManager.ensureBinary(undefined, backend);
+        return {
+          success: true,
+          binaryPath,
+          backend: this.whisperManager.getInstalledBackend() || backend
+        };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { success: false, error: message };

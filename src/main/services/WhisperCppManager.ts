@@ -222,6 +222,29 @@ export class WhisperCppManager {
 
     if (fs.existsSync(target)) {
       try {
+        // CUDA zip without cublas64_11.dll looks “DLL-present” but cannot load — repair companion first.
+        if (
+          process.platform === 'win32' &&
+          backend === 'cublas-11.8' &&
+          installed === 'cublas-11.8' &&
+          this.hasWindowsRuntimeDlls(target) &&
+          !this.hasWindowsCublasCompanionDll(target)
+        ) {
+          this.logger.warn(
+            'WhisperCppManager',
+            'CUDA whisper-cli missing cublas64_11.dll companion — repairing without full reinstall'
+          );
+          try {
+            await this.ensureWindowsCublasCompanion(target, signal);
+          } catch (err) {
+            this.logger.warn(
+              'WhisperCppManager',
+              `cublas companion repair failed — will reinstall CUDA zip (${
+                err instanceof Error ? err.message : String(err)
+              })`
+            );
+          }
+        }
         const healthy = fs.statSync(target).size > 100_000 && this.isBinaryInstallHealthy(target);
         // Unmarked installs (pre-backend-marker) are treated as blas.
         const markerOk = installed ? installed === backend : backend === 'blas';
@@ -359,9 +382,24 @@ export class WhisperCppManager {
         fs.renameSync(zipPath, dest);
       }
       this.ensureExecutable(dest);
+      // Official whisper-cublas-11.8 zip ships cudart + ggml-cuda but omits cublas64_11.dll
+      // (hard import of ggml-cuda.dll). Without it, -h exits STATUS_DLL_NOT_FOUND and we
+      // soft-fell back to BLAS — STT never used GPU. Fetch/copy the companion before probe.
+      if (process.platform === 'win32' && backend === 'cublas-11.8') {
+        await this.ensureWindowsCublasCompanion(dest, signal);
+      }
       if (process.platform === 'win32' && !this.hasWindowsRuntimeDlls(dest)) {
         throw new Error(
           'Downloaded whisper-cli is missing runtime DLLs (OpenBLAS / CUDA / ggml / whisper). Zip extract incomplete.'
+        );
+      }
+      if (
+        process.platform === 'win32' &&
+        backend === 'cublas-11.8' &&
+        !this.hasWindowsCublasCompanionDll(dest)
+      ) {
+        throw new Error(
+          'CUDA whisper-cli is missing cublas64_11.dll (required by ggml-cuda.dll) — cannot enable GPU STT'
         );
       }
       // Probe -h (whisper-cli has no stable --version on all builds).
@@ -401,8 +439,9 @@ export class WhisperCppManager {
     // Official whisper.cpp release assets (v1.7.6).
     // Win: BLAS (CPU) or cuBLAS 11.8 (NVIDIA CUDA). cuBLAS 12.4 zip is ~443 MB — not default.
     // macOS/Linux: no official CUDA/Vulkan desktop zip here — seed/PATH / platform-tagged try.
+    // Use ggml-org (canonical) — ggerganov URLs 301-redirect here.
     const tag = 'v1.7.6';
-    const base = `https://github.com/ggerganov/whisper.cpp/releases/download/${tag}`;
+    const base = `https://github.com/ggml-org/whisper.cpp/releases/download/${tag}`;
     if (process.platform === 'win32') {
       if (backend === 'cublas-11.8') {
         return {
@@ -440,25 +479,10 @@ export class WhisperCppManager {
     destPath: string,
     memberHint: string
   ): Promise<void> {
-    const { execFile } = await import('child_process');
-    const { promisify } = await import('util');
-    const execFileAsync = promisify(execFile);
     const extractDir = `${zipPath}.extract`;
     fs.mkdirSync(extractDir, { recursive: true });
     try {
-      if (process.platform === 'win32') {
-        await execFileAsync(
-          'powershell.exe',
-          [
-            '-NoProfile',
-            '-Command',
-            `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${extractDir.replace(/'/g, "''")}' -Force`
-          ],
-          { timeout: 120000 }
-        );
-      } else {
-        await execFileAsync('unzip', ['-o', zipPath, '-d', extractDir], { timeout: 120000 });
-      }
+      await this.extractZipArchive(zipPath, extractDir);
       const found = this.findFileRecursive(extractDir, memberHint);
       if (!found) {
         throw new Error(`whisper-cli binary (${memberHint}) not found inside downloaded zip`);
@@ -535,6 +559,136 @@ export class WhisperCppManager {
     return false;
   }
 
+  /** ggml-cuda.dll hard-imports cublas64_11.dll — required for CUDA whisper-cli to load. */
+  private hasWindowsCublasCompanionDll(binPath: string): boolean {
+    return fs.existsSync(path.join(path.dirname(binPath), 'cublas64_11.dll'));
+  }
+
+  /**
+   * Ensure cublas64_11.dll sits next to whisper-cli.exe for the CUDA zip.
+   * Upstream whisper-cublas-11.8.0-bin-x64.zip omits it; without the companion,
+   * Windows fails process load (STATUS_DLL_NOT_FOUND) and we incorrectly fell back to BLAS.
+   */
+  private async ensureWindowsCublasCompanion(
+    binPath: string,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const destDir = path.dirname(binPath);
+    const destDll = path.join(destDir, 'cublas64_11.dll');
+    if (fs.existsSync(destDll) && fs.statSync(destDll).size > 1_000_000) {
+      return;
+    }
+
+    const fromSystem = this.findSystemCublas64_11();
+    if (fromSystem) {
+      fs.copyFileSync(fromSystem, destDll);
+      this.logger.info('WhisperCppManager', 'Copied system cublas64_11.dll beside whisper-cli', {
+        fromSystem,
+        destDll
+      });
+      return;
+    }
+
+    // NVIDIA CUDA redistributable DLL via NuGet native runtime package (~62 MB).
+    // Package metadata is MIT; the native DLL remains NVIDIA CUDA redistributable.
+    const nupkgUrl =
+      'https://api.nuget.org/v3-flatcontainer/ntvlibs.cuda11.cublas64_11.runtime.win-x64/11.8.0/ntvlibs.cuda11.cublas64_11.runtime.win-x64.11.8.0.nupkg';
+    // Use .zip suffix so Windows Expand-Archive accepts the NuGet package (ZIP container).
+    const nupkgPath = path.join(this.getBinDir(), `cublas64_11.download.${Date.now()}.zip`);
+    this.logger.info(
+      'WhisperCppManager',
+      'Fetching cublas64_11.dll companion (missing from official whisper CUDA zip)',
+      { nupkgUrl }
+    );
+    await this.downloadUrlToFile(nupkgUrl, nupkgPath, signal);
+    const extractDir = `${nupkgPath}.extract`;
+    fs.mkdirSync(extractDir, { recursive: true });
+    try {
+      await this.extractZipArchive(nupkgPath, extractDir);
+      const found = this.findFileRecursive(extractDir, 'cublas64_11.dll');
+      if (!found) {
+        throw new Error('cublas64_11.dll not found inside CUDA companion package');
+      }
+      fs.copyFileSync(found, destDll);
+      this.logger.info('WhisperCppManager', 'Installed cublas64_11.dll companion', {
+        destDll,
+        bytes: fs.statSync(destDll).size
+      });
+    } finally {
+      try {
+        if (fs.existsSync(nupkgPath)) fs.unlinkSync(nupkgPath);
+      } catch {
+        /* ignore */
+      }
+      try {
+        fs.rmSync(extractDir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  /** Best-effort locate cublas64_11.dll from a local CUDA Toolkit install. */
+  private findSystemCublas64_11(): string | null {
+    const candidates: string[] = [];
+    const pushBin = (root: string | undefined | null) => {
+      if (!root) return;
+      candidates.push(path.join(root, 'bin', 'cublas64_11.dll'));
+      candidates.push(path.join(root, 'cublas64_11.dll'));
+    };
+    pushBin(process.env.CUDA_PATH);
+    pushBin(process.env.CUDA_PATH_V11_8);
+    pushBin(process.env.CUDA_PATH_V11_7);
+    pushBin(process.env.CUDA_PATH_V11_6);
+    const toolkitRoot = 'C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA';
+    try {
+      if (fs.existsSync(toolkitRoot)) {
+        for (const ent of fs.readdirSync(toolkitRoot, { withFileTypes: true })) {
+          if (!ent.isDirectory()) continue;
+          if (!/^v11/i.test(ent.name)) continue;
+          pushBin(path.join(toolkitRoot, ent.name));
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    // Also scan PATH entries for a loose DLL (rare).
+    const pathEnv = process.env.PATH || '';
+    for (const part of pathEnv.split(';')) {
+      if (!part) continue;
+      candidates.push(path.join(part, 'cublas64_11.dll'));
+    }
+    for (const p of candidates) {
+      try {
+        if (fs.existsSync(p) && fs.statSync(p).size > 1_000_000) return p;
+      } catch {
+        /* ignore */
+      }
+    }
+    return null;
+  }
+
+  /** Expand a zip/nupkg into extractDir (Windows Expand-Archive / unzip). */
+  private async extractZipArchive(zipPath: string, extractDir: string): Promise<void> {
+    const { execFile } = await import('child_process');
+    const { promisify } = await import('util');
+    const execFileAsync = promisify(execFile);
+    fs.mkdirSync(extractDir, { recursive: true });
+    if (process.platform === 'win32') {
+      await execFileAsync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-Command',
+          `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${extractDir.replace(/'/g, "''")}' -Force`
+        ],
+        { timeout: 180000 }
+      );
+    } else {
+      await execFileAsync('unzip', ['-o', zipPath, '-d', extractDir], { timeout: 180000 });
+    }
+  }
+
   private static isDllNotFoundExit(status: unknown): boolean {
     const n = typeof status === 'number' ? status : Number(status);
     if (!Number.isFinite(n)) return false;
@@ -600,6 +754,18 @@ export class WhisperCppManager {
         this.logger.warn(
           'WhisperCppManager',
           'whisper-cli present but runtime DLLs missing — will reinstall'
+        );
+        return false;
+      }
+      // CUDA stack without cublas64_11.dll cannot load (ggml.dll → ggml-cuda → cublas).
+      const dir = path.dirname(binPath);
+      const hasCudaStack =
+        fs.existsSync(path.join(dir, 'ggml-cuda.dll')) ||
+        fs.existsSync(path.join(dir, 'cudart64_110.dll'));
+      if (hasCudaStack && !this.hasWindowsCublasCompanionDll(binPath)) {
+        this.logger.warn(
+          'WhisperCppManager',
+          'CUDA whisper-cli present but cublas64_11.dll missing — will repair/reinstall'
         );
         return false;
       }
