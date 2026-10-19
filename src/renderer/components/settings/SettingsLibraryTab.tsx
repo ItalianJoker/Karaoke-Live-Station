@@ -49,6 +49,7 @@ import {
 import { coerceAiEnableGpu } from '../../../shared/aiOrtProviders';
 import { coerceAiGpuPreference, type AiGpuPreference } from '../../../shared/aiGpuPreference';
 import type { SettingsLibraryTabProps } from './settingsTypes';
+import { showToast } from '../../utils/toast';
 
 /**
  * Library & Download settings tab: path, auto-archive, concurrency, instrumental AI, yt-dlp.
@@ -62,6 +63,8 @@ import type { SettingsLibraryTabProps } from './settingsTypes';
  * AI acceleration UI: GPU toggle+badge and CPU cores are sibling bordered cards; MDX
  * `mdxEnableOrt` lives in the CPU card (still MDX-method-only).
  * `instrumentalSubtitlesPolicy` select mirrors the modal “remember my choice” (ask/always/never).
+ * Whisper STT rows: Download (ensureModel) + Delete (deleteModel) against userData catalog;
+ * default picker is `sttModelId` (factory medium). Do not add a second STT model UI.
  */
 export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
   t,
@@ -95,6 +98,10 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
     models: Array<{ modelId: string; present: boolean; bytesOnDisk: number }>;
   } | null>(null);
   const [sttBusyId, setSttBusyId] = useState<string | null>(null);
+  /** Per-model download progress label from whisper-stt:model-progress. */
+  const [sttProgressById, setSttProgressById] = useState<
+    Partial<Record<WhisperModelId, string>>
+  >({});
 
   const refreshSttStatus = useCallback(async () => {
     try {
@@ -107,13 +114,77 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
 
   useEffect(() => {
     void refreshSttStatus();
-    const unsub = window.karaokeApi?.karaokeStt?.onModelProgress?.(() => {
+    const unsub = window.karaokeApi?.karaokeStt?.onModelProgress?.((p) => {
+      const id = coerceWhisperModelId(p.modelId);
+      if (p.message) {
+        setSttProgressById((prev) => ({ ...prev, [id]: p.message as string }));
+      }
+      if (p.phase === 'ready' || p.phase === 'error') {
+        setSttProgressById((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
       void refreshSttStatus();
     });
     return () => {
       unsub?.();
     };
   }, [refreshSttStatus]);
+
+  const currentSttModelId = coerceWhisperModelId(settings.sttModelId);
+
+  const handleDownloadSttModel = useCallback(
+    (id: WhisperModelId) => {
+      const sizeLabel = formatBytesApprox(WHISPER_MODELS[id].approxBytes);
+      if (
+        !window.confirm(
+          t('settings.sttDownloadConfirm', {
+            model: id,
+            size: sizeLabel
+          })
+        )
+      ) {
+        return;
+      }
+      if (!window.karaokeApi?.karaokeStt?.ensureModel) {
+        showToast(t('settings.sttDownloadFailed', { error: 'API unavailable' }), 'error');
+        return;
+      }
+      setSttBusyId(id);
+      setSttProgressById((prev) => ({
+        ...prev,
+        [id]: t('settings.sttDownloading')
+      }));
+      void window.karaokeApi.karaokeStt
+        .ensureModel(id)
+        .then((res) => {
+          if (!res.success) {
+            showToast(
+              t('settings.sttDownloadFailed', { error: res.error || 'unknown' }),
+              'error'
+            );
+            return;
+          }
+          showToast(t('settings.sttDownloadSuccess', { model: id }), 'success');
+        })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          showToast(t('settings.sttDownloadFailed', { error: message }), 'error');
+        })
+        .finally(() => {
+          setSttBusyId(null);
+          setSttProgressById((prev) => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          });
+          void refreshSttStatus();
+        });
+    },
+    [refreshSttStatus, t]
+  );
 
   return (
               <div className="space-y-4">
@@ -594,6 +665,9 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                         const info = sttStatus?.models?.find((m) => m.modelId === id);
                         const present = Boolean(info?.present);
                         const bytes = info?.bytesOnDisk || 0;
+                        const isCurrent = id === currentSttModelId;
+                        const isBusy = sttBusyId === id || sttBusyId === 'all';
+                        const progressLabel = sttProgressById[id];
                         return (
                           <li
                             key={id}
@@ -607,22 +681,32 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                                   ({t('settings.sttModelDefaultBadge')})
                                 </span>
                               ) : null}
+                              {isCurrent ? (
+                                <span
+                                  className="ml-1 text-emerald-400"
+                                  data-testid={`settings-stt-current-${id}`}
+                                >
+                                  ({t('settings.sttModelCurrentBadge')})
+                                </span>
+                              ) : null}
                               <span className="block text-slate-500 truncate">
-                                {present
-                                  ? t('settings.sttModelReady', {
-                                      size: formatBytesApprox(bytes)
-                                    })
-                                  : t('settings.sttModelNotDownloaded', {
-                                      size: formatBytesApprox(
-                                        WHISPER_MODELS[id].approxBytes
-                                      )
-                                    })}
+                                {progressLabel
+                                  ? progressLabel
+                                  : present
+                                    ? t('settings.sttModelReady', {
+                                        size: formatBytesApprox(bytes)
+                                      })
+                                    : t('settings.sttModelNotDownloaded', {
+                                        size: formatBytesApprox(
+                                          WHISPER_MODELS[id].approxBytes
+                                        )
+                                      })}
                               </span>
                             </div>
                             {present ? (
                               <button
                                 type="button"
-                                disabled={sttBusyId === id}
+                                disabled={isBusy}
                                 className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-rose-800/60 text-rose-300 hover:bg-rose-950/40 disabled:opacity-50"
                                 data-testid={`settings-stt-delete-${id}`}
                                 onClick={() => {
@@ -639,7 +723,7 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                                   }
                                   setSttBusyId(id);
                                   void window.karaokeApi?.karaokeStt
-                                    ?.deleteModel(id as WhisperModelId)
+                                    ?.deleteModel(id)
                                     .then(() => refreshSttStatus())
                                     .finally(() => setSttBusyId(null));
                                 }}
@@ -647,7 +731,20 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                                 <Trash2 className="w-3 h-3" />
                                 {t('settings.sttDelete')}
                               </button>
-                            ) : null}
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-sky-800/60 text-sky-300 hover:bg-sky-950/40 disabled:opacity-50"
+                                data-testid={`settings-stt-download-${id}`}
+                                onClick={() => handleDownloadSttModel(id)}
+                              >
+                                <Download className="w-3 h-3" />
+                                {isBusy && sttBusyId === id
+                                  ? t('settings.sttDownloading')
+                                  : t('settings.sttDownload')}
+                              </button>
+                            )}
                           </li>
                         );
                       })}
