@@ -20,12 +20,20 @@ type ModelInstallMeta = {
   installedAt: string;
 };
 
+/** Windows NTSTATUS STATUS_DLL_NOT_FOUND (0xC0000135) — unsigned and signed forms. */
+const WIN_STATUS_DLL_NOT_FOUND_U = 3221225781;
+const WIN_STATUS_DLL_NOT_FOUND_S = -1073741515;
+
 /**
  * Manages whisper.cpp CLI binary under `<userData>/bin/` and GGML models under
  * `<userData>/models/whisper/` — never installer / exe dir / asar / extraResources.
  *
  * Mirrors OfflineVocalModelManager (download + staging + progress) and YtDlpUpdater
  * (managed bin under userData). Public delete APIs reclaim disk space.
+ *
+ * On Windows the official whisper-blas zip ships whisper-cli.exe plus runtime DLLs
+ * (libopenblas, ggml*, whisper.dll). Those DLLs must sit next to the exe under
+ * userData/bin or the loader exits with STATUS_DLL_NOT_FOUND before any STT work.
  */
 export class WhisperCppManager {
   private readonly logger: Logger;
@@ -88,7 +96,11 @@ export class WhisperCppManager {
     const bin = this.getBinPath();
     let binaryReady = false;
     try {
-      binaryReady = fs.existsSync(bin) && fs.statSync(bin).size > 100_000;
+      // Size alone is not enough on Windows — exe without sibling DLLs is not runnable.
+      binaryReady =
+        fs.existsSync(bin) &&
+        fs.statSync(bin).size > 100_000 &&
+        (process.platform !== 'win32' || this.hasWindowsRuntimeDlls(bin));
     } catch {
       binaryReady = false;
     }
@@ -145,6 +157,9 @@ export class WhisperCppManager {
    * Ensure whisper-cli exists under userData/bin.
    * Prefer existing managed binary; optionally seed from bundled `bin/<platform>/`;
    * otherwise download platform zip from whisper.cpp GitHub releases when available.
+   *
+   * Broken Windows installs (exe without runtime DLLs / STATUS_DLL_NOT_FOUND probe)
+   * are removed and re-fetched so upgrades repair without manual delete.
    */
   public async ensureBinary(signal?: AbortSignal): Promise<string> {
     if (signal?.aborted) {
@@ -155,13 +170,14 @@ export class WhisperCppManager {
     const target = this.getBinPath();
     if (fs.existsSync(target)) {
       try {
-        if (fs.statSync(target).size > 100_000) {
+        if (fs.statSync(target).size > 100_000 && this.isBinaryInstallHealthy(target)) {
           this.ensureExecutable(target);
           return target;
         }
       } catch {
-        /* fall through */
+        /* fall through to repair */
       }
+      this.removeBrokenBinaryInstall(target);
     }
 
     // Optional seed from package resources (same pattern as yt-dlp/ffmpeg).
@@ -216,7 +232,17 @@ export class WhisperCppManager {
         const dest = this.getBinPath();
         fs.mkdirSync(path.dirname(dest), { recursive: true });
         fs.copyFileSync(src, dest);
+        // Bundle may also ship sibling DLLs / shared libs next to the exe.
+        this.copyRuntimeLibraries(path.dirname(src), path.dirname(dest));
         this.ensureExecutable(dest);
+        if (!this.isBinaryInstallHealthy(dest)) {
+          this.logger.warn(
+            'WhisperCppManager',
+            'Bundled whisper-cli failed health probe — falling through to download'
+          );
+          this.removeBrokenBinaryInstall(dest);
+          continue;
+        }
         this.logger.info('WhisperCppManager', 'Seeded whisper-cli from bundle', { src, dest });
         return dest;
       }
@@ -246,18 +272,29 @@ export class WhisperCppManager {
         fs.renameSync(zipPath, dest);
       }
       this.ensureExecutable(dest);
-      // Probe --help (whisper-cli has no stable --version on all builds)
-      try {
-        execFileSync(dest, ['-h'], {
-          encoding: 'utf8',
-          timeout: 8000,
-          stdio: ['ignore', 'pipe', 'pipe']
-        });
-      } catch {
-        // Some builds exit non-zero on -h but still print usage — accept if file is large.
-        if (fs.statSync(dest).size < 100_000) {
-          throw new Error('Downloaded whisper-cli failed execution probe');
+      if (process.platform === 'win32' && !this.hasWindowsRuntimeDlls(dest)) {
+        throw new Error(
+          'Downloaded whisper-cli is missing runtime DLLs (libopenblas / ggml / whisper). Zip extract incomplete.'
+        );
+      }
+      // Probe -h (whisper-cli has no stable --version on all builds).
+      // Windows: never mark ready on STATUS_DLL_NOT_FOUND / missing DLLs.
+      // Other platforms: keep prior tolerance for large bins that exit oddly on -h.
+      const probe = this.probeBinaryHelp(dest);
+      if (!probe.ok) {
+        const dllFail =
+          probe.reason?.includes('STATUS_DLL_NOT_FOUND') ||
+          probe.reason?.includes('DLL load') ||
+          probe.reason?.includes('runtime DLLs');
+        if (process.platform === 'win32' || dllFail || fs.statSync(dest).size < 100_000) {
+          throw new Error(
+            `Downloaded whisper-cli failed execution probe${probe.reason ? `: ${probe.reason}` : ''}`
+          );
         }
+        this.logger.warn(
+          'WhisperCppManager',
+          `whisper-cli -h probe inconclusive (${probe.reason}); accepting large binary`
+        );
       }
       this.logger.info('WhisperCppManager', 'whisper-cli ready', { dest });
       return dest;
@@ -327,7 +364,11 @@ export class WhisperCppManager {
       if (!found) {
         throw new Error(`whisper-cli binary (${memberHint}) not found inside downloaded zip`);
       }
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
       fs.copyFileSync(found, destPath);
+      // Windows whisper-blas zip: Release/ holds whisper-cli.exe + required DLLs.
+      // Copy all runtime shared libraries from the exe's folder next to dest.
+      this.copyRuntimeLibraries(path.dirname(found), path.dirname(destPath));
     } finally {
       try {
         fs.rmSync(extractDir, { recursive: true, force: true });
@@ -335,6 +376,163 @@ export class WhisperCppManager {
         /* ignore */
       }
     }
+  }
+
+  /**
+   * Copy runtime shared libraries that must sit next to whisper-cli
+   * (Windows .dll from Release/; also .so / .dylib when present).
+   */
+  private copyRuntimeLibraries(srcDir: string, destDir: string): void {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(srcDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    fs.mkdirSync(destDir, { recursive: true });
+    let copied = 0;
+    for (const e of entries) {
+      if (!e.isFile()) continue;
+      const lower = e.name.toLowerCase();
+      if (!(lower.endsWith('.dll') || lower.endsWith('.so') || lower.endsWith('.dylib'))) {
+        continue;
+      }
+      const src = path.join(srcDir, e.name);
+      const dest = path.join(destDir, e.name);
+      fs.copyFileSync(src, dest);
+      copied += 1;
+    }
+    if (copied > 0) {
+      this.logger.info('WhisperCppManager', `Copied ${copied} whisper runtime librar${copied === 1 ? 'y' : 'ies'}`, {
+        srcDir,
+        destDir
+      });
+    }
+  }
+
+  /** True when at least one known whisper.cpp Windows runtime DLL sits beside the exe. */
+  private hasWindowsRuntimeDlls(binPath: string): boolean {
+    const dir = path.dirname(binPath);
+    const markers = ['libopenblas.dll', 'whisper.dll', 'ggml.dll'];
+    return markers.some((name) => fs.existsSync(path.join(dir, name)));
+  }
+
+  private static isDllNotFoundExit(status: unknown): boolean {
+    const n = typeof status === 'number' ? status : Number(status);
+    if (!Number.isFinite(n)) return false;
+    return n === WIN_STATUS_DLL_NOT_FOUND_U || n === WIN_STATUS_DLL_NOT_FOUND_S;
+  }
+
+  /**
+   * Run whisper-cli -h. Accept success or non-zero exit that still prints usage.
+   * Reject STATUS_DLL_NOT_FOUND / missing-DLL failures even when the exe is large.
+   */
+  private probeBinaryHelp(binPath: string): { ok: boolean; reason?: string } {
+    try {
+      execFileSync(binPath, ['-h'], {
+        encoding: 'utf8',
+        timeout: 8000,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+      return { ok: true };
+    } catch (err) {
+      const e = err as {
+        status?: number;
+        code?: string | number;
+        stdout?: string | Buffer;
+        stderr?: string | Buffer;
+        message?: string;
+      };
+      const status = e?.status ?? (typeof e?.code === 'number' ? e.code : undefined);
+      if (WhisperCppManager.isDllNotFoundExit(status)) {
+        return {
+          ok: false,
+          reason: 'STATUS_DLL_NOT_FOUND (whisper runtime DLLs missing next to whisper-cli.exe)'
+        };
+      }
+      const stdout = String(e?.stdout ?? '');
+      const stderr = String(e?.stderr ?? '');
+      const combined = `${stdout}\n${stderr}\n${e?.message ?? ''}`.toLowerCase();
+      if (
+        /status_dll_not_found|c0000135|3221225781|dll was not found|missing.*\.dll/.test(combined)
+      ) {
+        return { ok: false, reason: 'DLL load failure during whisper-cli probe' };
+      }
+      // Some builds exit non-zero on -h but still print usage — treat as success.
+      if (/usage:|whisper|options:|\s-m\s|model/.test(combined)) {
+        return { ok: true };
+      }
+      if (fs.existsSync(binPath) && fs.statSync(binPath).size < 100_000) {
+        return { ok: false, reason: 'binary too small after probe failure' };
+      }
+      return { ok: false, reason: 'execution probe failed without usage output' };
+    }
+  }
+
+  /**
+   * Cached install health. Non-Windows: size floor (unchanged).
+   * Windows: require sibling runtime DLLs + successful -h probe so exe-only
+   * installs from older app versions are force-repaired.
+   */
+  private isBinaryInstallHealthy(binPath: string): boolean {
+    try {
+      if (!fs.existsSync(binPath) || fs.statSync(binPath).size <= 100_000) return false;
+      if (process.platform !== 'win32') return true;
+      if (!this.hasWindowsRuntimeDlls(binPath)) {
+        this.logger.warn(
+          'WhisperCppManager',
+          'whisper-cli present but runtime DLLs missing — will reinstall'
+        );
+        return false;
+      }
+      const probe = this.probeBinaryHelp(binPath);
+      if (!probe.ok) {
+        this.logger.warn(
+          'WhisperCppManager',
+          `whisper-cli probe failed (${probe.reason}) — will reinstall`
+        );
+        return false;
+      }
+      return true;
+    } catch (err) {
+      this.logger.warn('WhisperCppManager', 'whisper-cli health check error — will reinstall', err);
+      return false;
+    }
+  }
+
+  /** Remove broken whisper-cli (+ known Windows runtime DLLs) so ensureBinary can re-fetch. */
+  private removeBrokenBinaryInstall(binPath: string): void {
+    const dir = path.dirname(binPath);
+    try {
+      if (fs.existsSync(binPath)) fs.unlinkSync(binPath);
+    } catch (err) {
+      this.logger.warn('WhisperCppManager', `Failed to delete broken binary ${binPath}`, err);
+    }
+    if (process.platform === 'win32') {
+      try {
+        for (const name of fs.readdirSync(dir)) {
+          const lower = name.toLowerCase();
+          if (!lower.endsWith('.dll')) continue;
+          if (
+            lower === 'libopenblas.dll' ||
+            lower === 'whisper.dll' ||
+            lower.startsWith('ggml') ||
+            lower.startsWith('whisper')
+          ) {
+            try {
+              fs.unlinkSync(path.join(dir, name));
+            } catch {
+              /* ignore locked files */
+            }
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    this.logger.info('WhisperCppManager', 'Removed broken whisper-cli install for repair', {
+      binPath
+    });
   }
 
   private findFileRecursive(dir: string, name: string): string | null {

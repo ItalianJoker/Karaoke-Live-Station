@@ -3241,8 +3241,8 @@ assert(
     settingsModalSrcV13.includes('aiCpuThreads') &&
     settingsModalSrcV13.includes('autoMaximizeControlOnLaunch') &&
     settingsModalSrcV13.includes('autoOpenStageOnLaunch') &&
-    settingsModalShellV13.includes("useState('2.3.3')"),
-  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.3 footer state'
+    settingsModalShellV13.includes("useState('2.3.4')"),
+  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.4 footer state'
 );
 
 // Instrumental block lives under Library tab component (shell still orders library before audio)
@@ -3262,10 +3262,14 @@ assert(
 const pkgV13 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
 const changelogV13 = fs.readFileSync(path.resolve(__dirname, '../CHANGELOG.md'), 'utf8');
 const releaseNotesV13 = fs.readFileSync(path.resolve(__dirname, '../RELEASE_NOTES.md'), 'utf8');
-assert(pkgV13.version === '2.3.3', 'package.json version is 2.3.3');
+assert(pkgV13.version === '2.3.4', 'package.json version is 2.3.4');
+assert(
+  changelogV13.includes('## [2.3.4]') || changelogV13.includes('## [2.3.4] '),
+  'CHANGELOG has ## [2.3.4] section'
+);
 assert(
   changelogV13.includes('## [2.3.3]') || changelogV13.includes('## [2.3.3] '),
-  'CHANGELOG has ## [2.3.3] section'
+  'CHANGELOG retains ## [2.3.3] section'
 );
 assert(
   changelogV13.includes('## [2.3.2]') || changelogV13.includes('## [2.3.2] '),
@@ -3308,8 +3312,8 @@ assert(
   'CHANGELOG retains ## [1.3.0] section'
 );
 assert(
-  /v2\.3\.3|Version 2\.3\.3|Versione 2\.3\.3/.test(releaseNotesV13),
-  'RELEASE_NOTES mentions 2.3.3'
+  /v2\.3\.4|Version 2\.3\.4|Versione 2\.3\.4/.test(releaseNotesV13),
+  'RELEASE_NOTES mentions 2.3.4'
 );
 
 for (const lang of ['it', 'en', 'es', 'fr']) {
@@ -4153,7 +4157,7 @@ console.log('\n\x1b[36m▶ Suite: Safety-First modularization, virtualization, i
   );
 
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert(pkg.version === '2.3.3', 'package.json is 2.3.3 (new release cycle)');
+  assert(pkg.version === '2.3.4', 'package.json is 2.3.4 (new release cycle)');
 
   // Manual chapter parity markers (DnD / recursive scan / Bungee / AppImage SoundFont)
   for (const manual of [
@@ -5425,6 +5429,17 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
       mgrSrc.includes('deleteAllModels'),
     'WhisperCppManager uses userData/models/whisper + delete APIs'
   );
+  assert(
+    mgrSrc.includes('copyRuntimeLibraries') &&
+      mgrSrc.includes('hasWindowsRuntimeDlls') &&
+      mgrSrc.includes('libopenblas.dll') &&
+      mgrSrc.includes('STATUS_DLL_NOT_FOUND') &&
+      mgrSrc.includes('3221225781') &&
+      mgrSrc.includes('removeBrokenBinaryInstall') &&
+      mgrSrc.includes('isBinaryInstallHealthy') &&
+      mgrSrc.includes('probeBinaryHelp'),
+    'WhisperCppManager Windows DLL packaging + probe + repair'
+  );
 
   const modalSrc = fs.readFileSync(
     path.resolve(__dirname, '../src/renderer/components/InstrumentalSubtitlesModal.tsx'),
@@ -5713,7 +5728,10 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
   }
 
   const pkg230 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert(pkg230.version === '2.3.3', 'package.json is 2.3.3 (includes STT + #86/#88/#90 fixes)');
+  assert(
+    pkg230.version === '2.3.4',
+    'package.json is 2.3.4 (includes STT + #86/#88/#90 + Win DLL packaging)'
+  );
 }
 
 // Summary
