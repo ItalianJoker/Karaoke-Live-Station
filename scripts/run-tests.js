@@ -5520,6 +5520,60 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
       sttProcSrc.includes('attachScriptToMediaPath'),
     'KaraokeSttProcessor rejects instrumental paths + attachScriptToMediaPath'
   );
+  // Root-cause fix: invalid `-ow` made whisper-cli exit(0) with no JSON → Stage blank.
+  assert(
+    sttProcSrc.includes("'-ojf'") &&
+      !sttProcSrc.includes("'-ow'") &&
+      !/"-oj"\s*,/.test(sttProcSrc) &&
+      sttProcSrc.includes('unknown argument') &&
+      sttProcSrc.includes('Whisper produced empty transcription'),
+    'KaraokeSttProcessor uses -ojf (not -oj/-ow) + rejects empty transcript'
+  );
+
+  // Mapper smoke: -ojf tokens → non-empty lines; special tokens filtered
+  {
+    // Inline mirror of special-token filter (no TS import in node test runner)
+    function extractWords(raw) {
+      const out = [];
+      const push = (text, startSec, endSec) => {
+        const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
+        if (!cleaned) return;
+        if (/^\[.*\]$/.test(cleaned) || cleaned === '</s>' || cleaned.startsWith('<|')) return;
+        out.push({
+          text: cleaned,
+          startMs: Math.max(0, Math.round(startSec * 1000)),
+          endMs: Math.max(40, Math.round(endSec * 1000))
+        });
+      };
+      for (const seg of raw.transcription || []) {
+        if (Array.isArray(seg.tokens)) {
+          for (const tok of seg.tokens) {
+            const off = tok.offsets || {};
+            push(tok.text, (off.from || 0) / 1000, (off.to || 0) / 1000);
+          }
+        }
+      }
+      return out;
+    }
+    const sample = {
+      transcription: [
+        {
+          offsets: { from: 0, to: 2000 },
+          text: ' Hello world',
+          tokens: [
+            { text: '[_BEG_]', offsets: { from: 0, to: 0 } },
+            { text: ' Hello', offsets: { from: 0, to: 800 } },
+            { text: ' world', offsets: { from: 800, to: 2000 } }
+          ]
+        }
+      ]
+    };
+    const words = extractWords(sample);
+    assert(
+      words.length === 2 && words[0].text === 'Hello' && words[1].text === 'world',
+      'whisper -ojf tokens map to words; special [_BEG_] filtered'
+    );
+  }
 
   const sttPathsSrc = fs.readFileSync(
     path.resolve(__dirname, '../src/shared/karaokeSttPaths.ts'),

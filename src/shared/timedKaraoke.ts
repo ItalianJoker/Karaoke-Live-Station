@@ -110,13 +110,15 @@ function extractWhisperWords(raw: unknown): RawWord[] {
   const pushWord = (text: string, startSec: number, endSec: number, conf?: number) => {
     const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
     if (!cleaned) return;
+    // Skip whisper.cpp special / non-speech tokens from -ojf (`[_BEG_]`, `[_TT_…]`, `</s>`, …)
+    if (/^\[.*\]$/.test(cleaned) || cleaned === '</s>' || cleaned.startsWith('<|')) return;
     const startMs = Math.max(0, Math.round(startSec * 1000));
     const endMs = Math.max(startMs + 40, Math.round(endSec * 1000));
     out.push({
       text: cleaned,
       startMs,
       endMs,
-      confidence: typeof conf === 'number' ? conf : undefined
+      confidence: typeof conf === 'number' && Number.isFinite(conf) ? conf : undefined
     });
   };
 

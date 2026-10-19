@@ -153,6 +153,20 @@ export async function processKaraokeSttOverlay(options: {
       usedVocalStem
     });
 
+    // Empty transcript must not soft-succeed — Stage would mount a blank overlay.
+    if (!script.lines.length) {
+      options.logger?.warn('KaraokeSttProcessor', 'Whisper produced empty transcription', {
+        trackId: options.trackId,
+        modelId,
+        usedVocalStem
+      });
+      return {
+        success: false,
+        error: 'Whisper produced empty transcription (no timed words)',
+        usedVocalStem
+      };
+    }
+
     const scriptPath = resolveKaraokeScriptPath({
       mediaPath: attachMedia,
       trackId: options.trackId,
@@ -267,8 +281,10 @@ async function runWhisperCli(opts: {
   signal?: AbortSignal;
   onProgress?: (fraction0to1: number) => void;
 }): Promise<string> {
-  // whisper.cpp CLI: word timestamps + JSON
-  // Prefer modern flags; fall back to short flags used by older builds.
+  // whisper.cpp CLI (v1.7.x): `-ojf` writes JSON *with* token/word timestamps.
+  // Do NOT use `-oj` alone (no tokens) or `-ow` (invalid; real flag is `-owts` for .wts karaoke
+  // scripts). Unknown args make whisper-cli `exit(0)` after printing usage — no JSON written —
+  // which previously soft-failed the download and left Stage with nothing to overlay.
   const args = [
     '-m',
     opts.modelPath,
@@ -276,8 +292,7 @@ async function runWhisperCli(opts: {
     opts.wavPath,
     '-of',
     opts.outputBase,
-    '-oj',
-    '-ow',
+    '-ojf',
     '-np'
   ];
   if (opts.language && opts.language !== 'auto') {
@@ -311,6 +326,15 @@ async function runWhisperCli(opts: {
         const err = new Error('Aborted');
         err.name = 'AbortError';
         reject(err);
+        return;
+      }
+      // whisper.cpp exits 0 on unknown args after printing usage — treat as failure.
+      if (/unknown argument/i.test(stderr)) {
+        reject(
+          new Error(
+            `whisper-cli rejected arguments${stderr ? `: ${stderr.slice(-400)}` : ''}`
+          )
+        );
         return;
       }
       if (code !== 0) {
