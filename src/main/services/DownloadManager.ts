@@ -357,6 +357,39 @@ export class DownloadManager {
     return crypto.createHash('sha1').update(norm).digest('hex');
   }
 
+  /**
+   * Move/copy karaoke sidecars (`.karaoke.json`, optional `.ass`) from beside
+   * `sourceMediaPath` to beside `destMediaPath`. Used after instrumental remux
+   * and when promoting temp media into library / queue cache so Stage can find lyrics.
+   */
+  public static promoteKaraokeSidecars(
+    sourceMediaPath: string,
+    destMediaPath: string
+  ): void {
+    if (!sourceMediaPath || !destMediaPath) return;
+    if (path.resolve(sourceMediaPath) === path.resolve(destMediaPath)) return;
+    for (const suffix of ['.karaoke.json', '.ass'] as const) {
+      const from = `${sourceMediaPath}${suffix}`;
+      const to = `${destMediaPath}${suffix}`;
+      try {
+        if (!fs.existsSync(from)) continue;
+        if (fs.existsSync(to) && path.resolve(from) === path.resolve(to)) continue;
+        try {
+          fs.renameSync(from, to);
+        } catch {
+          fs.copyFileSync(from, to);
+          try {
+            fs.unlinkSync(from);
+          } catch {
+            /* ignore unlink races */
+          }
+        }
+      } catch {
+        /* ignore sidecar races */
+      }
+    }
+  }
+
   public static sanitizeFilenamePart(name: string): string {
     return (
       (name || '')
@@ -1046,6 +1079,9 @@ export class DownloadManager {
               // Only this downloadId's conversion temps — never wipe unrelated files in temp.
               const victims = [
                 originalVideoPath,
+                // STT sidecar written beside original before remux (promoted to instrumental first).
+                `${originalVideoPath}.karaoke.json`,
+                `${originalVideoPath}.ass`,
                 extractWavPath,
                 aiOutputWavPath,
                 `${instrumentalOut}.partial.mp4`,
@@ -1055,6 +1091,8 @@ export class DownloadManager {
               ];
               if (!keepRemuxArtifact) {
                 victims.push(instrumentalOut);
+                // Drop instrumental sidecars only on cancel/error (success keeps them for Stage).
+                victims.push(`${instrumentalOut}.karaoke.json`, `${instrumentalOut}.ass`);
               }
               const removed: string[] = [];
               const seen = new Set<string>();
@@ -1095,6 +1133,104 @@ export class DownloadManager {
               }
             );
 
+            const signal = job?.abortController.signal;
+            const willRunStt =
+              options.generateKaraokeStt === true && Boolean(this.whisperManager) && Boolean(options.trackId);
+            // Script path from Whisper on original — promoted beside instrumental after remux.
+            let sttScriptPath: string | null = null;
+
+            // Pipeline order (Luca): download original → Whisper STT → remove vocals → remux
+            // instrumental → attach/promote sidecar onto final instrumental.
+            // Invariant (#86): never pass instrumentalOut / aiOutputWavPath as Whisper audio.
+            if (
+              willRunStt &&
+              this.whisperManager &&
+              options.trackId &&
+              originalVideoPath &&
+              fs.existsSync(originalVideoPath)
+            ) {
+              try {
+                const sttSignal = job?.abortController.signal;
+                if ((payload.status as DownloadProgressPayload['status']) !== 'cancelled') {
+                  payload.status = 'stt_ensuring';
+                  payload.percent = 0;
+                  payload.speed = '';
+                  payload.eta = '--:--';
+                  this.emitProgress({ ...payload });
+                }
+                // Whisper on original video (speech-bearing). Never instrumentalOut.
+                const sttInputPath = originalVideoPath;
+                this.logger?.info(
+                  'DownloadManager',
+                  `Karaoke STT before instrumental: input=${sttInputPath} (never instrumentalOut)`,
+                  {
+                    downloadId,
+                    originalVideoPath,
+                    instrumentalOut,
+                    aiOutputWavPath
+                  }
+                );
+                const sttResult = await processKaraokeSttOverlay({
+                  inputVideoPath: sttInputPath,
+                  trackId: String(options.trackId),
+                  libraryPath: options.libraryPath,
+                  modelId: coerceWhisperModelId(options.sttModelId),
+                  // Vocal stem export not wired yet — do not pass instrumental extract.
+                  vocalStemPath: null,
+                  // Instrumental remux does not exist yet — promote sidecar after remux.
+                  whisperManager: this.whisperManager,
+                  signal: sttSignal,
+                  logger: this.logger,
+                  onProgress: (phase, percent) => {
+                    if (payload.status === 'cancelled') return;
+                    if (phase === 'ensuring_engine') {
+                      payload.status = 'stt_ensuring';
+                    } else {
+                      payload.status = 'stt_transcribing';
+                    }
+                    payload.percent = Math.max(0, Math.min(100, percent));
+                    payload.speed = '';
+                    this.emitProgress({ ...payload });
+                  }
+                });
+                if (sttResult.cancelled) {
+                  cleanupInstrumentalRunTemps(false);
+                  payload.status = 'cancelled';
+                  payload.errorMessage = 'Download cancelled by user';
+                  this.emitProgress({ ...payload });
+                  this.activeJobs.delete(downloadId);
+                  this.activeUrls.delete(dedupUrlKey);
+                  return;
+                }
+                if (!sttResult.success) {
+                  // Best-effort: continue vocal removal + remux without lyrics.
+                  this.logger?.warn(
+                    'DownloadManager',
+                    `Karaoke STT failed (continuing instrumental): ${sttResult.error || 'unknown'}`,
+                    { downloadId }
+                  );
+                } else if (sttResult.scriptPath && fs.existsSync(sttResult.scriptPath)) {
+                  sttScriptPath = sttResult.scriptPath;
+                }
+              } catch (sttErr) {
+                this.logger?.warn(
+                  'DownloadManager',
+                  `Karaoke STT threw (continuing instrumental): ${
+                    sttErr instanceof Error ? sttErr.message : String(sttErr)
+                  }`,
+                  { downloadId }
+                );
+              }
+            }
+
+            // Cancel may have flipped status during STT
+            if ((payload.status as DownloadProgressPayload['status']) === 'cancelled') {
+              cleanupInstrumentalRunTemps(false);
+              this.activeJobs.delete(downloadId);
+              this.activeUrls.delete(dedupUrlKey);
+              return;
+            }
+
             // Conversion bar replaces the download bar (fresh 0→100%) for instrumental only
             payload.status = 'processing';
             payload.percent = 0;
@@ -1102,9 +1238,7 @@ export class DownloadManager {
             payload.eta = '--:--';
             this.emitProgress({ ...payload });
 
-            const signal = job?.abortController.signal;
-            const willRunStt =
-              options.generateKaraokeStt === true && Boolean(this.whisperManager) && Boolean(options.trackId);
+            // STT already finished on original — no retainWorkWavs needed for Whisper.
             const result = await processInstrumentalVideo({
               inputVideoPath: originalVideoPath,
               outputPath: instrumentalOut,
@@ -1124,8 +1258,6 @@ export class DownloadManager {
               aiEnableGpu: options.aiEnableGpu,
               aiGpuSupported: options.aiGpuSupported,
               aiGpuPreference: options.aiGpuPreference,
-              // Keep mix WAV until STT finishes (speech-bearing audio for Whisper).
-              retainWorkWavs: willRunStt,
               onProgress: (phase, percent, meta) => {
                 if (payload.status === 'cancelled') return;
                 if (phase === 'ensuring_model') {
@@ -1201,106 +1333,36 @@ export class DownloadManager {
               return;
             }
 
-            // Optional karaoke STT on the ORIGINAL mix (vocals present) before temp cleanup.
-            // Invariant: never pass instrumentalOut / aiOutputWavPath as Whisper audio.
-            // Failure is best-effort — instrumental remux already succeeded.
-            if (
-              willRunStt &&
-              this.whisperManager &&
-              options.trackId &&
-              originalVideoPath &&
-              fs.existsSync(originalVideoPath)
-            ) {
+            // Apply STT onto final instrumental: promote sidecar (+ ASS if any) beside remux.
+            if (result.outputPath) {
               try {
-                const sttSignal = job?.abortController.signal;
-                if ((payload.status as DownloadProgressPayload['status']) !== 'cancelled') {
-                  payload.status = 'stt_ensuring';
-                  payload.percent = 0;
-                  payload.speed = '';
-                  payload.eta = '--:--';
-                  this.emitProgress({ ...payload });
-                }
-                // Prefer retained demux mix WAV when present (speech-bearing); else original MP4.
-                // Never use aiOutputWavPath (instrumental-only) as vocalStemPath — honesty.
-                const retainedMixWav =
-                  extractWavPath && fs.existsSync(extractWavPath) ? extractWavPath : null;
-                const sttInputPath = retainedMixWav || originalVideoPath;
-                this.logger?.info(
-                  'DownloadManager',
-                  `Karaoke STT input=${sttInputPath} (original=${originalVideoPath}; never instrumentalOut)`,
-                  {
-                    downloadId,
-                    instrumentalOut: result.outputPath,
-                    aiOutputWavPath,
-                    retainedMixWav: Boolean(retainedMixWav)
-                  }
-                );
-                const sttResult = await processKaraokeSttOverlay({
-                  inputVideoPath: sttInputPath,
-                  trackId: String(options.trackId),
-                  libraryPath: options.libraryPath,
-                  modelId: coerceWhisperModelId(options.sttModelId),
-                  // Vocal stem export not wired yet — do not pass instrumental extract.
-                  vocalStemPath: null,
-                  // Attach sidecar beside the instrumental remux for Stage playback.
-                  attachScriptToMediaPath: result.outputPath,
-                  whisperManager: this.whisperManager,
-                  signal: sttSignal,
-                  logger: this.logger,
-                  onProgress: (phase, percent) => {
-                    if (payload.status === 'cancelled') return;
-                    if (phase === 'ensuring_engine') {
-                      payload.status = 'stt_ensuring';
-                    } else {
-                      payload.status = 'stt_transcribing';
-                    }
-                    payload.percent = Math.max(0, Math.min(100, percent));
-                    payload.speed = '';
-                    this.emitProgress({ ...payload });
-                  }
-                });
-                if (sttResult.cancelled) {
-                  cleanupInstrumentalRunTemps(false);
-                  payload.status = 'cancelled';
-                  payload.errorMessage = 'Download cancelled by user';
-                  this.emitProgress({ ...payload });
-                  this.activeJobs.delete(downloadId);
-                  this.activeUrls.delete(dedupUrlKey);
-                  return;
-                }
-                if (!sttResult.success) {
-                  this.logger?.warn(
-                    'DownloadManager',
-                    `Karaoke STT failed (instrumental kept): ${sttResult.error || 'unknown'}`,
-                    { downloadId }
-                  );
-                } else if (
-                  sttResult.scriptPath &&
-                  result.outputPath &&
-                  fs.existsSync(sttResult.scriptPath)
+                DownloadManager.promoteKaraokeSidecars(originalVideoPath, result.outputPath);
+                if (
+                  sttScriptPath &&
+                  fs.existsSync(sttScriptPath)
                 ) {
-                  // Also place a sibling sidecar next to the instrumental remux for Stage lookup.
-                  try {
-                    const sibling = `${result.outputPath}.karaoke.json`;
-                    if (path.resolve(sttResult.scriptPath) !== path.resolve(sibling)) {
-                      fs.copyFileSync(sttResult.scriptPath, sibling);
-                    }
-                  } catch {
-                    /* ignore sibling copy races */
+                  const sibling = `${result.outputPath}.karaoke.json`;
+                  if (path.resolve(sttScriptPath) !== path.resolve(sibling)) {
+                    fs.copyFileSync(sttScriptPath, sibling);
                   }
                 }
-              } catch (sttErr) {
-                this.logger?.warn(
-                  'DownloadManager',
-                  `Karaoke STT threw (instrumental kept): ${
-                    sttErr instanceof Error ? sttErr.message : String(sttErr)
-                  }`,
-                  { downloadId }
-                );
+                // Durable library store when path + trackId are known (Stage `.kls-karaoke` lookup).
+                if (
+                  options.libraryPath &&
+                  options.trackId &&
+                  fs.existsSync(`${result.outputPath}.karaoke.json`)
+                ) {
+                  const klsDir = path.join(options.libraryPath, '.kls-karaoke');
+                  const klsPath = path.join(klsDir, `${options.trackId}.karaoke.json`);
+                  fs.mkdirSync(klsDir, { recursive: true });
+                  fs.copyFileSync(`${result.outputPath}.karaoke.json`, klsPath);
+                }
+              } catch {
+                /* ignore sidecar promote races */
               }
             }
 
-            // Success: keep `${downloadId}.instrumental.mp4`; drop source MP4 + WAV temps.
+            // Success: keep `${downloadId}.instrumental.mp4` (+ sidecar); drop source MP4 + WAV temps.
             cleanupInstrumentalRunTemps(true);
             detectedOutputFile = result.outputPath;
           } else if (!detectedOutputFile) {
@@ -1645,6 +1707,24 @@ export class DownloadManager {
       }
     }
 
+    // Keep STT / ASS sidecars with the media so Stage finds lyrics after archive.
+    DownloadManager.promoteKaraokeSidecars(tempFilePath, destinationPath);
+    if (trackMetadata.trackId) {
+      try {
+        const sibling = `${destinationPath}.karaoke.json`;
+        if (fs.existsSync(sibling)) {
+          const klsDir = path.join(targetLibraryDirectory, '.kls-karaoke');
+          const klsPath = path.join(klsDir, `${trackMetadata.trackId}.karaoke.json`);
+          fs.mkdirSync(klsDir, { recursive: true });
+          if (!fs.existsSync(klsPath) || path.resolve(sibling) !== path.resolve(klsPath)) {
+            fs.copyFileSync(sibling, klsPath);
+          }
+        }
+      } catch {
+        /* ignore .kls-karaoke promote races */
+      }
+    }
+
     const isMidi = ext.toLowerCase() === '.mid' || ext.toLowerCase() === '.kar';
     return {
       id: trackMetadata.trackId || `track_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -1701,6 +1781,9 @@ export class DownloadManager {
         }
       }
     }
+
+    // Sidecar must follow queue-cache media (Stage overlay beside cached instrumental).
+    DownloadManager.promoteKaraokeSidecars(tempFilePath, destinationPath);
 
     return {
       localFilePath: destinationPath,

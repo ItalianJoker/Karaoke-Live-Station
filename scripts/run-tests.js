@@ -5481,15 +5481,29 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
   );
   assert(
     dmSrc.includes('generateKaraokeStt') && dmSrc.includes('processKaraokeSttOverlay'),
-    'DownloadManager hooks KaraokeSttProcessor after instrumental'
+    'DownloadManager hooks KaraokeSttProcessor for instrumental STT'
   );
   assert(
-    dmSrc.includes('inputVideoPath: sttInputPath') &&
+    dmSrc.includes('Karaoke STT before instrumental') &&
       dmSrc.includes('never instrumentalOut') &&
-      dmSrc.includes('retainWorkWavs: willRunStt') &&
       dmSrc.includes('vocalStemPath: null') &&
-      dmSrc.includes('attachScriptToMediaPath: result.outputPath'),
-    'DownloadManager STT uses original/mix (not instrumental) + retain temps + sidecar on instrumental'
+      dmSrc.includes('sttInputPath = originalVideoPath') &&
+      dmSrc.includes('promoteKaraokeSidecars') &&
+      !dmSrc.includes('retainWorkWavs: willRunStt'),
+    'DownloadManager STT runs on original before remux + promotes sidecar (no retainWorkWavs for STT)'
+  );
+  // Call-order: Whisper STT block must appear before processInstrumentalVideo in the instrumental path.
+  const sttBeforeIdx = dmSrc.indexOf('Karaoke STT before instrumental');
+  const remuxAwaitIdx = dmSrc.indexOf('await processInstrumentalVideo');
+  assert(
+    sttBeforeIdx > 0 && remuxAwaitIdx > 0 && sttBeforeIdx < remuxAwaitIdx,
+    'DownloadManager calls processKaraokeSttOverlay before processInstrumentalVideo'
+  );
+  assert(
+    dmSrc.includes('promoteKaraokeSidecars(tempFilePath, destinationPath)') &&
+      dmSrc.includes('saveToLibrary') &&
+      dmSrc.includes('saveToQueueCache'),
+    'saveToLibrary / saveToQueueCache promote karaoke sidecars with media'
   );
 
   const sttProcSrc = fs.readFileSync(

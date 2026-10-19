@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+### Fixed
+- **IT:** Pipeline Download Strumentale + STT: Whisper sul video originale **prima** della rimozione voci / remux; sidecar `.karaoke.json` (e `.ass` se presente) promosso accanto allo strumentale finale e spostato con `saveToLibrary` / `saveToQueueCache` (Stage non orfano).
+- **EN:** Download Strumentale + STT pipeline: Whisper on the **original** video **before** vocal removal / remux; `.karaoke.json` sidecar (and `.ass` if present) promoted beside the final instrumental and moved with `saveToLibrary` / `saveToQueueCache` (Stage no longer orphaned).
+
 ### Breaking Changes
 - None.
 
