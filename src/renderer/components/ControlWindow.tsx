@@ -149,7 +149,16 @@ export const ControlWindow: React.FC = () => {
     }
     if (dl.status === 'converting') return t('library.converting');
     if (dl.status === 'downloading') return t('library.downloading');
-    if (dl.status === 'completed') return t('library.downloadCompleted');
+    if (dl.status === 'completed') {
+      if (dl.warningMessage) {
+        return t('stt.softFailDownloadWarning', {
+          error: dl.warningMessage,
+          defaultValue:
+            'Instrumental ready, but karaoke STT failed (no lyrics): {{error}}'
+        });
+      }
+      return t('library.downloadCompleted');
+    }
     if (dl.status === 'error') {
       const localized = localizeDownloadErrorMessage(dl.errorMessage, t as (key: string, options?: unknown) => string);
       return localized
@@ -607,8 +616,13 @@ export const ControlWindow: React.FC = () => {
             payload.status === 'error' ||
             payload.status === 'cancelled'
           ) {
-            // Keep terminal rows longer for reuse/error notices so operators can read them
-            const holdMs = payload.alreadyExists || payload.status === 'error' ? 8000 : 4000;
+            // Keep terminal rows longer for reuse/error/STT soft-fail notices so operators can read them
+            const holdMs =
+              payload.alreadyExists ||
+              payload.status === 'error' ||
+              Boolean(payload.warningMessage)
+                ? 8000
+                : 4000;
             setTimeout(() => {
               setHeaderDownloads((cur) => {
                 const copy = { ...cur };
@@ -624,9 +638,22 @@ export const ControlWindow: React.FC = () => {
           payload.alreadyExists ||
           payload.status === 'error' ||
           payload.status === 'queued' ||
-          payload.status === 'awaiting_auth'
+          payload.status === 'awaiting_auth' ||
+          Boolean(payload.warningMessage)
         ) {
           setShowDownloadsMenu(true);
+        }
+        // STT soft-fail: instrumental completed without lyrics — warn (not silent success).
+        if (payload.status === 'completed' && payload.warningMessage) {
+          showToast(
+            t('stt.softFailDownloadWarning', {
+              error: payload.warningMessage,
+              defaultValue:
+                'Instrumental ready, but karaoke STT failed (no lyrics): {{error}}'
+            }),
+            'warning',
+            10000
+          );
         }
         if (payload.status === 'downloading') {
           setDownloadProgress({ percent: payload.percent, speed: payload.speed || '' });
@@ -1414,7 +1441,9 @@ export const ControlWindow: React.FC = () => {
               ? t('library.ortThreads', { n: dl.ortNumThreads })
               : null;
           const statusTone =
-            dl.alreadyExists || dl.status === 'error' ? 'text-amber-400' : 'text-slate-500';
+            dl.alreadyExists || dl.status === 'error' || Boolean(dl.warningMessage)
+              ? 'text-amber-400'
+              : 'text-slate-500';
           return (
             <div key={dl.downloadId} className="flex items-center gap-2 text-xs">
               <div className="flex-1 min-w-0">
@@ -1722,7 +1751,7 @@ export const ControlWindow: React.FC = () => {
                         ? t('library.ortThreads', { n: dl.ortNumThreads })
                         : null;
                     const statusTone =
-                      dl.alreadyExists || dl.status === 'error'
+                      dl.alreadyExists || dl.status === 'error' || Boolean(dl.warningMessage)
                         ? 'text-amber-400'
                         : 'text-slate-500';
                     return (

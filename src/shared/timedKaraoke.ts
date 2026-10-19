@@ -110,13 +110,15 @@ function extractWhisperWords(raw: unknown): RawWord[] {
   const pushWord = (text: string, startSec: number, endSec: number, conf?: number) => {
     const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
     if (!cleaned) return;
+    // Skip whisper.cpp special / non-speech tokens from -ojf (`[_BEG_]`, `[_TT_…]`, `</s>`, …)
+    if (/^\[.*\]$/.test(cleaned) || cleaned === '</s>' || cleaned.startsWith('<|')) return;
     const startMs = Math.max(0, Math.round(startSec * 1000));
     const endMs = Math.max(startMs + 40, Math.round(endSec * 1000));
     out.push({
       text: cleaned,
       startMs,
       endMs,
-      confidence: typeof conf === 'number' ? conf : undefined
+      confidence: typeof conf === 'number' && Number.isFinite(conf) ? conf : undefined
     });
   };
 
@@ -220,19 +222,88 @@ function groupWordsIntoLines(words: RawWord[]): TimedKaraokeLine[] {
   return lines;
 }
 
-/** Resolve sidecar path beside media or under library `.kls-karaoke/`. */
+/**
+ * True when `mediaDir` is the library root or a real subdirectory (separator-bounded).
+ * Avoids fragile `startsWith(libraryPath)` false positives (e.g. `/home/foo` vs `/home/foobar`).
+ */
+export function isMediaDirInsideLibrary(mediaDir: string, libraryPath: string): boolean {
+  if (!mediaDir || !libraryPath) return false;
+  const norm = (p: string) =>
+    String(p)
+      .replace(/\\/g, '/')
+      .replace(/\/+$/, '');
+  const root = norm(libraryPath);
+  const dir = norm(mediaDir);
+  if (!root || !dir) return false;
+  return dir === root || dir.startsWith(`${root}/`);
+}
+
+/**
+ * Resolve TimedKaraokeScript sidecar path.
+ * Always write/lookup the sibling beside media first so promote + Stage stay aligned.
+ * Durable `.kls-karaoke/<trackId>` copies are handled by DownloadManager / Stage candidate list.
+ */
 export function resolveKaraokeScriptPath(opts: {
   mediaPath: string;
   trackId: string;
   libraryPath?: string;
 }): string {
-  const mediaDir = opts.mediaPath.replace(/[/\\][^/\\]+$/, '');
-  if (opts.libraryPath && mediaDir.startsWith(opts.libraryPath)) {
-    return `${opts.libraryPath}/.kls-karaoke/${opts.trackId}.karaoke.json`.replace(
-      /\\/g,
-      '/'
-    );
-  }
-  // Sibling of media when outside library
+  void opts.trackId;
+  void opts.libraryPath;
   return `${opts.mediaPath}.karaoke.json`;
+}
+
+/** ASS sibling path used for ffmpeg burn-in (`InstrumentalProcessor` subtitles= filter). */
+export function resolveKaraokeAssPath(mediaPath: string): string {
+  return `${mediaPath}.ass`;
+}
+
+function assTimestamp(ms: number): string {
+  const safe = Math.max(0, Math.round(ms));
+  const cs = Math.floor(safe / 10) % 100;
+  const totalSec = Math.floor(safe / 1000);
+  const s = totalSec % 60;
+  const totalMin = Math.floor(totalSec / 60);
+  const m = totalMin % 60;
+  const h = Math.floor(totalMin / 60);
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  return `${h}:${pad2(m)}:${pad2(s)}.${pad2(cs)}`;
+}
+
+/**
+ * Build a minimal ASS script from TimedKaraokeScript lines for ffmpeg burn-in.
+ * One Dialogue event per line (word text joined). Safe for `subtitles=` filter.
+ */
+export function timedScriptToAss(script: TimedKaraokeScript): string {
+  const header = [
+    '[Script Info]',
+    'Title: Karaoke Live Station STT',
+    'ScriptType: v4.00+',
+    'WrapStyle: 0',
+    'ScaledBorderAndShadow: yes',
+    'PlayResX: 1280',
+    'PlayResY: 720',
+    '',
+    '[V4+ Styles]',
+    'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+    'Style: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2.5,0,2,40,40,64,1',
+    '',
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text'
+  ];
+  const dialogues: string[] = [];
+  for (const line of script.lines || []) {
+    const text = (line.words || [])
+      .map((w) => String(w.text || '').trim())
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\\/g, '\\\\')
+      .replace(/\{/g, '\\{')
+      .replace(/\}/g, '\\}');
+    if (!text) continue;
+    const start = assTimestamp(line.startMs);
+    const end = assTimestamp(Math.max(line.endMs, line.startMs + 40));
+    dialogues.push(`Dialogue: 0,${start},${end},Default,,0,0,0,,${text}`);
+  }
+  return `${header.join('\n')}\n${dialogues.join('\n')}\n`;
 }

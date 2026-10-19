@@ -8,6 +8,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 ## [Unreleased]
 
+_(empty)_
+
+## [2.3.3] — STT Stage Sidecar + ASS Burn-in — 2026-10-19
+
+Release **v2.3.3** shipping Stage STT generation fix (`whisper-cli` `-ojf`), structured STT troubleshooting logs, soft-fail UX, hardened sidecar promote, and ASS hardsub burn-in on the instrumental MP4. Package **2.3.3**.
+
+### Fixed
+- **IT:** Stage STT vuoto: `whisper-cli` riceveva il flag invalido `-ow` (exit 0 senza JSON) → nessun `.karaoke.json` e overlay Stage blank; ora `-ojf` + rifiuto transcript vuoto + filtro token speciali.
+- **EN:** Blank Stage STT: `whisper-cli` got invalid `-ow` (exit 0, no JSON) → no `.karaoke.json` and empty Stage overlay; now `-ojf` + reject empty transcripts + filter special tokens.
+- **IT:** Soft-fail STT non più silenzioso: warning nel menu Download + toast ambra quando lo strumentale completa senza testo karaoke.
+- **EN:** STT soft-fail is no longer silent: Downloads menu warning + amber toast when the instrumental completes without karaoke lyrics.
+- **IT:** `saveToLibrary` / `saveToQueueCache`: promozione sidecar **prima** di unlink del temp se la destinazione esiste già.
+- **EN:** `saveToLibrary` / `saveToQueueCache`: promote sidecars **before** unlinking temp when the destination already exists.
+
+### Added
+- **IT:** Burn-in ASS dallo script STT durante il remux strumentale (stesso path ffmpeg `subtitles=` dei sottotitoli YouTube); overlay Stage resta dal sidecar `.karaoke.json`.
+- **EN:** ASS burn-in from the STT script during instrumental remux (same ffmpeg `subtitles=` path as YouTube subs); Stage overlay still uses the `.karaoke.json` sidecar.
+
+### Changed
+- **IT/EN:** Structured STT troubleshooting logs (DEBUG/INFO/WARN/ERROR) with `downloadId` correlation: whisper ensure/spawn/exit tails, JSON/word counts, soft-fail vs success, sidecar promote, Stage script hit/miss.
+- **IT/EN:** Sidecar path always beside media (hardened; `.kls-karaoke` remains durable secondary copy).
+- App version **2.3.3** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer / manuals.
+
 ### Breaking Changes
 - None.
 

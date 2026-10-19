@@ -3241,8 +3241,8 @@ assert(
     settingsModalSrcV13.includes('aiCpuThreads') &&
     settingsModalSrcV13.includes('autoMaximizeControlOnLaunch') &&
     settingsModalSrcV13.includes('autoOpenStageOnLaunch') &&
-    settingsModalShellV13.includes("useState('2.3.2')"),
-  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.2 footer state'
+    settingsModalShellV13.includes("useState('2.3.3')"),
+  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.3 footer state'
 );
 
 // Instrumental block lives under Library tab component (shell still orders library before audio)
@@ -3262,10 +3262,14 @@ assert(
 const pkgV13 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
 const changelogV13 = fs.readFileSync(path.resolve(__dirname, '../CHANGELOG.md'), 'utf8');
 const releaseNotesV13 = fs.readFileSync(path.resolve(__dirname, '../RELEASE_NOTES.md'), 'utf8');
-assert(pkgV13.version === '2.3.2', 'package.json version is 2.3.2');
+assert(pkgV13.version === '2.3.3', 'package.json version is 2.3.3');
+assert(
+  changelogV13.includes('## [2.3.3]') || changelogV13.includes('## [2.3.3] '),
+  'CHANGELOG has ## [2.3.3] section'
+);
 assert(
   changelogV13.includes('## [2.3.2]') || changelogV13.includes('## [2.3.2] '),
-  'CHANGELOG has ## [2.3.2] section'
+  'CHANGELOG retains ## [2.3.2] section'
 );
 assert(
   changelogV13.includes('## [2.3.1]') || changelogV13.includes('## [2.3.1] '),
@@ -3304,8 +3308,8 @@ assert(
   'CHANGELOG retains ## [1.3.0] section'
 );
 assert(
-  /v2\.3\.2|Version 2\.3\.2|Versione 2\.3\.2/.test(releaseNotesV13),
-  'RELEASE_NOTES mentions 2.3.2'
+  /v2\.3\.3|Version 2\.3\.3|Versione 2\.3\.3/.test(releaseNotesV13),
+  'RELEASE_NOTES mentions 2.3.3'
 );
 
 for (const lang of ['it', 'en', 'es', 'fr']) {
@@ -4149,7 +4153,7 @@ console.log('\n\x1b[36m▶ Suite: Safety-First modularization, virtualization, i
   );
 
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert(pkg.version === '2.3.2', 'package.json is 2.3.2 (new release cycle)');
+  assert(pkg.version === '2.3.3', 'package.json is 2.3.3 (new release cycle)');
 
   // Manual chapter parity markers (DnD / recursive scan / Bungee / AppImage SoundFont)
   for (const manual of [
@@ -5504,7 +5508,7 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
     'DownloadManager calls processKaraokeSttOverlay before processInstrumentalVideo'
   );
   assert(
-    dmSrc.includes('promoteKaraokeSidecars(tempFilePath, destinationPath)') &&
+    dmSrc.includes('promoteKaraokeSidecars(tempFilePath, destinationPath') &&
       dmSrc.includes('saveToLibrary') &&
       dmSrc.includes('saveToQueueCache'),
     'saveToLibrary / saveToQueueCache promote karaoke sidecars with media'
@@ -5520,6 +5524,117 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
       sttProcSrc.includes('attachScriptToMediaPath'),
     'KaraokeSttProcessor rejects instrumental paths + attachScriptToMediaPath'
   );
+  // Root-cause fix: invalid `-ow` made whisper-cli exit(0) with no JSON → Stage blank.
+  assert(
+    sttProcSrc.includes("'-ojf'") &&
+      !sttProcSrc.includes("'-ow'") &&
+      !/"-oj"\s*,/.test(sttProcSrc) &&
+      sttProcSrc.includes('unknown argument') &&
+      sttProcSrc.includes('Whisper produced empty transcription'),
+    'KaraokeSttProcessor uses -ojf (not -oj/-ow) + rejects empty transcript'
+  );
+  assert(
+    sttProcSrc.includes('correlationId') &&
+      sttProcSrc.includes('whisper-cli spawn') &&
+      sttProcSrc.includes('stderrTail') &&
+      sttProcSrc.includes('listKaraokeScriptCandidates'),
+    'KaraokeSttProcessor emits structured STT logs + script candidate list'
+  );
+  assert(
+    dmSrc.includes("outcome: 'soft-fail'") &&
+      dmSrc.includes('Promoted karaoke sidecars') &&
+      dmSrc.includes('correlationId: downloadId'),
+    'DownloadManager correlates STT soft-fail/promote logs with downloadId'
+  );
+  assert(
+    dmSrc.includes('burnInAss: true') &&
+      dmSrc.includes('warningMessage') &&
+      dmSrc.includes('sttSoftFailWarning') &&
+      dmSrc.includes('saveToLibrary-exist') &&
+      dmSrc.includes('saveToQueueCache-exist'),
+    'DownloadManager STT soft-fail warning + ASS burn-in + promote-before-unlink'
+  );
+  assert(
+    sttProcSrc.includes('timedScriptToAss') &&
+      sttProcSrc.includes('resolveKaraokeAssPath') &&
+      sttProcSrc.includes('ASS sidecar written for burn-in'),
+    'KaraokeSttProcessor writes ASS sidecar when burnInAss'
+  );
+
+  assert(
+    timedSrc.includes('timedScriptToAss') &&
+      timedSrc.includes('isMediaDirInsideLibrary') &&
+      timedSrc.includes('resolveKaraokeAssPath') &&
+      !timedSrc.includes('mediaDir.startsWith(opts.libraryPath)'),
+    'timedKaraoke ASS burn-in helper + hardened library path containment'
+  );
+  // ASS timestamp smoke
+  {
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const assTs = (ms) => {
+      const safe = Math.max(0, Math.round(ms));
+      const cs = Math.floor(safe / 10) % 100;
+      const totalSec = Math.floor(safe / 1000);
+      const s = totalSec % 60;
+      const totalMin = Math.floor(totalSec / 60);
+      const m = totalMin % 60;
+      const h = Math.floor(totalMin / 60);
+      return `${h}:${pad2(m)}:${pad2(s)}.${pad2(cs)}`;
+    };
+    assert(assTs(0) === '0:00:00.00', 'ASS ts 0');
+    assert(assTs(61234) === '0:01:01.23', 'ASS ts 61234ms');
+  }
+  for (const lang of ['en', 'it', 'es', 'fr']) {
+    const loc = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
+    );
+    assert(loc.stt?.softFailDownloadWarning, `${lang}.json has stt.softFailDownloadWarning`);
+  }
+
+  // Mapper smoke: -ojf tokens → non-empty lines; special tokens filtered
+  {
+    // Inline mirror of special-token filter (no TS import in node test runner)
+    function extractWords(raw) {
+      const out = [];
+      const push = (text, startSec, endSec) => {
+        const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
+        if (!cleaned) return;
+        if (/^\[.*\]$/.test(cleaned) || cleaned === '</s>' || cleaned.startsWith('<|')) return;
+        out.push({
+          text: cleaned,
+          startMs: Math.max(0, Math.round(startSec * 1000)),
+          endMs: Math.max(40, Math.round(endSec * 1000))
+        });
+      };
+      for (const seg of raw.transcription || []) {
+        if (Array.isArray(seg.tokens)) {
+          for (const tok of seg.tokens) {
+            const off = tok.offsets || {};
+            push(tok.text, (off.from || 0) / 1000, (off.to || 0) / 1000);
+          }
+        }
+      }
+      return out;
+    }
+    const sample = {
+      transcription: [
+        {
+          offsets: { from: 0, to: 2000 },
+          text: ' Hello world',
+          tokens: [
+            { text: '[_BEG_]', offsets: { from: 0, to: 0 } },
+            { text: ' Hello', offsets: { from: 0, to: 800 } },
+            { text: ' world', offsets: { from: 800, to: 2000 } }
+          ]
+        }
+      ]
+    };
+    const words = extractWords(sample);
+    assert(
+      words.length === 2 && words[0].text === 'Hello' && words[1].text === 'world',
+      'whisper -ojf tokens map to words; special [_BEG_] filtered'
+    );
+  }
 
   const sttPathsSrc = fs.readFileSync(
     path.resolve(__dirname, '../src/shared/karaokeSttPaths.ts'),
@@ -5598,7 +5713,7 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
   }
 
   const pkg230 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
-  assert(pkg230.version === '2.3.2', 'package.json is 2.3.2 (includes STT + #86/#88 fixes)');
+  assert(pkg230.version === '2.3.3', 'package.json is 2.3.3 (includes STT + #86/#88/#90 fixes)');
 }
 
 // Summary

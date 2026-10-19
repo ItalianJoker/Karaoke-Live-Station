@@ -527,6 +527,7 @@
     "downloadDialogCancel": "Cancel",
     "downloadDialogConfirm": "Download and continue",
     "modelDownloadFailed": "Whisper model download failed: {{error}}",
+    "softFailDownloadWarning": "Instrumental ready, but karaoke STT failed (no lyrics): {{error}}",
     "modelQuality": {
       "poor": "Singing quality: poor",
       "low": "Singing quality: low",
