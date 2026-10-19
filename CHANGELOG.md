@@ -10,6 +10,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 _(empty)_
 
+## [2.3.7] — Fix STT ETA display + Windows CUDA companion — 2026-10-19
+
+Release **v2.3.7** fixes two STT regressions from v2.3.5: Downloads **ETA** now visible during `stt_transcribing`, and Windows **CUDA** STT no longer soft-falls back to CPU because `cublas64_11.dll` was missing from the official whisper zip. Soft-fail, pipeline order, display mode (#93), and #91 DLL packaging unchanged. Package **2.3.7**.
+
+### Fixed
+- **IT:** Menu Download: ETA STT nascosta perché `showEta` accettava solo `downloading` / `removing_vocals` — ora include `stt_transcribing`.
+- **EN:** Downloads menu hid STT ETA (`showEta` only allowed `downloading` / `removing_vocals`) — now includes `stt_transcribing`.
+- **IT/EN:** Windows CUDA STT: lo zip ufficiale `whisper-cublas-11.8` omette `cublas64_11.dll` (import hard di `ggml-cuda.dll`) → probe DLL_NOT_FOUND → fallback BLAS. Ora si copia da CUDA Toolkit o si scarica il companion redistributable accanto a `whisper-cli.exe`.
+- **IT/EN:** Download strumentale DSP+STT ora inoltra i knobs GPU/CPU; `karaoke-stt:ensure-binary` rispetta Settings (non prefetche BLAS).
+
+### Changed
+- App version **2.3.7** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer.
+
+### Breaking Changes
+- None. Soft-fail STT, STT-before-instrumental, medium default, burn-in/stage display mode, #91 Win DLL copy unchanged.
+
 ## [2.3.6] — STT Display Mode + Word Merge + ASS Karaoke — 2026-10-19
 
 Release **v2.3.6** adds mutually exclusive STT display (**burn-in** vs **Stage overlay**), BPE→word merge with fill-a-tempo syllables, and ASS `\kf` karaoke parity. Soft-fail, STT-before-instrumental, and Win DLL/CUDA (#91/#92) unchanged. Package **2.3.6**.
