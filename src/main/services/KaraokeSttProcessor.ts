@@ -24,10 +24,12 @@ import { coerceAiEnableGpu } from '../../shared/aiOrtProviders';
 import { resolveAiCpuThreads } from '../../shared/aiCpuThreads';
 import os from 'os';
 import {
+  coerceSttDisplayMode,
   resolveKaraokeAssPath,
   resolveKaraokeScriptPath,
   timedScriptToAss,
   whisperJsonToTimedScript,
+  type SttDisplayMode,
   type TimedKaraokeScript
 } from '../../shared/timedKaraoke';
 import {
@@ -100,6 +102,8 @@ export async function processKaraokeSttOverlay(options: {
    * `InstrumentalProcessor` can burn hardsubs via the existing `subtitles=` remux path.
    */
   burnInAss?: boolean;
+  /** Persisted on TimedKaraokeScript so Stage can suppress overlay for burn-in. */
+  displayMode?: SttDisplayMode;
   whisperManager: WhisperCppManager;
   onProgress?: (phase: KaraokeSttPhase, percent: number, meta?: KaraokeSttProgressMeta) => void;
   signal?: AbortSignal;
@@ -347,13 +351,20 @@ export async function processKaraokeSttOverlay(options: {
       options.attachScriptToMediaPath && fs.existsSync(options.attachScriptToMediaPath)
         ? options.attachScriptToMediaPath
         : options.inputVideoPath;
+    const displayMode =
+      options.displayMode != null
+        ? coerceSttDisplayMode(options.displayMode)
+        : options.burnInAss
+          ? 'burn-in'
+          : undefined;
     const script = whisperJsonToTimedScript({
       raw: rawJson,
       sourceTrackId: options.trackId,
       sourcePath: attachMedia,
       modelId,
       language: options.language,
-      usedVocalStem
+      usedVocalStem,
+      displayMode
     });
     const wordCount = countScriptWords(script);
 
@@ -475,6 +486,9 @@ async function runFfmpegExtract(
       reject(err);
       return;
     }
+    // Mild highpass only (cheap single-pass). Avoid aggressive denoise (hurts sibilants)
+    // and multi-pass loudnorm (costly). Do not add unverified whisper CLI decode flags
+    // here — unknown args exit 0 (#90 trap).
     const args = [
       '-y',
       '-i',
@@ -484,6 +498,8 @@ async function runFfmpegExtract(
       '1',
       '-ar',
       '16000',
+      '-af',
+      'highpass=f=80',
       '-c:a',
       'pcm_s16le',
       outputWav

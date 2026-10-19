@@ -1039,7 +1039,7 @@ class KaraokeMainProcess {
     });
 
     ipcMain.handle('system:get-app-version', () => {
-      return app.getVersion() || '2.3.5';
+      return app.getVersion() || '2.3.6';
     });
 
     /**
@@ -1510,6 +1510,8 @@ class KaraokeMainProcess {
           /** Opt-in offline whisper.cpp karaoke STT after instrumental remux */
           generateKaraokeStt?: boolean;
           sttModelId?: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3';
+          sttDisplayMode?: 'burn-in' | 'stage';
+          sttLanguage?: string;
         }
       ) => {
         const libraryPath =
@@ -1625,6 +1627,22 @@ class KaraokeMainProcess {
             options.sttModelId ||
               (this.currentSettings as { sttModelId?: string } | undefined)?.sttModelId
           ),
+          sttDisplayMode:
+            options.sttDisplayMode === 'stage'
+              ? 'stage'
+              : options.sttDisplayMode === 'burn-in'
+                ? 'burn-in'
+                : (this.currentSettings as { sttDisplayMode?: string } | undefined)
+                      ?.sttDisplayMode === 'stage'
+                  ? 'stage'
+                  : 'burn-in',
+          sttLanguage:
+            options.sttLanguage && options.sttLanguage !== 'auto'
+              ? options.sttLanguage
+              : (this.currentSettings as { language?: string } | undefined)?.language &&
+                  (this.currentSettings as { language?: string }).language !== 'autodetect'
+                ? (this.currentSettings as { language?: string }).language
+                : undefined,
           libraryPath,
           catalogTracks
         });

@@ -546,6 +546,38 @@ export const SettingsLibraryTab: React.FC<SettingsLibraryTabProps> = ({
                         </option>
                       ))}
                     </select>
+                    <div className="space-y-1.5">
+                      <label
+                        className="block text-[11px] font-medium text-slate-200"
+                        htmlFor="settings-stt-display-mode"
+                      >
+                        {t('settings.sttDisplayMode')}
+                      </label>
+                      <p className="text-[10px] text-slate-400 leading-relaxed">
+                        {t('settings.sttDisplayModeDesc')}
+                      </p>
+                      <select
+                        id="settings-stt-display-mode"
+                        value={
+                          settings.sttDisplayMode === 'stage' ? 'stage' : 'burn-in'
+                        }
+                        onChange={(e) =>
+                          updateSettings({
+                            sttDisplayMode:
+                              e.target.value === 'stage' ? 'stage' : 'burn-in'
+                          })
+                        }
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs"
+                        data-testid="settings-stt-display-mode-select"
+                      >
+                        <option value="burn-in">
+                          {t('settings.sttDisplayModeBurnIn')}
+                        </option>
+                        <option value="stage">
+                          {t('settings.sttDisplayModeStage')}
+                        </option>
+                      </select>
+                    </div>
                     <label className="flex items-start gap-2 text-xs text-slate-300 cursor-pointer">
                       <input
                         type="checkbox"

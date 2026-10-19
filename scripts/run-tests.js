@@ -3241,8 +3241,8 @@ assert(
     settingsModalSrcV13.includes('aiCpuThreads') &&
     settingsModalSrcV13.includes('autoMaximizeControlOnLaunch') &&
     settingsModalSrcV13.includes('autoOpenStageOnLaunch') &&
-    settingsModalShellV13.includes("useState('2.3.5')"),
-  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.5 footer state'
+    settingsModalShellV13.includes("useState('2.3.6')"),
+  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.6 footer state'
 );
 
 // Instrumental block lives under Library tab component (shell still orders library before audio)
@@ -3262,10 +3262,10 @@ assert(
 const pkgV13 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
 const changelogV13 = fs.readFileSync(path.resolve(__dirname, '../CHANGELOG.md'), 'utf8');
 const releaseNotesV13 = fs.readFileSync(path.resolve(__dirname, '../RELEASE_NOTES.md'), 'utf8');
-assert(pkgV13.version === '2.3.5', 'package.json version is 2.3.5');
+assert(pkgV13.version === '2.3.6', 'package.json version is 2.3.6');
 assert(
-  changelogV13.includes('## [2.3.5]') || changelogV13.includes('## [2.3.5] '),
-  'CHANGELOG has ## [2.3.5] section'
+  changelogV13.includes('## [2.3.6]') || changelogV13.includes('## [2.3.5] '),
+  'CHANGELOG has ## [2.3.6] section'
 );
 assert(
   changelogV13.includes('## [2.3.4]') || changelogV13.includes('## [2.3.4] '),
@@ -3316,8 +3316,8 @@ assert(
   'CHANGELOG retains ## [1.3.0] section'
 );
 assert(
-  /v2\.3\.5|Version 2\.3\.5|Versione 2\.3\.5/.test(releaseNotesV13),
-  'RELEASE_NOTES mentions 2.3.5'
+  /v2\.3\.6|Version 2\.3\.6|Versione 2\.3\.6/.test(releaseNotesV13),
+  'RELEASE_NOTES mentions 2.3.6'
 );
 
 for (const lang of ['it', 'en', 'es', 'fr']) {
@@ -4161,7 +4161,7 @@ console.log('\n\x1b[36m▶ Suite: Safety-First modularization, virtualization, i
   );
 
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert(pkg.version === '2.3.5', 'package.json is 2.3.5 (new release cycle)');
+  assert(pkg.version === '2.3.6', 'package.json is 2.3.6 (new release cycle)');
 
   // Manual chapter parity markers (DnD / recursive scan / Bungee / AppImage SoundFont)
   for (const manual of [
@@ -5452,8 +5452,11 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
   assert(
     modalSrc.includes("'generate-stt'") &&
       modalSrc.includes('instrumental-subtitles-stt') &&
-      modalSrc.includes('instrumental-stt-warning'),
-    'InstrumentalSubtitlesModal has third STT choice + honesty warning'
+      modalSrc.includes('instrumental-stt-warning') &&
+      modalSrc.includes('instrumental-stt-display-burn-in') &&
+      modalSrc.includes('instrumental-stt-display-stage') &&
+      modalSrc.includes('rememberSttDisplayMode'),
+    'InstrumentalSubtitlesModal has STT choice + burn-in/stage sub-choice + Salva scelta'
   );
 
   const libSrc = fs.readFileSync(
@@ -5470,8 +5473,10 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
     'utf8'
   );
   assert(
-    stageSrc.includes('KaraokeWordOverlay') && stageSrc.includes('karaokeStt'),
-    'StageWindow mounts KaraokeWordOverlay via karaokeStt API'
+    stageSrc.includes('KaraokeWordOverlay') &&
+      stageSrc.includes('karaokeStt') &&
+      stageSrc.includes("displayMode !== 'burn-in'"),
+    'StageWindow mounts KaraokeWordOverlay and suppresses burn-in displayMode'
   );
 
   const settingsLib = fs.readFileSync(
@@ -5497,10 +5502,20 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
       fs.readFileSync(path.resolve(__dirname, `../locales/${lang}.json`), 'utf8')
     );
     assert(
-      loc.library?.instrumentalSubtitlesStt && loc.stt?.downloadDialogConfirm,
-      `${lang}.json has STT keys`
+      loc.library?.instrumentalSubtitlesStt &&
+        loc.library?.instrumentalSttDisplayBurnIn &&
+        loc.library?.instrumentalSttDisplayStage &&
+        loc.library?.instrumentalSttDisplayRemember &&
+        loc.settings?.sttDisplayMode &&
+        loc.stt?.downloadDialogConfirm,
+      `${lang}.json has STT + display-mode keys`
     );
   }
+  assert(
+    itLoc.library?.instrumentalSttDisplayBurnIn === 'Parole su video' &&
+      itLoc.library?.instrumentalSttDisplayRemember === 'Salva scelta',
+    'it.json STT display labels (Parole su video / Salva scelta)'
+  );
 
   const dmSrc = fs.readFileSync(
     path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),
@@ -5566,12 +5581,13 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
     'DownloadManager correlates STT soft-fail/promote logs with downloadId'
   );
   assert(
-    dmSrc.includes('burnInAss: true') &&
+    dmSrc.includes("burnInAss: sttDisplayMode === 'burn-in'") &&
+      dmSrc.includes("sttDisplayMode === 'stage'") &&
       dmSrc.includes('warningMessage') &&
       dmSrc.includes('sttSoftFailWarning') &&
       dmSrc.includes('saveToLibrary-exist') &&
       dmSrc.includes('saveToQueueCache-exist'),
-    'DownloadManager STT soft-fail warning + ASS burn-in + promote-before-unlink'
+    'DownloadManager STT soft-fail warning + mode-gated ASS burn-in + promote-before-unlink'
   );
   assert(
     sttProcSrc.includes('timedScriptToAss') &&
@@ -5584,8 +5600,19 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
     timedSrc.includes('timedScriptToAss') &&
       timedSrc.includes('isMediaDirInsideLibrary') &&
       timedSrc.includes('resolveKaraokeAssPath') &&
+      timedSrc.includes('mergeTokensIntoWords') &&
+      timedSrc.includes('extractWhisperWords') &&
+      timedSrc.includes('\\kf') &&
+      timedSrc.includes('SttDisplayMode') &&
       !timedSrc.includes('mediaDir.startsWith(opts.libraryPath)'),
-    'timedKaraoke ASS burn-in helper + hardened library path containment'
+    'timedKaraoke ASS \\kf + BPE merge + displayMode + hardened library path'
+  );
+  assert(
+    timedSrc.includes("startsWith('\\u0120')") ||
+      timedSrc.includes('startsWith("\\u0120")') ||
+      timedSrc.includes('\\u0120') ||
+      timedSrc.includes('Ġ'),
+    'timedKaraoke preserves Ġ / leading-space BPE word boundary'
   );
   // ASS timestamp smoke
   {
@@ -5610,49 +5637,89 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
     assert(loc.stt?.softFailDownloadWarning, `${lang}.json has stt.softFailDownloadWarning`);
   }
 
-  // Mapper smoke: -ojf tokens → non-empty lines; special tokens filtered
+  // Mapper smoke: -ojf BPE merge + special tokens (transpile shared module — Safety-First)
   {
-    // Inline mirror of special-token filter (no TS import in node test runner)
-    function extractWords(raw) {
-      const out = [];
-      const push = (text, startSec, endSec) => {
-        const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
-        if (!cleaned) return;
-        if (/^\[.*\]$/.test(cleaned) || cleaned === '</s>' || cleaned.startsWith('<|')) return;
-        out.push({
-          text: cleaned,
-          startMs: Math.max(0, Math.round(startSec * 1000)),
-          endMs: Math.max(40, Math.round(endSec * 1000))
-        });
-      };
-      for (const seg of raw.transcription || []) {
-        if (Array.isArray(seg.tokens)) {
-          for (const tok of seg.tokens) {
-            const off = tok.offsets || {};
-            push(tok.text, (off.from || 0) / 1000, (off.to || 0) / 1000);
+    const timedPath = path.resolve(__dirname, '../src/shared/timedKaraoke.ts');
+    const probe = spawnTsProbe(`
+      const fs = require('fs');
+      const path = require('path');
+      const ts = require('typescript');
+      const src = fs.readFileSync(${JSON.stringify(timedPath)}, 'utf8');
+      const js = ts.transpileModule(src, {
+        compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+      }).outputText;
+      const module = { exports: {} };
+      const fn = new Function('exports', 'require', 'module', '__filename', '__dirname', js);
+      fn(module.exports, require, module, ${JSON.stringify(timedPath)}, ${JSON.stringify(path.dirname(timedPath))});
+      const tk = module.exports;
+      const sample = {
+        transcription: [
+          {
+            offsets: { from: 0, to: 2000 },
+            text: ' Accanto hello world',
+            tokens: [
+              { text: '[_BEG_]', offsets: { from: 0, to: 0 } },
+              { text: ' Acc', offsets: { from: 0, to: 400 } },
+              { text: 'anto', offsets: { from: 400, to: 900 } },
+              { text: ' hello', offsets: { from: 900, to: 1400 } },
+              { text: ' world', offsets: { from: 1400, to: 2000 } }
+            ]
           }
-        }
-      }
-      return out;
+        ]
+      };
+      const words = tk.extractWhisperWords(sample);
+      const script = tk.whisperJsonToTimedScript({
+        raw: sample,
+        sourceTrackId: 't1',
+        sourcePath: '/tmp/x.mp4',
+        modelId: 'medium',
+        usedVocalStem: false,
+        displayMode: 'burn-in'
+      });
+      const ass = tk.timedScriptToAss(script);
+      const out = {
+        wordTexts: words.map((w) => w.text),
+        syllableCount: words[0] && words[0].syllables ? words[0].syllables.length : 0,
+        syllable0: words[0] && words[0].syllables ? words[0].syllables[0].text : null,
+        syllable1: words[0] && words[0].syllables ? words[0].syllables[1].text : null,
+        displayMode: script.displayMode,
+        hasKf: /\\\\kf\\d+/.test(ass),
+        langHintAuto: tk.resolveSttLanguageHint({ uiLanguage: 'autodetect' }),
+        langHintIt: tk.resolveSttLanguageHint({ uiLanguage: 'it' })
+      };
+      process.stdout.write(JSON.stringify(out));
+    `);
+    let parsed = null;
+    try {
+      parsed = JSON.parse(String(probe.stdout || '').trim());
+    } catch {
+      parsed = null;
     }
-    const sample = {
-      transcription: [
-        {
-          offsets: { from: 0, to: 2000 },
-          text: ' Hello world',
-          tokens: [
-            { text: '[_BEG_]', offsets: { from: 0, to: 0 } },
-            { text: ' Hello', offsets: { from: 0, to: 800 } },
-            { text: ' world', offsets: { from: 800, to: 2000 } }
-          ]
-        }
-      ]
-    };
-    const words = extractWords(sample);
     assert(
-      words.length === 2 && words[0].text === 'Hello' && words[1].text === 'world',
-      'whisper -ojf tokens map to words; special [_BEG_] filtered'
+      probe.status === 0 && parsed,
+      'timedKaraoke TS probe runs',
+      String(probe.stderr || probe.stdout || '').slice(0, 300)
     );
+    if (parsed) {
+      assert(
+        parsed.wordTexts?.[0] === 'Accanto' &&
+          parsed.wordTexts?.[1] === 'hello' &&
+          parsed.wordTexts?.[2] === 'world',
+        'BPE merge Acc+anto → Accanto; spaced tokens stay separate words'
+      );
+      assert(
+        parsed.syllableCount === 2 &&
+          parsed.syllable0 === 'Acc' &&
+          parsed.syllable1 === 'anto',
+        'Accanto keeps original BPE syllable timings (fill a tempo)'
+      );
+      assert(parsed.displayMode === 'burn-in', 'whisperJsonToTimedScript writes displayMode');
+      assert(parsed.hasKf === true, 'timedScriptToAss emits \\kf karaoke tags');
+      assert(
+        parsed.langHintAuto == null && parsed.langHintIt === 'it',
+        'resolveSttLanguageHint: autodetect→undefined, it→it'
+      );
+    }
   }
 
   const sttPathsSrc = fs.readFileSync(
@@ -5733,8 +5800,8 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
 
   const pkg230 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
   assert(
-    pkg230.version === '2.3.5',
-    'package.json is 2.3.5 (STT ETA + GPU/CPU whisper backends)'
+    pkg230.version === '2.3.6',
+    'package.json is 2.3.6 (STT display mode + word merge + ASS karaoke)'
   );
 
   // v2.3.5 — STT ETA + GPU/CPU (whisper.cpp, not ORT WebGPU)

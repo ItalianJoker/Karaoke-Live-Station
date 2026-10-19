@@ -39,6 +39,7 @@ import { coerceAiEnableGpu } from '../../shared/aiOrtProviders';
 import { coerceAiGpuPreference } from '../../shared/aiGpuPreference';
 import { clampPitchForEngine, clampSpeedForEngine, coerceDspPitchEngine } from '../../shared/dspPitch';
 import { coerceWhisperModelId } from '../../shared/whisperStt';
+import { coerceSttDisplayMode } from '../../shared/timedKaraoke';
 import type {
   LibraryRevealRequest,
   LibraryRevealRequestInput
@@ -208,6 +209,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   instrumentalSubtitlesPolicy: 'ask',
   /** Default Whisper model for karaoke STT (Predefinito = medium) */
   sttModelId: 'medium',
+  /** Default STT display: burn-in ASS (Parole su video) */
+  sttDisplayMode: 'burn-in',
   /** Prefer AI vocal stem for STT when available (best-effort) */
   sttPreferVocalStem: true,
   showPitchOnStage: true,
@@ -419,6 +422,9 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
           }
           updated.sttModelId = coerceWhisperModelId(
             partial.sttModelId !== undefined ? partial.sttModelId : updated.sttModelId
+          );
+          updated.sttDisplayMode = coerceSttDisplayMode(
+            partial.sttDisplayMode !== undefined ? partial.sttDisplayMode : updated.sttDisplayMode
           );
           if (partial.sttPreferVocalStem !== undefined) {
             updated.sttPreferVocalStem = Boolean(partial.sttPreferVocalStem);
@@ -1285,6 +1291,7 @@ export const useKaraokeStore = create<KaraokeStoreState>()(
             raw === 'always' || raw === 'never' ? raw : 'ask';
         }
         mergedSettings.sttModelId = coerceWhisperModelId(mergedSettings.sttModelId);
+        mergedSettings.sttDisplayMode = coerceSttDisplayMode(mergedSettings.sttDisplayMode);
         mergedSettings.sttPreferVocalStem =
           typeof mergedSettings.sttPreferVocalStem === 'boolean'
             ? mergedSettings.sttPreferVocalStem

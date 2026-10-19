@@ -70,7 +70,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [settingsSearch, setSettingsSearch] = useState('');
   const [cpuCoreCount, setCpuCoreCount] = useState(detectUiCpuCoreCount());
   const [gpuStatus, setGpuStatus] = useState<GpuStatus | null>(null);
-  const [appVersion, setAppVersion] = useState('2.3.5');
+  const [appVersion, setAppVersion] = useState('2.3.6');
 
   const isSearching = settingsSearch.trim().length > 0;
 
@@ -152,7 +152,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         .then((v) => {
           if (typeof v === 'string' && v.trim()) setAppVersion(v.trim());
         })
-        .catch(() => setAppVersion('2.3.5'));
+        .catch(() => setAppVersion('2.3.6'));
     }
   }, [isOpen]);
 
@@ -501,7 +501,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     'onnx',
     'shifts'
   );
-  // Same policy as modal “Remember my choice” (ask / always / never)
+  // Same policy as modal “Remember my choice” (ask / always / never) + STT display mode
   const matchInstrumentalSubtitles = matchesSearch(
     t('settings.instrumentalSubtitlesPolicy'),
     t('settings.instrumentalSubtitlesPolicyDesc'),
@@ -509,6 +509,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     t('settings.instrumentalSubtitlesPolicyAlways'),
     t('settings.instrumentalSubtitlesPolicyNever'),
     t('library.instrumentalSubtitlesRemember'),
+    t('settings.sttDisplayMode'),
+    t('settings.sttDisplayModeDesc'),
+    t('settings.sttDisplayModeBurnIn'),
+    t('settings.sttDisplayModeStage'),
+    t('library.instrumentalSttDisplayBurnIn'),
+    t('library.instrumentalSttDisplayStage'),
     'subtitle',
     'subtitles',
     'sottotitoli',
@@ -520,7 +526,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     'ricorda',
     'ask',
     'always',
-    'never'
+    'never',
+    'stt',
+    'burn-in',
+    'overlay',
+    'whisper'
   );
   const matchMaxDownloads = matchesSearch(
     t('settings.maxSimultaneousDownloads'),

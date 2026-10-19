@@ -10,6 +10,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 _(empty)_
 
+## [2.3.6] — STT Display Mode + Word Merge + ASS Karaoke — 2026-10-19
+
+Release **v2.3.6** adds mutually exclusive STT display (**burn-in** vs **Stage overlay**), BPE→word merge with fill-a-tempo syllables, and ASS `\kf` karaoke parity. Soft-fail, STT-before-instrumental, and Win DLL/CUDA (#91/#92) unchanged. Package **2.3.6**.
+
+### Added
+- **IT:** Sotto-scelta STT **Parole su video** / **Solo Stage** + checkbox **Salva scelta** (`sttDisplayMode`, default burn-in); Impostazioni Libreria espone lo stesso default.
+- **EN:** STT sub-choice **Words on video** / **Stage overlay only** + **Remember choice** (`sttDisplayMode`, default burn-in); Library Settings mirrors the default.
+- **IT/EN:** Merge BPE (leading space / Ġ) → parole ortografiche + `syllables[]` con timestamp Whisper originali (fill a tempo).
+- **IT/EN:** ASS burn-in con `\kf` dalla stessa segmentazione Stage; Stage sopprime l’overlay quando `displayMode === 'burn-in'`.
+- **IT/EN:** Hint lingua Whisper `-l` per traccia (lingua UI quando nota; altrimenti auto). Mild highpass ffmpeg su WAV STT.
+
+### Changed
+- App version **2.3.6** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer / manuals.
+- `burnInAss` gated by `sttDisplayMode` (no longer hard-coded `true`).
+
+### Fixed
+- **IT/EN:** Frammenti BPE mostrati come parole separate (“Acc anto”) — ora uniti in “Accanto”.
+
+### Breaking Changes
+- None. Legacy `.karaoke.json` without `displayMode` keep dual display (locked option A). Soft-fail STT, pipeline order, medium default, #91 Win DLL and #92 ETA/GPU backends unchanged.
+
 ## [2.3.5] — STT ETA + GPU/CPU (whisper.cpp) — 2026-10-19
 
 Release **v2.3.5** aligns karaoke STT UX with Instrumental AI: Downloads **ETA** during transcription, and the same GPU toggle / discrete preference / CPU cores mapped to **whisper.cpp** backends (Windows CUDA cuBLAS vs OpenBLAS multi-thread). Does **not** use ORT WebGPU for STT. Package **2.3.5**.

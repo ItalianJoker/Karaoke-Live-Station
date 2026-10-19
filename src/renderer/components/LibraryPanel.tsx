@@ -251,6 +251,10 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
     useState<KaraokeMediaTrack | null>(null);
   /** Pending STT download after model activation dialog */
   const [pendingSttDownload, setPendingSttDownload] = useState<KaraokeMediaTrack | null>(null);
+  /** Display mode chosen in the STT sub-step (held across optional model download). */
+  const [pendingSttDisplayMode, setPendingSttDisplayMode] = useState<'burn-in' | 'stage'>(
+    'burn-in'
+  );
   const [sttModelDialogOpen, setSttModelDialogOpen] = useState(false);
   const [sttModelDownloading, setSttModelDownloading] = useState(false);
   const [sttModelProgressLabel, setSttModelProgressLabel] = useState<string | undefined>();
@@ -1134,6 +1138,7 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
       instrumental?: boolean;
       includeSubtitles?: boolean;
       generateKaraokeStt?: boolean;
+      sttDisplayMode?: 'burn-in' | 'stage';
     }
   ) => {
     if (!window.karaokeApi) return;
@@ -1195,7 +1200,20 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
         ...(generateKaraokeStt
           ? {
               generateKaraokeStt: true,
-              sttModelId: settings.sttModelId || 'medium'
+              sttModelId: settings.sttModelId || 'medium',
+              sttDisplayMode:
+                opts?.sttDisplayMode === 'stage'
+                  ? 'stage'
+                  : opts?.sttDisplayMode === 'burn-in'
+                    ? 'burn-in'
+                    : settings.sttDisplayMode === 'stage'
+                      ? 'stage'
+                      : 'burn-in',
+              // Per-track language hint: UI language when known; else auto (main may refine).
+              sttLanguage:
+                settings.language && settings.language !== 'autodetect'
+                  ? settings.language
+                  : undefined
             }
           : {})
       });
@@ -1984,12 +2002,19 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
         isOpen={instrumentalSubtitlesTrack !== null}
         track={instrumentalSubtitlesTrack}
         sttModelId={settings.sttModelId}
+        sttDisplayMode={settings.sttDisplayMode}
         onClose={() => setInstrumentalSubtitlesTrack(null)}
-        onConfirm={(choice, remember) => {
+        onConfirm={(payload) => {
           const track = instrumentalSubtitlesTrack;
           setInstrumentalSubtitlesTrack(null);
           if (!track) return;
+          const { choice, remember, sttDisplayMode, rememberSttDisplayMode } = payload;
           if (choice === 'generate-stt') {
+            const mode = sttDisplayMode === 'stage' ? 'stage' : 'burn-in';
+            if (rememberSttDisplayMode) {
+              updateSettings({ sttDisplayMode: mode });
+            }
+            setPendingSttDisplayMode(mode);
             void (async () => {
               const modelId = coerceWhisperModelId(settings.sttModelId);
               try {
@@ -2000,7 +2025,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
                   void handleStartDownload(track, {
                     instrumental: true,
                     includeSubtitles: false,
-                    generateKaraokeStt: true
+                    generateKaraokeStt: true,
+                    sttDisplayMode: mode
                   });
                   return;
                 }
@@ -2058,7 +2084,8 @@ export const LibraryPanel: React.FC<LibraryPanelProps> = ({
               void handleStartDownload(track, {
                 instrumental: true,
                 includeSubtitles: false,
-                generateKaraokeStt: true
+                generateKaraokeStt: true,
+                sttDisplayMode: pendingSttDisplayMode
               });
             })
             .catch((err) => {
