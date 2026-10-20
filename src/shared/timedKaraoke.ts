@@ -54,6 +54,15 @@ export interface TimedKaraokeScript {
 
 export type WordHighlightState = 'past' | 'current' | 'future';
 
+/**
+ * Display casing for Stage overlay + ASS burn-in (must match).
+ * Applied only at highlight / ASS emit — stored `.karaoke.json` keeps original
+ * Whisper casing so BPE merge, syllable timings, and soft-fail stay unchanged.
+ */
+export function karaokeDisplayText(text: string): string {
+  return String(text ?? '').toUpperCase();
+}
+
 export function coerceSttDisplayMode(raw: unknown): SttDisplayMode {
   return raw === 'stage' ? 'stage' : 'burn-in';
 }
@@ -115,9 +124,10 @@ export function wordHighlightState(
   timeMs: number
 ): WordHighlightResult[] {
   return (line.words || []).map((w) => {
+    const displayText = karaokeDisplayText(w.text);
     if (timeMs < w.startMs) {
       return {
-        text: w.text,
+        text: displayText,
         state: 'future' as const,
         progress: 0,
         syllables: syllableStates(w, timeMs)
@@ -125,7 +135,7 @@ export function wordHighlightState(
     }
     if (timeMs >= w.endMs) {
       return {
-        text: w.text,
+        text: displayText,
         state: 'past' as const,
         progress: 1,
         syllables: syllableStates(w, timeMs)
@@ -151,7 +161,7 @@ export function wordHighlightState(
       progress = Math.max(0, Math.min(1, (timeMs - w.startMs) / dur));
     }
     return {
-      text: w.text,
+      text: displayText,
       state: 'current' as const,
       progress,
       syllables
@@ -166,15 +176,16 @@ function syllableStates(
   const parts = word.syllables;
   if (!parts || parts.length === 0) return undefined;
   return parts.map((s) => {
+    const displayText = karaokeDisplayText(s.text);
     if (timeMs < s.startMs) {
-      return { text: s.text, state: 'future' as const, progress: 0 };
+      return { text: displayText, state: 'future' as const, progress: 0 };
     }
     if (timeMs >= s.endMs) {
-      return { text: s.text, state: 'past' as const, progress: 1 };
+      return { text: displayText, state: 'past' as const, progress: 1 };
     }
     const dur = Math.max(1, s.endMs - s.startMs);
     return {
-      text: s.text,
+      text: displayText,
       state: 'current' as const,
       progress: Math.max(0, Math.min(1, (timeMs - s.startMs) / dur))
     };
@@ -497,6 +508,7 @@ function kfCentiseconds(startMs: number, endMs: number): number {
 /**
  * Build ASS karaoke from TimedKaraokeScript for ffmpeg burn-in.
  * Uses the same merged words / syllable timings as Stage (`\kf` fill a tempo).
+ * Piece text is uppercased via `karaokeDisplayText` (same as Stage overlay).
  * PrimaryColour ≈ sung (amber); SecondaryColour ≈ unsung (white).
  * ASS colour order is &HAABBGGRR.
  */
@@ -530,7 +542,7 @@ export function timedScriptToAss(script: TimedKaraokeScript): string {
           ? w.syllables
           : [{ text: w.text, startMs: w.startMs, endMs: w.endMs }];
       for (const s of syllables) {
-        const piece = escapeAssText(String(s.text || '').trim());
+        const piece = escapeAssText(karaokeDisplayText(String(s.text || '').trim()));
         if (!piece) continue;
         parts.push(`{\\kf${kfCentiseconds(s.startMs, s.endMs)}}${piece}`);
       }

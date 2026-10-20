@@ -7,6 +7,8 @@ import {
 /**
  * Stage word-level karaoke overlay (STT). Edge-safe bottom band; no cards.
  * When syllables exist (BPE pieces), fills a tempo inside the current word.
+ * Display text is UPPERCASE via `wordHighlightState` → `karaokeDisplayText`
+ * (same helper as ASS burn-in).
  */
 export function KaraokeWordOverlay({
   script,
