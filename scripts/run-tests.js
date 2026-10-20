@@ -3241,8 +3241,8 @@ assert(
     settingsModalSrcV13.includes('aiCpuThreads') &&
     settingsModalSrcV13.includes('autoMaximizeControlOnLaunch') &&
     settingsModalSrcV13.includes('autoOpenStageOnLaunch') &&
-    settingsModalShellV13.includes("useState('2.3.8')"),
-  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.8 footer state'
+    settingsModalShellV13.includes("useState('2.3.9')"),
+  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.9 footer state'
 );
 
 // Instrumental block lives under Library tab component (shell still orders library before audio)
@@ -3262,10 +3262,10 @@ assert(
 const pkgV13 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
 const changelogV13 = fs.readFileSync(path.resolve(__dirname, '../CHANGELOG.md'), 'utf8');
 const releaseNotesV13 = fs.readFileSync(path.resolve(__dirname, '../RELEASE_NOTES.md'), 'utf8');
-assert(pkgV13.version === '2.3.8', 'package.json version is 2.3.8');
+assert(pkgV13.version === '2.3.9', 'package.json version is 2.3.9');
 assert(
-  changelogV13.includes('## [2.3.8]') || changelogV13.includes('## [2.3.7]'),
-  'CHANGELOG has ## [2.3.8] section'
+  changelogV13.includes('## [2.3.9]') || changelogV13.includes('## [2.3.8]'),
+  'CHANGELOG has ## [2.3.9] section'
 );
 assert(
   changelogV13.includes('## [2.3.4]') || changelogV13.includes('## [2.3.4] '),
@@ -3316,8 +3316,8 @@ assert(
   'CHANGELOG retains ## [1.3.0] section'
 );
 assert(
-  /v2\.3\.8|Version 2\.3\.8|Versione 2\.3\.8/.test(releaseNotesV13),
-  'RELEASE_NOTES mentions 2.3.8'
+  /v2\.3\.9|Version 2\.3\.9|Versione 2\.3\.9/.test(releaseNotesV13),
+  'RELEASE_NOTES mentions 2.3.9'
 );
 
 for (const lang of ['it', 'en', 'es', 'fr']) {
@@ -4161,7 +4161,7 @@ console.log('\n\x1b[36m▶ Suite: Safety-First modularization, virtualization, i
   );
 
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert(pkg.version === '2.3.8', 'package.json is 2.3.8 (new release cycle)');
+  assert(pkg.version === '2.3.9', 'package.json is 2.3.9 (new release cycle)');
 
   // Manual chapter parity markers (DnD / recursive scan / Bungee / AppImage SoundFont)
   for (const manual of [
@@ -5812,8 +5812,8 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
 
   const pkg230 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
   assert(
-    pkg230.version === '2.3.8',
-    'package.json is 2.3.8 (Settings Whisper model download)'
+    pkg230.version === '2.3.9',
+    'package.json is 2.3.9 (Windows CUDA cublasLt companion)'
   );
 
   // v2.3.5 — STT ETA + GPU/CPU (whisper.cpp, not ORT WebGPU)
@@ -5840,10 +5840,14 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
       sttGpuEtaMgr.includes('.whisper-backend.json') &&
       sttGpuEtaMgr.includes('cudart') &&
       sttGpuEtaMgr.includes('copyRuntimeLibraries') &&
-      sttGpuEtaMgr.includes('ensureWindowsCublasCompanion') &&
+      sttGpuEtaMgr.includes('ensureWindowsCublasCompanions') &&
       sttGpuEtaMgr.includes('cublas64_11.dll') &&
-      sttGpuEtaMgr.includes('ntvlibs.cuda11.cublas64_11.runtime.win-x64'),
-    'WhisperCppManager selects CUDA vs BLAS zip + DLL copy + cublas companion'
+      sttGpuEtaMgr.includes('cublasLt64_11.dll') &&
+      sttGpuEtaMgr.includes('ntvlibs.cuda11.cublas64_11.runtime.win-x64') &&
+      sttGpuEtaMgr.includes('ntvlibs.cuda11.cublaslt64_11.runtime.win-x64.f00') &&
+      sttGpuEtaMgr.includes('ntvlibs.cuda11.cublaslt64_11.runtime.win-x64.f01') &&
+      sttGpuEtaMgr.includes('3d06ca4e4893adb7a153ecd23a540e92817c967312b44646d8c3f91b089196e6'),
+    'WhisperCppManager selects CUDA vs BLAS zip + DLL copy + cublas/cublasLt companions'
   );
   const sttGpuEtaDm = fs.readFileSync(
     path.resolve(__dirname, '../src/main/services/DownloadManager.ts'),

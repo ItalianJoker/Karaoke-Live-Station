@@ -10,6 +10,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/)-style sections.
 
 _(empty)_
 
+## [2.3.9] — Windows CUDA cublasLt companion — 2026-10-19
+
+Release **v2.3.9** completes the Windows CUDA STT redistributable chain: v2.3.7 installed `cublas64_11.dll` but that DLL hard-imports **`cublasLt64_11.dll`**, which the official whisper zip also omits — probe still hit `STATUS_DLL_NOT_FOUND` and soft-fell back to CPU BLAS. Now both companions are copied from a local CUDA 11.x Toolkit or fetched (Lt via NuGet fragments, SHA-256 verified). Soft-fail, STT ETA UI, Whisper model Settings (#94), and pipeline order unchanged. Package **2.3.9**.
+
+### Fixed
+- **IT/EN:** Windows CUDA STT: dopo `cublas64_11.dll` manca ancora `cublasLt64_11.dll` (~544 MB) → DLL_NOT_FOUND → fallback BLAS. Ora si assicura anche cublasLt (Toolkit o NuGet f00+f01).
+- **IT/EN:** After `cublas64_11.dll`, missing `cublasLt64_11.dll` still forced BLAS; companion install now covers the full ggml-cuda → cublas → cublasLt chain.
+
+### Changed
+- App version **2.3.9** in `package.json` / lockfile / CHANGELOG / RELEASE_NOTES / Settings footer.
+
+### Breaking Changes
+- None. ETA UI and Whisper model Settings unchanged. First CUDA ensure may download ~544 MB for cublasLt when Toolkit 11.x is absent.
+
 ## [2.3.8] — Settings Whisper Model Download — 2026-10-19
 
 Release **v2.3.8** completes **Impostazioni → Libreria & Download** Whisper STT management: **Scarica / Download** for catalog sizes not yet on disk (tiny→large-v3), status/size, Remove, and **In use** vs factory **Default (medium)**. Same `WhisperCppManager` / userData path; offline after download; no cloud STT. Package **2.3.8**.
