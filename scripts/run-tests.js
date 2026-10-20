@@ -3241,8 +3241,8 @@ assert(
     settingsModalSrcV13.includes('aiCpuThreads') &&
     settingsModalSrcV13.includes('autoMaximizeControlOnLaunch') &&
     settingsModalSrcV13.includes('autoOpenStageOnLaunch') &&
-    settingsModalShellV13.includes("useState('2.3.9')"),
-  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.9 footer state'
+    settingsModalShellV13.includes("useState('2.3.10')"),
+  'SettingsModal wider sidebar layout + launch/AI cores + v2.3.10 footer state'
 );
 
 // Instrumental block lives under Library tab component (shell still orders library before audio)
@@ -3262,10 +3262,10 @@ assert(
 const pkgV13 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
 const changelogV13 = fs.readFileSync(path.resolve(__dirname, '../CHANGELOG.md'), 'utf8');
 const releaseNotesV13 = fs.readFileSync(path.resolve(__dirname, '../RELEASE_NOTES.md'), 'utf8');
-assert(pkgV13.version === '2.3.9', 'package.json version is 2.3.9');
+assert(pkgV13.version === '2.3.10', 'package.json version is 2.3.10');
 assert(
-  changelogV13.includes('## [2.3.9]') || changelogV13.includes('## [2.3.8]'),
-  'CHANGELOG has ## [2.3.9] section'
+  changelogV13.includes('## [2.3.10]') || changelogV13.includes('## [2.3.9]'),
+  'CHANGELOG has ## [2.3.10] section'
 );
 assert(
   changelogV13.includes('## [2.3.4]') || changelogV13.includes('## [2.3.4] '),
@@ -3316,8 +3316,8 @@ assert(
   'CHANGELOG retains ## [1.3.0] section'
 );
 assert(
-  /v2\.3\.9|Version 2\.3\.9|Versione 2\.3\.9/.test(releaseNotesV13),
-  'RELEASE_NOTES mentions 2.3.9'
+  /v2\.3\.10|Version 2\.3\.10|Versione 2\.3\.10/.test(releaseNotesV13),
+  'RELEASE_NOTES mentions 2.3.10'
 );
 
 for (const lang of ['it', 'en', 'es', 'fr']) {
@@ -4161,7 +4161,7 @@ console.log('\n\x1b[36m▶ Suite: Safety-First modularization, virtualization, i
   );
 
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert(pkg.version === '2.3.9', 'package.json is 2.3.9 (new release cycle)');
+  assert(pkg.version === '2.3.10', 'package.json is 2.3.10 (new release cycle)');
 
   // Manual chapter parity markers (DnD / recursive scan / Bungee / AppImage SoundFont)
   for (const manual of [
@@ -5614,10 +5614,12 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
       timedSrc.includes('resolveKaraokeAssPath') &&
       timedSrc.includes('mergeTokensIntoWords') &&
       timedSrc.includes('extractWhisperWords') &&
+      timedSrc.includes('karaokeDisplayText') &&
+      timedSrc.includes('.toUpperCase()') &&
       timedSrc.includes('\\kf') &&
       timedSrc.includes('SttDisplayMode') &&
       !timedSrc.includes('mediaDir.startsWith(opts.libraryPath)'),
-    'timedKaraoke ASS \\kf + BPE merge + displayMode + hardened library path'
+    'timedKaraoke ASS \\kf + BPE merge + uppercase display + displayMode + hardened library path'
   );
   assert(
     timedSrc.includes("startsWith('\\u0120')") ||
@@ -5689,6 +5691,10 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
         displayMode: 'burn-in'
       });
       const ass = tk.timedScriptToAss(script);
+      // Strip ASS override tags so syllable pieces join for casing checks.
+      const assPlain = ass.replace(/\\{[^}]*\\}/g, '');
+      const line0 = script.lines[0];
+      const highlight = tk.wordHighlightState(line0, 200);
       const out = {
         wordTexts: words.map((w) => w.text),
         syllableCount: words[0] && words[0].syllables ? words[0].syllables.length : 0,
@@ -5696,6 +5702,14 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
         syllable1: words[0] && words[0].syllables ? words[0].syllables[1].text : null,
         displayMode: script.displayMode,
         hasKf: /\\\\kf\\d+/.test(ass),
+        assPlainHasAccantoUpper: assPlain.includes('ACCANTO'),
+        assPlainHasAccantoMixed: /Accanto/.test(assPlain),
+        assHasSyllableAccUpper: ass.includes('ACC') && ass.includes('ANTO'),
+        highlightText: highlight[0] && highlight[0].text,
+        highlightSyllable0: highlight[0] && highlight[0].syllables && highlight[0].syllables[0]
+          ? highlight[0].syllables[0].text
+          : null,
+        displayHelper: tk.karaokeDisplayText('Accanto'),
         langHintAuto: tk.resolveSttLanguageHint({ uiLanguage: 'autodetect' }),
         langHintIt: tk.resolveSttLanguageHint({ uiLanguage: 'it' })
       };
@@ -5727,6 +5741,15 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
       );
       assert(parsed.displayMode === 'burn-in', 'whisperJsonToTimedScript writes displayMode');
       assert(parsed.hasKf === true, 'timedScriptToAss emits \\kf karaoke tags');
+      assert(
+        parsed.displayHelper === 'ACCANTO' &&
+          parsed.assPlainHasAccantoUpper === true &&
+          parsed.assPlainHasAccantoMixed === false &&
+          parsed.assHasSyllableAccUpper === true &&
+          parsed.highlightText === 'ACCANTO' &&
+          parsed.highlightSyllable0 === 'ACC',
+        'karaokeDisplayText / ASS / Stage highlight show Accanto → ACCANTO (stored script stays mixed)'
+      );
       assert(
         parsed.langHintAuto == null && parsed.langHintIt === 'it',
         'resolveSttLanguageHint: autodetect→undefined, it→it'
@@ -5812,8 +5835,8 @@ console.log('\n▶ Suite: Karaoke STT overlay (whisper.cpp)');
 
   const pkg230 = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
   assert(
-    pkg230.version === '2.3.9',
-    'package.json is 2.3.9 (Windows CUDA cublasLt companion)'
+    pkg230.version === '2.3.10',
+    'package.json is 2.3.10 (STT karaoke uppercase display)'
   );
 
   // v2.3.5 — STT ETA + GPU/CPU (whisper.cpp, not ORT WebGPU)
